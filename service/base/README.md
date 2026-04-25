@@ -30,6 +30,10 @@ The top-level `config.yaml` sections are:
 - `strategy`
 - `providers`
 
+This runtime file is generated from the repository root `config.yaml` by
+`scripts/render-derived-configs.ps1`; the deployment template in
+`deploy/service/base/config.template.yaml` is an internal base template only.
+
 Only the minimal container environment variables remain canonical:
 
 - `EASY_EMAIL_CONFIG_PATH`
@@ -71,7 +75,7 @@ Key files there include:
 
 - `Dockerfile`
 - `docker-compose.yaml`
-- `config.template.yaml`
+- `config.template.yaml` (internal base template used by the root render script)
 - `docker-entrypoint.sh`
 - `publish-ghcr-easy-email-service.ps1`
 - `smoke-easy-email-docker-api.ps1`

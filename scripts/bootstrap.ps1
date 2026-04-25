@@ -3,6 +3,18 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
+function Invoke-Script {
+    param(
+        [string]$Path,
+        [string[]]$Arguments
+    )
+
+    & $Path @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Command failed: $Path $($Arguments -join ' ')"
+    }
+}
+
 function Invoke-InDirectory {
     param(
         [string]$Path,
@@ -28,3 +40,11 @@ Invoke-InDirectory (Join-Path $repoRoot "upstreams\\cloudflare_temp_email\\front
 
 Write-Host "Userscript runtime does not require package installation."
 
+Write-Host "Rendering derived config files..."
+$renderScript = Join-Path $repoRoot "scripts\\render-derived-configs.ps1"
+Invoke-Script -Path 'powershell' -Arguments @(
+    '-ExecutionPolicy', 'Bypass',
+    '-File', $renderScript,
+    '-ServiceBase',
+    '-CloudflareMail'
+)

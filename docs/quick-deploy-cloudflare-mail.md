@@ -6,6 +6,8 @@ mail deployment flow.
 ## What It Does
 
 - reads `config.yaml`
+- renders the worker `wrangler` config from the root config and an internal
+  template
 - optionally installs dependencies
 - builds the Cloudflare frontend
 - deploys the worker
@@ -38,6 +40,6 @@ pwsh .\scripts\quick-deploy-cloudflare-mail.ps1 -DryRun
 ## Notes
 
 - `cloudflareMail.routing` values are read from `config.yaml`
-- the quick deploy script uses temporary secret files for the Cloudflare helper
-  scripts and cleans them up after use
+- the quick deploy script uses temporary helper files for routing sync and
+  cleans them up after use
 - keep `config.yaml` local and untracked

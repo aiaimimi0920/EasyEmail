@@ -3,42 +3,37 @@
 This is the shortest path for an operator or AI agent that needs to deploy the
 Cloudflare temp-mail side of EasyEmail.
 
+## Single Config Rule
+
+Only edit the repository root `config.yaml`.
+
+The deploy scripts render everything else they need:
+
+- `scripts/render-derived-configs.ps1` renders the worker `wrangler` config
+- `scripts/deploy-cloudflare-email.ps1` calls the quick deploy flow
+- `scripts/quick-deploy-cloudflare-mail.ps1` builds the frontend and deploys the
+  worker using the rendered config
+
 ## Start Here
 
-1. Make sure `config.example.yaml` has been copied to the repository root
-   `config.yaml`.
-2. Put all Cloudflare temp mail deployment secrets into the root `config.yaml`
-   file, under the `cloudflareMail` section.
-3. If you want routing synchronization, fill in the routing secrets and the
-   `cloudflareMail.routing.plan` host list as well.
-4. Run the direct deploy entrypoint:
+1. Copy `config.example.yaml` to `config.yaml`.
+2. Fill in the `cloudflareMail` section in the root config.
+3. If you want routing synchronization, fill in `cloudflareMail.routing.plan`
+   and the routing secrets in the same root file.
+4. Run:
 
 ```powershell
 pwsh .\scripts\deploy-cloudflare-email.ps1
 ```
 
-## What The Config Needs
+## What The Root Config Needs
 
-The deploy script does not read secrets from scattered files. It reads the
-repository root `config.yaml`, specifically:
+The deploy scripts read the root `config.yaml`, specifically:
 
-```yaml
-cloudflareMail:
-  ...
-```
-
-Minimum fields:
-
-- `cloudflareMail.projectRoot`
-- `cloudflareMail.workerDir`
-- `cloudflareMail.frontendDir`
-- `cloudflareMail.workerName`
-- `cloudflareMail.workerEnv`
-- `cloudflareMail.buildFrontend`
-- `cloudflareMail.deployWorker`
-
-If routing sync is enabled:
-
+- `cloudflareMail.publicBaseUrl`
+- `cloudflareMail.publicDomain`
+- `cloudflareMail.worker.vars.PASSWORDS`
+- `cloudflareMail.worker.vars.JWT_SECRET`
 - `cloudflareMail.routing.mode`
 - `cloudflareMail.routing.plan.subdomainLabelPool`
 - `cloudflareMail.routing.plan.domains`
@@ -50,14 +45,13 @@ Concrete example:
 
 ```yaml
 cloudflareMail:
-  projectRoot: upstreams/cloudflare_temp_email
-  workerDir: worker
-  frontendDir: frontend
-  workerName: cloudflare_temp_email
-  workerEnv: production
-  buildFrontend: true
-  deployWorker: true
-  syncRouting: false
+  publicBaseUrl: https://mail.example.com
+  publicDomain: mail.example.com
+  worker:
+    vars:
+      PASSWORDS:
+        - change-me
+      JWT_SECRET: change-me
   routing:
     mode: exact
     plan:
@@ -75,30 +69,17 @@ cloudflareMail:
       globalApiKey: ""
 ```
 
-Interpretation:
+## What The Scripts Do
 
-- Only deploying frontend + worker: set `syncRouting: false`, leave routing
-  secrets blank.
-- Deploying and syncing DNS records: set `syncRouting: true`, fill in
-  `controlCenterDnsToken`.
-- Deploying and syncing Cloudflare Email Routing state: also fill in
-  `authEmail` and `globalApiKey`.
-- `routing.plan` is the only place where the host pool is defined. The deploy
-  script generates a temporary TOML plan file from that YAML data before it
-  invokes the lower-level routing sync tools.
-
-## What The Script Does
-
-The direct deploy script calls the existing quick deploy workflow and keeps the
-operator flow in one place:
-
-- builds the Cloudflare frontend
-- deploys the worker
-- optionally syncs Email Routing state and DNS
+- `scripts/render-derived-configs.ps1` merges the root config onto the internal
+  worker template and writes a temporary `wrangler` file.
+- `scripts/quick-deploy-cloudflare-mail.ps1` uses that rendered worker config to
+  build the frontend and deploy the worker.
+- `scripts/deploy-cloudflare-email.ps1` is the short operator entrypoint.
 
 ## Safe Dry Run
 
-Use the dry run mode if you want to verify the build and config flow without
+Use dry run mode if you want to verify the build and config flow without
 publishing:
 
 ```powershell
@@ -110,7 +91,7 @@ pwsh .\scripts\deploy-cloudflare-email.ps1 -DryRun -NoRoutingSync
 When reading this repository, the relevant order is:
 
 1. [configuration.md](./configuration.md)
-2. [cloudflare-email-deployment.md](./cloudflare-email-deployment.md)
+2. [scripts/render-derived-configs.ps1](../scripts/render-derived-configs.ps1)
 3. [scripts/deploy-cloudflare-email.ps1](../scripts/deploy-cloudflare-email.ps1)
 4. [scripts/quick-deploy-cloudflare-mail.ps1](../scripts/quick-deploy-cloudflare-mail.ps1)
 5. [deploy/upstreams/cloudflare_temp_email/README.md](../deploy/upstreams/cloudflare_temp_email/README.md)

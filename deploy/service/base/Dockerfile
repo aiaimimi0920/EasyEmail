@@ -22,7 +22,6 @@ COPY --from=builder /workspace/service/base/package-lock.json ./package-lock.jso
 COPY --from=builder /workspace/service/base/node_modules ./node_modules
 COPY --from=builder /workspace/service/base/dist ./dist
 
-COPY deploy/service/base/config.template.yaml /opt/easy-email/config.template.yaml
 COPY deploy/service/base/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 RUN apt-get -o Acquire::Retries=5 update \
@@ -34,7 +33,7 @@ RUN apt-get -o Acquire::Retries=5 update \
     && sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
     && chmod +x /usr/local/bin/docker-entrypoint.sh \
     && mkdir -p /etc/easy-email /var/lib/easy-email/state \
-    && chown -R easy:easy /etc/easy-email /var/lib/easy-email /opt/easy-email
+    && chown -R easy:easy /etc/easy-email /var/lib/easy-email
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

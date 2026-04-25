@@ -1,11 +1,11 @@
 # Build Userscript
 
 Use `scripts/compile-userscript.ps1` to generate a local userscript with secrets
-injected from `config.yaml`.
+injected from the root `config.yaml`.
 
 ## What It Does
 
-- reads `config.yaml`
+- reads the root `config.yaml`
 - loads `userscript.secrets`
 - replaces the local secret placeholders in the tracked template script
 - writes `runtimes/userscript/easy_email_proxy.local.user.js`
@@ -28,4 +28,3 @@ pwsh .\scripts\compile-userscript.ps1 -CopyToClipboard
 - the generated local userscript is ignored by Git
 - the tracked template remains secret-free
 - keep `config.yaml` local
-

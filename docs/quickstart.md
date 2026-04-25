@@ -7,7 +7,54 @@ git clone <your-repo-url> EasyEmail
 Set-Location EasyEmail
 ```
 
-## 2. Work On The Local Service Runtime
+## 2. Edit The Root Config Once
+
+Copy `config.example.yaml` to `config.yaml` and edit only that file.
+
+All service, userscript, and Cloudflare deployment settings are derived from it.
+
+## 3. Prepare The Local Service Runtime
+
+Render the service config from the root config and start the service:
+
+```powershell
+pwsh .\scripts\deploy-service-base.ps1
+```
+
+If you only want to render the generated config file without starting Docker:
+
+```powershell
+pwsh .\scripts\render-derived-configs.ps1 -ServiceBase
+```
+
+## 4. Work On The Userscript Runtime
+
+Generate the local userscript from the root config:
+
+```powershell
+pwsh .\scripts\compile-userscript.ps1
+```
+
+The generated `easy_email_proxy.local.user.js` is intentionally ignored and must
+not be committed.
+
+## 5. Deploy The Cloudflare Temp Mail Runtime
+
+Use the single operator entrypoint:
+
+```powershell
+pwsh .\scripts\deploy-cloudflare-email.ps1
+```
+
+For a dry run:
+
+```powershell
+pwsh .\scripts\deploy-cloudflare-email.ps1 -DryRun -NoRoutingSync
+```
+
+## 6. Validate The Repositories
+
+Service runtime:
 
 ```powershell
 Set-Location service/base
@@ -17,32 +64,7 @@ npm run test
 npm run build
 ```
 
-Run the service locally:
-
-```powershell
-npm run dev
-```
-
-## 3. Work On The Userscript Runtime
-
-Template assets live in `runtimes/userscript`.
-
-Private local setup:
-
-1. Copy `easy_email_proxy.secrets.example.json` to `easy_email_proxy.secrets.local.json`
-2. Fill in your private local values
-3. Run:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\runtimes\userscript\generate_local_userscript.ps1
-```
-
-The generated `easy_email_proxy.local.user.js` is intentionally ignored and must
-not be committed.
-
-## 4. Work On The Cloudflare Temp Mail Upstream Runtime
-
-Worker:
+Cloudflare worker upstream:
 
 ```powershell
 Set-Location upstreams/cloudflare_temp_email/worker
@@ -51,7 +73,7 @@ corepack pnpm lint
 corepack pnpm build
 ```
 
-Frontend:
+Cloudflare frontend upstream:
 
 ```powershell
 Set-Location ..\frontend
@@ -60,10 +82,8 @@ corepack pnpm test
 corepack pnpm build
 ```
 
-## 5. Deployment Assets
+## 7. Rule Of Thumb
 
-- `deploy/service/base`
-- `deploy/upstreams/cloudflare_temp_email`
-
-Use the example or template files first. Do not commit live deployment state.
-
+- edit only the root `config.yaml`
+- do not hand-edit generated files
+- if a generated config looks stale, rerender it from the root file

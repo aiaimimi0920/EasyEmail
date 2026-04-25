@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "node scripts/run-with-root-config.mjs dev",
     "lint": "eslint src",
-    "deploy": "wrangler deploy --minify",
-    "start": "wrangler dev",
-    "build": "wrangler deploy --dry-run --outdir dist --minify"
+    "deploy": "node scripts/run-with-root-config.mjs deploy",
+    "start": "node scripts/run-with-root-config.mjs dev",
+    "build": "node scripts/run-with-root-config.mjs build"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260420.1",

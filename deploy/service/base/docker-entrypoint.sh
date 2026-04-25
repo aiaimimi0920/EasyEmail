@@ -19,8 +19,9 @@ STATE_LAYOUT_DIR="${STATE_DIR}/state"
 mkdir -p "$(dirname "$CONFIG_PATH")" "$STATE_DIR" "$STATE_LAYOUT_DIR"
 
 if [ ! -f "$CONFIG_PATH" ]; then
-  cp /opt/easy-email/config.template.yaml "$CONFIG_PATH"
-  echo "[easy-email] generated default config at $CONFIG_PATH"
+  echo "[easy-email] missing generated runtime config at $CONFIG_PATH" >&2
+  echo "[easy-email] render it from the repository root config.yaml before starting the container" >&2
+  exit 1
 fi
 
 case "$(echo "$RESET_STORE_ON_BOOT" | tr '[:upper:]' '[:lower:]')" in

@@ -99,5 +99,7 @@ After completing any feature, bug fix, or improvement, **always check**:
 
 ## Config
 
-- Worker settings in `worker/wrangler.toml` (see `wrangler.toml.template` for bindings).
+- Worker settings are rendered from the EasyEmail root `config.yaml` into a
+  temporary `worker/wrangler.toml` for deployment. Treat
+  `wrangler.toml.template` as the internal base template only.
 - Frontend uses `VITE_*` env vars. Don't commit secrets.

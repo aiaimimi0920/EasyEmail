@@ -67,8 +67,8 @@ npm run build
 
 ### Browser userscript runtime
 
-Read `runtimes/userscript/README.md` and generate a local userscript from the
-template plus your private secrets file.
+Read `runtimes/userscript/README.md` and generate a local userscript directly
+from the root `config.yaml`.
 
 ### Cloudflare temp mail upstream runtime
 
@@ -94,8 +94,10 @@ corepack pnpm build
 ## Operator Scripts
 
 - `scripts/init-config.ps1`
+- `scripts/render-derived-configs.ps1`
 - `scripts/compile-userscript.ps1`
 - `scripts/compile-service-base-image.ps1`
+- `scripts/deploy-service-base.ps1`
 - `scripts/deploy-cloudflare-email.ps1`
 - `scripts/quick-deploy-cloudflare-mail.ps1`
 
@@ -104,6 +106,18 @@ corepack pnpm build
 Copy `config.example.yaml` to `config.yaml` before running the operator scripts.
 The `config.yaml` file is ignored by Git and is used as the single source of
 operator secrets for the scripts above.
+
+For `service/base`, `scripts/render-derived-configs.ps1` renders
+`deploy/service/base/config/config.yaml` from the root config and the internal
+service template. For Cloudflare mail deployment, the same render step creates a
+temporary worker `wrangler` config under `.tmp/`.
+
+The main root sections are:
+
+- `userscript`
+- `serviceBase.runtime`
+- `cloudflareMail.worker`
+- `cloudflareMail.routing.plan`
 
 For Cloudflare temp mail deployment specifically, put deployment secrets in the
 root `config.yaml` file under the `cloudflareMail` section. The direct deploy
@@ -117,5 +131,5 @@ file during deployment.
 
 - Do not commit local deployment config, state, or generated userscript files.
 - Do not commit live API tokens, auth headers, or database identifiers.
-- The tracked `upstreams/cloudflare_temp_email/worker/wrangler.toml` is a public
-  example config and must stay sanitized.
+- Internal templates may stay in the repository, but user-edited runtime values
+  must live only in the root `config.yaml`.

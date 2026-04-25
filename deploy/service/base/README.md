@@ -1,4 +1,4 @@
-# EasyEmail Deployment Workspace
+# EasyEmail Service Deployment
 
 This directory contains deployment assets for `service/base`.
 
@@ -14,18 +14,20 @@ share the same compose boundary as unrelated application services.
   - `EASY_EMAIL_STATE_DIR`
   - `EASY_EMAIL_RESET_STORE_ON_BOOT`
 
-Provider and service settings belong in `config.yaml`, not in a large set of
-`EASY_EMAIL_SERVICE_*` environment variables.
+Provider and service settings belong in the root `config.yaml`, not in a large
+set of `EASY_EMAIL_SERVICE_*` environment variables.
+
+The runtime config that the container consumes is generated from the root
+`config.yaml` by `scripts/render-derived-configs.ps1`.
 
 ## Key Files
 
 - `Dockerfile`: build the EasyEmail service image
 - `docker-compose.yaml`: local Docker Compose entrypoint
-- `config.template.yaml`: public-safe config template
+- `config.template.yaml`: internal base template used by the render script
 - `docker-entrypoint.sh`: container startup entrypoint
 - `publish-ghcr-easy-email-service.ps1`: GHCR publish helper
 - `smoke-easy-email-docker-api.ps1`: smoke helper for the container API
-- `config/provider-keys.env.example`: minimal example of provider key values
 
 ## Quick Start
 
@@ -33,7 +35,7 @@ From the repository root:
 
 ```powershell
 Set-Location C:\Users\Public\nas_home\AI\GameEditor\EasyEmail
-docker compose -f .\deploy\service\base\docker-compose.yaml up -d --build
+pwsh .\scripts\deploy-service-base.ps1
 ```
 
 Default host port:
@@ -42,10 +44,10 @@ Default host port:
 
 ## Notes
 
-- if you mount a real config into the container, `server.host` must bind to `0.0.0.0`
-- `maintenance.activeProbeEnabled` should stay `true`
 - the public repository keeps only templates and empty-state placeholders
 - live runtime state must not be committed
+- if you want to render the config without starting Docker, use
+  `scripts/render-derived-configs.ps1 -ServiceBase`
 
 ## Smoke Test
 

@@ -1,78 +1,92 @@
 # Configuration
 
-The repository uses a single operator-facing config file:
+EasyEmail uses one human-edited operator config file:
 
 - `config.example.yaml`
-- `config.yaml` copied from the example and kept local
+- your local copy `config.yaml`
+
+Everything else is derived from that file by scripts.
+
+Internal templates still exist in the repo for generation purposes, but they are
+not the user-facing source of truth:
+
+- `deploy/service/base/config.template.yaml`
+- `upstreams/cloudflare_temp_email/worker/wrangler.toml.template`
+
+## Source Of Truth
+
+Start by copying `config.example.yaml` to `config.yaml`, then edit only the
+root file. The root config is the only place where you should add or change
+deployment values, secrets, or runtime overrides.
+
+The render script is:
+
+- `scripts/render-derived-configs.ps1`
+
+It generates derived internal files from the root config:
+
+- `deploy/service/base/config/config.yaml`
+- `.tmp/cloudflare_temp_email.wrangler.toml`
 
 ## Sections
-
-All operator secrets live in the repository root `config.yaml`. Start by
-copying `config.example.yaml` to `config.yaml`, then fill in only the sections
-you actually plan to use.
 
 ### `userscript`
 
 Used by `scripts/compile-userscript.ps1`.
 
-Required fields:
-
-- `sourcePath`
-- `outputPath`
-- `secrets.cloudflare_customAuth`
-- `secrets.cloudflare_adminAuth`
-- `secrets.moemail_apiKey`
-- `secrets.gptmail_apiKey`
-- `secrets.im215_apiKey`
+This section contains the browser userscript runtime settings and secrets.
+Secrets stay in the root `config.yaml`; no separate secrets file is needed.
 
 ### `serviceBase`
 
-Used by `scripts/compile-service-base-image.ps1`.
+Used by `scripts/render-derived-configs.ps1` and `scripts/deploy-service-base.ps1`.
 
-Required fields:
+- `serviceBase.context`, `serviceBase.dockerfile`, and `serviceBase.image` are
+  build/deploy metadata.
+- `serviceBase.runtime` is a partial overlay that gets merged onto
+  `deploy/service/base/config.template.yaml` to produce the generated runtime
+  config.
 
-- `context`
-- `dockerfile`
-- `image`
+If you want to change provider settings, server auth, persistence, or other
+runtime values, do it under `serviceBase.runtime`.
 
 ### `cloudflareMail`
 
-Used by `scripts/quick-deploy-cloudflare-mail.ps1` and
+Used by `scripts/render-derived-configs.ps1`,
+`scripts/quick-deploy-cloudflare-mail.ps1`, and
 `scripts/deploy-cloudflare-email.ps1`.
 
-This is the section that controls Cloudflare temp mail deployment. If you are
-asking "where do I put the Cloudflare deploy secrets?", the answer is: in the
-root `config.yaml`, under `cloudflareMail`.
+- `cloudflareMail.publicBaseUrl` and `cloudflareMail.publicDomain` are the
+  public-facing worker endpoint.
+- `cloudflareMail.worker` is a partial overlay that gets merged onto
+  `upstreams/cloudflare_temp_email/worker/wrangler.toml.template`.
+- `cloudflareMail.routing.plan` is the routing host plan used to generate the
+  temporary plan file for Email Routing sync.
 
-Required fields:
-
-- `projectRoot`
-- `workerDir`
-- `frontendDir`
-- `workerName`
-- `workerEnv`
-- `buildFrontend`
-- `deployWorker`
-- `syncRouting`
-- `routing.mode`
-- `routing.plan.subdomainLabelPool`
-- `routing.plan.domains`
-- `routing.controlCenterDnsToken`
-- `routing.cloudflareGlobalAuth.authEmail`
-- `routing.cloudflareGlobalAuth.globalApiKey`
-
-Minimal example:
+## Example
 
 ```yaml
+serviceBase:
+  context: .
+  dockerfile: deploy/service/base/Dockerfile
+  image: easyemail/easy-email-service:local
+  runtime:
+    server:
+      apiKey: ""
+    providers:
+      cloudflareTempEmail:
+        baseUrl: https://mail.example.com
+        apiKey: ""
+        domain: mail.example.com
+
 cloudflareMail:
-  projectRoot: upstreams/cloudflare_temp_email
-  workerDir: worker
-  frontendDir: frontend
-  workerName: cloudflare_temp_email
-  workerEnv: production
-  buildFrontend: true
-  deployWorker: true
-  syncRouting: false
+  publicBaseUrl: https://mail.example.com
+  publicDomain: mail.example.com
+  worker:
+    vars:
+      PASSWORDS:
+        - change-me
+      JWT_SECRET: change-me
   routing:
     mode: exact
     plan:
@@ -84,26 +98,10 @@ cloudflareMail:
         - mail.example.com
         - example.com
         - "*.example.com"
-    controlCenterDnsToken: ""
-    cloudflareGlobalAuth:
-      authEmail: ""
-      globalApiKey: ""
 ```
-
-Notes:
-
-- If `syncRouting: false`, you can leave the routing secrets blank.
-- If `syncRouting: true`, fill in `routing.controlCenterDnsToken` for DNS sync.
-- If you also want routing state sync, fill in
-  `routing.cloudflareGlobalAuth.authEmail` and
-  `routing.cloudflareGlobalAuth.globalApiKey`.
-- `routing.plan` is the single source of truth for the Cloudflare email routing
-  host plan. The deploy script writes a temporary TOML plan file from it before
-  calling the lower-level sync tools.
-- Do not commit `config.yaml`.
 
 ## Security Rules
 
 - never commit `config.yaml`
-- never commit generated local userscripts
+- never commit generated derived files
 - never commit live tokens or auth keys into example files

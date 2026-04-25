@@ -12,6 +12,8 @@ $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot 'lib\easyemail-config.ps1')
 
+$resolvedConfigPath = Resolve-EasyEmailPath -Path $ConfigPath
+
 function Invoke-InDirectory {
     param(
         [Parameter(Mandatory = $true)]
@@ -135,7 +137,7 @@ function Write-CloudflareRoutingPlanFile {
     return $path
 }
 
-$config = Read-EasyEmailConfig -ConfigPath $ConfigPath
+$config = Read-EasyEmailConfig -ConfigPath $resolvedConfigPath
 $cloudflare = Get-EasyEmailSection -Config $config -Name 'cloudflareMail'
 if ($null -eq $cloudflare) {
     throw 'Missing cloudflareMail section in config.yaml.'
@@ -146,6 +148,8 @@ $workerDir = Resolve-EasyEmailPath -Path (Join-Path $projectRoot (Get-EasyEmailC
 $frontendDir = Resolve-EasyEmailPath -Path (Join-Path $projectRoot (Get-EasyEmailConfigValue -Object $cloudflare -Name 'frontendDir' -Default 'frontend'))
 $routing = Get-EasyEmailSection -Config $cloudflare -Name 'routing'
 $routingPlan = Get-EasyEmailSection -Config $routing -Name 'plan'
+$renderScript = Join-Path $PSScriptRoot 'render-derived-configs.ps1'
+$renderedWorkerWrangler = Join-Path $PSScriptRoot '..\.tmp\cloudflare_temp_email.wrangler.toml'
 $buildFrontend = [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'buildFrontend' -Default $true)
 $deployWorker = [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'deployWorker' -Default $true)
 $syncRouting = -not $NoRoutingSync -and [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'syncRouting' -Default $false)
@@ -159,6 +163,8 @@ $effectiveSyncMode = if ($PSBoundParameters.ContainsKey('SyncMode')) {
 if (-not (Test-Path -LiteralPath $workerDir)) {
     throw "Worker directory not found: $workerDir"
 }
+
+& $renderScript -ConfigPath $resolvedConfigPath -CloudflareMail -WorkerOutput $renderedWorkerWrangler
 
 if ($buildFrontend) {
     Write-Host "Building cloudflare frontend..." -ForegroundColor Cyan
@@ -174,11 +180,11 @@ if ($deployWorker) {
         Invoke-Tool -Executable 'corepack' -Arguments @('pnpm', 'install', '--frozen-lockfile') -WorkingDirectory $workerDir
     }
     if ($DryRun) {
-        Invoke-Tool -Executable 'corepack' -Arguments @('pnpm', 'build') -WorkingDirectory $workerDir
+        $workerArgs = @('pnpm', 'exec', 'wrangler', 'deploy', '--config', $renderedWorkerWrangler, '--dry-run', '--outdir', 'dist', '--minify')
+        Invoke-Tool -Executable 'corepack' -Arguments $workerArgs -WorkingDirectory $workerDir
     } else {
-        $deployArgs = @('pnpm', 'deploy')
+        $deployArgs = @('pnpm', 'exec', 'wrangler', 'deploy', '--config', $renderedWorkerWrangler, '--minify')
         if (-not [string]::IsNullOrWhiteSpace($workerEnv) -and $workerEnv -ne 'production') {
-            $deployArgs += '--'
             $deployArgs += '--env'
             $deployArgs += $workerEnv
         }

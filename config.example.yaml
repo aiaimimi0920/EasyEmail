@@ -19,8 +19,22 @@ serviceBase:
   context: .
   dockerfile: deploy/service/base/Dockerfile
   image: easyemail/easy-email-service:local
+  runtime:
+    server:
+      apiKey: ""
+    providers:
+      cloudflareTempEmail:
+        baseUrl: https://mail.example.com
+        apiKey: ""
+        domain: mail.example.com
+        domains:
+          - mail.example.com
+        randomSubdomainDomains:
+          - mail.example.com
 
 cloudflareMail:
+  publicBaseUrl: https://mail.example.com
+  publicDomain: mail.example.com
   projectRoot: upstreams/cloudflare_temp_email
   workerDir: worker
   frontendDir: frontend
@@ -29,6 +43,15 @@ cloudflareMail:
   buildFrontend: true
   deployWorker: true
   syncRouting: false
+  worker:
+    vars:
+      PASSWORDS:
+        - change-me
+      JWT_SECRET: change-me
+    d1_databases:
+      - binding: DB
+        database_name: cloudflare-temp-email
+        database_id: "00000000-0000-0000-0000-000000000000"
   routing:
     mode: exact
     plan:
