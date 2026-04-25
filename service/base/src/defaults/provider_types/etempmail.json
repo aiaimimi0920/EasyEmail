@@ -1,0 +1,8 @@
+{
+  "key": "etempmail",
+  "displayName": "eTempMail",
+  "description": "eTempMail.com temporary inbox provider with cookie-backed sessions and recover-key restoration.",
+  "supportsDynamicProvisioning": false,
+  "defaultStrategyKey": "free-first",
+  "tags": ["external", "connector", "anonymous", "free", "cookie-backed"]
+}

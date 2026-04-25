@@ -1,0 +1,8 @@
+{
+  "key": "m2u",
+  "displayName": "MailToYou",
+  "description": "MailToYou temporary mailbox provider via public REST + SSE API.",
+  "supportsDynamicProvisioning": false,
+  "defaultStrategyKey": "free-first",
+  "tags": ["external", "connector", "anonymous", "free"]
+}

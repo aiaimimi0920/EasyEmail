@@ -1,0 +1,9 @@
+﻿{
+  "id": "strategy_free_first",
+  "key": "free-first",
+  "displayName": "Money / Free First",
+  "description": "Prefer free-capacity instances before paid runtimes.",
+  "metadata": {
+    "category": "preset"
+  }
+}

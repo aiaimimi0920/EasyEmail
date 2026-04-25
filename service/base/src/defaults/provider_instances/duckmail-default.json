@@ -1,0 +1,21 @@
+{
+  "id": "duckmail_shared_default",
+  "providerTypeKey": "duckmail",
+  "displayName": "DuckMail Default",
+  "status": "active",
+  "runtimeKind": "external",
+  "connectorKind": "duckmail-connector",
+  "shared": true,
+  "costTier": "free",
+  "healthScore": 0.82,
+  "averageLatencyMs": 430,
+  "connectionRef": "external://duckmail/default",
+  "hostBindings": [],
+  "groupKeys": [],
+  "metadata": {
+    "tier": "default",
+    "apiBase": "https://api.duckmail.sbs"
+  },
+  "createdAt": "",
+  "updatedAt": ""
+}

@@ -1,0 +1,22 @@
+﻿{
+  "id": "gptmail_shared_default",
+  "providerTypeKey": "gptmail",
+  "displayName": "GPT Mail Default",
+  "status": "active",
+  "runtimeKind": "external",
+  "connectorKind": "gptmail-connector",
+  "shared": true,
+  "costTier": "free",
+  "healthScore": 0.92,
+  "averageLatencyMs": 380,
+  "connectionRef": "external://gptmail/default",
+  "hostBindings": [],
+  "groupKeys": [],
+  "metadata": {
+    "tier": "default",
+    "baseUrl": "https://mail.chatgpt.org.uk",
+    "timeoutSeconds": "30"
+  },
+  "createdAt": "",
+  "updatedAt": ""
+}

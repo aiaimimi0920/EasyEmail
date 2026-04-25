@@ -1,0 +1,10 @@
+﻿{
+  "id": "strategy_custom_priority",
+  "key": "custom-priority",
+  "displayName": "Custom Priority",
+  "description": "Use an explicit instance ordering declared by operators.",
+  "preferredInstanceIds": [],
+  "metadata": {
+    "category": "custom"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "deployment_platform_auth": {
+    "cloudflare": {
+      "auth_email": "replace-me@example.com",
+      "global_api_key": "replace-me"
+    }
+  }
+}

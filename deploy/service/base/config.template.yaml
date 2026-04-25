@@ -1,0 +1,109 @@
+server:
+  host: 0.0.0.0
+  port: 8080
+  # 建议启用 Bearer Token，供其他程序通过 Authorization: Bearer <token> 访问
+  # apiKey: "replace-with-bearer-token"
+
+strategy:
+  strictProviderMode: false
+  providerStrategyModeId: available-first
+
+aliasEmail:
+  providers:
+    - key: ddg
+      enabled: false
+      apiBaseUrl: https://quack.duckduckgo.com
+      # tokens:
+      #   - "ddg-token-1"
+      #   - "ddg-token-2"
+      # tokensText: |
+      #   ddg-token-1
+      #   ddg-token-2
+      # tokensFile: secrets/ddg-tokens.txt
+      dailyLimit: 150
+      cooldownMs: 86400000
+      stateFilePath: state/ddg-alias-key-pool.json
+
+maintenance:
+  enabled: true
+  intervalMs: 30000
+  keepRecentCount: 5
+  keepRecentSessionCount: 5000
+  # 启动后至少会先做一次 provider probe；这里控制后续是否周期性重探活。
+  activeProbeEnabled: true
+  activeProbeIntervalMs: 30000
+
+persistence:
+  enabled: true
+  driver: file
+  intervalMs: 60000
+  filePath: state/easy-email-state.json
+  databasePath: state/easy-email-state.sqlite3
+
+providers:
+  enabledProviders:
+    - cloudflare_temp_email
+    - mailtm
+    - m2u
+    - mail2925
+    - guerrillamail
+    - moemail
+    - im215
+    - duckmail
+    - tempmail-lol
+    - etempmail
+    - gptmail
+
+  cloudflareTempEmail:
+    baseUrl: https://mail.example.com
+    apiKey: ""
+    domain: mail.example.com
+    domains:
+      - mail.example.com
+    # 仅 cloudflare_temp_email 支持随机二级域名模式。
+    # EasyEmail 在 requestRandomSubdomain=true 时会优先从这个集合里选择父域；
+    # 如果 /open_api/settings 已返回 randomSubdomainDomains，运行时 probe 会自动回填。
+    randomSubdomainDomains:
+      - mail.example.com
+    instanceId: cloudflare_temp_email_shared_default
+    displayName: Cloudflare Temp Email Shared Runtime
+    templateId: cloudflare_temp_email_worker_default
+    deploymentTarget: worker-node
+    groupKeys:
+      - shared
+    shared: true
+
+  moemail:
+    # baseUrl: https://sall.cc
+    # apiKey: ""
+    # domain: sall.cc
+    # expiryTimeMs: 3600000
+    # webSessionToken: ""
+    # webCsrfToken: ""
+    # webCallbackUrl: "https%3A%2F%2Fsall.cc"
+    # webReferer: "https://sall.cc/zh-CN/moe"
+
+  im215:
+    # baseUrl: https://maliapi.215.im/v1
+    # apiKey: ""
+    # autoDomainStrategy: balanced
+
+  mail2925:
+    # baseUrl: https://mail.2925.com
+    # account: demo@2925.com
+    # password: "replace-with-password"
+    # accountsText: |
+    #   demo@2925.com|replace-with-password
+    #   label|demo2@2925.com|replace-with-password
+    # domain: 2925.com
+    # folderName: Inbox
+    # aliasSeparator: _
+    # aliasSuffixLength: 10
+    # timeoutSeconds: 20
+
+  gptmail:
+    # baseUrl: https://mail.chatgpt.org.uk
+    # apiKey: ""
+    # freeKeysText: |
+    #   key1
+    #   key2

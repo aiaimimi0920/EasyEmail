@@ -1,0 +1,8 @@
+{
+  "key": "im215",
+  "displayName": "215.im",
+  "description": "215.im / YYDS Mail API-key temporary inbox provider.",
+  "supportsDynamicProvisioning": false,
+  "defaultStrategyKey": "free-first",
+  "tags": ["external", "connector", "api-key", "anonymous", "free"]
+}

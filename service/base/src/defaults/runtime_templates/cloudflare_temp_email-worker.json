@@ -1,0 +1,14 @@
+﻿{
+  "id": "cloudflare_temp_email_worker_default",
+  "providerTypeKey": "cloudflare_temp_email",
+  "displayName": "Cloudflare Temp Email Worker Runtime",
+  "description": "Deployable shared runtime for verification inbox processing on a managed worker node.",
+  "roleKey": "mail-cloudflare_temp_email-runtime",
+  "sharedByDefault": true,
+  "metadata": {
+    "domain": "mail.internal.local",
+    "deploymentTarget": "worker-node",
+    "baseUrl": "",
+    "customAuth": ""
+  }
+}

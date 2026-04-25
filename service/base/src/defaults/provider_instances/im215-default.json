@@ -1,0 +1,23 @@
+{
+  "id": "im215_shared_default",
+  "providerTypeKey": "im215",
+  "displayName": "215.im Default",
+  "status": "offline",
+  "runtimeKind": "external",
+  "connectorKind": "im215-api",
+  "shared": true,
+  "costTier": "free",
+  "healthScore": 0.74,
+  "averageLatencyMs": 480,
+  "connectionRef": "external://im215/default",
+  "hostBindings": [],
+  "groupKeys": [],
+  "metadata": {
+    "tier": "default",
+    "apiBase": "https://maliapi.215.im/v1",
+    "autoDomainStrategy": "balanced",
+    "requiresApiKey": "true"
+  },
+  "createdAt": "",
+  "updatedAt": ""
+}

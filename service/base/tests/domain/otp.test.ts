@@ -1,0 +1,88 @@
+﻿import { describe, expect, it } from "vitest";
+import { extractOtpFromContent } from "../../src/domain/otp.js";
+
+describe("extractOtpFromContent", () => {
+  it("prefers contextual verification codes over unrelated numbers", () => {
+    const extracted = extractOtpFromContent({
+      subject: "Order #834211 has shipped",
+      textBody: "Your verification code is 654321. Ignore tracking number 834211.",
+    });
+
+    expect(extracted).toMatchObject({
+      code: "654321",
+      source: "text",
+    });
+  });
+
+  it("rejects suspicious standalone order-like numbers without verification context", () => {
+    const extracted = extractOtpFromContent({
+      textBody: "Order number 123456 has been processed successfully.",
+    });
+
+    expect(extracted).toBeUndefined();
+  });
+
+  it("still accepts a single subject-only six digit code when no better context exists", () => {
+    const extracted = extractOtpFromContent({
+      subject: "731942",
+    });
+
+    expect(extracted).toEqual({
+      code: "731942",
+      source: "subject",
+    });
+  });
+
+  it("avoids ambiguous multiple standalone codes with no verification context", () => {
+    const extracted = extractOtpFromContent({
+      textBody: "Use room 112233 and invoice 445566 for support.",
+    });
+
+    expect(extracted).toBeUndefined();
+  });
+
+  it("accepts five-digit numeric codes when verification context is present", () => {
+    const extracted = extractOtpFromContent({
+      textBody: "Your login code is 48392 and expires in 10 minutes.",
+    });
+
+    expect(extracted).toEqual({
+      code: "48392",
+      source: "text",
+    });
+  });
+
+  it("accepts alphanumeric verification tokens with strong context", () => {
+    const extracted = extractOtpFromContent({
+      textBody: "Verification code: A7X9Q2. Enter it to continue.",
+    });
+
+    expect(extracted).toEqual({
+      code: "A7X9Q2",
+      source: "text",
+    });
+  });
+
+  it("accepts grouped longer tokens with strong context", () => {
+    const extracted = extractOtpFromContent({
+      textBody: "Use confirmation code ZX-41Q8-PLM7 to finish linking this device.",
+    });
+
+    expect(extracted).toEqual({
+      code: "ZX-41Q8-PLM7",
+      source: "text",
+    });
+  });
+
+  it("keeps six digit numeric companions available when a longer token also appears", () => {
+    const extracted = extractOtpFromContent({
+      textBody: "Verification code: PByiiEBh0KJ2FbhUKD. Backup login code: 654321.",
+    });
+
+    expect(extracted).toBeDefined();
+    expect(extracted).toMatchObject({
+      code: "654321",
+      source: "text",
+    });
+  });
+});

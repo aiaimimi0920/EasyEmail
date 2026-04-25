@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs
+*.log
+logs/
+
+# Runtime cache
+runtime/cache/
+runtime/logs/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db

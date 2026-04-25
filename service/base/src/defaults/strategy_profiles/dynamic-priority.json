@@ -1,0 +1,9 @@
+﻿{
+  "id": "strategy_dynamic_priority",
+  "key": "dynamic-priority",
+  "displayName": "Dynamic Priority",
+  "description": "Prefer healthier and lower-latency instances first.",
+  "metadata": {
+    "category": "preset"
+  }
+}

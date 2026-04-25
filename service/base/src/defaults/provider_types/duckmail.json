@@ -1,0 +1,8 @@
+{
+  "key": "duckmail",
+  "displayName": "DuckMail",
+  "description": "Externally managed provider connector for verification inbox sessions.",
+  "supportsDynamicProvisioning": false,
+  "defaultStrategyKey": "free-first",
+  "tags": ["external", "connector"]
+}

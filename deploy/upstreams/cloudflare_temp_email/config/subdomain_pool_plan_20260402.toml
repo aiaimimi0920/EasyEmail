@@ -1,0 +1,115 @@
+# cloudflare_temp_email domain pool plan
+# Date: 2026-04-02
+#
+# Special rules:
+# 1. `mail.aiaimimi.com` is kept as an exact selectable domain.
+# 2. No other `*.aiaimimi.com` subdomains are used.
+# 3. All `yamiyu*` domains are excluded from mailbox domain selection.
+# 4. Every other domain keeps both:
+#    - the exact domain itself
+#    - 100 generated second-level subdomains via `SUBDOMAIN_LABEL_POOL`
+#
+# Important:
+# Cloudflare Email Routing must already be configured for every generated subdomain,
+# otherwise these addresses may be selectable but will not actually receive mail.
+
+SUBDOMAIN_LABEL_POOL = [
+  "amber", "apple", "arbor", "ash", "atlas", "basil", "beacon", "berry", "birch", "bloom",
+  "breeze", "brook", "cedar", "charm", "cinder", "citrus", "clay", "cliff", "clover", "coast",
+  "coral", "cove", "daisy", "dawn", "delta", "drift", "dune", "echo", "ember", "fern",
+  "field", "finch", "flora", "flint", "foam", "forest", "frost", "gale", "glade", "glow",
+  "grove", "harbor", "hazel", "hollow", "honey", "iris", "ivy", "jade", "lake", "laurel",
+  "leaf", "linen", "lotus", "maple", "meadow", "mist", "moon", "moss", "nectar", "north",
+  "oasis", "ocean", "olive", "opal", "orchid", "pearl", "pebble", "pine", "plum", "quartz",
+  "rain", "raven", "reef", "ridge", "river", "robin", "rose", "sage", "shadow", "shore",
+  "silver", "slate", "snow", "solar", "spark", "spring", "star", "stone", "storm", "sunset",
+  "swift", "tide", "trail", "vale", "violet", "willow", "wind", "winter", "wren", "zephyr"
+]
+
+DOMAINS = [
+  "mail.aiaimimi.com",
+
+  "aiaiai.cc.cd", "*.aiaiai.cc.cd",
+  "aiaiai.us.ci", "*.aiaiai.us.ci",
+  "aiaimimi.cc.cd", "*.aiaimimi.cc.cd",
+  "aiaimimi.us.ci", "*.aiaimimi.us.ci",
+  "aimiaimi.cc.cd", "*.aimiaimi.cc.cd",
+  "aimiaimi.us.ci", "*.aimiaimi.us.ci",
+  "artai.cc.cd", "*.artai.cc.cd",
+  "artai.us.ci", "*.artai.us.ci",
+  "artcore.cc.cd", "*.artcore.cc.cd",
+  "arth.cc.cd", "*.arth.cc.cd",
+  "arthook.cc.cd", "*.arthook.cc.cd",
+  "arth.us.ci", "*.arth.us.ci",
+  "artllm.cc.cd", "*.artllm.cc.cd",
+  "artllm.us.ci", "*.artllm.us.ci",
+  "artn.cc.cd", "*.artn.cc.cd",
+  "artnexus.cc.cd", "*.artnexus.cc.cd",
+  "artnexus.us.ci", "*.artnexus.us.ci",
+  "artn.us.ci", "*.artn.us.ci",
+  "bigloom.us.ci", "*.bigloom.us.ci",
+  "happygame.us.ci", "*.happygame.us.ci",
+  "jaker.us.ci", "*.jaker.us.ci",
+  "loomart.cc.cd", "*.loomart.cc.cd",
+  "loomart.us.ci", "*.loomart.us.ci",
+  "loom.cc.cd", "*.loom.cc.cd",
+  "loomloom.us.ci", "*.loomloom.us.ci",
+  "miaimiai.cc.cd", "*.miaimiai.cc.cd",
+  "mimiaiai.cc.cd", "*.mimiaiai.cc.cd",
+  "mimiaiai.us.ci", "*.mimiaiai.us.ci",
+  "mimimi.cc.cd", "*.mimimi.cc.cd",
+  "neuro.cc.cd", "*.neuro.cc.cd",
+  "neurocore.cc.cd", "*.neurocore.cc.cd",
+  "neurocore.us.ci", "*.neurocore.us.ci",
+  "neurollm.cc.cd", "*.neurollm.cc.cd",
+  "neurollm.us.ci", "*.neurollm.us.ci",
+  "neuroloom.cc.cd", "*.neuroloom.cc.cd",
+  "neuroloom.us.ci", "*.neuroloom.us.ci",
+  "smartloom.us.ci", "*.smartloom.us.ci",
+  "slime.indevs.in", "*.slime.indevs.in",
+  "aiaimimi0920.indevs.in", "*.aiaimimi0920.indevs.in"
+]
+
+DEFAULT_DOMAINS = [
+  "mail.aiaimimi.com",
+
+  "aiaiai.cc.cd", "*.aiaiai.cc.cd",
+  "aiaiai.us.ci", "*.aiaiai.us.ci",
+  "aiaimimi.cc.cd", "*.aiaimimi.cc.cd",
+  "aiaimimi.us.ci", "*.aiaimimi.us.ci",
+  "aimiaimi.cc.cd", "*.aimiaimi.cc.cd",
+  "aimiaimi.us.ci", "*.aimiaimi.us.ci",
+  "artai.cc.cd", "*.artai.cc.cd",
+  "artai.us.ci", "*.artai.us.ci",
+  "artcore.cc.cd", "*.artcore.cc.cd",
+  "arth.cc.cd", "*.arth.cc.cd",
+  "arthook.cc.cd", "*.arthook.cc.cd",
+  "arth.us.ci", "*.arth.us.ci",
+  "artllm.cc.cd", "*.artllm.cc.cd",
+  "artllm.us.ci", "*.artllm.us.ci",
+  "artn.cc.cd", "*.artn.cc.cd",
+  "artnexus.cc.cd", "*.artnexus.cc.cd",
+  "artnexus.us.ci", "*.artnexus.us.ci",
+  "artn.us.ci", "*.artn.us.ci",
+  "bigloom.us.ci", "*.bigloom.us.ci",
+  "happygame.us.ci", "*.happygame.us.ci",
+  "jaker.us.ci", "*.jaker.us.ci",
+  "loomart.cc.cd", "*.loomart.cc.cd",
+  "loomart.us.ci", "*.loomart.us.ci",
+  "loom.cc.cd", "*.loom.cc.cd",
+  "loomloom.us.ci", "*.loomloom.us.ci",
+  "miaimiai.cc.cd", "*.miaimiai.cc.cd",
+  "mimiaiai.cc.cd", "*.mimiaiai.cc.cd",
+  "mimiaiai.us.ci", "*.mimiaiai.us.ci",
+  "mimimi.cc.cd", "*.mimimi.cc.cd",
+  "neuro.cc.cd", "*.neuro.cc.cd",
+  "neurocore.cc.cd", "*.neurocore.cc.cd",
+  "neurocore.us.ci", "*.neurocore.us.ci",
+  "neurollm.cc.cd", "*.neurollm.cc.cd",
+  "neurollm.us.ci", "*.neurollm.us.ci",
+  "neuroloom.cc.cd", "*.neuroloom.cc.cd",
+  "neuroloom.us.ci", "*.neuroloom.us.ci",
+  "smartloom.us.ci", "*.smartloom.us.ci",
+  "slime.indevs.in", "*.slime.indevs.in",
+  "aiaimimi0920.indevs.in", "*.aiaimimi0920.indevs.in"
+]

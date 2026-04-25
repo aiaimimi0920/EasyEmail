@@ -1,0 +1,25 @@
+services:
+  easy-email-service:
+    build:
+      context: ../..
+      dockerfile: deploy/service/base/Dockerfile
+    image: easyemail/easy-email-service:local
+    container_name: easy-email-service
+    restart: unless-stopped
+    cpus: 0.75
+    mem_limit: 384m
+    ports:
+      - "18080:8080"
+    environment:
+      EASY_EMAIL_CONFIG_PATH: /etc/easy-email/config.yaml
+      EASY_EMAIL_STATE_DIR: /var/lib/easy-email
+      EASY_EMAIL_RESET_STORE_ON_BOOT: "${EASY_EMAIL_RESET_STORE_ON_BOOT:-false}"
+    volumes:
+      - ./config:/etc/easy-email
+      - ./data:/var/lib/easy-email
+    networks:
+      - Easy
+
+networks:
+  Easy:
+    external: true

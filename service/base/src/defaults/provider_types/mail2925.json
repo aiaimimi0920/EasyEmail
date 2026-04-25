@@ -1,0 +1,8 @@
+{
+  "key": "mail2925",
+  "displayName": "2925 Mail",
+  "description": "2925 Mail alias inbox provider backed by a reusable main account.",
+  "supportsDynamicProvisioning": false,
+  "defaultStrategyKey": "free-first",
+  "tags": ["external", "connector", "alias-inbox", "credential", "username-password"]
+}

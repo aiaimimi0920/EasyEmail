@@ -1,0 +1,8 @@
+{
+  "key": "tmailor",
+  "displayName": "Tmailor",
+  "description": "Tmailor.com disposable email provider for OTPs and sign-up verification.",
+  "supportsDynamicProvisioning": false,
+  "defaultStrategyKey": "free-first",
+  "tags": ["external", "connector"]
+}

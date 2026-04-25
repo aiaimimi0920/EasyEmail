@@ -1,0 +1,8 @@
+{
+  "key": "guerrillamail",
+  "displayName": "GuerrillaMail",
+  "description": "Anonymous no-registration temporary mailbox provider via official GuerrillaMail public API.",
+  "supportsDynamicProvisioning": false,
+  "defaultStrategyKey": "free-first",
+  "tags": ["external", "connector", "anonymous", "free"]
+}

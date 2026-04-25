@@ -1,0 +1,95 @@
+# EasyEmail
+
+EasyEmail is the public monorepo entrypoint for the EasyEmail ecosystem.
+
+It contains:
+
+- `service/base`: the local EasyEmail service runtime
+- `runtimes/userscript`: the browser-side userscript runtime
+- `upstreams/cloudflare_temp_email`: the upstream integration boundary for the Cloudflare temp mail worker
+- `deploy`: deployment templates and operational scripts
+- `docs`: repository-level architecture, quickstart, and upstream sync guidance
+
+This repository intentionally avoids submodules. External contributors only need
+to fork one repository and open pull requests here.
+
+## Repository Layout
+
+```text
+service/
+  base/
+runtimes/
+  userscript/
+upstreams/
+  cloudflare_temp_email/
+deploy/
+  service/
+    base/
+  upstreams/
+    cloudflare_temp_email/
+docs/
+scripts/
+```
+
+## Module Roles
+
+### `service/base`
+
+The local service runtime. This is the main EasyEmail control plane that owns:
+
+- provider catalog and provider defaults
+- HTTP API surface
+- mailbox routing and strategy logic
+- persistence and maintenance loops
+
+### `runtimes/userscript`
+
+The browser-side userscript runtime. It is an independent runtime, not a thin
+bridge that requires `service/base` to be online.
+
+### `upstreams/cloudflare_temp_email`
+
+The upstream sync boundary for the Cloudflare temp mail worker and related
+frontend. This code lives in the monorepo for contributor simplicity, but it is
+still maintained as a distinct upstream-tracked area.
+
+## Quick Start
+
+### Local service runtime
+
+```powershell
+Set-Location service/base
+npm install
+npm run typecheck
+npm run test
+npm run build
+```
+
+### Browser userscript runtime
+
+Read `runtimes/userscript/README.md` and generate a local userscript from the
+template plus your private secrets file.
+
+### Cloudflare temp mail upstream runtime
+
+```powershell
+Set-Location upstreams/cloudflare_temp_email/worker
+corepack pnpm install
+corepack pnpm lint
+corepack pnpm build
+```
+
+## Documentation
+
+- `docs/architecture.md`
+- `docs/quickstart.md`
+- `docs/upstream-sync.md`
+- `CONTRIBUTING.md`
+
+## Security Notes
+
+- Do not commit local deployment config, state, or generated userscript files.
+- Do not commit live API tokens, auth headers, or database identifiers.
+- The tracked `upstreams/cloudflare_temp_email/worker/wrangler.toml` is a public
+  example config and must stay sanitized.
+

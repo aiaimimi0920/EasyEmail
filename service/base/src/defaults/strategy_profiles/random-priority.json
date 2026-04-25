@@ -1,0 +1,9 @@
+﻿{
+  "id": "strategy_random_priority",
+  "key": "random-priority",
+  "displayName": "Random Priority",
+  "description": "Randomize selection across currently available instances.",
+  "metadata": {
+    "category": "preset"
+  }
+}

@@ -1,0 +1,29 @@
+# Dependencies
+**/node_modules/
+
+# Build output
+**/dist/
+**/build/
+**/coverage/
+**/.wrangler/
+
+# TypeScript and logs
+**/*.tsbuildinfo
+**/*.log
+logs/
+
+# Environment and local secrets
+**/.env.local
+**/.env.*.local
+**/.dev.vars
+deploy/service/base/config.yaml
+deploy/service/base/config/config.yaml
+deploy/service/base/data/state/
+runtimes/userscript/easy_email_proxy.local.user.js
+runtimes/userscript/easy_email_proxy.secrets.local.json
+**/easy-email-state.json
+deploy/upstreams/cloudflare_temp_email/scripts/email_routing_tail_verify_checkpoint.json
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

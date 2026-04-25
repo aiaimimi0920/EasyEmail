@@ -1,0 +1,8 @@
+{
+  "key": "moemail",
+  "displayName": "MoEmail",
+  "description": "MoEmail API-key temporary inbox provider.",
+  "supportsDynamicProvisioning": false,
+  "defaultStrategyKey": "free-first",
+  "tags": ["external", "connector", "api-key", "anonymous", "free"]
+}

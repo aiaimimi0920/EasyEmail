@@ -1,0 +1,24 @@
+{
+  "id": "moemail_shared_default",
+  "providerTypeKey": "moemail",
+  "displayName": "MoEmail Default",
+  "status": "offline",
+  "runtimeKind": "external",
+  "connectorKind": "moemail-api",
+  "shared": true,
+  "costTier": "free",
+  "healthScore": 0.76,
+  "averageLatencyMs": 450,
+  "connectionRef": "external://moemail/default",
+  "hostBindings": [],
+  "groupKeys": [],
+  "metadata": {
+    "tier": "default",
+    "apiBase": "https://sall.cc",
+    "domain": "sall.cc",
+    "expiryTimeMs": "3600000",
+    "requiresApiKey": "true"
+  },
+  "createdAt": "",
+  "updatedAt": ""
+}

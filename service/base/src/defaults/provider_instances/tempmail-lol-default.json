@@ -1,0 +1,21 @@
+{
+  "id": "tempmail_lol_shared_default",
+  "providerTypeKey": "tempmail-lol",
+  "displayName": "Tempmail.lol Default",
+  "status": "active",
+  "runtimeKind": "external",
+  "connectorKind": "tempmail-lol-connector",
+  "shared": true,
+  "costTier": "free",
+  "healthScore": 0.78,
+  "averageLatencyMs": 520,
+  "connectionRef": "external://tempmail-lol/default",
+  "hostBindings": [],
+  "groupKeys": [],
+  "metadata": {
+    "tier": "default",
+    "apiBase": "https://api.tempmail.lol/v2"
+  },
+  "createdAt": "",
+  "updatedAt": ""
+}

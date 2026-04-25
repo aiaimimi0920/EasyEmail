@@ -1,0 +1,22 @@
+﻿{
+  "id": "mailtm_shared_default",
+  "providerTypeKey": "mailtm",
+  "displayName": "Mail.tm Default",
+  "status": "active",
+  "runtimeKind": "external",
+  "connectorKind": "mailtm-connector",
+  "shared": true,
+  "costTier": "free",
+  "healthScore": 0.8,
+  "averageLatencyMs": 460,
+  "connectionRef": "external://mailtm/default",
+  "hostBindings": [],
+  "groupKeys": [],
+  "metadata": {
+    "tier": "default",
+    "apiBase": "https://api.mail.tm",
+    "timeoutSeconds": "15"
+  },
+  "createdAt": "",
+  "updatedAt": ""
+}

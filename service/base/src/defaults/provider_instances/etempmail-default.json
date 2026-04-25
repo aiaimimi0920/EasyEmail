@@ -1,0 +1,23 @@
+{
+  "id": "etempmail_shared_default",
+  "providerTypeKey": "etempmail",
+  "displayName": "eTempMail Default",
+  "status": "active",
+  "runtimeKind": "external",
+  "connectorKind": "etempmail-connector",
+  "shared": true,
+  "costTier": "free",
+  "healthScore": 0.78,
+  "averageLatencyMs": 680,
+  "connectionRef": "external://etempmail/default",
+  "hostBindings": [],
+  "groupKeys": [],
+  "metadata": {
+    "tier": "default",
+    "apiBase": "https://etempmail.com",
+    "provider": "etempmail",
+    "state": "ok"
+  },
+  "createdAt": "",
+  "updatedAt": ""
+}

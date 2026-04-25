@@ -1,0 +1,14 @@
+﻿{
+  "id": "cloudflare_temp_email_dedicated_node",
+  "providerTypeKey": "cloudflare_temp_email",
+  "displayName": "Cloudflare Temp Email Dedicated Runtime",
+  "description": "Deployable dedicated runtime for verification inbox processing on an isolated node.",
+  "roleKey": "mail-cloudflare_temp_email-runtime",
+  "sharedByDefault": false,
+  "metadata": {
+    "domain": "mail.dedicated.local",
+    "deploymentTarget": "dedicated-node",
+    "baseUrl": "",
+    "customAuth": ""
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "id": "mail2925_shared_default",
+  "providerTypeKey": "mail2925",
+  "displayName": "2925 Mail Default",
+  "status": "offline",
+  "runtimeKind": "external",
+  "connectorKind": "mail2925-webmail",
+  "shared": true,
+  "costTier": "free",
+  "healthScore": 0.72,
+  "averageLatencyMs": 800,
+  "connectionRef": "external://mail2925/default",
+  "hostBindings": [],
+  "groupKeys": [],
+  "metadata": {
+    "tier": "default",
+    "apiBase": "https://mail.2925.com",
+    "domain": "2925.com",
+    "folderName": "Inbox",
+    "aliasSeparator": "_",
+    "aliasSuffixLength": "10",
+    "requiresBasicAuth": "true"
+  },
+  "createdAt": "",
+  "updatedAt": ""
+}

@@ -1,0 +1,8 @@
+﻿{
+  "key": "cloudflare_temp_email",
+  "displayName": "Cloudflare Temp Email Provider",
+  "description": "Provider type with connector-side access and dynamically deployable runtimes.",
+  "supportsDynamicProvisioning": true,
+  "defaultStrategyKey": "dynamic-priority",
+  "tags": ["internal", "connector", "runtime"]
+}
