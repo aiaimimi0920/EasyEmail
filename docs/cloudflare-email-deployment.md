@@ -5,8 +5,10 @@ Cloudflare temp-mail side of EasyEmail.
 
 ## Start Here
 
-1. Make sure `config.example.yaml` has been copied to `config.yaml`.
-2. Fill in the `cloudflareMail` section.
+1. Make sure `config.example.yaml` has been copied to the repository root
+   `config.yaml`.
+2. Put all Cloudflare temp mail deployment secrets into the root `config.yaml`
+   file, under the `cloudflareMail` section.
 3. If you want routing synchronization, fill in the routing secrets as well.
 4. Run the direct deploy entrypoint:
 
@@ -15,6 +17,14 @@ pwsh .\scripts\deploy-cloudflare-email.ps1
 ```
 
 ## What The Config Needs
+
+The deploy script does not read secrets from scattered files. It reads the
+repository root `config.yaml`, specifically:
+
+```yaml
+cloudflareMail:
+  ...
+```
 
 Minimum fields:
 
@@ -33,6 +43,36 @@ If routing sync is enabled:
 - `cloudflareMail.routing.controlCenterDnsToken`
 - `cloudflareMail.routing.cloudflareGlobalAuth.authEmail`
 - `cloudflareMail.routing.cloudflareGlobalAuth.globalApiKey`
+
+Concrete example:
+
+```yaml
+cloudflareMail:
+  projectRoot: upstreams/cloudflare_temp_email
+  workerDir: worker
+  frontendDir: frontend
+  workerName: cloudflare_temp_email
+  workerEnv: production
+  buildFrontend: true
+  deployWorker: true
+  syncRouting: false
+  routing:
+    mode: exact
+    planPath: deploy/upstreams/cloudflare_temp_email/config/subdomain_pool_plan_20260402.toml
+    controlCenterDnsToken: ""
+    cloudflareGlobalAuth:
+      authEmail: ""
+      globalApiKey: ""
+```
+
+Interpretation:
+
+- Only deploying frontend + worker: set `syncRouting: false`, leave routing
+  secrets blank.
+- Deploying and syncing DNS records: set `syncRouting: true`, fill in
+  `controlCenterDnsToken`.
+- Deploying and syncing Cloudflare Email Routing state: also fill in
+  `authEmail` and `globalApiKey`.
 
 ## What The Script Does
 
