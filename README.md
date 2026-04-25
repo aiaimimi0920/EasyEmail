@@ -109,7 +109,9 @@ For Cloudflare temp mail deployment specifically, put deployment secrets in the
 root `config.yaml` file under the `cloudflareMail` section. The direct deploy
 entrypoint `scripts/deploy-cloudflare-email.ps1` reads that section and passes
 it into the Cloudflare frontend build, worker deploy, and optional Email
-Routing sync flow.
+Routing sync flow. The routing host list lives in
+`cloudflareMail.routing.plan`; the script turns that into a temporary TOML plan
+file during deployment.
 
 ## Security Notes
 

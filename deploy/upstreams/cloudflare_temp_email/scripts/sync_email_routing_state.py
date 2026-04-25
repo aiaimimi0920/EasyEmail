@@ -278,11 +278,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Sync Cloudflare Email Routing state for mailbox root domains and subdomain pools.")
     parser.add_argument(
         "--plan",
-        default=str(Path(__file__).resolve().parent.parent / "config" / "subdomain_pool_plan_20260402.toml"),
+        required=True,
     )
     parser.add_argument(
         "--secret-file",
-        default=str(Path(__file__).resolve().parent.parent / "config" / "cloudflare_global_auth.example.json"),
+        required=True,
     )
     parser.add_argument("--worker-name", default="cloudflare_temp_email")
     parser.add_argument("--release-pool-exact-records", action="store_true", default=True)

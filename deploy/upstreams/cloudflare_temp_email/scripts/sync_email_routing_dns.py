@@ -190,11 +190,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Sync Cloudflare email routing DNS records from the mailbox pool plan.")
     parser.add_argument(
         "--plan",
-        default=str(Path(__file__).resolve().parent.parent / "config" / "subdomain_pool_plan_20260402.toml"),
+        required=True,
     )
     parser.add_argument(
         "--token-file",
-        default=str(Path(__file__).resolve().parent.parent / "config" / "control_center_cloudflare_dns.example.json"),
+        required=True,
     )
     parser.add_argument("--mode", choices=["exact", "wildcard"], default="exact")
     parser.add_argument("--dry-run", action="store_true")

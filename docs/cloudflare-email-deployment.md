@@ -9,7 +9,8 @@ Cloudflare temp-mail side of EasyEmail.
    `config.yaml`.
 2. Put all Cloudflare temp mail deployment secrets into the root `config.yaml`
    file, under the `cloudflareMail` section.
-3. If you want routing synchronization, fill in the routing secrets as well.
+3. If you want routing synchronization, fill in the routing secrets and the
+   `cloudflareMail.routing.plan` host list as well.
 4. Run the direct deploy entrypoint:
 
 ```powershell
@@ -39,7 +40,8 @@ Minimum fields:
 If routing sync is enabled:
 
 - `cloudflareMail.routing.mode`
-- `cloudflareMail.routing.planPath`
+- `cloudflareMail.routing.plan.subdomainLabelPool`
+- `cloudflareMail.routing.plan.domains`
 - `cloudflareMail.routing.controlCenterDnsToken`
 - `cloudflareMail.routing.cloudflareGlobalAuth.authEmail`
 - `cloudflareMail.routing.cloudflareGlobalAuth.globalApiKey`
@@ -58,7 +60,15 @@ cloudflareMail:
   syncRouting: false
   routing:
     mode: exact
-    planPath: deploy/upstreams/cloudflare_temp_email/config/subdomain_pool_plan_20260402.toml
+    plan:
+      subdomainLabelPool:
+        - alpha
+        - beta
+        - gamma
+      domains:
+        - mail.example.com
+        - example.com
+        - "*.example.com"
     controlCenterDnsToken: ""
     cloudflareGlobalAuth:
       authEmail: ""
@@ -73,6 +83,9 @@ Interpretation:
   `controlCenterDnsToken`.
 - Deploying and syncing Cloudflare Email Routing state: also fill in
   `authEmail` and `globalApiKey`.
+- `routing.plan` is the only place where the host pool is defined. The deploy
+  script generates a temporary TOML plan file from that YAML data before it
+  invokes the lower-level routing sync tools.
 
 ## What The Script Does
 

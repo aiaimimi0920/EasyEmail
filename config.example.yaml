@@ -1,7 +1,8 @@
 # EasyEmail operator config
 #
-# Copy this file to `config.yaml` and fill in the secret values before running
-# the operator scripts in `scripts/`.
+# Copy this file to `config.yaml` and fill in the values you actually use.
+# The operator scripts read only the root `config.yaml`; they generate any
+# temporary deploy files they need at runtime.
 
 userscript:
   sourcePath: runtimes/userscript/easy_email_proxy.user.js
@@ -30,7 +31,15 @@ cloudflareMail:
   syncRouting: false
   routing:
     mode: exact
-    planPath: deploy/upstreams/cloudflare_temp_email/config/subdomain_pool_plan_20260402.toml
+    plan:
+      subdomainLabelPool:
+        - alpha
+        - beta
+        - gamma
+      domains:
+        - mail.example.com
+        - example.com
+        - "*.example.com"
     controlCenterDnsToken: ""
     cloudflareGlobalAuth:
       authEmail: ""

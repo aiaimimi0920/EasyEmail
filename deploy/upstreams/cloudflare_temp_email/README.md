@@ -6,7 +6,6 @@ This directory contains deployment helpers for
 It is the right place for:
 
 - deployment flow scripts
-- deployment-oriented config examples
 - operational helper material that should not live in the main source tree
 
 ## Current Layout
@@ -19,8 +18,16 @@ It is the right place for:
 
 - keep actual product code changes inside `upstreams/cloudflare_temp_email`
 - keep deployment-only logic inside this directory
+- keep operator config in the repository root `config.yaml`
 - validate deployment completion through `GET /open_api/settings`
 - ensure `domains` and `randomSubdomainDomains` are exposed as expected
+
+There is no second deploy config directory anymore. The supported operator flow
+is:
+
+1. edit the repository root `config.yaml`
+2. run `scripts/deploy-cloudflare-email.ps1` or `scripts/quick-deploy-cloudflare-mail.ps1`
+3. let the wrapper scripts generate any temporary JSON or TOML files they need
 
 ## Script Inventory
 

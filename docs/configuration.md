@@ -55,7 +55,8 @@ Required fields:
 - `deployWorker`
 - `syncRouting`
 - `routing.mode`
-- `routing.planPath`
+- `routing.plan.subdomainLabelPool`
+- `routing.plan.domains`
 - `routing.controlCenterDnsToken`
 - `routing.cloudflareGlobalAuth.authEmail`
 - `routing.cloudflareGlobalAuth.globalApiKey`
@@ -74,7 +75,15 @@ cloudflareMail:
   syncRouting: false
   routing:
     mode: exact
-    planPath: deploy/upstreams/cloudflare_temp_email/config/subdomain_pool_plan_20260402.toml
+    plan:
+      subdomainLabelPool:
+        - alpha
+        - beta
+        - gamma
+      domains:
+        - mail.example.com
+        - example.com
+        - "*.example.com"
     controlCenterDnsToken: ""
     cloudflareGlobalAuth:
       authEmail: ""
@@ -88,6 +97,9 @@ Notes:
 - If you also want routing state sync, fill in
   `routing.cloudflareGlobalAuth.authEmail` and
   `routing.cloudflareGlobalAuth.globalApiKey`.
+- `routing.plan` is the single source of truth for the Cloudflare email routing
+  host plan. The deploy script writes a temporary TOML plan file from it before
+  calling the lower-level sync tools.
 - Do not commit `config.yaml`.
 
 ## Security Rules

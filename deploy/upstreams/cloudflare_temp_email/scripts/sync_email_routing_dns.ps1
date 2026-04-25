@@ -1,5 +1,6 @@
 param(
-    [string]$PlanPath = (Join-Path $PSScriptRoot '..\config\subdomain_pool_plan_20260402.toml'),
+    [Parameter(Mandatory = $true)]
+    [string]$PlanPath,
     [ValidateSet('exact', 'wildcard')]
     [string]$Mode = 'exact',
     [string]$ApiToken = $env:CLOUDFLARE_API_TOKEN,

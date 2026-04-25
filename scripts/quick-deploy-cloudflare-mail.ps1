@@ -52,6 +52,89 @@ function Invoke-Tool {
     }
 }
 
+function Convert-ToEasyEmailStringArray {
+    param(
+        [object]$Value
+    )
+
+    if ($null -eq $Value) {
+        return @()
+    }
+
+    if ($Value -is [string]) {
+        $text = [string]$Value
+        return @($text) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    }
+
+    $items = New-Object System.Collections.Generic.List[string]
+    foreach ($item in $Value) {
+        if ($null -eq $item) {
+            continue
+        }
+        $text = [string]$item
+        if (-not [string]::IsNullOrWhiteSpace($text)) {
+            $items.Add($text)
+        }
+    }
+    return $items.ToArray()
+}
+
+function Convert-ToEasyEmailTomlString {
+    param([string]$Value)
+
+    $escaped = $Value.Replace('\', '\\').Replace('"', '\"')
+    return '"' + $escaped + '"'
+}
+
+function Convert-ToEasyEmailTomlArray {
+    param([object]$Value)
+
+    $items = Convert-ToEasyEmailStringArray -Value $Value
+    if ($items.Count -eq 0) {
+        return '[]'
+    }
+
+    $formatted = $items | ForEach-Object { '  ' + (Convert-ToEasyEmailTomlString -Value $_) }
+    return "[`r`n$($formatted -join ",`r`n")`r`n]"
+}
+
+function Write-CloudflareRoutingPlanFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Plan
+    )
+
+    $labels = Convert-ToEasyEmailStringArray -Value (Get-EasyEmailConfigValue -Object $Plan -Name 'subdomainLabelPool' -Default @())
+    $domains = Convert-ToEasyEmailStringArray -Value (Get-EasyEmailConfigValue -Object $Plan -Name 'domains' -Default @())
+    $defaultDomainsValue = Get-EasyEmailConfigValue -Object $Plan -Name 'defaultDomains' -Default $null
+    $defaultDomains = if ($null -eq $defaultDomainsValue) {
+        $domains
+    } else {
+        Convert-ToEasyEmailStringArray -Value $defaultDomainsValue
+    }
+
+    if ($labels.Count -eq 0) {
+        throw 'Missing cloudflareMail.routing.plan.subdomainLabelPool in config.yaml.'
+    }
+    if ($domains.Count -eq 0) {
+        throw 'Missing cloudflareMail.routing.plan.domains in config.yaml.'
+    }
+    if ($defaultDomains.Count -eq 0) {
+        $defaultDomains = $domains
+    }
+
+    $path = New-EasyEmailTempFile -Prefix 'cloudflare-routing-plan' -Extension '.toml'
+    $content = @(
+        '# generated from config.yaml',
+        'SUBDOMAIN_LABEL_POOL = ' + (Convert-ToEasyEmailTomlArray -Value $labels),
+        'DOMAINS = ' + (Convert-ToEasyEmailTomlArray -Value $domains),
+        'DEFAULT_DOMAINS = ' + (Convert-ToEasyEmailTomlArray -Value $defaultDomains)
+    ) -join "`r`n`r`n"
+
+    Set-Content -LiteralPath $path -Value $content -Encoding UTF8
+    return $path
+}
+
 $config = Read-EasyEmailConfig -ConfigPath $ConfigPath
 $cloudflare = Get-EasyEmailSection -Config $config -Name 'cloudflareMail'
 if ($null -eq $cloudflare) {
@@ -62,6 +145,7 @@ $projectRoot = Resolve-EasyEmailPath -Path (Get-EasyEmailConfigValue -Object $cl
 $workerDir = Resolve-EasyEmailPath -Path (Join-Path $projectRoot (Get-EasyEmailConfigValue -Object $cloudflare -Name 'workerDir' -Default 'worker'))
 $frontendDir = Resolve-EasyEmailPath -Path (Join-Path $projectRoot (Get-EasyEmailConfigValue -Object $cloudflare -Name 'frontendDir' -Default 'frontend'))
 $routing = Get-EasyEmailSection -Config $cloudflare -Name 'routing'
+$routingPlan = Get-EasyEmailSection -Config $routing -Name 'plan'
 $buildFrontend = [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'buildFrontend' -Default $true)
 $deployWorker = [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'deployWorker' -Default $true)
 $syncRouting = -not $NoRoutingSync -and [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'syncRouting' -Default $false)
@@ -103,11 +187,12 @@ if ($deployWorker) {
 }
 
 if ($syncRouting) {
-    $routingPlanPath = Resolve-EasyEmailPath -Path (Get-EasyEmailConfigValue -Object $routing -Name 'planPath' -Default 'deploy/upstreams/cloudflare_temp_email/config/subdomain_pool_plan_20260402.toml')
+    $routingPlanPath = $null
     $controlCenterDnsToken = [string](Get-EasyEmailConfigValue -Object $routing -Name 'controlCenterDnsToken' -Default '')
     $globalAuth = Get-EasyEmailSection -Config $routing -Name 'cloudflareGlobalAuth'
     $authEmail = [string](Get-EasyEmailConfigValue -Object $globalAuth -Name 'authEmail' -Default '')
     $globalApiKey = [string](Get-EasyEmailConfigValue -Object $globalAuth -Name 'globalApiKey' -Default '')
+    $generatedRoutingPlanFile = $null
 
     if ([string]::IsNullOrWhiteSpace($controlCenterDnsToken) -and [string]::IsNullOrWhiteSpace($authEmail) -and [string]::IsNullOrWhiteSpace($globalApiKey)) {
         Write-Warning 'Routing sync is enabled, but no routing secrets were provided in config.yaml. Skipping routing sync.'
@@ -115,6 +200,13 @@ if ($syncRouting) {
         $controlCenterTokenFile = $null
         $globalAuthFile = $null
         try {
+            if ($routingPlan) {
+                $generatedRoutingPlanFile = Write-CloudflareRoutingPlanFile -Plan $routingPlan
+                $routingPlanPath = $generatedRoutingPlanFile
+            } else {
+                throw 'Missing cloudflareMail.routing.plan in config.yaml.'
+            }
+
             if (-not [string]::IsNullOrWhiteSpace($controlCenterDnsToken)) {
                 $controlCenterTokenFile = New-EasyEmailTempFile -Prefix 'control-center-cloudflare-dns' -Extension '.json'
                 Write-EasyEmailJsonFile -Path $controlCenterTokenFile -Value @{ token = $controlCenterDnsToken } | Out-Null
@@ -153,6 +245,9 @@ if ($syncRouting) {
                 ) -WorkingDirectory $projectRoot
             }
         } finally {
+            if ($generatedRoutingPlanFile -and (Test-Path -LiteralPath $generatedRoutingPlanFile)) {
+                Remove-Item -Force $generatedRoutingPlanFile
+            }
             if ($controlCenterTokenFile -and (Test-Path -LiteralPath $controlCenterTokenFile)) {
                 Remove-Item -Force $controlCenterTokenFile
             }
