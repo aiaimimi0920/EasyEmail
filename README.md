@@ -88,6 +88,7 @@ corepack pnpm build
 - `docs/build-userscript.md`
 - `docs/build-service-base-image.md`
 - `docs/quick-deploy-cloudflare-mail.md`
+- `docs/cloudflare-email-deployment.md`
 - `CONTRIBUTING.md`
 
 ## Operator Scripts
@@ -95,6 +96,7 @@ corepack pnpm build
 - `scripts/init-config.ps1`
 - `scripts/compile-userscript.ps1`
 - `scripts/compile-service-base-image.ps1`
+- `scripts/deploy-cloudflare-email.ps1`
 - `scripts/quick-deploy-cloudflare-mail.ps1`
 
 ## Shared Config
