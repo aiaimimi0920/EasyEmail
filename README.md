@@ -84,7 +84,24 @@ corepack pnpm build
 - `docs/architecture.md`
 - `docs/quickstart.md`
 - `docs/upstream-sync.md`
+- `docs/configuration.md`
+- `docs/build-userscript.md`
+- `docs/build-service-base-image.md`
+- `docs/quick-deploy-cloudflare-mail.md`
 - `CONTRIBUTING.md`
+
+## Operator Scripts
+
+- `scripts/init-config.ps1`
+- `scripts/compile-userscript.ps1`
+- `scripts/compile-service-base-image.ps1`
+- `scripts/quick-deploy-cloudflare-mail.ps1`
+
+## Shared Config
+
+Copy `config.example.yaml` to `config.yaml` before running the operator scripts.
+The `config.yaml` file is ignored by Git and is used as the single source of
+operator secrets for the scripts above.
 
 ## Security Notes
 
@@ -92,4 +109,3 @@ corepack pnpm build
 - Do not commit live API tokens, auth headers, or database identifiers.
 - The tracked `upstreams/cloudflare_temp_email/worker/wrangler.toml` is a public
   example config and must stay sanitized.
-

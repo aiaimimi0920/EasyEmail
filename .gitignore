@@ -11,8 +11,10 @@
 **/*.tsbuildinfo
 **/*.log
 logs/
+.tmp/
 
 # Environment and local secrets
+config.yaml
 **/.env.local
 **/.env.*.local
 **/.dev.vars

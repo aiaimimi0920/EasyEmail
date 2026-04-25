@@ -1,0 +1,37 @@
+# EasyEmail operator config
+#
+# Copy this file to `config.yaml` and fill in the secret values before running
+# the operator scripts in `scripts/`.
+
+userscript:
+  sourcePath: runtimes/userscript/easy_email_proxy.user.js
+  outputPath: runtimes/userscript/easy_email_proxy.local.user.js
+  copyToClipboard: false
+  secrets:
+    cloudflare_customAuth: ""
+    cloudflare_adminAuth: ""
+    moemail_apiKey: ""
+    gptmail_apiKey: ""
+    im215_apiKey: ""
+
+serviceBase:
+  context: .
+  dockerfile: deploy/service/base/Dockerfile
+  image: easyemail/easy-email-service:local
+
+cloudflareMail:
+  projectRoot: upstreams/cloudflare_temp_email
+  workerDir: worker
+  frontendDir: frontend
+  workerName: cloudflare_temp_email
+  workerEnv: production
+  buildFrontend: true
+  deployWorker: true
+  syncRouting: false
+  routing:
+    mode: exact
+    planPath: deploy/upstreams/cloudflare_temp_email/config/subdomain_pool_plan_20260402.toml
+    controlCenterDnsToken: ""
+    cloudflareGlobalAuth:
+      authEmail: ""
+      globalApiKey: ""
