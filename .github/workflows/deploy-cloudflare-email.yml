@@ -355,7 +355,7 @@ jobs:
               runtimeReadback = if ($runtimeReadback) { 'captured' } else { 'pending' }
             }
             markdown = [ordered]@{
-              matchedFiles = (($matchedFiles | ForEach-Object { "- `$_`" }) -join "`n")
+              matchedFiles = (($matchedFiles | ForEach-Object { '- `' + $_ + '`' }) -join "`n")
               scopeSummary = $scopeSummary.markdown
             }
           }
