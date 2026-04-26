@@ -191,7 +191,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ ! -d node_modules ]]; then
-            corepack pnpm install --frozen-lockfile
+            corepack pnpm install --no-frozen-lockfile
           fi
 
       - name: Install Worker Dependencies
@@ -201,7 +201,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ ! -d node_modules ]]; then
-            corepack pnpm install --frozen-lockfile
+            corepack pnpm install --no-frozen-lockfile
           fi
 
       - name: Deploy Cloudflare Email
