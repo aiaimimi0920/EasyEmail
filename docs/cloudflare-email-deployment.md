@@ -42,19 +42,13 @@ repository workflow:
 - `.github/workflows/deploy-cloudflare-email.yml`
 
 It supports both tag pushes and `workflow_dispatch`. For GitHub-hosted
-deployment, store the full root operator config in the
-`EASYEMAIL_OPERATOR_CONFIG` repository secret. That config already contains the
-Cloudflare auth values the workflow needs to deploy. If you prefer a narrower
-secret scope, use `EASYEMAIL_CLOUDFLARE_MAIL_CONFIG` with the same Cloudflare
-auth fields present in the overlay.
-
-For fork users, the recommended mode is the granular `EASYEMAIL_CF_*` secret
-set documented in [github-actions-secrets.md](./github-actions-secrets.md).
-That mode lets the operator fill one secret per field instead of pasting a
-multi-line YAML document.
+deployment, configure the granular `EASYEMAIL_CF_*` repository secrets
+documented in [github-actions-secrets.md](./github-actions-secrets.md). That
+mode lets the operator fill one secret per field instead of pasting a multi-line
+YAML document.
 
 For manual dry-run validation, the workflow can fall back to
-`config.example.yaml` when no operator config secret is present.
+`config.example.yaml` when no `EASYEMAIL_CF_*` secrets are present.
 
 The full secret inventory is documented in
 [github-actions-secrets.md](./github-actions-secrets.md).

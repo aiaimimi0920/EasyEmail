@@ -69,10 +69,10 @@ pwsh .\scripts\deploy-cloudflare-email.ps1 -DryRun -NoRoutingSync
 ```
 
 If you want GitHub-hosted deployment later, the matching workflow can read the
-same root config as a repository secret, or just the `cloudflareMail` overlay
-if you prefer a narrower secret scope. For fork-friendly hosted deployment,
-prefer the granular `EASYEMAIL_CF_*` secrets so users can fill each field
-separately instead of maintaining a full YAML secret.
+granular `EASYEMAIL_CF_*` secrets documented in
+[github-actions-secrets.md](./github-actions-secrets.md). That keeps hosted
+deployment fork-friendly because users can fill each field separately instead
+of maintaining a full YAML secret.
 
 See [github-actions-secrets.md](./github-actions-secrets.md) for the complete
 secret inventory used by the hosted deployment workflows.

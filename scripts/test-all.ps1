@@ -171,7 +171,6 @@ if ($LASTEXITCODE -ne 0) {
     throw "Cloudflare release tag validation smoke check failed with exit code $LASTEXITCODE"
 }
 
-$previousCloudflareMailConfig = $env:EASYEMAIL_CLOUDFLARE_MAIL_CONFIG
 $previousGranularSecrets = @{
     EASYEMAIL_CF_PUBLIC_BASE_URL = $env:EASYEMAIL_CF_PUBLIC_BASE_URL
     EASYEMAIL_CF_PUBLIC_DOMAIN = $env:EASYEMAIL_CF_PUBLIC_DOMAIN
@@ -185,29 +184,6 @@ $previousGranularSecrets = @{
     EASYEMAIL_CF_GLOBAL_API_KEY = $env:EASYEMAIL_CF_GLOBAL_API_KEY
 }
 try {
-    $env:EASYEMAIL_CLOUDFLARE_MAIL_CONFIG = @'
-cloudflareMail:
-  publicBaseUrl: https://mail.example.com
-  publicDomain: mail.example.com
-  worker:
-    vars:
-      PASSWORDS:
-        - change-me
-      JWT_SECRET: change-me
-'@
-
-    & python (Join-Path $repoRoot 'scripts/materialize-action-config.py') `
-        --base-config (Join-Path $repoRoot 'config.example.yaml') `
-        --output $materializedConfigPath
-    if ($LASTEXITCODE -ne 0) {
-        throw "Cloudflare action config materialization smoke check failed with exit code $LASTEXITCODE"
-    }
-
-    if (-not (Test-Path -LiteralPath $materializedConfigPath)) {
-        throw 'Cloudflare action config materialization did not produce an output file.'
-    }
-
-    Remove-Item Env:EASYEMAIL_CLOUDFLARE_MAIL_CONFIG
     $env:EASYEMAIL_CF_PUBLIC_BASE_URL = 'https://mail.example.com'
     $env:EASYEMAIL_CF_PUBLIC_DOMAIN = 'mail.example.com'
     $env:EASYEMAIL_CF_PASSWORDS = @'
@@ -237,8 +213,11 @@ gamma
     if ($LASTEXITCODE -ne 0) {
         throw "Granular Cloudflare action config materialization smoke check failed with exit code $LASTEXITCODE"
     }
+
+    if (-not (Test-Path -LiteralPath $materializedConfigPath)) {
+        throw 'Granular Cloudflare action config materialization did not produce an output file.'
+    }
 } finally {
-    $env:EASYEMAIL_CLOUDFLARE_MAIL_CONFIG = $previousCloudflareMailConfig
     foreach ($secretName in $previousGranularSecrets.Keys) {
         $previousValue = $previousGranularSecrets[$secretName]
         if ($null -eq $previousValue) {

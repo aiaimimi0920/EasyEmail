@@ -146,8 +146,6 @@ jobs:
         id: operator_config
         shell: pwsh
         env:
-          EASYEMAIL_OPERATOR_CONFIG: ${{ secrets.EASYEMAIL_OPERATOR_CONFIG }}
-          EASYEMAIL_CLOUDFLARE_MAIL_CONFIG: ${{ secrets.EASYEMAIL_CLOUDFLARE_MAIL_CONFIG }}
           EASYEMAIL_CF_PUBLIC_BASE_URL: ${{ secrets.EASYEMAIL_CF_PUBLIC_BASE_URL }}
           EASYEMAIL_CF_PUBLIC_DOMAIN: ${{ secrets.EASYEMAIL_CF_PUBLIC_DOMAIN }}
           EASYEMAIL_CF_WORKER_NAME: ${{ secrets.EASYEMAIL_CF_WORKER_NAME }}
@@ -176,7 +174,29 @@ jobs:
           . .\scripts\lib\easyemail-config.ps1
 
           $configPath = Join-Path $PWD 'config.yaml'
-          if ($env:EASYEMAIL_OPERATOR_CONFIG -or $env:EASYEMAIL_CLOUDFLARE_MAIL_CONFIG) {
+          $granularSecretNames = @(
+            'EASYEMAIL_CF_PUBLIC_BASE_URL',
+            'EASYEMAIL_CF_PUBLIC_DOMAIN',
+            'EASYEMAIL_CF_PASSWORDS',
+            'EASYEMAIL_CF_ADMIN_PASSWORDS',
+            'EASYEMAIL_CF_JWT_SECRET',
+            'EASYEMAIL_CF_DOMAINS',
+            'EASYEMAIL_CF_SUBDOMAIN_LABEL_POOL',
+            'EASYEMAIL_CF_D1_DATABASE_ID',
+            'EASYEMAIL_CF_AUTH_EMAIL',
+            'EASYEMAIL_CF_GLOBAL_API_KEY'
+          )
+
+          $hasGranularSecrets = $false
+          foreach ($secretName in $granularSecretNames) {
+            $value = (Get-Item -Path "Env:$secretName" -ErrorAction SilentlyContinue).Value
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+              $hasGranularSecrets = $true
+              break
+            }
+          }
+
+          if ($hasGranularSecrets) {
             & python scripts/materialize-action-config.py --base-config config.example.yaml --output $configPath
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to materialize config.yaml from GitHub Actions secrets with exit code $LASTEXITCODE"
@@ -194,18 +214,14 @@ jobs:
               "CLOUDFLARE_EMAIL=$authEmail" >> $env:GITHUB_ENV
               "CLOUDFLARE_API_KEY=$globalApiKey" >> $env:GITHUB_ENV
             }
-            if ($env:EASYEMAIL_OPERATOR_CONFIG) {
-              Write-Host "Wrote operator config from EASYEMAIL_OPERATOR_CONFIG secret."
-            } else {
-              Write-Host "Wrote Cloudflare config overlay from EASYEMAIL_CLOUDFLARE_MAIL_CONFIG secret."
-            }
-            "source=secret" >> $env:GITHUB_OUTPUT
+            Write-Host "Wrote Cloudflare config from EASYEMAIL_CF_* repository secrets."
+            "source=granular-secrets" >> $env:GITHUB_OUTPUT
           } elseif ($env:ALLOW_EXAMPLE_CONFIG -eq 'true') {
             Copy-Item -LiteralPath 'config.example.yaml' -Destination $configPath -Force
-            Write-Warning 'EASYEMAIL_OPERATOR_CONFIG was not provided; using config.example.yaml for dry-run validation.'
+            Write-Warning 'No EASYEMAIL_CF_* secrets were provided; using config.example.yaml for dry-run validation.'
             "source=example" >> $env:GITHUB_OUTPUT
           } else {
-            throw 'Missing EASYEMAIL_OPERATOR_CONFIG secret. Add the root operator config as a repository secret.'
+            throw 'Missing EASYEMAIL_CF_* secrets. Add the granular Cloudflare repository secrets before deploying.'
           }
 
       - name: Install Frontend Dependencies

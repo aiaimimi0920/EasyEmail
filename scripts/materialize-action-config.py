@@ -37,17 +37,6 @@ def load_yaml_value(text: str, source_name: str) -> Any:
         raise SystemExit(f"Failed to parse YAML from {source_name}: {exc}") from exc
 
 
-def load_yaml_text(text: str, source_name: str) -> dict[str, Any]:
-    value = load_yaml_value(text, source_name)
-    return value if isinstance(value, dict) else {}
-
-
-def normalize_secret_overlay(secret_config: dict[str, Any]) -> dict[str, Any]:
-    if "cloudflareMail" in secret_config:
-        return secret_config
-    return {"cloudflareMail": secret_config}
-
-
 def get_secret_text(name: str) -> str:
     return os.environ.get(name, "").strip()
 
@@ -247,28 +236,14 @@ def main() -> int:
     base_path = Path(args.base_config)
     output_path = Path(args.output)
     base_config = load_yaml_file(base_path)
-
-    operator_config = os.environ.get("EASYEMAIL_OPERATOR_CONFIG", "").strip()
-    cloudflare_config = os.environ.get("EASYEMAIL_CLOUDFLARE_MAIL_CONFIG", "").strip()
     granular_overlay = build_granular_cloudflare_overlay(base_config)
 
-    if operator_config:
-        merged_config = load_yaml_text(operator_config, "EASYEMAIL_OPERATOR_CONFIG")
-    else:
-        merged_config = base_config
-
-    if cloudflare_config:
-        secret_config = load_yaml_text(cloudflare_config, "EASYEMAIL_CLOUDFLARE_MAIL_CONFIG")
-        merged_config = deep_merge(merged_config, normalize_secret_overlay(secret_config))
-
-    if granular_overlay:
-        merged_config = deep_merge(merged_config, granular_overlay)
-
-    if not operator_config and not cloudflare_config and not granular_overlay:
+    if not granular_overlay:
         raise SystemExit(
-            "Missing GitHub Actions config secret. Set EASYEMAIL_OPERATOR_CONFIG, "
-            "EASYEMAIL_CLOUDFLARE_MAIL_CONFIG, or the EASYEMAIL_CF_* granular secrets."
+            "Missing GitHub Actions config secret. Set the EASYEMAIL_CF_* granular secrets."
         )
+
+    merged_config = deep_merge(base_config, granular_overlay)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
