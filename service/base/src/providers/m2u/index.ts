@@ -19,7 +19,11 @@ export class M2uProviderAdapter implements MailProviderAdapter {
     const sessionId = createId("mailbox", now);
     const client = M2uClient.fromInstance(instance);
     const mailbox = await client.createMailbox({
-      preferredDomain: request.requestedDomain,
+      // Keep generic high-availability routing provider-neutral. Only honor a
+      // domain preference when the caller explicitly requested one.
+      preferredDomain: request.requestedDomain?.trim() || "",
+      requestedLocalPart: request.requestedLocalPart?.trim() || "",
+      turnstileToken: request.turnstileToken?.trim() || "",
     });
 
     return {
@@ -52,6 +56,56 @@ export class M2uProviderAdapter implements MailProviderAdapter {
       instance.id,
       session.metadata.fromContains,
     );
+  }
+
+  public async recoverMailboxSession(
+    { emailAddress, hostId, instance, now, session }: Parameters<NonNullable<MailProviderAdapter["recoverMailboxSession"]>>[0],
+  ) {
+    if (!session) {
+      return undefined;
+    }
+
+    const mailbox = decodeM2uMailboxRef(session.mailboxRef, instance.id);
+    if (!mailbox) {
+      return undefined;
+    }
+
+    const normalizedRequestedEmail = emailAddress.trim().toLowerCase();
+    if (!normalizedRequestedEmail || mailbox.email.trim().toLowerCase() !== normalizedRequestedEmail) {
+      return undefined;
+    }
+
+    const metadata: Record<string, string> = {
+      ...session.metadata,
+      recoveredFromEmailAddress: normalizedRequestedEmail,
+      recoveryStrategy: "session_restore",
+      recoverySource: "provider_session_restore",
+      previousSessionId: session.id,
+      notBeforeAt: now.toISOString(),
+    };
+    delete metadata.lastCodeObservedAt;
+    delete metadata.lastCodeMessageId;
+    delete metadata.releasedAt;
+    delete metadata.releaseReason;
+    delete metadata.releaseStatus;
+    delete metadata.releaseDetail;
+
+    return {
+      strategy: "session_restore" as const,
+      session: {
+        id: createId("mailbox", now),
+        hostId: hostId?.trim() || session.hostId,
+        providerTypeKey: this.typeKey,
+        providerInstanceId: instance.id,
+        emailAddress: mailbox.email,
+        mailboxRef: encodeM2uMailboxRef(instance.id, mailbox),
+        status: "open" as const,
+        createdAt: now.toISOString(),
+        expiresAt: mailbox.expiresAt ?? session.expiresAt,
+        metadata,
+      },
+      detail: "session_restore",
+    };
   }
 
   public async probeInstance(

@@ -20,6 +20,7 @@ config.yaml
 **/.dev.vars
 deploy/service/base/config.yaml
 deploy/service/base/config/config.yaml
+deploy/service/base/config/runtime.env
 deploy/service/base/data/state/
 runtimes/userscript/easy_email_proxy.local.user.js
 runtimes/userscript/easy_email_proxy.secrets.local.json

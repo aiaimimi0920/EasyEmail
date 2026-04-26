@@ -21,6 +21,7 @@ describe("etempmail provider", () => {
       recoverKey: "RECOVER123",
       mailboxId: "10154517",
       creationTime: "1777140492",
+      sessionCookieHeader: "lisansimo=1777140492; ci_session=session-cookie",
     });
 
     expect(decodeEtempmailMailboxRef(encoded, "inst-1")).toEqual({
@@ -28,11 +29,16 @@ describe("etempmail provider", () => {
       recoverKey: "RECOVER123",
       mailboxId: "10154517",
       creationTime: "1777140492",
+      sessionCookieHeader: "lisansimo=1777140492; ci_session=session-cookie",
     });
   });
 
-  it("switches mailbox domain when a preferred domain is requested", async () => {
+  it("switches mailbox domain when a preferred domain is requested and preserves merged cookies", async () => {
     const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("<html></html>", {
+        status: 200,
+        headers: cookieHeader("ci_session=seed-cookie; path=/; HttpOnly, lisansimo=1777140492"),
+      }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         id: "10154517",
         address: "demo@beta.edu.pl",
@@ -40,7 +46,7 @@ describe("etempmail provider", () => {
         recover_key: "RECOVER1",
       }), {
         status: 200,
-        headers: cookieHeader("ci_session=create-cookie; path=/; HttpOnly, lisansimo=1777140492"),
+        headers: cookieHeader("ci_session=create-cookie; path=/; HttpOnly"),
       }))
       .mockResolvedValueOnce(new Response(`
         <form action="https://etempmail.com/changeEmailAddress" method="post">
@@ -62,7 +68,7 @@ describe("etempmail provider", () => {
         recover_key: "RECOVER2",
       }), {
         status: 200,
-        headers: cookieHeader("ci_session=changed-cookie-2; path=/; HttpOnly, lisansimo=1777140493"),
+        headers: cookieHeader("ci_session=changed-cookie-2; path=/; HttpOnly"),
       }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -75,18 +81,30 @@ describe("etempmail provider", () => {
       recoverKey: "RECOVER2",
       mailboxId: "10154518",
       creationTime: "1777140493",
+      sessionCookieHeader: "ci_session=changed-cookie-2; lisansimo=1777140492",
     });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "https://etempmail.com/getEmailAddress",
+      "https://etempmail.com/",
       expect.objectContaining({
-        method: "POST",
-        body: "{}",
+        method: "GET",
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
+      2,
+      "https://etempmail.com/getEmailAddress",
+      expect.objectContaining({
+        method: "POST",
+        body: "",
+        headers: expect.objectContaining({
+          Cookie: "ci_session=seed-cookie; lisansimo=1777140492",
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
       "https://etempmail.com/changeEmailAddress",
       expect.objectContaining({
         method: "POST",
@@ -97,12 +115,16 @@ describe("etempmail provider", () => {
 
   it("reads the latest code from inbox detail after recovering the mailbox session", async () => {
     const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("<html></html>", {
+        status: 200,
+        headers: cookieHeader("ci_session=seed-cookie; path=/; HttpOnly, lisansimo=1777140492"),
+      }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         success: true,
         message: "Email recovery successful!",
       }), {
         status: 200,
-        headers: cookieHeader("ci_session=recovered-cookie; path=/; HttpOnly, lisansimo=1777140492"),
+        headers: cookieHeader("ci_session=recovered-cookie; path=/; HttpOnly"),
       }))
       .mockResolvedValueOnce(new Response(JSON.stringify([
         {
@@ -139,15 +161,19 @@ describe("etempmail provider", () => {
     }));
     expect(result?.htmlBody).toContain("654321");
     expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
+      3,
       "https://etempmail.com/getInbox",
       expect.objectContaining({
         method: "POST",
-        body: "{}",
+        body: "",
+        headers: expect.objectContaining({
+          Cookie: "ci_session=recovered-cookie; lisansimo=1777140492",
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        }),
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
+      4,
       "https://etempmail.com/email?id=1",
       expect.objectContaining({
         method: "GET",
@@ -155,8 +181,53 @@ describe("etempmail provider", () => {
     );
   });
 
+  it("prefers the stored mailbox session cookie before attempting recover", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify([
+        {
+          id: "7",
+          from: "noreply@tm.openai.com",
+          subject: "Your temporary OpenAI verification code",
+          date: "26/04/2026 07:33:43",
+          body: "<p>Your verification code is <b>548645</b>.</p>",
+        },
+      ]), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new EtempmailClient({ apiBase: "https://etempmail.com" });
+    const result = await client.tryReadLatestCode(
+      "session-2",
+      {
+        email: "demo@ohm.edu.pl",
+        recoverKey: "RECOVER123",
+        sessionCookieHeader: "ci_session=stored-session; lisansimo=1777177132",
+      },
+      "etempmail_shared_default",
+      "tm.openai.com",
+    );
+
+    expect(result).toEqual(expect.objectContaining({
+      id: "etempmail:7",
+      extractedCode: "548645",
+    }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://etempmail.com/getInbox",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Cookie: "ci_session=stored-session; lisansimo=1777177132",
+        }),
+      }),
+    );
+  });
+
   it("probes the upstream by opening, listing, and deleting a mailbox", async () => {
     const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("<html></html>", {
+        status: 200,
+        headers: cookieHeader("ci_session=create-cookie; path=/; HttpOnly, lisansimo=1777140492"),
+      }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         id: "10154517",
         address: "probe@cross.edu.pl",
@@ -164,23 +235,9 @@ describe("etempmail provider", () => {
         recover_key: "RECOVER1",
       }), {
         status: 200,
-        headers: cookieHeader("ci_session=create-cookie; path=/; HttpOnly, lisansimo=1777140492"),
-      }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        success: true,
-        message: "Email recovery successful!",
-      }), {
-        status: 200,
-        headers: cookieHeader("ci_session=recovered-cookie; path=/; HttpOnly, lisansimo=1777140492"),
+        headers: cookieHeader("ci_session=create-cookie; path=/; HttpOnly"),
       }))
       .mockResolvedValueOnce(new Response("[]", { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        success: true,
-        message: "Email recovery successful!",
-      }), {
-        status: 200,
-        headers: cookieHeader("ci_session=recovered-cookie-2; path=/; HttpOnly, lisansimo=1777140492"),
-      }))
       .mockResolvedValueOnce(new Response("", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -211,6 +268,9 @@ describe("etempmail provider", () => {
       "https://etempmail.com/deleteEmailAddress",
       expect.objectContaining({
         method: "POST",
+        headers: expect.objectContaining({
+          Cookie: "ci_session=create-cookie; lisansimo=1777140492",
+        }),
       }),
     );
   });

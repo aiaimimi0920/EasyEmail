@@ -52,6 +52,7 @@ const LETTER_ONLY_STOPWORDS = new Set([
   "MINUTES",
   "OPENAI",
   "CHATGPT",
+  "TEMPORARY",
 ]);
 
 function normalizeContent(value: string | undefined, source: CodeSource): string | undefined {
@@ -80,6 +81,7 @@ function scoreCandidate(
   let score = source === "subject" ? 18 : source === "text" ? 12 : 9;
   const canonical = normalizeCandidateCode(code);
   const compact = canonical.replace(/-/g, "");
+  const rawCompact = code.trim().replace(/[-\s]+/g, "");
   const hasDigit = /\d/.test(compact);
   const hasLetter = /[A-Z]/.test(compact);
   const isLetterOnly = hasLetter && !hasDigit;
@@ -109,7 +111,7 @@ function scoreCandidate(
     }
   } else if (isLetterOnly) {
     score += LETTER_ONLY_STOPWORDS.has(compact) ? -30 : 4;
-    if (compact !== compact.toUpperCase()) {
+    if (/[a-z]/.test(rawCompact)) {
       score -= 12;
     }
   }
@@ -159,11 +161,14 @@ function appearsInsideEmailAddress(text: string, code: string, index: number): b
 }
 
 function isViableCandidate(code: string, context: string): boolean {
+  const rawTrimmed = code.trim();
   const canonical = normalizeCandidateCode(code);
   const compact = canonical.replace(/-/g, "");
+  const rawCompact = rawTrimmed.replace(/[-\s]+/g, "");
   const hasDigit = /\d/.test(compact);
   const hasLetter = /[A-Z]/.test(compact);
   const segments = canonical.split(/[- ]+/).filter(Boolean);
+  const rawSegments = rawTrimmed.split(/[- ]+/).filter(Boolean);
   const isHexLikeColor = /^[A-F0-9]{6}(?:[A-F0-9]{2})?$/.test(compact) && /[A-F]/.test(compact);
 
   if (!hasDigit && !hasLetter) {
@@ -178,7 +183,7 @@ function isViableCandidate(code: string, context: string): boolean {
     if (compact.length < 4 || compact.length > 12) {
       return false;
     }
-    if (compact !== compact.toUpperCase()) {
+    if (/[a-z]/.test(rawCompact)) {
       return false;
     }
     if (LETTER_ONLY_STOPWORDS.has(compact)) {
@@ -190,7 +195,7 @@ function isViableCandidate(code: string, context: string): boolean {
   if (segments.length > 1) {
     const hasValidSegment = segments.some((segment) => /\d/.test(segment) || /^[A-Z]{4,12}$/.test(segment));
     const hasBlockedAlphaSegment = segments.some((segment) => /^[A-Z]+$/.test(segment) && LETTER_ONLY_STOPWORDS.has(segment));
-    const hasLowercaseAlphaSegment = segments.some((segment) => /[A-Za-z]/.test(segment) && segment !== segment.toUpperCase());
+    const hasLowercaseAlphaSegment = rawSegments.some((segment) => /[a-z]/.test(segment));
     if (!hasValidSegment || hasBlockedAlphaSegment || hasLowercaseAlphaSegment) {
       return false;
     }

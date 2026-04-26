@@ -16,6 +16,7 @@
     "tier": "default",
     "apiBase": "https://sall.cc",
     "domain": "sall.cc",
+    "domainsCsv": "sall.cc,cnmlgb.de,zhooo.org,cksa.eu.cc,wqwq.eu.cc,zhoo.eu.cc,coolkid.icu,zhooo.ggff.net,coolkidsa.ggff.net",
     "expiryTimeMs": "3600000",
     "requiresApiKey": "true"
   },

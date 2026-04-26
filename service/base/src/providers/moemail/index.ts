@@ -16,10 +16,32 @@ function createLocalPart(hostId: string, sessionId: string): string {
   return createMailboxLocalPart(hostId, sessionId);
 }
 
+function parseDomainPool(raw: string | undefined): string[] {
+  const normalized = String(raw ?? "").replace(/[;\r\n|]/g, ",");
+  const pool: string[] = [];
+  const seen = new Set<string>();
+  for (const item of normalized.split(",")) {
+    const domain = item.trim().toLowerCase();
+    if (!domain || seen.has(domain)) {
+      continue;
+    }
+    seen.add(domain);
+    pool.push(domain);
+  }
+  return pool;
+}
+
 function resolveMailboxDomain(instance: ProviderInstance, requestMetadata: Record<string, string> | undefined): string | undefined {
   const requestDomain = requestMetadata?.requestedDomain?.trim() || requestMetadata?.domain?.trim() || "";
   if (requestDomain) {
     return requestDomain;
+  }
+  const domainPool = parseDomainPool(instance.metadata.domainsCsv || instance.metadata.domains);
+  if (domainPool.length > 1) {
+    return domainPool[Math.floor(Math.random() * domainPool.length)];
+  }
+  if (domainPool.length === 1) {
+    return domainPool[0];
   }
   const instanceDomain = instance.metadata.domain;
   return instanceDomain && instanceDomain.trim() ? instanceDomain.trim() : undefined;

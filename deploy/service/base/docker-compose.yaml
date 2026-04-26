@@ -10,6 +10,8 @@ services:
     mem_limit: 384m
     ports:
       - "18081:8080"
+    env_file:
+      - ./config/runtime.env
     environment:
       EASY_EMAIL_CONFIG_PATH: /etc/easy-email/config.yaml
       EASY_EMAIL_STATE_DIR: /var/lib/easy-email

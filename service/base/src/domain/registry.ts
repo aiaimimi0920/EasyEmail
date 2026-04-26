@@ -236,7 +236,26 @@ export class MailRegistry {
   }
 
   public saveMessage(message: ObservedMessage): void {
-    this.messages.set(message.id, message);
+    const existing = this.messages.get(message.id);
+    if (!existing) {
+      this.messages.set(message.id, message);
+      return;
+    }
+
+    this.messages.set(message.id, {
+      ...existing,
+      ...message,
+      // Preserve previously extracted artifacts for the same upstream message.
+      // Some providers return the same message id on later polls without the
+      // parsed OTP body, and we must not "forget" a code that was already
+      // resolved for this session.
+      extractedCode: message.extractedCode ?? existing.extractedCode,
+      extractedCandidates: message.extractedCandidates ?? existing.extractedCandidates,
+      codeSource: message.codeSource ?? existing.codeSource,
+      textBody: message.textBody ?? existing.textBody,
+      htmlBody: message.htmlBody ?? existing.htmlBody,
+      actionLinks: message.actionLinks ?? existing.actionLinks,
+    });
   }
 
   public deleteMessage(id: string): void {

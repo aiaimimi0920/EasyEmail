@@ -19,6 +19,14 @@ serviceBase:
   context: .
   dockerfile: deploy/service/base/Dockerfile
   image: easyemail/easy-email-service:local
+  containerEnvironment:
+    EASY_PROXY_BASE_URL: http://easy-proxy-service:9888
+    EASY_PROXY_API_KEY: ""
+    EASY_PROXY_RUNTIME_HOST: easy-proxy-service
+    EASY_PROXY_HOST_ID: easyemail-service-base
+    M2U_USE_EASY_PROXY_ON_CAPACITY: "true"
+    M2U_EASY_PROXY_REQUIRE_DEDICATED_NODE: "true"
+    M2U_EASY_PROXY_MAX_ATTEMPTS: "10"
   runtime:
     server:
       apiKey: ""

@@ -238,6 +238,32 @@ def render_service_config(root: dict[str, Any], output: Path) -> None:
     )
 
 
+def normalize_env_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    return str(value)
+
+
+def render_service_env(root: dict[str, Any], output: Path) -> None:
+    service_root = as_dict(root.get("serviceBase"))
+    env_map = as_dict(service_root.get("containerEnvironment"))
+
+    lines: list[str] = []
+    for key, value in env_map.items():
+        key_text = str(key).strip()
+        if not key_text:
+            continue
+        value_text = normalize_env_value(value)
+        lines.append(f"{key_text}={value_text}")
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text("\n".join(lines).rstrip() + ("\n" if lines else ""), encoding="utf-8")
+
+
 def render_worker_config(root: dict[str, Any], output: Path) -> None:
     template = tomllib.loads(WORKER_TEMPLATE_PATH.read_text(encoding="utf-8"))
     cloudflare = as_dict(root.get("cloudflareMail"))
@@ -291,6 +317,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Render derived EasyEmail config files from the root config.yaml.")
     parser.add_argument("--root-config", default=str(REPO_ROOT / "config.yaml"))
     parser.add_argument("--service-output", default="")
+    parser.add_argument("--service-env-output", default="")
     parser.add_argument("--worker-output", default="")
     args = parser.parse_args()
 
@@ -304,12 +331,16 @@ def main() -> int:
         render_service_config(root, Path(args.service_output))
         print(f"Rendered service config -> {args.service_output}")
 
+    if args.service_env_output:
+        render_service_env(root, Path(args.service_env_output))
+        print(f"Rendered service env -> {args.service_env_output}")
+
     if args.worker_output:
         render_worker_config(root, Path(args.worker_output))
         print(f"Rendered worker config -> {args.worker_output}")
 
-    if not args.service_output and not args.worker_output:
-        print("Nothing to render. Pass --service-output and/or --worker-output.")
+    if not args.service_output and not args.service_env_output and not args.worker_output:
+        print("Nothing to render. Pass --service-output, --service-env-output and/or --worker-output.")
     return 0
 
 

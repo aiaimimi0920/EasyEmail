@@ -27,6 +27,7 @@ export interface EtempmailMailboxCredentials {
   recoverKey: string;
   mailboxId?: string;
   creationTime?: string;
+  sessionCookieHeader?: string;
 }
 
 interface EtempmailMailboxOpenState {
@@ -39,7 +40,9 @@ interface EtempmailDomainOption {
   domain: string;
 }
 
-const ETEMPMAIL_USER_AGENT = "EasyEmailEtempmail/1.0";
+const ETEMPMAIL_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
+const ETEMPMAIL_ACCEPT_LANGUAGE = "en-US,en;q=0.9";
+const ETEMPMAIL_SEC_CH_UA = "\"Google Chrome\";v=\"147\", \"Not.A/Brand\";v=\"8\", \"Chromium\";v=\"147\"";
 const ETEMPMAIL_MAX_RETRIES = 2;
 const ETEMPMAIL_RETRY_BASE_DELAY_MS = 700;
 const ETEMPMAIL_DEFAULT_TTL_MS = 20 * 60 * 1000;
@@ -115,6 +118,14 @@ function extractOtp(values: { subject?: string; textBody?: string; htmlBody?: st
   return extractOtpFromContent(values);
 }
 
+function looksLikeSubjectOnlyOtp(code: string | undefined): boolean {
+  const normalized = String(code || "").trim().replace(/[-\s]+/g, "");
+  if (!normalized) {
+    return false;
+  }
+  return /\d/.test(normalized);
+}
+
 function classifyEtempmailError(message: string): "transient" | "capacity" | "provider" {
   const normalized = message.trim().toLowerCase();
   if (CAPACITY_ERROR_RE.test(normalized)) {
@@ -177,6 +188,69 @@ function parseSetCookieHeader(raw: string | null | undefined): string | undefine
   return cookies.join("; ");
 }
 
+function normalizeCookieHeader(raw: string | undefined): string | undefined {
+  if (!raw?.trim()) {
+    return undefined;
+  }
+
+  const cookieMap = new Map<string, string>();
+  for (const part of raw.split(/;\s*/)) {
+    const normalized = part.trim();
+    if (!normalized) {
+      continue;
+    }
+    const separatorIndex = normalized.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const name = normalized.slice(0, separatorIndex).trim();
+    const value = normalized.slice(separatorIndex + 1).trim();
+    if (!name || !value) {
+      continue;
+    }
+    cookieMap.set(name, value);
+  }
+
+  if (cookieMap.size <= 0) {
+    return undefined;
+  }
+
+  return Array.from(cookieMap.entries())
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ");
+}
+
+function mergeCookieHeaders(
+  currentCookieHeader: string | undefined,
+  setCookieHeader: string | null | undefined,
+): string | undefined {
+  const merged = new Map<string, string>();
+
+  for (const source of [
+    normalizeCookieHeader(currentCookieHeader),
+    parseSetCookieHeader(setCookieHeader),
+  ]) {
+    if (!source) {
+      continue;
+    }
+    for (const part of source.split(/;\s*/)) {
+      const separatorIndex = part.indexOf("=");
+      if (separatorIndex <= 0) {
+        continue;
+      }
+      merged.set(part.slice(0, separatorIndex), part.slice(separatorIndex + 1));
+    }
+  }
+
+  if (merged.size <= 0) {
+    return undefined;
+  }
+
+  return Array.from(merged.entries())
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ");
+}
+
 async function requestRaw(
   config: EtempmailConfig,
   method: string,
@@ -191,17 +265,25 @@ async function requestRaw(
 ): Promise<{ status: number; bodyText: string; setCookie?: string }> {
   const normalizedBase = trimTrailingSlash(config.apiBase);
   const origin = normalizedBase;
+  const normalizedCookieHeader = normalizeCookieHeader(options.cookieHeader);
 
   for (let attempt = 0; attempt <= ETEMPMAIL_MAX_RETRIES; attempt += 1) {
     const response = await fetch(`${normalizedBase}${path}`, {
       method,
       headers: {
-        Accept: options.accept ?? "application/json, text/plain, */*",
+        Accept: options.accept ?? "*/*",
         "User-Agent": ETEMPMAIL_USER_AGENT,
+        "Accept-Language": ETEMPMAIL_ACCEPT_LANGUAGE,
         Referer: `${origin}/`,
         Origin: origin,
+        "Sec-CH-UA": ETEMPMAIL_SEC_CH_UA,
+        "Sec-CH-UA-Mobile": "?0",
+        "Sec-CH-UA-Platform": "\"Windows\"",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
         ...(options.contentType ? { "Content-Type": options.contentType } : {}),
-        ...(options.cookieHeader ? { Cookie: options.cookieHeader } : {}),
+        ...(normalizedCookieHeader ? { Cookie: normalizedCookieHeader } : {}),
         ...(options.xRequestedWith ? { "X-Requested-With": "XMLHttpRequest" } : {}),
       },
       body: options.body,
@@ -251,6 +333,9 @@ function extractMailbox(body: unknown): EtempmailMailboxCredentials | undefined 
     recoverKey,
     mailboxId,
     creationTime,
+    sessionCookieHeader: normalizeCookieHeader(
+      readStringLike(record.sessionCookieHeader) ?? readStringLike(record.cookieHeader),
+    ),
   };
 }
 
@@ -308,12 +393,12 @@ function htmlToText(value: string | undefined): string {
 }
 
 function extractHtmlBodyFromDetailPage(html: string): { textBody: string; htmlBody: string } {
-  const iframeMatch = html.match(/<iframe[^>]+src="data:text\/html,([^"]+)"/i);
+  const iframeMatch = html.match(/<iframe[^>]+src=(['"])(data:text\/html,[\s\S]*?)\1/i);
   if (!iframeMatch) {
     return { textBody: "", htmlBody: "" };
   }
 
-  let htmlBody = iframeMatch[1];
+  let htmlBody = iframeMatch[2].replace(/^data:text\/html,/i, "");
   try {
     htmlBody = decodeURIComponent(htmlBody);
   } catch {
@@ -326,10 +411,58 @@ function extractHtmlBodyFromDetailPage(html: string): { textBody: string; htmlBo
   };
 }
 
+function parseLooseEtempmailTimestamp(raw: string): string | undefined {
+  const text = raw.trim();
+  if (!text) {
+    return undefined;
+  }
+
+  const slashMatch = text.match(
+    /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/,
+  );
+  if (slashMatch) {
+    const [, dayRaw, monthRaw, yearRaw, hourRaw, minuteRaw, secondRaw] = slashMatch;
+    const day = Number.parseInt(dayRaw, 10);
+    const month = Number.parseInt(monthRaw, 10);
+    const year = Number.parseInt(yearRaw, 10);
+    const hour = Number.parseInt(hourRaw, 10);
+    const minute = Number.parseInt(minuteRaw, 10);
+    const second = Number.parseInt(secondRaw ?? "0", 10);
+    return new Date(Date.UTC(year, month - 1, day, hour, minute, second)).toISOString();
+  }
+
+  const dottedMatch = text.match(
+    /^(\d{2})\.(\d{2})\.(\d{4})\s*-\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?(?:\s*\([^)]+\))?$/i,
+  );
+  if (dottedMatch) {
+    const [, dayRaw, monthRaw, yearRaw, hourRaw, minuteRaw, secondRaw, meridiemRaw] = dottedMatch;
+    const day = Number.parseInt(dayRaw, 10);
+    const month = Number.parseInt(monthRaw, 10);
+    const year = Number.parseInt(yearRaw, 10);
+    let hour = Number.parseInt(hourRaw, 10);
+    const minute = Number.parseInt(minuteRaw, 10);
+    const second = Number.parseInt(secondRaw ?? "0", 10);
+    const meridiem = (meridiemRaw || "").trim().toUpperCase();
+    if (meridiem === "PM" && hour < 12) {
+      hour += 12;
+    } else if (meridiem === "AM" && hour === 12) {
+      hour = 0;
+    }
+    return new Date(Date.UTC(year, month - 1, day, hour, minute, second)).toISOString();
+  }
+
+  return undefined;
+}
+
 function toObservedAt(value: unknown): string {
   const raw = readStringLike(value);
   if (!raw) {
     return new Date().toISOString();
+  }
+
+  const normalized = parseLooseEtempmailTimestamp(raw);
+  if (normalized) {
+    return normalized;
   }
 
   const parsed = Date.parse(raw);
@@ -379,6 +512,9 @@ export function decodeEtempmailMailboxRef(
       recoverKey,
       mailboxId: readStringLike(payload.mailboxId) ?? readStringLike(payload.id),
       creationTime: readStringLike(payload.creationTime) ?? readStringLike(payload.creation_time),
+      sessionCookieHeader: normalizeCookieHeader(
+        readStringLike(payload.sessionCookieHeader) ?? readStringLike(payload.cookieHeader),
+      ),
     };
   } catch {
     return undefined;
@@ -392,11 +528,23 @@ export class EtempmailClient {
     return new EtempmailClient(resolveEtempmailConfig(instance));
   }
 
-  private async getMailboxIdentity(cookieHeader?: string): Promise<EtempmailMailboxOpenState> {
-    const response = await requestRaw(this.config, "POST", "/getEmailAddress", {
+  private async seedMailboxSession(cookieHeader?: string): Promise<string | undefined> {
+    const response = await requestRaw(this.config, "GET", "/", {
       cookieHeader,
-      body: "{}",
-      contentType: "application/json",
+      accept: "text/html,application/xhtml+xml",
+    });
+    if (response.status !== 200) {
+      return normalizeCookieHeader(cookieHeader);
+    }
+    return mergeCookieHeaders(cookieHeader, response.setCookie);
+  }
+
+  private async getMailboxIdentity(cookieHeader?: string): Promise<EtempmailMailboxOpenState> {
+    const seededCookieHeader = normalizeCookieHeader(cookieHeader) ?? await this.seedMailboxSession();
+    const response = await requestRaw(this.config, "POST", "/getEmailAddress", {
+      cookieHeader: seededCookieHeader,
+      body: "",
+      contentType: "application/x-www-form-urlencoded; charset=UTF-8",
       xRequestedWith: true,
     });
     if (response.status !== 200) {
@@ -408,13 +556,16 @@ export class EtempmailClient {
       throw new Error("eTempMail getEmailAddress returned an incomplete mailbox payload.");
     }
 
-    const nextCookieHeader = parseSetCookieHeader(response.setCookie) ?? cookieHeader;
+    const nextCookieHeader = mergeCookieHeaders(seededCookieHeader, response.setCookie);
     if (!nextCookieHeader) {
       throw new Error("eTempMail getEmailAddress did not return a session cookie.");
     }
 
     return {
-      mailbox,
+      mailbox: {
+        ...mailbox,
+        sessionCookieHeader: nextCookieHeader,
+      },
       cookieHeader: nextCookieHeader,
     };
   }
@@ -441,11 +592,13 @@ export class EtempmailClient {
     if (response.status !== 200) {
       return undefined;
     }
-    return parseSetCookieHeader(response.setCookie) ?? cookieHeader;
+    return mergeCookieHeaders(cookieHeader, response.setCookie) ?? normalizeCookieHeader(cookieHeader);
   }
 
-  private async recoverMailboxCookie(recoverKey: string): Promise<string> {
+  private async recoverMailboxCookie(recoverKey: string, cookieHeader?: string): Promise<string> {
+    const seededCookieHeader = normalizeCookieHeader(cookieHeader) ?? await this.seedMailboxSession();
     const response = await requestRaw(this.config, "POST", "/recoverEmailAddress", {
+      cookieHeader: seededCookieHeader,
       body: new URLSearchParams({ key: recoverKey }).toString(),
       contentType: "application/x-www-form-urlencoded; charset=UTF-8",
       xRequestedWith: true,
@@ -459,12 +612,12 @@ export class EtempmailClient {
       throw new Error(`eTempMail recoverEmailAddress failed: ${readStringLike(body.message) ?? "unknown error"}`);
     }
 
-    const cookieHeader = parseSetCookieHeader(response.setCookie);
-    if (!cookieHeader) {
+    const nextCookieHeader = mergeCookieHeaders(seededCookieHeader, response.setCookie);
+    if (!nextCookieHeader) {
       throw new Error("eTempMail recoverEmailAddress did not return a session cookie.");
     }
 
-    return cookieHeader;
+    return nextCookieHeader;
   }
 
   public async createMailbox(
@@ -498,14 +651,32 @@ export class EtempmailClient {
     mailbox: EtempmailMailboxCredentials,
     cookieHeader?: string,
   ): Promise<{ cookieHeader: string; rows: Record<string, unknown>[] }> {
-    const effectiveCookieHeader = cookieHeader?.trim() || await this.recoverMailboxCookie(mailbox.recoverKey);
+    const preferredCookieHeader = normalizeCookieHeader(cookieHeader) ?? normalizeCookieHeader(mailbox.sessionCookieHeader);
+    const effectiveCookieHeader = preferredCookieHeader || await this.recoverMailboxCookie(mailbox.recoverKey);
     const response = await requestRaw(this.config, "POST", "/getInbox", {
       cookieHeader: effectiveCookieHeader,
-      body: "{}",
-      contentType: "application/json",
+      body: "",
+      contentType: "application/x-www-form-urlencoded; charset=UTF-8",
       xRequestedWith: true,
     });
     if (response.status !== 200) {
+      if (preferredCookieHeader) {
+        const recoveredCookieHeader = await this.recoverMailboxCookie(mailbox.recoverKey, preferredCookieHeader);
+        const recoveredResponse = await requestRaw(this.config, "POST", "/getInbox", {
+          cookieHeader: recoveredCookieHeader,
+          body: "",
+          contentType: "application/x-www-form-urlencoded; charset=UTF-8",
+          xRequestedWith: true,
+        });
+        if (recoveredResponse.status !== 200) {
+          throw formatEtempmailError("getInbox", recoveredResponse.status, recoveredResponse.bodyText.slice(0, 200));
+        }
+
+        return {
+          cookieHeader: recoveredCookieHeader,
+          rows: extractInboxRows(parseJsonBody(recoveredResponse.bodyText)),
+        };
+      }
       throw formatEtempmailError("getInbox", response.status, response.bodyText.slice(0, 200));
     }
 
@@ -538,7 +709,8 @@ export class EtempmailClient {
   }
 
   public async deleteMailbox(mailbox: EtempmailMailboxCredentials): Promise<{ released: boolean; detail: string }> {
-    const cookieHeader = await this.recoverMailboxCookie(mailbox.recoverKey);
+    const cookieHeader = normalizeCookieHeader(mailbox.sessionCookieHeader)
+      ?? await this.recoverMailboxCookie(mailbox.recoverKey);
     const response = await requestRaw(this.config, "POST", "/deleteEmailAddress", {
       cookieHeader,
       xRequestedWith: true,
@@ -576,38 +748,76 @@ export class EtempmailClient {
       }
 
       const subject = readStringLike(row.subject);
+      const inlineHtmlBody = readStringLike(row.body) ?? readStringLike(row.htmlBody) ?? readStringLike(row.html);
+      const inlineTextBody = inlineHtmlBody ? htmlToText(inlineHtmlBody) : readStringLike(row.textBody) ?? readStringLike(row.text);
       const summaryOtp = extractOtp({ subject });
-      if (summaryOtp) {
+      const inlineOtp = extractOtp({
+        subject,
+        textBody: inlineTextBody,
+        htmlBody: inlineHtmlBody,
+      });
+      const observedMessageId = `etempmail:${readStringLike(row.id) ?? String(index + 1)}`;
+      const observedAt = toObservedAt(row.date ?? row.createdAt);
+      const summaryResult = summaryOtp
+        ? {
+            id: observedMessageId,
+            sessionId,
+            providerInstanceId,
+            observedAt,
+            sender,
+            subject,
+            textBody: inlineTextBody ?? "",
+            htmlBody: inlineHtmlBody ?? "",
+            extractedCode: summaryOtp.code,
+            ...(summaryOtp.candidates ? { extractedCandidates: summaryOtp.candidates } : {}),
+            codeSource: summaryOtp.source,
+          }
+        : undefined;
+      if (inlineOtp) {
         return {
-          id: `etempmail:${readStringLike(row.id) ?? String(index + 1)}`,
+          id: observedMessageId,
           sessionId,
           providerInstanceId,
-          observedAt: toObservedAt(row.date ?? row.createdAt),
+          observedAt,
           sender,
           subject,
-          textBody: "",
-          htmlBody: "",
-          extractedCode: summaryOtp.code,
-          ...(summaryOtp.candidates ? { extractedCandidates: summaryOtp.candidates } : {}),
-          codeSource: summaryOtp.source,
+          textBody: inlineTextBody ?? "",
+          htmlBody: inlineHtmlBody ?? "",
+          extractedCode: inlineOtp.code,
+          ...(inlineOtp.candidates ? { extractedCandidates: inlineOtp.candidates } : {}),
+          codeSource: inlineOtp.source,
         };
       }
+      if (summaryOtp && looksLikeSubjectOnlyOtp(summaryOtp.code)) {
+        return summaryResult;
+      }
 
-      const detail = await this.getMessageDetailByIndex(mailbox, index + 1, cookieHeader);
+      let detail: { textBody: string; htmlBody: string };
+      try {
+        detail = await this.getMessageDetailByIndex(mailbox, index + 1, cookieHeader);
+      } catch (error) {
+        if (summaryResult) {
+          return summaryResult;
+        }
+        throw error;
+      }
       const detailOtp = extractOtp({
         subject,
         textBody: detail.textBody,
         htmlBody: detail.htmlBody,
       });
       if (!detailOtp) {
+        if (summaryResult) {
+          return summaryResult;
+        }
         continue;
       }
 
       return {
-        id: `etempmail:${readStringLike(row.id) ?? String(index + 1)}`,
+        id: observedMessageId,
         sessionId,
         providerInstanceId,
-        observedAt: toObservedAt(row.date ?? row.createdAt),
+        observedAt,
         sender,
         subject,
         textBody: detail.textBody,

@@ -3,6 +3,7 @@ param(
     [switch]$ServiceBase,
     [switch]$CloudflareMail,
     [string]$ServiceOutput = (Join-Path $PSScriptRoot '..\deploy\service\base\config\config.yaml'),
+    [string]$ServiceEnvOutput = (Join-Path $PSScriptRoot '..\deploy\service\base\config\runtime.env'),
     [string]$WorkerOutput = (Join-Path $PSScriptRoot '..\.tmp\cloudflare_temp_email.wrangler.toml')
 )
 
@@ -22,6 +23,7 @@ if (-not (Test-Path -LiteralPath $renderer)) {
 $args = @($renderer, '--root-config', $ConfigPath)
 if ($ServiceBase) {
     $args += @('--service-output', $ServiceOutput)
+    $args += @('--service-env-output', $ServiceEnvOutput)
 }
 if ($CloudflareMail) {
     $args += @('--worker-output', $WorkerOutput)

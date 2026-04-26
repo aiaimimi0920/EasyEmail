@@ -4,7 +4,7 @@
 
 canonical repo：
 
-- `service/base`
+- `C:\Users\Public\nas_home\AI\GameEditor\EmailService\repos\EasyEmail`
 
 > 说明
 >

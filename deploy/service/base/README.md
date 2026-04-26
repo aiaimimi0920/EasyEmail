@@ -19,6 +19,8 @@ set of `EASY_EMAIL_SERVICE_*` environment variables.
 
 The runtime config that the container consumes is generated from the root
 `config.yaml` by `scripts/render-derived-configs.ps1`.
+Container-only environment variables are generated into `config/runtime.env`
+from the same root config.
 
 ## Key Files
 

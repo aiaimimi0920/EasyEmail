@@ -44,6 +44,79 @@ function parseNonNegativeInteger(value: string | undefined): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
+function normalizeDomain(value: string | undefined): string | undefined {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized || undefined;
+}
+
+function parseDomainList(value: string | undefined): string[] {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    return [];
+  }
+
+  const parsed: string[] = [];
+  if (raw.startsWith("[") && raw.endsWith("]")) {
+    try {
+      const items = JSON.parse(raw);
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          const domain = normalizeDomain(typeof item === "string" ? item : undefined);
+          if (domain) {
+            parsed.push(domain);
+          }
+        }
+      }
+    } catch {
+      // Fall back to plain-text parsing when the metadata is not valid JSON.
+    }
+  }
+
+  const normalizedRaw = raw.replace(/[;\r\n|]/g, ",");
+  for (const item of normalizedRaw.split(",")) {
+    const domain = normalizeDomain(item);
+    if (domain) {
+      parsed.push(domain);
+    }
+  }
+
+  return [...new Set(parsed)];
+}
+
+function resolveSupportedDomains(instance: ProviderInstance): string[] {
+  const explicitDomains = [
+    ...parseDomainList(instance.metadata.domainsCsv),
+    ...parseDomainList(instance.metadata.domains),
+    ...parseDomainList(instance.metadata.availableDomains),
+    ...parseDomainList(instance.metadata.supportedDomains),
+  ];
+  if (explicitDomains.length > 0) {
+    return [...new Set(explicitDomains)];
+  }
+
+  return [...new Set([
+    ...parseDomainList(instance.metadata.domain),
+    ...parseDomainList(instance.metadata.preferredDomain),
+  ])];
+}
+
+function instanceSupportsRequestedDomain(
+  instance: ProviderInstance,
+  requestedDomain: string | undefined,
+): boolean {
+  const normalizedRequestedDomain = normalizeDomain(requestedDomain);
+  if (!normalizedRequestedDomain) {
+    return true;
+  }
+
+  const supportedDomains = resolveSupportedDomains(instance);
+  if (supportedDomains.length === 0) {
+    return true;
+  }
+
+  return supportedDomains.includes(normalizedRequestedDomain);
+}
+
 function isMailboxDeliveryFailureReason(reason: string | undefined): boolean {
   const normalized = String(reason ?? "").trim().toLowerCase();
   if (!normalized) {
@@ -200,11 +273,10 @@ export class MailboxDispatcher {
         `Provider ${normalizedRequest.providerTypeKey} was explicitly excluded by the request.`,
       );
     }
-    const requestedDomain = this.resolveRequestedDomain(normalizedRequest);
     const requestRandomSubdomain = normalizedRequest.requestRandomSubdomain === true;
 
     if (!normalizedRequest.providerTypeKey) {
-      if (requestRandomSubdomain || requestedDomain) {
+      if (requestRandomSubdomain) {
         return this.resolveMailboxPlanForProvider({
           ...normalizedRequest,
           providerTypeKey: "cloudflare_temp_email",
@@ -309,10 +381,11 @@ export class MailboxDispatcher {
         ?? this.defaultStrategyMode?.strategyProfileId,
       strategies: this.registry.listStrategies(),
     });
+    const effectiveStrategyMode = this.filterStrategyModeByRequestedDomain(strategyMode, request);
     const preferredProviderType = request.preferredInstanceId
       ? this.registry.findInstanceById(request.preferredInstanceId)?.providerTypeKey
       : undefined;
-    const providerTypeOrder = this.buildProviderTypeOrder(strategyMode, request, preferredProviderType, routingProfile);
+    const providerTypeOrder = this.buildProviderTypeOrder(effectiveStrategyMode, request, preferredProviderType, routingProfile);
     let lastError: EasyEmailError | undefined;
 
     for (const providerTypeKey of providerTypeOrder) {
@@ -320,8 +393,8 @@ export class MailboxDispatcher {
         return this.resolveMailboxPlanForProvider({
           ...request,
           providerTypeKey,
-          strategyProfileId: request.strategyProfileId ?? strategyMode.strategyProfileId,
-        }, now, persistProvisioning, strategyMode);
+          strategyProfileId: request.strategyProfileId ?? effectiveStrategyMode.strategyProfileId,
+        }, now, persistProvisioning, effectiveStrategyMode);
       } catch (error) {
         if (this.isRecoverableStrategyError(error)) {
           lastError = error;
@@ -341,6 +414,59 @@ export class MailboxDispatcher {
     );
   }
 
+  private filterStrategyModeByRequestedDomain(
+    strategyMode: MailStrategyModeResolution,
+    request: VerificationMailboxRequest,
+  ): MailStrategyModeResolution {
+    const requestedDomain = this.resolveRequestedDomain(request);
+    if (!requestedDomain) {
+      return strategyMode;
+    }
+
+    const compatibleSelections = strategyMode.providerSelections.filter((group) => {
+      const providerTypeKey = getMailProviderTypeForGroup(group);
+      return this.providerTypeSupportsRequestedDomain(providerTypeKey, request, requestedDomain);
+    });
+    if (compatibleSelections.length === 0 || compatibleSelections.length === strategyMode.providerSelections.length) {
+      return strategyMode;
+    }
+
+    const compatibleSet = new Set(compatibleSelections);
+    return {
+      ...strategyMode,
+      providerSelections: compatibleSelections,
+      eligibleProviderGroups: strategyMode.eligibleProviderGroups.filter((group) => compatibleSet.has(group)),
+      providerGroupOrder: strategyMode.providerGroupOrder.filter((group) => compatibleSet.has(group)),
+      explain: [
+        ...strategyMode.explain,
+        `requestedDomain=${requestedDomain} narrowed provider groups to ${compatibleSelections.join(",")}`,
+      ],
+    };
+  }
+
+  private providerTypeSupportsRequestedDomain(
+    providerTypeKey: MailProviderTypeKey,
+    request: VerificationMailboxRequest,
+    requestedDomain: string | undefined,
+  ): boolean {
+    const normalizedRequestedDomain = normalizeDomain(requestedDomain);
+    if (!normalizedRequestedDomain) {
+      return true;
+    }
+
+    const candidates = this.registry.listActiveInstancesByType(providerTypeKey).filter((instance) => {
+      if (request.groupKey && instance.groupKeys.length > 0) {
+        return instance.groupKeys.includes(request.groupKey);
+      }
+      return true;
+    });
+    if (candidates.length === 0) {
+      return false;
+    }
+
+    return candidates.some((instance) => instanceSupportsRequestedDomain(instance, normalizedRequestedDomain));
+  }
+
   private selectExternalInstance(
     providerType: ProviderTypeDefinition,
     request: VerificationMailboxRequest,
@@ -351,7 +477,7 @@ export class MailboxDispatcher {
       }
 
       return true;
-    });
+    }).filter((instance) => instanceSupportsRequestedDomain(instance, this.resolveRequestedDomain(request)));
 
     if (request.preferredInstanceId) {
       const preferred = candidates.find((instance) => instance.id === request.preferredInstanceId);
@@ -365,9 +491,12 @@ export class MailboxDispatcher {
     }
 
     if (candidates.length === 0) {
+      const requestedDomain = this.resolveRequestedDomain(request);
       throw new EasyEmailError(
         "PROVIDER_INSTANCE_UNAVAILABLE",
-        `No active provider instance is registered for ${providerType.displayName}.`,
+        requestedDomain
+          ? `No active provider instance for ${providerType.displayName} can serve requested domain "${requestedDomain}".`
+          : `No active provider instance is registered for ${providerType.displayName}.`,
       );
     }
 
@@ -590,7 +719,7 @@ export class MailboxDispatcher {
         return instance.groupKeys.includes(request.groupKey);
       }
       return true;
-    });
+    }).filter((instance) => instanceSupportsRequestedDomain(instance, this.resolveRequestedDomain(request)));
 
     if (candidates.length === 0) {
       return Number.NEGATIVE_INFINITY;

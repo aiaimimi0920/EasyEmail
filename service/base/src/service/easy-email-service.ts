@@ -977,6 +977,19 @@ export class EasyEmailService {
       || request.metadata?.requestedDomain?.trim().toLowerCase()
       || request.metadata?.mailcreateDomain?.trim().toLowerCase()
       || undefined;
+    const requestedLocalPart = request.requestedLocalPart?.trim()
+      || request.metadata?.requestedLocalPart?.trim()
+      || request.metadata?.customLocalPart?.trim()
+      || request.metadata?.mailcreateLocalPart?.trim()
+      || request.metadata?.localPart?.trim()
+      || request.metadata?.prefix?.trim()
+      || undefined;
+    const turnstileToken = request.turnstileToken?.trim()
+      || request.metadata?.turnstileToken?.trim()
+      || request.metadata?.cfTurnstileResponse?.trim()
+      || request.metadata?.["cf-turnstile-response"]?.trim()
+      || request.metadata?.turnstileResponse?.trim()
+      || undefined;
     const metadata: Record<string, string> = {
       ...(request.metadata ?? {}),
     };
@@ -993,10 +1006,27 @@ export class EasyEmailService {
       delete metadata.requestRandomSubdomain;
     }
 
+    if (requestedLocalPart) {
+      metadata.requestedLocalPart = requestedLocalPart;
+    } else {
+      delete metadata.requestedLocalPart;
+    }
+
+    delete metadata.turnstileToken;
+    delete metadata.turnstileResponse;
+    delete metadata.cfTurnstileResponse;
+    delete metadata["cf-turnstile-response"];
+    delete metadata.customLocalPart;
+    delete metadata.mailcreateLocalPart;
+    delete metadata.localPart;
+    delete metadata.prefix;
+
     return {
       ...request,
       providerRoutingProfileId: routingProfile?.id ?? request.providerRoutingProfileId?.trim() ?? undefined,
       requestedDomain,
+      requestedLocalPart,
+      turnstileToken,
       requestRandomSubdomain: request.requestRandomSubdomain === true,
       providerTypeKey: normalizeMailProviderTypeKey(request.providerTypeKey),
       providerStrategyModeId: normalizeMailBusinessStrategyId(

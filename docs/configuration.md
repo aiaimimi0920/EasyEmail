@@ -26,6 +26,7 @@ The render script is:
 It generates derived internal files from the root config:
 
 - `deploy/service/base/config/config.yaml`
+- `deploy/service/base/config/runtime.env`
 - `.tmp/cloudflare_temp_email.wrangler.toml`
 
 ## Sections
@@ -43,6 +44,9 @@ Used by `scripts/render-derived-configs.ps1` and `scripts/deploy-service-base.ps
 
 - `serviceBase.context`, `serviceBase.dockerfile`, and `serviceBase.image` are
   build/deploy metadata.
+- `serviceBase.containerEnvironment` is an optional key-value map for
+  container-only runtime environment variables. It is rendered into
+  `deploy/service/base/config/runtime.env`.
 - `serviceBase.runtime` is a partial overlay that gets merged onto
   `deploy/service/base/config.template.yaml` to produce the generated runtime
   config.
@@ -70,6 +74,9 @@ serviceBase:
   context: .
   dockerfile: deploy/service/base/Dockerfile
   image: easyemail/easy-email-service:local
+  containerEnvironment:
+    EASY_PROXY_BASE_URL: http://easy-proxy-service:9888
+    EASY_PROXY_API_KEY: ""
   runtime:
     server:
       apiKey: ""

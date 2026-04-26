@@ -172,6 +172,8 @@ export interface VerificationMailboxRequest {
   provisionMode: ProvisionMode;
   bindingMode: BindingMode;
   requestedDomain?: string;
+  requestedLocalPart?: string;
+  turnstileToken?: string;
   requestRandomSubdomain?: boolean;
   includeAliasEmail?: boolean;
   strategyProfileId?: string;

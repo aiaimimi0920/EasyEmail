@@ -75,15 +75,21 @@ function normalizeSyncedMessageFreshness(
       observedAt !== undefined
       && (observedAt > lastCodeObservedAt || (observedAt === lastCodeObservedAt && synced.id !== lastCodeMessageId))
     );
+  const isSameLastResolvedMessage = lastCodeObservedAt !== undefined
+    && observedAt !== undefined
+    && observedAt === lastCodeObservedAt
+    && synced.id === lastCodeMessageId;
 
   if (!observedAt || !isAfterMailboxOpen || !isAfterLastResolvedCode) {
     return {
-      normalized: {
-        ...synced,
-        extractedCode: undefined,
-        extractedCandidates: undefined,
-        codeSource: undefined,
-      },
+      normalized: isSameLastResolvedMessage
+        ? synced
+        : {
+          ...synced,
+          extractedCode: undefined,
+          extractedCandidates: undefined,
+          codeSource: undefined,
+        },
       accepted: false,
     };
   }
@@ -296,7 +302,7 @@ export async function readVerificationCodeFromProvider(input: {
     }
   }
 
-  return undefined;
+  return registry.findLatestVerificationCode(sessionId);
 }
 
 export async function readAuthenticationLinkFromProvider(input: {
