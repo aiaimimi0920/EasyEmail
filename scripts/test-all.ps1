@@ -172,6 +172,18 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $previousCloudflareMailConfig = $env:EASYEMAIL_CLOUDFLARE_MAIL_CONFIG
+$previousGranularSecrets = @{
+    EASYEMAIL_CF_PUBLIC_BASE_URL = $env:EASYEMAIL_CF_PUBLIC_BASE_URL
+    EASYEMAIL_CF_PUBLIC_DOMAIN = $env:EASYEMAIL_CF_PUBLIC_DOMAIN
+    EASYEMAIL_CF_PASSWORDS = $env:EASYEMAIL_CF_PASSWORDS
+    EASYEMAIL_CF_ADMIN_PASSWORDS = $env:EASYEMAIL_CF_ADMIN_PASSWORDS
+    EASYEMAIL_CF_JWT_SECRET = $env:EASYEMAIL_CF_JWT_SECRET
+    EASYEMAIL_CF_DOMAINS = $env:EASYEMAIL_CF_DOMAINS
+    EASYEMAIL_CF_SUBDOMAIN_LABEL_POOL = $env:EASYEMAIL_CF_SUBDOMAIN_LABEL_POOL
+    EASYEMAIL_CF_D1_DATABASE_ID = $env:EASYEMAIL_CF_D1_DATABASE_ID
+    EASYEMAIL_CF_AUTH_EMAIL = $env:EASYEMAIL_CF_AUTH_EMAIL
+    EASYEMAIL_CF_GLOBAL_API_KEY = $env:EASYEMAIL_CF_GLOBAL_API_KEY
+}
 try {
     $env:EASYEMAIL_CLOUDFLARE_MAIL_CONFIG = @'
 cloudflareMail:
@@ -194,6 +206,45 @@ cloudflareMail:
     if (-not (Test-Path -LiteralPath $materializedConfigPath)) {
         throw 'Cloudflare action config materialization did not produce an output file.'
     }
+
+    Remove-Item Env:EASYEMAIL_CLOUDFLARE_MAIL_CONFIG
+    $env:EASYEMAIL_CF_PUBLIC_BASE_URL = 'https://mail.example.com'
+    $env:EASYEMAIL_CF_PUBLIC_DOMAIN = 'mail.example.com'
+    $env:EASYEMAIL_CF_PASSWORDS = @'
+change-me
+'@
+    $env:EASYEMAIL_CF_ADMIN_PASSWORDS = @'
+admin-change-me
+'@
+    $env:EASYEMAIL_CF_JWT_SECRET = 'jwt-change-me'
+    $env:EASYEMAIL_CF_DOMAINS = @'
+mail.example.com
+example.com
+*.example.com
+'@
+    $env:EASYEMAIL_CF_SUBDOMAIN_LABEL_POOL = @'
+alpha
+beta
+gamma
+'@
+    $env:EASYEMAIL_CF_D1_DATABASE_ID = '00000000-0000-0000-0000-000000000000'
+    $env:EASYEMAIL_CF_AUTH_EMAIL = 'operator@example.com'
+    $env:EASYEMAIL_CF_GLOBAL_API_KEY = 'global-api-key'
+
+    & python (Join-Path $repoRoot 'scripts/materialize-action-config.py') `
+        --base-config (Join-Path $repoRoot 'config.example.yaml') `
+        --output $materializedConfigPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Granular Cloudflare action config materialization smoke check failed with exit code $LASTEXITCODE"
+    }
 } finally {
     $env:EASYEMAIL_CLOUDFLARE_MAIL_CONFIG = $previousCloudflareMailConfig
+    foreach ($secretName in $previousGranularSecrets.Keys) {
+        $previousValue = $previousGranularSecrets[$secretName]
+        if ($null -eq $previousValue) {
+            Remove-Item -Path "Env:$secretName" -ErrorAction SilentlyContinue
+        } else {
+            Set-Item -Path "Env:$secretName" -Value $previousValue
+        }
+    }
 }
