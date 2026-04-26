@@ -208,20 +208,25 @@ jobs:
         if: steps.change_gate.outputs.should_deploy == 'true'
         shell: pwsh
         run: |
-          $deployArgs = @('-ConfigPath', '.\config.yaml', '-NoInstall')
+          $isWorkflowDispatch = "${{ github.event_name }}" -eq 'workflow_dispatch'
+          $syncMode = if ($isWorkflowDispatch) { '${{ inputs.sync_mode }}' } else { 'exact' }
+          $isDryRun = $isWorkflowDispatch -and ('${{ inputs.dry_run }}' -eq 'true')
+          $skipRoutingSync = $isWorkflowDispatch -and ('${{ inputs.no_routing_sync }}' -eq 'true')
 
-          if ("${{ github.event_name }}" -eq 'workflow_dispatch') {
-            $deployArgs += '-SyncMode'
-            $deployArgs += '${{ inputs.sync_mode }}'
-            if ('${{ inputs.no_routing_sync }}' -eq 'true') {
-              $deployArgs += '-NoRoutingSync'
+          if ($isDryRun) {
+            if ($skipRoutingSync) {
+              & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -NoRoutingSync -DryRun
+            } else {
+              & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -DryRun
             }
-            if ('${{ inputs.dry_run }}' -eq 'true') {
-              $deployArgs += '-DryRun'
+          } else {
+            if ($skipRoutingSync) {
+              & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -NoRoutingSync
+            } else {
+              & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall
             }
           }
 
-          & .\scripts\deploy-cloudflare-email.ps1 @deployArgs
           if ($LASTEXITCODE -ne 0) {
             throw "Cloudflare email deployment failed with exit code $LASTEXITCODE"
           }
