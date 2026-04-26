@@ -67,6 +67,17 @@ Used by `scripts/render-derived-configs.ps1`,
 - `cloudflareMail.routing.plan` is the routing host plan used to generate the
   temporary plan file for Email Routing sync.
 
+### `publishing`
+
+Used by image publishing and control-center release helper scripts.
+
+- `publishing.ghcr` is read by
+  `deploy/service/base/publish-ghcr-easy-email-service.ps1`.
+- `publishing.controlCenter` is read by
+  `scripts/publish-control-center-release-catalog.ps1`.
+- `publishing.controlCenter.releaseCatalogPayloadPath` should point to the
+  release-set catalog JSON file that will be posted to the control center.
+
 ## Example
 
 ```yaml
@@ -105,6 +116,20 @@ cloudflareMail:
         - mail.example.com
         - example.com
         - "*.example.com"
+
+publishing:
+  ghcr:
+    registry: ghcr.io
+    owner: ""
+    username: ""
+    token: ""
+  controlCenter:
+    baseUrl: https://control.example.com
+    releaseCatalogPublishPath: /admin/release-set-catalog
+    releaseCatalogPayloadPath: ""
+    accessClientId: ""
+    accessClientSecret: ""
+    releasePublishToken: ""
 ```
 
 ## Security Rules

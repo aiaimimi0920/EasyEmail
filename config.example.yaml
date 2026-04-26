@@ -75,3 +75,17 @@ cloudflareMail:
     cloudflareGlobalAuth:
       authEmail: ""
       globalApiKey: ""
+
+publishing:
+  ghcr:
+    registry: ghcr.io
+    owner: ""
+    username: ""
+    token: ""
+  controlCenter:
+    baseUrl: https://control.example.com
+    releaseCatalogPublishPath: /admin/release-set-catalog
+    releaseCatalogPayloadPath: ""
+    accessClientId: ""
+    accessClientSecret: ""
+    releasePublishToken: ""

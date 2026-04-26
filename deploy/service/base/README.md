@@ -62,3 +62,6 @@ pwsh .\deploy\service\base\smoke-easy-email-docker-api.ps1 -Rebuild -ApiKey "<se
 ```powershell
 pwsh .\deploy\service\base\publish-ghcr-easy-email-service.ps1 -Owner <github-owner> -Push
 ```
+
+If `publishing.ghcr` is filled in inside the root `config.yaml`, the publish
+script can read the registry owner, username, and token from there.

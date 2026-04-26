@@ -89,6 +89,7 @@ corepack pnpm build
 - `docs/build-service-base-image.md`
 - `docs/quick-deploy-cloudflare-mail.md`
 - `docs/cloudflare-email-deployment.md`
+- `docs/publish-control-center-release-catalog.md`
 - `CONTRIBUTING.md`
 
 ## Operator Scripts
@@ -100,6 +101,7 @@ corepack pnpm build
 - `scripts/deploy-service-base.ps1`
 - `scripts/deploy-cloudflare-email.ps1`
 - `scripts/quick-deploy-cloudflare-mail.ps1`
+- `scripts/publish-control-center-release-catalog.ps1`
 
 ## Shared Config
 
@@ -118,6 +120,8 @@ The main root sections are:
 - `serviceBase.runtime`
 - `cloudflareMail.worker`
 - `cloudflareMail.routing.plan`
+- `publishing.ghcr`
+- `publishing.controlCenter`
 
 For Cloudflare temp mail deployment specifically, put deployment secrets in the
 root `config.yaml` file under the `cloudflareMail` section. The direct deploy
