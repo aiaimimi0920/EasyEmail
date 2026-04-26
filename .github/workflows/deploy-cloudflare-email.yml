@@ -207,14 +207,8 @@ jobs:
       - name: Deploy Cloudflare Email
         if: steps.change_gate.outputs.should_deploy == 'true'
         shell: pwsh
-        env:
-          SKIP_HEALTH_CHECK: ${{ github.event_name == 'workflow_dispatch' && !inputs.run_health_check }}
         run: |
-          $deployArgs = @(
-            '-ConfigPath', '.\config.yaml',
-            '-SkipServiceBaseGhcr',
-            '-NoInstall'
-          )
+          $deployArgs = @('-ConfigPath', '.\config.yaml', '-NoInstall')
 
           if ("${{ github.event_name }}" -eq 'workflow_dispatch') {
             $deployArgs += '-SyncMode'
@@ -225,12 +219,9 @@ jobs:
             if ('${{ inputs.dry_run }}' -eq 'true') {
               $deployArgs += '-DryRun'
             }
-            if ($env:SKIP_HEALTH_CHECK -eq 'true') {
-              $deployArgs += '-SkipCloudflareHealthCheck'
-            }
           }
 
-          & .\scripts\deploy-easyemail-release.ps1 @deployArgs
+          & .\scripts\deploy-cloudflare-email.ps1 @deployArgs
           if ($LASTEXITCODE -ne 0) {
             throw "Cloudflare email deployment failed with exit code $LASTEXITCODE"
           }
