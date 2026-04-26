@@ -40,7 +40,7 @@ pwsh .\scripts\deploy-service-base.ps1
 
 Default host port:
 
-- `http://127.0.0.1:18080`
+- `http://127.0.0.1:18081`
 
 ## Notes
 

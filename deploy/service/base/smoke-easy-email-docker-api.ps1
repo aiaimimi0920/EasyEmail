@@ -1,5 +1,5 @@
 param(
-  [string]$BaseUrl = "http://127.0.0.1:18080",
+  [string]$BaseUrl = "http://127.0.0.1:18081",
   [string]$ApiKey = "",
   [switch]$Rebuild,
   [switch]$KeepRunning

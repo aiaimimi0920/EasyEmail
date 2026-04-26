@@ -4,12 +4,12 @@ services:
       context: ../..
       dockerfile: deploy/service/base/Dockerfile
     image: easyemail/easy-email-service:local
-    container_name: easy-email-service
+    container_name: easyemail-service-base
     restart: unless-stopped
     cpus: 0.75
     mem_limit: 384m
     ports:
-      - "18080:8080"
+      - "18081:8080"
     environment:
       EASY_EMAIL_CONFIG_PATH: /etc/easy-email/config.yaml
       EASY_EMAIL_STATE_DIR: /var/lib/easy-email
