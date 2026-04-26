@@ -72,6 +72,10 @@ If you want GitHub-hosted deployment later, the matching workflow can read the
 same root config as a repository secret, or just the `cloudflareMail` overlay
 if you prefer a narrower secret scope.
 
+For a real Cloudflare deploy from GitHub Actions, you also need
+`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in repository secrets so
+`wrangler deploy` can authenticate.
+
 ## 7. Publish The Service Image And Deploy Cloudflare Together
 
 Use the root release entrypoint when you want to publish the `service/base`

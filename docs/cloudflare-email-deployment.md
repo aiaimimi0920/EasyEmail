@@ -48,6 +48,14 @@ want GitHub-hosted deployment, or store only the `cloudflareMail` overlay in
 manual dry-run validation, the workflow can fall back to `config.example.yaml`
 when no operator config secret is present.
 
+For a real GitHub-hosted deploy, you also need the Cloudflare runner secrets:
+
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`
+
+Those are what let `wrangler deploy` authenticate against your Cloudflare
+account during the workflow run.
+
 ## What The Root Config Needs
 
 The deploy scripts read the root `config.yaml`, specifically:
