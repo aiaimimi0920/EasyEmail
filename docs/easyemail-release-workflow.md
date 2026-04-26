@@ -46,6 +46,9 @@ sections instead of overwriting each other.
 Both workflows also validate release tags before they publish or deploy. The
 validation rules live in [validate-release-tag.py](../scripts/validate-release-tag.py).
 
+If you need the exact GitHub secret names for hosted deployment, see
+[github-actions-secrets.md](./github-actions-secrets.md).
+
 ## Useful Flags
 
 Skip the Cloudflare deploy and publish only the service image:

@@ -76,6 +76,9 @@ For a real Cloudflare deploy from GitHub Actions, you also need
 `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in repository secrets so
 `wrangler deploy` can authenticate.
 
+See [github-actions-secrets.md](./github-actions-secrets.md) for the complete
+secret inventory used by the hosted deployment workflows.
+
 ## 7. Publish The Service Image And Deploy Cloudflare Together
 
 Use the root release entrypoint when you want to publish the `service/base`

@@ -56,6 +56,9 @@ For a real GitHub-hosted deploy, you also need the Cloudflare runner secrets:
 Those are what let `wrangler deploy` authenticate against your Cloudflare
 account during the workflow run.
 
+The full secret inventory, including the optional operator-config secrets, is
+documented in [github-actions-secrets.md](./github-actions-secrets.md).
+
 ## What The Root Config Needs
 
 The deploy scripts read the root `config.yaml`, specifically:

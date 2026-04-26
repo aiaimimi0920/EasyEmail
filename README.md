@@ -98,6 +98,7 @@ corepack pnpm build
 - `docs/quick-deploy-cloudflare-mail.md`
 - `docs/easyemail-release-workflow.md`
 - `docs/release-tagging.md`
+- `docs/github-actions-secrets.md`
 - `docs/cloudflare-email-deployment.md`
 - `docs/publish-control-center-release-catalog.md`
 - `CONTRIBUTING.md`
