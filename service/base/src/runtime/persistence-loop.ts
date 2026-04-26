@@ -17,13 +17,34 @@ export function startMailStatePersistenceLoop(
   store: MailStateStore,
   options: MailStatePersistenceLoopOptions,
 ): MailStatePersistenceLoop {
+  let flushInFlight: Promise<void> | null = null;
+  let flushQueued = false;
+
   const flushOnce = async (): Promise<void> => {
-    const snapshot: EasyEmailSnapshot = service.getSnapshot();
-    await store.saveSnapshot(snapshot);
+    if (flushInFlight) {
+      flushQueued = true;
+      return flushInFlight;
+    }
+
+    flushInFlight = (async () => {
+      do {
+        flushQueued = false;
+        const snapshot: EasyEmailSnapshot = service.getSnapshot();
+        await store.saveSnapshot(snapshot);
+      } while (flushQueued);
+    })();
+
+    try {
+      await flushInFlight;
+    } finally {
+      flushInFlight = null;
+    }
   };
 
   const intervalHandle = setInterval(() => {
-    void flushOnce().catch(() => undefined);
+    void flushOnce().catch((error) => {
+      console.error("[mail-state-persistence-loop] failed to persist snapshot", error);
+    });
   }, options.intervalMs);
 
   return {
@@ -37,4 +58,3 @@ export function startMailStatePersistenceLoop(
     },
   };
 }
-

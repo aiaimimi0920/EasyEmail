@@ -5,7 +5,7 @@ import { useScopedI18n } from '@/i18n/app'
 import { useGlobalState } from '../../store'
 import { api } from '../../api'
 
-const { loading } = useGlobalState()
+const { loading, beginLoading, endLoading } = useGlobalState()
 const message = useMessage()
 
 const { t } = useScopedI18n('views.admin.IpBlacklistSettings')
@@ -21,7 +21,7 @@ const dailyRequestLimit = ref(1000)
 
 const fetchData = async () => {
     try {
-        loading.value = true
+        beginLoading()
         const res = await api.fetch(`/admin/ip_blacklist/settings`)
         enabled.value = res.enabled || false
         ipBlacklist.value = res.blacklist || []
@@ -34,7 +34,7 @@ const fetchData = async () => {
     } catch (error) {
         message.error(error.message || "error");
     } finally {
-        loading.value = false
+        endLoading()
     }
 }
 
@@ -44,7 +44,7 @@ const save = async () => {
         return
     }
     try {
-        loading.value = true
+        beginLoading()
         await api.fetch(`/admin/ip_blacklist/settings`, {
             method: 'POST',
             body: JSON.stringify({
@@ -62,7 +62,7 @@ const save = async () => {
     } catch (error) {
         message.error(error.message || "error");
     } finally {
-        loading.value = false
+        endLoading()
     }
 }
 

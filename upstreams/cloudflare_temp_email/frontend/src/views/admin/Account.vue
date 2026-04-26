@@ -9,7 +9,7 @@ import { NButton, NMenu } from 'naive-ui';
 import { MenuFilled } from '@vicons/material'
 
 const {
-    loading, adminTab, openSettings,
+    loading, beginLoading, endLoading, adminTab, openSettings,
     adminMailTabAddress, adminSendBoxTabAddress
 } = useGlobalState()
 const message = useMessage()
@@ -130,7 +130,7 @@ const executeBatchOperation = async ({
     operationName = 'operation'
 }) => {
     try {
-        loading.value = true;
+        beginLoading();
         const selectedAddresses = data.value.filter((item) =>
             checkedRowKeys.value.includes(item.id)
         );
@@ -171,7 +171,7 @@ const executeBatchOperation = async ({
     } catch (error) {
         message.error(error.message || "error");
     } finally {
-        loading.value = false;
+        endLoading();
     }
 }
 
@@ -217,9 +217,7 @@ const fetchData = async () => {
             + (sortOrder.value ? `&sort_order=${sortOrder.value}` : "")
         );
         data.value = results;
-        if (page.value === 1 || addressCount > 0) {
-            count.value = addressCount ?? 0;
-        }
+        count.value = addressCount ?? 0;
     } catch (error) {
         console.error(error);
         message.error(error.message || "error");

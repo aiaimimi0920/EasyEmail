@@ -31,6 +31,7 @@ pwsh .\scripts\compile-userscript.ps1 -CopyToClipboard
 ## Security Rules
 
 - never commit `easy_email_proxy.local.user.js`
+- keep the root `config.yaml` as the single source of operator secrets
 - keep the tracked template free of live secrets
 
 ## Runtime Positioning

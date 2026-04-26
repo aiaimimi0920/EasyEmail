@@ -3,14 +3,15 @@ import { useRoute } from 'vue-router'
 
 import { useGlobalState } from '../../store'
 import { api } from '../../api'
-import { onMounted, watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { processItem } from '../../utils/email-parser'
 import { utcToLocalDate } from '../../utils';
 
-const { telegramApp, loading, useUTCDate } = useGlobalState()
+const { telegramApp, beginLoading, endLoading, useUTCDate } = useGlobalState()
 const route = useRoute()
 
 const curMail = ref({});
+let fetchMailRequestId = 0
 
 watch(telegramApp, async () => {
     if (telegramApp.value.initData) {
@@ -19,6 +20,8 @@ watch(telegramApp, async () => {
 });
 
 const fetchMailData = async () => {
+    const requestId = ++fetchMailRequestId;
+    beginLoading();
     try {
         const res = await api.fetch(`/telegram/get_mail`, {
             method: 'POST',
@@ -27,15 +30,15 @@ const fetchMailData = async () => {
                 mailId: route.query.mail_id
             })
         });
-        loading.value = true;
-        return await processItem(res);
+        const parsedMail = await processItem(res);
+        return requestId === fetchMailRequestId ? parsedMail : curMail.value;
     }
     catch (error) {
         console.error(error);
         return {};
     }
     finally {
-        loading.value = false;
+        endLoading();
     }
 };
 

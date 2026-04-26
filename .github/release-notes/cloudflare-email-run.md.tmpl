@@ -1,0 +1,21 @@
+## Cloudflare Email Deploy
+
+### Release
+- Result: `{{deployment.result}}`
+- Channel: `{{deployment.channel}}`
+- Base URL: `{{deployment.baseUrl}}`
+- Version: `{{deployment.version}}`
+- Trigger: `{{source.eventName}}`
+- Actor: `{{source.actor}}`
+- Workflow run: [#{{workflow.runNumber}}]({{workflow.url}})
+
+### Validation
+- Health check: `{{validation.healthCheck}}`
+- Routing sync: `{{validation.routingSync}}`
+- Config source: `{{validation.configSource}}`
+
+### Scope Summary
+{{markdown.scopeSummary}}
+
+### Scope
+{{markdown.matchedFiles}}

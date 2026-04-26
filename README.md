@@ -13,6 +13,13 @@ It contains:
 This repository intentionally avoids submodules. External contributors only need
 to fork one repository and open pull requests here.
 
+## Toolchain
+
+- Node.js `20.19+` is the minimum supported version across the repo.
+- Enable Corepack before working with the `pnpm`-based upstream packages.
+- The repository root includes `.nvmrc` and `.node-version` to pin the shared
+  baseline.
+
 ## Repository Layout
 
 ```text
@@ -68,7 +75,8 @@ npm run build
 ### Browser userscript runtime
 
 Read `runtimes/userscript/README.md` and generate a local userscript directly
-from the root `config.yaml`.
+from the root `config.yaml`. That file is the single source of operator
+secrets for userscript generation.
 
 ### Cloudflare temp mail upstream runtime
 
@@ -88,26 +96,40 @@ corepack pnpm build
 - `docs/build-userscript.md`
 - `docs/build-service-base-image.md`
 - `docs/quick-deploy-cloudflare-mail.md`
+- `docs/easyemail-release-workflow.md`
+- `docs/release-tagging.md`
 - `docs/cloudflare-email-deployment.md`
 - `docs/publish-control-center-release-catalog.md`
 - `CONTRIBUTING.md`
+
+GitHub Actions release automation lives under `.github/workflows/`:
+
+- `publish-service-base-ghcr.yml`
+- `deploy-cloudflare-email.yml`
 
 ## Operator Scripts
 
 - `scripts/init-config.ps1`
 - `scripts/render-derived-configs.ps1`
 - `scripts/compile-userscript.ps1`
+- `scripts/validate-userscript.ps1`
 - `scripts/compile-service-base-image.ps1`
 - `scripts/deploy-service-base.ps1`
 - `scripts/deploy-cloudflare-email.ps1`
+- `scripts/deploy-easyemail-release.ps1`
 - `scripts/quick-deploy-cloudflare-mail.ps1`
 - `scripts/publish-control-center-release-catalog.ps1`
+- `scripts/validate-release-tag.py`
 
 ## Shared Config
 
 Copy `config.example.yaml` to `config.yaml` before running the operator scripts.
 The `config.yaml` file is ignored by Git and is used as the single source of
 operator secrets for the scripts above.
+
+For repository validation, `scripts/validate-userscript.ps1` uses
+`config.example.yaml` by default and writes its generated output under `.tmp/`
+so it does not touch your local userscript file.
 
 For `service/base`, `scripts/render-derived-configs.ps1` renders
 `deploy/service/base/config/config.yaml` from the root config and the internal

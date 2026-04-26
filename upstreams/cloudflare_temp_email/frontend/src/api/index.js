@@ -8,7 +8,7 @@ import { safeBearerHeader, safeHeaderValue } from '../utils/headers'
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 const {
-    loading, auth, jwt, settings, openSettings,
+    beginLoading, endLoading, auth, jwt, settings, openSettings,
     userOpenSettings, userSettings, announcement,
     showAuth, adminAuth, showAdminAuth, userJwt
 } = useGlobalState();
@@ -19,8 +19,23 @@ const instance = axios.create({
     validateStatus: (status) => status >= 200 && status <= 500
 });
 
+const formatErrorPayload = (payload) => {
+    if (typeof payload === 'string' && payload.trim().length > 0) {
+        return payload;
+    }
+    if (payload == null) {
+        return "error";
+    }
+    try {
+        const serialized = JSON.stringify(payload);
+        return serialized && serialized !== '{}' ? serialized : String(payload);
+    } catch {
+        return String(payload);
+    }
+}
+
 const apiFetch = async (path, options = {}) => {
-    loading.value = true;
+    beginLoading();
     try {
         // Get browser fingerprint for request tracking
         const fingerprint = await getFingerprint();
@@ -56,17 +71,17 @@ const apiFetch = async (path, options = {}) => {
             showAuth.value = true;
         }
         if (response.status >= 300) {
-            throw new Error(`[${response.status}]: ${response.data}` || "error");
+            throw new Error(`[${response.status}]: ${formatErrorPayload(response.data)}`);
         }
         const data = response.data;
         return data;
     } catch (error) {
         if (error.response) {
-            throw new Error(`Code ${error.response.status}: ${error.response.data}` || "error");
+            throw new Error(`Code ${error.response.status}: ${formatErrorPayload(error.response.data)}`);
         }
         throw error;
     } finally {
-        loading.value = false;
+        endLoading();
     }
 }
 

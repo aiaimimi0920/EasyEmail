@@ -19,16 +19,12 @@ import Attachment from './index/Attachment.vue';
 import About from './common/About.vue';
 import SimpleIndex from './index/SimpleIndex.vue';
 
-const { loading, settings, openSettings, indexTab, globalTabplacement, useSimpleIndex } = useGlobalState()
+const { loading, runWithLoading, settings, openSettings, indexTab, globalTabplacement, useSimpleIndex } = useGlobalState()
 const message = useMessage()
 const route = useRoute()
 const isMobile = useIsMobile()
 
-const SendMail = defineAsyncComponent(() => {
-  loading.value = true;
-  return import('./index/SendMail.vue')
-    .finally(() => loading.value = false);
-});
+const SendMail = defineAsyncComponent(() => runWithLoading(() => import('./index/SendMail.vue')));
 
 const { t } = useScopedI18n('views.Index')
 

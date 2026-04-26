@@ -1,5 +1,5 @@
 param(
-    [string]$ConfigPath = (Join-Path $PSScriptRoot '..\config.yaml'),
+    [string]$ConfigPath = 'config.yaml',
     [switch]$NoBuild
 )
 
@@ -13,7 +13,7 @@ if (-not (Test-Path -LiteralPath $render)) {
 
 & $render -ConfigPath $ConfigPath -ServiceBase
 
-$composeFile = Join-Path $PSScriptRoot '..\deploy\service\base\docker-compose.yaml'
+$composeFile = Join-Path $PSScriptRoot '../deploy/service/base/docker-compose.yaml'
 if (-not (Test-Path -LiteralPath $composeFile)) {
     throw "Missing docker compose file: $composeFile"
 }

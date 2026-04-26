@@ -11,6 +11,10 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+function Test-EasyEmailIsWindows {
+    return [System.IO.Path]::DirectorySeparatorChar -eq '\'
+}
+
 $MailMxTemplates = @(
     [pscustomobject]@{ Type = 'MX'; Content = 'route1.mx.cloudflare.net'; Priority = 10 },
     [pscustomobject]@{ Type = 'MX'; Content = 'route2.mx.cloudflare.net'; Priority = 20 },
@@ -112,9 +116,10 @@ function Invoke-CfApi {
     }
 
     $arguments += $uri
-    $rawResponse = & curl.exe @arguments
+    $curlCommand = if (Test-EasyEmailIsWindows) { 'curl.exe' } else { 'curl' }
+    $rawResponse = & $curlCommand @arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "curl.exe failed for $Path with exit code $LASTEXITCODE"
+        throw "$curlCommand failed for $Path with exit code $LASTEXITCODE"
     }
 
     $response = $rawResponse | ConvertFrom-Json
@@ -260,7 +265,7 @@ function Invoke-ImportDnsRecords {
         return 0
     }
 
-    $zoneFilePath = Join-Path $env:TEMP ("cf-dns-import-{0}.zone" -f $Zone.id)
+    $zoneFilePath = Join-Path ([System.IO.Path]::GetTempPath()) ("cf-dns-import-{0}.zone" -f $Zone.id)
     try {
         $lines = @(
             ('$ORIGIN {0}.' -f $Zone.name),
@@ -280,9 +285,10 @@ function Invoke-ImportDnsRecords {
             '-F', 'proxied=false',
             $uri
         )
-        $rawResponse = & curl.exe @arguments
+        $curlCommand = if (Test-EasyEmailIsWindows) { 'curl.exe' } else { 'curl' }
+        $rawResponse = & $curlCommand @arguments
         if ($LASTEXITCODE -ne 0) {
-            throw "curl.exe failed for dns_records/import on zone $($Zone.name) with exit code $LASTEXITCODE"
+            throw "$curlCommand failed for dns_records/import on zone $($Zone.name) with exit code $LASTEXITCODE"
         }
         $response = $rawResponse | ConvertFrom-Json
         if (-not $response.success) {

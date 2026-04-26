@@ -60,12 +60,14 @@ const props = defineProps({
 const localFilterKeyword = ref('')
 
 const {
-  isDark, mailboxSplitSize, indexTab, loading, useUTCDate,
+  beginLoading, endLoading, isDark, mailboxSplitSize, indexTab, loading, useUTCDate,
   autoRefresh, configAutoRefreshInterval, sendMailModel
 } = useGlobalState()
 const autoRefreshInterval = ref(configAutoRefreshInterval.value)
 const rawData = ref([])
 const timer = ref(null)
+const refreshing = ref(false)
+let refreshRequestId = 0
 
 const count = ref(0)
 const page = ref(1)
@@ -146,7 +148,7 @@ const setupAutoRefresh = async (autoRefresh) => {
   if (autoRefresh) {
     clearInterval(timer.value);
     timer.value = setInterval(async () => {
-      if (loading.value) return;
+      if (refreshing.value) return;
       autoRefreshInterval.value--;
       if (autoRefreshInterval.value <= 0) {
         autoRefreshInterval.value = configAutoRefreshInterval.value;
@@ -170,32 +172,44 @@ watch([page, pageSize], async ([page, pageSize], [oldPage, oldPageSize]) => {
 })
 
 const refresh = async () => {
+  const requestId = ++refreshRequestId
+  refreshing.value = true
+  beginLoading()
   try {
     const { results, count: totalCount } = await props.fetchMailData(
       pageSize.value, (page.value - 1) * pageSize.value
     );
-    loading.value = true;
-    rawData.value = await Promise.all(results.map(async (item) => {
+    const nextData = await Promise.all(results.map(async (item) => {
       item.checked = false;
       return await processItem(item);
     }));
-    if (totalCount > 0) {
-      count.value = totalCount;
+    if (requestId !== refreshRequestId) {
+      return;
     }
+    rawData.value = nextData;
+    count.value = totalCount ?? 0;
     curMail.value = null;
     if (!isMobile.value && data.value.length > 0) {
       curMail.value = data.value[0];
     }
   } catch (error) {
-    message.error(error.message || "error");
-    console.error(error);
+    if (requestId === refreshRequestId) {
+      message.error(error.message || "error");
+      console.error(error);
+    }
   } finally {
-    loading.value = false;
+    if (requestId === refreshRequestId) {
+      refreshing.value = false
+    }
+    endLoading()
   }
 };
 
 const backFirstPageAndRefresh = async () => {
-  page.value = 1;
+  if (page.value !== 1) {
+    page.value = 1;
+    return;
+  }
   await refresh();
 }
 
@@ -224,12 +238,12 @@ const deleteMail = async () => {
 };
 
 const replyMail = async () => {
-  Object.assign(sendMailModel.value, buildReplyModel(curMail.value, t('reply')));
+  Object.assign(sendMailModel.value, await buildReplyModel(curMail.value, t('reply')));
   indexTab.value = 'sendmail';
 };
 
 const forwardMail = async () => {
-  Object.assign(sendMailModel.value, buildForwardModel(curMail.value, t('forwardMail')));
+  Object.assign(sendMailModel.value, await buildForwardModel(curMail.value, t('forwardMail')));
   indexTab.value = 'sendmail';
 };
 
@@ -263,7 +277,7 @@ const multiActionSelectAll = (checked) => {
 
 const multiActionDeleteMail = async () => {
   try {
-    loading.value = true;
+    beginLoading();
     const selectedMails = data.value.filter((item) => item.checked);
     if (selectedMails.length === 0) {
       message.error(t('pleaseSelectMail'));
@@ -286,14 +300,14 @@ const multiActionDeleteMail = async () => {
   } catch (error) {
     message.error(error.message || "error");
   } finally {
-    loading.value = false;
+    endLoading();
     showMultiActionDelete.value = true;
   }
 }
 
 const multiActionDownload = async () => {
   try {
-    loading.value = true;
+    beginLoading();
     const selectedMails = data.value.filter((item) => item.checked);
     if (selectedMails.length === 0) {
       message.error(t('pleaseSelectMail'));
@@ -313,7 +327,7 @@ const multiActionDownload = async () => {
   } catch (error) {
     message.error(error.message || "error");
   } finally {
-    loading.value = false;
+    endLoading();
   }
 }
 

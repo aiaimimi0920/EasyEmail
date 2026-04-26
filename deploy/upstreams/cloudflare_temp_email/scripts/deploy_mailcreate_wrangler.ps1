@@ -318,7 +318,7 @@ function Run-Check {
 }
 
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
-    $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..\..\upstreams\cloudflare_temp_email')).Path
+$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '../../../../upstreams/cloudflare_temp_email')).Path
 }
 
 $paths = Get-ProjectPaths -Base $ProjectRoot

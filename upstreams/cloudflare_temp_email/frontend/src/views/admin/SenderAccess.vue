@@ -50,9 +50,7 @@ const fetchData = async () => {
       + (addressQuery.value ? `&address=${addressQuery.value}` : '')
     );
     data.value = results;
-    if (addressCount > 0) {
-      count.value = addressCount;
-    }
+    count.value = addressCount ?? 0;
   } catch (error) {
     console.log(error)
     message.error(error.message || "error");

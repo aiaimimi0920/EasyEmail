@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { rename, writeFile } from "node:fs/promises";
+import { existsSync, mkdirSync } from "node:fs";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import type { MailRegistrySeed } from "../domain/registry.js";
 import type { EasyEmailSnapshot } from "../domain/models.js";
 import type { MailStateStore } from "./contracts.js";
@@ -54,7 +54,7 @@ export class FileMailStateStore implements MailStateStore {
       return undefined;
     }
 
-    const text = readFileSync(this.options.filePath, { encoding: "utf-8" });
+    const text = await readFile(this.options.filePath, { encoding: "utf-8" });
     return toSeed(text ? JSON.parse(text) : undefined);
   }
 
@@ -69,4 +69,3 @@ export class FileMailStateStore implements MailStateStore {
 export function createFileMailStateStore(options: FileMailStateStoreOptions): FileMailStateStore {
   return new FileMailStateStore(options);
 }
-

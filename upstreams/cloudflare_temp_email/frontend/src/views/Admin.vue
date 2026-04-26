@@ -32,18 +32,14 @@ import IpBlacklistSettings from './admin/IpBlacklistSettings.vue';
 import AiExtractSettings from './admin/AiExtractSettings.vue';
 
 const {
-  adminAuth, showAdminAuth, adminTab, loading,
+  adminAuth, showAdminAuth, adminTab, loading, runWithLoading,
   globalTabplacement, showAdminPage, userSettings,
   openSettings
 } = useGlobalState()
 const message = useMessage()
 const router = useRouter()
 
-const SendMail = defineAsyncComponent(() => {
-  loading.value = true;
-  return import('./admin/SendMail.vue')
-    .finally(() => loading.value = false);
-});
+const SendMail = defineAsyncComponent(() => runWithLoading(() => import('./admin/SendMail.vue')));
 
 const cfToken = ref('')
 const turnstileRef = ref(null)

@@ -1,5 +1,3 @@
-import DOMPurify from 'dompurify';
-
 /**
  * HTML-escape special characters for plain text content.
  */
@@ -16,8 +14,9 @@ function escapeHtml(str) {
 /**
  * Sanitize mail content: HTML-escape plain text, whitelist-sanitize HTML.
  */
-function sanitizeContent(mail) {
+async function sanitizeContent(mail) {
   if (mail.message) {
+    const { default: DOMPurify } = await import('dompurify');
     return DOMPurify.sanitize(mail.message);
   }
   if (mail.text) {
@@ -32,7 +31,7 @@ function sanitizeContent(mail) {
  * @param {string} replyLabel - Translated "Reply" label
  * @returns {Object} Fields to assign onto sendMailModel
  */
-export function buildReplyModel(mail, replyLabel) {
+export async function buildReplyModel(mail, replyLabel) {
   const emailRegex = /(.+?) <(.+?)>/;
   let toMail = mail.originalSource || '';
   let toName = "";
@@ -41,7 +40,7 @@ export function buildReplyModel(mail, replyLabel) {
     toName = match[1];
     toMail = match[2];
   }
-  const safeContent = sanitizeContent(mail);
+  const safeContent = await sanitizeContent(mail);
   return {
     toName,
     toMail,
@@ -59,10 +58,10 @@ export function buildReplyModel(mail, replyLabel) {
  * @param {string} forwardLabel - Translated "Forward" label
  * @returns {Object} Fields to assign onto sendMailModel
  */
-export function buildForwardModel(mail, forwardLabel) {
+export async function buildForwardModel(mail, forwardLabel) {
   return {
     subject: `${forwardLabel}: ${mail.subject}`,
     contentType: mail.message ? 'html' : 'text',
-    content: sanitizeContent(mail),
+    content: await sanitizeContent(mail),
   };
 }

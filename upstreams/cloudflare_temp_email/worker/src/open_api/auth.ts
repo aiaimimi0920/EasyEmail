@@ -5,6 +5,20 @@ import utils, { checkCfTurnstile, getPasswords, getAdminPasswords, hashPassword 
 import i18n from '../i18n';
 
 const api = new Hono<HonoCustomType>()
+const passwordHashCache = new Map<string, Promise<string>>();
+
+const getCachedPasswordHash = (password: string): Promise<string> => {
+    let cachedHash = passwordHashCache.get(password);
+    if (!cachedHash) {
+        cachedHash = hashPassword(password);
+        passwordHashCache.set(password, cachedHash);
+    }
+    return cachedHash;
+}
+
+const getCachedPasswordHashSet = async (passwords: string[]): Promise<Set<string>> => {
+    return new Set(await Promise.all(passwords.map((password) => getCachedPasswordHash(password))));
+}
 
 api.post('/open_api/site_login', async (c) => {
     const { password, cf_token } = await c.req.json();
@@ -17,8 +31,8 @@ api.post('/open_api/site_login', async (c) => {
         }
     }
     const passwords = getPasswords(c);
-    const hashedPasswords = await Promise.all(passwords.map(p => hashPassword(p)));
-    if (!hashedPasswords.length || !password || !hashedPasswords.includes(password)) {
+    const hashedPasswords = await getCachedPasswordHashSet(passwords);
+    if (!hashedPasswords.size || !password || !hashedPasswords.has(password)) {
         return c.text(msgs.CustomAuthPasswordMsg, 401)
     }
     return c.json({ success: true })
@@ -35,8 +49,8 @@ api.post('/open_api/admin_login', async (c) => {
         }
     }
     const adminPasswords = getAdminPasswords(c);
-    const hashedPasswords = await Promise.all(adminPasswords.map(p => hashPassword(p)));
-    if (!hashedPasswords.length || !password || !hashedPasswords.includes(password)) {
+    const hashedPasswords = await getCachedPasswordHashSet(adminPasswords);
+    if (!hashedPasswords.size || !password || !hashedPasswords.has(password)) {
         return c.text(msgs.NeedAdminPasswordMsg, 401)
     }
     return c.json({ success: true })

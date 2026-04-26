@@ -8,10 +8,83 @@ import Components from 'unplugin-vue-components/vite'
 import { NaiveUiResolver } from 'unplugin-vue-components/resolvers'
 import wasm from "vite-plugin-wasm";
 
+function hasAnyMatch(id, patterns) {
+  return patterns.some((pattern) => id.includes(pattern))
+}
+
+function getManualChunk(id) {
+  const normalizedId = id.replace(/\\/g, '/')
+
+  if (!normalizedId.includes('/node_modules/')) {
+    return undefined
+  }
+
+  if (normalizedId.includes('/naive-ui/es/locales/')) {
+    return undefined
+  }
+
+  if (hasAnyMatch(normalizedId, [
+    '/@wangeditor/',
+    '/slate/',
+    '/snabbdom/',
+    '/prismjs/',
+  ])) {
+    return 'vendor-editor'
+  }
+
+  if (hasAnyMatch(normalizedId, [
+    '/naive-ui/',
+    '/@css-render/',
+    '/css-render/',
+    '/@emotion/',
+    '/@vicons/',
+    '/vooks/',
+    '/vdirs/',
+    '/vueuc/',
+    '/seemly/',
+    '/treemate/',
+  ])) {
+    return 'vendor-ui'
+  }
+
+  if (hasAnyMatch(normalizedId, [
+    '/vue-router/',
+    '/vue-i18n/',
+    '/@intlify/',
+    '/@vueuse/',
+    '/@unhead/',
+    '/unhead/',
+    '/hookable/',
+    '/vue/',
+  ])) {
+    return 'vendor-vue'
+  }
+
+  if (hasAnyMatch(normalizedId, [
+    '/@uppy/',
+    '/jszip/',
+    '/mail-parser-wasm/',
+    '/postal-mime/',
+    '/dompurify/',
+    '/@simplewebauthn/',
+    '/@fingerprintjs/',
+  ])) {
+    return 'vendor-mail'
+  }
+
+  return 'vendor-misc'
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   build: {
+    chunkSizeWarningLimit: 900,
     outDir: './dist',
+    rollupOptions: {
+      output: {
+        manualChunks: getManualChunk,
+      },
+    },
   },
   plugins: [
     vue(),

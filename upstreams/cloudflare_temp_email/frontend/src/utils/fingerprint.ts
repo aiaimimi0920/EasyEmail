@@ -1,4 +1,3 @@
-import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import { useGlobalState } from '../store';
 
 const { browserFingerprint } = useGlobalState();
@@ -15,6 +14,7 @@ export const getFingerprint = async (): Promise<string> => {
     }
 
     try {
+        const { default: FingerprintJS } = await import('@fingerprintjs/fingerprintjs');
         const fp = await FingerprintJS.load();
         const result = await fp.get();
         browserFingerprint.value = result.visitorId;

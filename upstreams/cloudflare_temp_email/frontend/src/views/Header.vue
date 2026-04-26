@@ -24,7 +24,7 @@ const notification = useNotification()
 
 const {
     toggleDark, isDark, isTelegram, showAdminPage,
-    showAuth, auth, loading, openSettings, preferredLocale, userSettings
+    showAuth, auth, loading, openSettings, preferredLocale, userSettings, runWithLoading
 } = useGlobalState()
 const route = useRoute()
 const router = useRouter()
@@ -153,9 +153,7 @@ const menuOptions = computed(() => [
                 type: menuValue.value == "admin" ? "primary" : "default",
                 style: "width: 100%",
                 onClick: async () => {
-                    loading.value = true;
-                    await router.push(getRouterPathWithLang('/admin', locale.value));
-                    loading.value = false;
+                    await runWithLoading(() => router.push(getRouterPathWithLang('/admin', locale.value)));
                     showMobileMenu.value = false;
                 }
             },
@@ -222,9 +220,7 @@ const logoClick = async () => {
     if (logoClickCount.value >= 5) {
         logoClickCount.value = 0;
         message.info("Change to admin Page");
-        loading.value = true;
-        await router.push(getRouterPathWithLang('/admin', locale.value));
-        loading.value = false;
+        await runWithLoading(() => router.push(getRouterPathWithLang('/admin', locale.value)));
     } else {
         logoClickCount.value++;
     }

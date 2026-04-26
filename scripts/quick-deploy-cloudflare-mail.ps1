@@ -1,5 +1,5 @@
 param(
-    [string]$ConfigPath = (Join-Path $PSScriptRoot '..\config.yaml'),
+    [string]$ConfigPath = 'config.yaml',
     [ValidateSet('exact', 'wildcard')]
     [string]$SyncMode = 'exact',
     [switch]$NoInstall,
@@ -10,9 +10,28 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-. (Join-Path $PSScriptRoot 'lib\easyemail-config.ps1')
+. (Join-Path $PSScriptRoot 'lib/easyemail-config.ps1')
 
 $resolvedConfigPath = Resolve-EasyEmailPath -Path $ConfigPath
+$minimumNodeVersion = [Version]'20.19.0'
+$powerShellCommand = Get-EasyEmailPowerShellCommand
+
+function Assert-MinimumNodeVersion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Version]$MinimumVersion
+    )
+
+    $rawNodeVersion = (& node --version).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Node.js is required but was not found in PATH.'
+    }
+
+    $currentNodeVersion = [Version]($rawNodeVersion.TrimStart('v'))
+    if ($currentNodeVersion -lt $MinimumVersion) {
+        throw "Node.js $MinimumVersion or newer is required. Current version: $currentNodeVersion"
+    }
+}
 
 function Invoke-InDirectory {
     param(
@@ -52,6 +71,23 @@ function Invoke-Tool {
     } finally {
         Pop-Location
     }
+}
+
+function Invoke-LocalNodeTool {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CommandPath,
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments,
+        [Parameter(Mandatory = $true)]
+        [string]$WorkingDirectory
+    )
+
+    if (-not (Test-Path -LiteralPath $CommandPath)) {
+        throw "Local command not found: $CommandPath"
+    }
+
+    Invoke-Tool -Executable $CommandPath -Arguments $Arguments -WorkingDirectory $WorkingDirectory
 }
 
 function Convert-ToEasyEmailStringArray {
@@ -149,7 +185,7 @@ $frontendDir = Resolve-EasyEmailPath -Path (Join-Path $projectRoot (Get-EasyEmai
 $routing = Get-EasyEmailSection -Config $cloudflare -Name 'routing'
 $routingPlan = Get-EasyEmailSection -Config $routing -Name 'plan'
 $renderScript = Join-Path $PSScriptRoot 'render-derived-configs.ps1'
-$renderedWorkerWrangler = Join-Path $PSScriptRoot '..\.tmp\cloudflare_temp_email.wrangler.toml'
+$renderedWorkerWrangler = Resolve-EasyEmailPath -Path '.tmp/cloudflare_temp_email.wrangler.toml'
 $buildFrontend = [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'buildFrontend' -Default $true)
 $deployWorker = [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'deployWorker' -Default $true)
 $syncRouting = -not $NoRoutingSync -and [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'syncRouting' -Default $false)
@@ -164,6 +200,8 @@ if (-not (Test-Path -LiteralPath $workerDir)) {
     throw "Worker directory not found: $workerDir"
 }
 
+Assert-MinimumNodeVersion -MinimumVersion $minimumNodeVersion
+
 & $renderScript -ConfigPath $resolvedConfigPath -CloudflareMail -WorkerOutput $renderedWorkerWrangler
 
 if ($buildFrontend) {
@@ -171,7 +209,8 @@ if ($buildFrontend) {
     if (-not $NoInstall -and -not (Test-Path -LiteralPath (Join-Path $frontendDir 'node_modules'))) {
         Invoke-Tool -Executable 'corepack' -Arguments @('pnpm', 'install', '--frozen-lockfile') -WorkingDirectory $frontendDir
     }
-    Invoke-Tool -Executable 'corepack' -Arguments @('pnpm', 'build') -WorkingDirectory $frontendDir
+    $frontendBuildCommand = Resolve-EasyEmailLocalNodeTool -PackageDirectory $frontendDir -ToolName 'vite'
+    Invoke-LocalNodeTool -CommandPath $frontendBuildCommand -Arguments @('build', '-m', 'prod', '--emptyOutDir') -WorkingDirectory $frontendDir
 }
 
 if ($deployWorker) {
@@ -179,16 +218,17 @@ if ($deployWorker) {
     if (-not $NoInstall -and -not (Test-Path -LiteralPath (Join-Path $workerDir 'node_modules'))) {
         Invoke-Tool -Executable 'corepack' -Arguments @('pnpm', 'install', '--frozen-lockfile') -WorkingDirectory $workerDir
     }
+    $workerWranglerCommand = Resolve-EasyEmailLocalNodeTool -PackageDirectory $workerDir -ToolName 'wrangler'
     if ($DryRun) {
-        $workerArgs = @('pnpm', 'exec', 'wrangler', 'deploy', '--config', $renderedWorkerWrangler, '--dry-run', '--outdir', 'dist', '--minify')
-        Invoke-Tool -Executable 'corepack' -Arguments $workerArgs -WorkingDirectory $workerDir
+        $workerArgs = @('deploy', '--config', $renderedWorkerWrangler, '--dry-run', '--outdir', 'dist', '--minify')
+        Invoke-LocalNodeTool -CommandPath $workerWranglerCommand -Arguments $workerArgs -WorkingDirectory $workerDir
     } else {
-        $deployArgs = @('pnpm', 'exec', 'wrangler', 'deploy', '--config', $renderedWorkerWrangler, '--minify')
+        $deployArgs = @('deploy', '--config', $renderedWorkerWrangler, '--minify')
         if (-not [string]::IsNullOrWhiteSpace($workerEnv) -and $workerEnv -ne 'production') {
             $deployArgs += '--env'
             $deployArgs += $workerEnv
         }
-        Invoke-Tool -Executable 'corepack' -Arguments $deployArgs -WorkingDirectory $workerDir
+        Invoke-LocalNodeTool -CommandPath $workerWranglerCommand -Arguments $deployArgs -WorkingDirectory $workerDir
     }
 }
 
@@ -242,7 +282,7 @@ if ($syncRouting) {
 
             if ($controlCenterTokenFile) {
                 Write-Host "Syncing cloudflare email routing DNS..." -ForegroundColor Cyan
-                Invoke-Tool -Executable 'powershell' -Arguments @(
+                Invoke-Tool -Executable $powerShellCommand -Arguments @(
                     '-ExecutionPolicy', 'Bypass',
                     '-File', (Resolve-EasyEmailPath -Path 'deploy/upstreams/cloudflare_temp_email/scripts/sync_email_routing_dns.ps1'),
                     '-PlanPath', $routingPlanPath,

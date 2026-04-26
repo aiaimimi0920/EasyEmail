@@ -1,5 +1,5 @@
 param(
-    [string]$ConfigPath = (Join-Path $PSScriptRoot '..\config.yaml'),
+    [string]$ConfigPath = 'config.yaml',
     [ValidateSet('exact', 'wildcard')]
     [string]$SyncMode = 'exact',
     [switch]$NoInstall,
@@ -10,7 +10,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-. (Join-Path $PSScriptRoot 'lib\easyemail-config.ps1')
+. (Join-Path $PSScriptRoot 'lib/easyemail-config.ps1')
 
 $resolvedConfigPath = Resolve-EasyEmailPath -Path $ConfigPath
 if (-not (Test-Path -LiteralPath $resolvedConfigPath)) {

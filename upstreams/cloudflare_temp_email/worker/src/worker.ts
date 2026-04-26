@@ -26,6 +26,7 @@ const API_PATHS = [
 	"/telegram/",
 	"/external/",
 	"/mail/",
+	"/health_check",
 ];
 
 const app = new Hono<HonoCustomType>()
@@ -57,7 +58,13 @@ app.use('/*', async (c, next) => {
 	const passwords = getPasswords(c);
 	const auth = c.req.raw.headers.get("x-custom-auth");
 	const isAuthenticatedCustomAuth = Boolean(auth && passwords.includes(auth));
-	if (!c.req.path.startsWith("/open_api") && !c.req.path.startsWith("/telegram/") && passwords && passwords.length > 0) {
+	if (
+		c.req.path !== "/health_check"
+		&& !c.req.path.startsWith("/open_api")
+		&& !c.req.path.startsWith("/telegram/")
+		&& passwords
+		&& passwords.length > 0
+	) {
 		if (!auth || !passwords.includes(auth)) {
 			return c.text(msgs.CustomAuthPasswordMsg, 401)
 		}

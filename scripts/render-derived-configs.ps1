@@ -1,14 +1,16 @@
 param(
-    [string]$ConfigPath = (Join-Path $PSScriptRoot '..\config.yaml'),
+    [string]$ConfigPath = 'config.yaml',
     [switch]$ServiceBase,
     [switch]$CloudflareMail,
-    [string]$ServiceOutput = (Join-Path $PSScriptRoot '..\deploy\service\base\config\config.yaml'),
-    [string]$ServiceEnvOutput = (Join-Path $PSScriptRoot '..\deploy\service\base\config\runtime.env'),
-    [string]$WorkerOutput = (Join-Path $PSScriptRoot '..\.tmp\cloudflare_temp_email.wrangler.toml')
+    [string]$ServiceOutput = 'deploy/service/base/config/config.yaml',
+    [string]$ServiceEnvOutput = 'deploy/service/base/config/runtime.env',
+    [string]$WorkerOutput = '.tmp/cloudflare_temp_email.wrangler.toml'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+. (Join-Path $PSScriptRoot 'lib/easyemail-config.ps1')
 
 if (-not $ServiceBase -and -not $CloudflareMail) {
     $ServiceBase = $true
@@ -20,13 +22,14 @@ if (-not (Test-Path -LiteralPath $renderer)) {
     throw "Missing renderer script: $renderer"
 }
 
-$args = @($renderer, '--root-config', $ConfigPath)
+$resolvedConfigPath = Resolve-EasyEmailPath -Path $ConfigPath
+$args = @($renderer, '--root-config', $resolvedConfigPath)
 if ($ServiceBase) {
-    $args += @('--service-output', $ServiceOutput)
-    $args += @('--service-env-output', $ServiceEnvOutput)
+    $args += @('--service-output', (Resolve-EasyEmailPath -Path $ServiceOutput))
+    $args += @('--service-env-output', (Resolve-EasyEmailPath -Path $ServiceEnvOutput))
 }
 if ($CloudflareMail) {
-    $args += @('--worker-output', $WorkerOutput)
+    $args += @('--worker-output', (Resolve-EasyEmailPath -Path $WorkerOutput))
 }
 
 & python @args

@@ -19,7 +19,7 @@ export const getJsonObjectValue = <T = any>(
     try {
         return JSON.parse(value) as T;
     } catch (e) {
-        console.error(`GetJsonValue: Failed to parse ${value}`, e);
+        console.error("GetJsonValue: Failed to parse JSON input", e);
     }
     return null;
 }
@@ -110,11 +110,11 @@ export const getIntValue = (
         return value;
     }
     if (typeof value === "string") {
-        try {
-            return parseInt(value);
-        } catch (e) {
-            console.error(`Failed to parse int value: ${value}`);
+        const parsed = Number.parseInt(value, 10);
+        if (Number.isFinite(parsed)) {
+            return parsed;
         }
+        console.error("Failed to parse int value from string input");
     }
     return defaultValue;
 }
@@ -130,7 +130,7 @@ export const getStringArray = (
         try {
             return JSON.parse(value);
         } catch (e) {
-            console.error("Failed to parse value", e);
+            console.error("Failed to parse string array value", e);
             return [];
         }
     }
@@ -306,7 +306,7 @@ export const getEnvStringList = (value: string | string[] | undefined): string[]
             const res = JSON.parse(value) as string[];
             return res.filter((item) => item.length > 0);
         } catch (e) {
-            console.error("Failed to parse ADMIN_PASSWORDS", e);
+            console.error("Failed to parse string list value", e);
             return [];
         }
     }

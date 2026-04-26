@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 
-$script:EasyEmailRepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$script:EasyEmailRepoRoot = (Resolve-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))).Path
 
 function Get-EasyEmailRepoRoot {
     return $script:EasyEmailRepoRoot
@@ -17,11 +17,216 @@ function Resolve-EasyEmailPath {
         return $null
     }
 
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return $Path
+    $normalizedPath = $Path -replace '\\', '/'
+
+    if ([System.IO.Path]::IsPathRooted($normalizedPath)) {
+        return $normalizedPath
     }
 
-    return [System.IO.Path]::GetFullPath((Join-Path $BasePath $Path))
+    return [System.IO.Path]::GetFullPath((Join-Path $BasePath $normalizedPath))
+}
+
+function Test-EasyEmailIsWindows {
+    return [System.IO.Path]::DirectorySeparatorChar -eq '\'
+}
+
+function Get-EasyEmailPowerShellCommand {
+    foreach ($candidate in @('pwsh', 'powershell')) {
+        $command = Get-Command $candidate -ErrorAction SilentlyContinue
+        if ($command) {
+            return $command.Source
+        }
+    }
+
+    throw 'PowerShell executable not found. Install pwsh or powershell and ensure it is available in PATH.'
+}
+
+function Resolve-EasyEmailLocalNodeTool {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PackageDirectory,
+        [Parameter(Mandatory = $true)]
+        [string]$ToolName
+    )
+
+    $binDirectory = Join-Path $PackageDirectory 'node_modules/.bin'
+    if (-not (Test-Path -LiteralPath $binDirectory)) {
+        throw "Missing local node bin directory: $binDirectory"
+    }
+
+    $candidates = if (Test-EasyEmailIsWindows) {
+        @("$ToolName.cmd", "$ToolName.exe", $ToolName)
+    } else {
+        @($ToolName, "$ToolName.cmd")
+    }
+
+    foreach ($candidate in $candidates) {
+        $candidatePath = Join-Path $binDirectory $candidate
+        if (Test-Path -LiteralPath $candidatePath) {
+            return (Resolve-Path -LiteralPath $candidatePath).Path
+        }
+    }
+
+    throw "Local node tool '$ToolName' not found under $binDirectory"
+}
+
+function Get-EasyEmailReleaseChannel {
+    param(
+        [string]$Tag
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Tag)) {
+        return 'manual'
+    }
+
+    if ($Tag -match '^v\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$') {
+        return 'public-semver'
+    }
+
+    if ($Tag -match '^release-\d{8}-\d{3}$') {
+        return 'operational'
+    }
+
+    if ($Tag -match '^service-base-\d{8}-\d{3}$') {
+        return 'service-base-only'
+    }
+
+    return 'manual'
+}
+
+function Get-EasyEmailReleaseScopeGroup {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath
+    )
+
+    $normalized = $FilePath -replace '\\', '/'
+
+    if ($normalized.StartsWith('service/base/')) {
+        return [pscustomobject]@{ key = 'service-base'; label = 'Service Base'; order = 10 }
+    }
+
+    if ($normalized.StartsWith('deploy/service/base/')) {
+        return [pscustomobject]@{ key = 'service-base-deploy'; label = 'Service Base Deploy'; order = 15 }
+    }
+
+    if ($normalized.StartsWith('upstreams/cloudflare_temp_email/worker/')) {
+        return [pscustomobject]@{ key = 'cloudflare-worker'; label = 'Cloudflare Worker'; order = 20 }
+    }
+
+    if ($normalized.StartsWith('upstreams/cloudflare_temp_email/frontend/')) {
+        return [pscustomobject]@{ key = 'cloudflare-frontend'; label = 'Cloudflare Frontend'; order = 30 }
+    }
+
+    if ($normalized.StartsWith('deploy/upstreams/cloudflare_temp_email/')) {
+        return [pscustomobject]@{ key = 'cloudflare-deploy'; label = 'Cloudflare Deploy'; order = 25 }
+    }
+
+    if ($normalized.StartsWith('scripts/')) {
+        return [pscustomobject]@{ key = 'scripts'; label = 'Operator Scripts'; order = 40 }
+    }
+
+    if ($normalized.StartsWith('docs/')) {
+        return [pscustomobject]@{ key = 'docs'; label = 'Docs'; order = 50 }
+    }
+
+    if ($normalized.StartsWith('.github/workflows/')) {
+        return [pscustomobject]@{ key = 'github-actions'; label = 'GitHub Actions'; order = 45 }
+    }
+
+    if ($normalized.StartsWith('runtimes/userscript/')) {
+        return [pscustomobject]@{ key = 'userscript'; label = 'Userscript'; order = 35 }
+    }
+
+    if ($normalized.StartsWith('upstreams/cloudflare_temp_email/')) {
+        return [pscustomobject]@{ key = 'cloudflare-upstream'; label = 'Cloudflare Upstream'; order = 32 }
+    }
+
+    return [pscustomobject]@{ key = 'other'; label = 'Other'; order = 90 }
+}
+
+function Get-EasyEmailReleaseScopeSummary {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Files
+    )
+
+    $cleanedFiles = @(
+        $Files |
+            ForEach-Object { [string]$_ } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            ForEach-Object { $_.Trim() } |
+            Select-Object -Unique
+    )
+
+    $groups = New-Object System.Collections.Generic.List[object]
+    $lookup = @{}
+
+    foreach ($filePath in $cleanedFiles) {
+        $group = Get-EasyEmailReleaseScopeGroup -FilePath $filePath
+        if (-not $lookup.ContainsKey($group.key)) {
+            $entry = [ordered]@{
+                key = $group.key
+                label = $group.label
+                order = $group.order
+                files = New-Object System.Collections.Generic.List[string]
+            }
+            $lookup[$group.key] = $entry
+            $groups.Add($entry) | Out-Null
+        }
+
+        $lookup[$group.key].files.Add($filePath) | Out-Null
+    }
+
+    $orderedGroups = @(
+        $groups | Sort-Object order, label | ForEach-Object {
+            [pscustomobject]@{
+                key = $_.key
+                label = $_.label
+                order = $_.order
+                count = $_.files.Count
+                files = @($_.files | Sort-Object)
+            }
+        }
+    )
+
+    $totalFiles = $cleanedFiles.Count
+    $groupCount = $orderedGroups.Count
+    $headline = if ($totalFiles -eq 0) {
+        'No changed files recorded.'
+    } elseif ($totalFiles -eq 1) {
+        '1 file changed across 1 area.'
+    } else {
+        '{0} files changed across {1} areas.' -f $totalFiles, $groupCount
+    }
+
+    $markdownLines = @(
+        '### Scope Summary',
+        '',
+        "- $headline"
+    )
+
+    foreach ($group in $orderedGroups) {
+        $fileCountLabel = if ($group.count -eq 1) { '1 file' } else { "{0} files" -f $group.count }
+        $markdownLines += ''
+        $markdownLines += "- **$($group.label)**: $fileCountLabel"
+        foreach ($file in $group.files) {
+            $markdownLines += ('  - `{0}`' -f $file)
+        }
+    }
+
+    if ($orderedGroups.Count -eq 0) {
+        $markdownLines += ''
+        $markdownLines += '- No relevant files matched the release scope.'
+    }
+
+    return [pscustomobject]@{
+        totalFiles = $totalFiles
+        totalGroups = $groupCount
+        summary = $headline
+        markdown = ($markdownLines -join "`n")
+        groups = $orderedGroups
+    }
 }
 
 function Read-EasyEmailConfig {

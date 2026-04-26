@@ -1,0 +1,25 @@
+## Service Base GHCR Publish
+
+### Release
+- Image: `{{release.imageRef}}`
+- Version: `{{release.version}}`
+- Channel: `{{release.channel}}`
+- Digest: `{{release.digest}}`
+- Platform: `{{release.platform}}`
+- Trigger: `{{source.eventName}}`
+- Actor: `{{source.actor}}`
+- Workflow run: [#{{workflow.runNumber}}]({{workflow.url}})
+
+### Validation
+- Smoke check: `{{validation.smoke}}`
+- SBOM attestation: `{{validation.sbom}}`
+- Provenance: `{{validation.provenance}}`
+
+### Scope Summary
+{{markdown.scopeSummary}}
+
+### Published Tags
+{{markdown.tags}}
+
+### Scope
+{{markdown.matchedFiles}}

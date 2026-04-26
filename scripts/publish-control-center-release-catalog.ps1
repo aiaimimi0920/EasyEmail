@@ -1,5 +1,5 @@
 param(
-    [string]$ConfigPath = (Join-Path $PSScriptRoot '..\config.yaml'),
+    [string]$ConfigPath = 'config.yaml',
     [string]$PayloadPath = '',
     [switch]$DryRun
 )
@@ -7,7 +7,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-. (Join-Path $PSScriptRoot 'lib\easyemail-config.ps1')
+. (Join-Path $PSScriptRoot 'lib/easyemail-config.ps1')
 
 $config = Read-EasyEmailConfig -ConfigPath $ConfigPath
 $publishing = Get-EasyEmailSection -Config $config -Name 'publishing'

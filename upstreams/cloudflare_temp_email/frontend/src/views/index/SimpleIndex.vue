@@ -19,7 +19,7 @@ import { processItem } from '../../utils/email-parser'
 import MailContentRenderer from '../../components/MailContentRenderer.vue'
 import AddressSelect from '../../components/AddressSelect.vue'
 
-const { jwt, settings, useSimpleIndex, showAddressCredential, openSettings, loading } = useGlobalState()
+const { beginLoading, endLoading, jwt, settings, useSimpleIndex, showAddressCredential, openSettings, loading } = useGlobalState()
 const message = useMessage()
 
 // 邮件数据
@@ -29,6 +29,8 @@ const currentMail = ref(null)
 const showAccountSettingsCard = ref(false)
 const currentAutoRefreshInterval = ref(60)
 const timer = ref(null)
+const refreshingMails = ref(false)
+let fetchMailsRequestId = 0
 
 const { t } = useScopedI18n('views.index.SimpleIndex')
 
@@ -45,14 +47,31 @@ const copyAddress = async () => {
 // 获取邮件数据
 const fetchMails = async () => {
     if (!settings.value.address) return
+    const requestId = ++fetchMailsRequestId
+    refreshingMails.value = true
+    beginLoading()
     try {
         const { results, count } = await api.fetch(`/api/mails?limit=1&offset=${currentPage.value - 1}`)
-        totalCount.value = count > 0 ? count : totalCount.value;
+        if (requestId !== fetchMailsRequestId) {
+            return
+        }
+        totalCount.value = count ?? 0
         const rawMail = results && results.length > 0 ? results[0] : null
-        currentMail.value = rawMail ? await processItem(rawMail) : null
+        const parsedMail = rawMail ? await processItem(rawMail) : null
+        if (requestId !== fetchMailsRequestId) {
+            return
+        }
+        currentMail.value = parsedMail
     } catch (error) {
-        console.error('Failed to fetch mails:', error)
-        message.error('获取邮件失败')
+        if (requestId === fetchMailsRequestId) {
+            console.error('Failed to fetch mails:', error)
+            message.error('获取邮件失败')
+        }
+    } finally {
+        if (requestId === fetchMailsRequestId) {
+            refreshingMails.value = false
+        }
+        endLoading()
     }
 }
 
@@ -72,10 +91,14 @@ const deleteMail = async () => {
 
 // 刷新邮件
 const refreshMails = async () => {
-    if (loading.value) return
+    if (refreshingMails.value) return
+    const wasFirstPage = currentPage.value === 1
     currentPage.value = 1
     showAccountSettingsCard.value = false
     currentAutoRefreshInterval.value = 60
+    if (!wasFirstPage) {
+        return
+    }
     await fetchMails()
     message.success(t('refreshSuccess'))
 }
@@ -101,7 +124,7 @@ const nextPage = async () => {
 
 // 监听页面变化
 watch(currentPage, () => {
-    fetchMails()
+    void fetchMails()
 })
 
 onMounted(async () => {

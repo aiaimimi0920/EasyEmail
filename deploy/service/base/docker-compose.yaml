@@ -3,7 +3,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/service/base/Dockerfile
-    image: easyemail/easy-email-service:local
+    image: ${EASY_EMAIL_SERVICE_IMAGE:-easyemail/easy-email-service:local}
     container_name: easyemail-service-base
     restart: unless-stopped
     cpus: 0.75

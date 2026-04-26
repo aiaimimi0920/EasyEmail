@@ -1,10 +1,11 @@
 param(
-  [string]$ConfigPath = (Join-Path $PSScriptRoot "..\..\..\config.yaml"),
+  [string]$ConfigPath = 'config.yaml',
   [string]$Registry = "ghcr.io",
   [string]$Owner = "",
   [string]$Username = "",
   [string]$ImageName = "easy-email-service",
   [string]$Version = "",
+  [string]$MetadataOutput = "",
   [switch]$Push,
   [switch]$DryRun,
   [string]$Platform = "linux/amd64"
@@ -13,10 +14,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$workspaceRoot = Resolve-Path (Join-Path $scriptDir "..\..\..")
-$serviceRepo = Join-Path $workspaceRoot "service\base"
+$workspaceRoot = (Resolve-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $scriptDir)))).Path
+$serviceRepo = Join-Path $workspaceRoot 'service/base'
 
-. (Join-Path $workspaceRoot "scripts\lib\easyemail-config.ps1")
+. (Join-Path $workspaceRoot 'scripts/lib/easyemail-config.ps1')
 
 $config = $null
 if (Test-Path -LiteralPath $ConfigPath) {
@@ -94,6 +95,20 @@ if ($Push) {
   $tags += "${imageRef}:latest"
 }
 
+$metadata = [pscustomobject]@{
+  registry = $Registry
+  owner = $Owner
+  username = $Username
+  imageName = $ImageName
+  imageRef = $imageRef
+  version = $Version
+  gitSha = $gitSha
+  tags = $tags
+  push = [bool]$Push
+  dryRun = [bool]$DryRun
+  platform = $Platform
+}
+
 $buildArgs = @(
   "buildx", "build",
   "--platform", $Platform,
@@ -126,6 +141,9 @@ try {
       Write-Host 'Push mode: enabled'
       Write-Host ('GHCR token configured: ' + (-not [string]::IsNullOrWhiteSpace($ghcrToken)))
     }
+    if (-not [string]::IsNullOrWhiteSpace($MetadataOutput)) {
+      $metadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $MetadataOutput -Encoding UTF8
+    }
     return
   }
   if ($Push -and -not [string]::IsNullOrWhiteSpace($ghcrToken)) {
@@ -139,6 +157,10 @@ try {
   docker @buildArgs
 } finally {
   Pop-Location
+}
+
+if (-not [string]::IsNullOrWhiteSpace($MetadataOutput)) {
+  $metadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $MetadataOutput -Encoding UTF8
 }
 
 Write-Host "Published tags:"

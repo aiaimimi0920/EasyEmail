@@ -261,11 +261,9 @@ export function updateAddressUpdatedAt(
 
 export const generateRandomPassword = (): string => {
     const charset = "abcdefghijklmnopqrstuvwxyz0123456789";
-    let password = "";
-    for (let i = 0; i < 8; i++) {
-        password += charset.charAt(Math.floor(Math.random() * charset.length));
-    }
-    return password;
+    const randomBytes = new Uint8Array(16);
+    crypto.getRandomValues(randomBytes);
+    return Array.from(randomBytes, (value) => charset[value % charset.length]).join("");
 }
 
 const buildGeneratedPassword = async (

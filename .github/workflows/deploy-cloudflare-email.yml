@@ -1,0 +1,429 @@
+name: Deploy Cloudflare Email
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "release-*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and validate without publishing"
+        required: false
+        default: false
+        type: boolean
+      sync_mode:
+        description: "Routing sync mode when routing sync is enabled"
+        required: false
+        default: "exact"
+        type: choice
+        options:
+          - exact
+          - wildcard
+      no_routing_sync:
+        description: "Skip Cloudflare Email Routing sync"
+        required: false
+        default: false
+        type: boolean
+      run_health_check:
+        description: "Run post-deploy health check and version readback"
+        required: false
+        default: true
+        type: boolean
+      force_deploy:
+        description: "Deploy even when the current commit does not touch Cloudflare email files"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      CI: true
+      ALLOW_EXAMPLE_CONFIG: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set Up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set Up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: |
+            upstreams/cloudflare_temp_email/frontend/pnpm-lock.yaml
+            upstreams/cloudflare_temp_email/worker/pnpm-lock.yaml
+
+      - name: Enable Corepack
+        shell: bash
+        run: corepack enable
+
+      - name: Detect Relevant Changes
+        id: change_gate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" || "${{ inputs.force_deploy }}" == "true" ]]; then
+            {
+              echo "should_deploy=true"
+              echo "reason=manual_or_forced"
+            } >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          mapfile -t matched_files < <(
+            git diff-tree --no-commit-id --name-only -r "${GITHUB_SHA}" -- \
+              upstreams/cloudflare_temp_email \
+              deploy/upstreams/cloudflare_temp_email \
+              scripts/deploy-cloudflare-email.ps1 \
+              scripts/quick-deploy-cloudflare-mail.ps1 \
+              scripts/render-derived-configs.ps1 \
+              scripts/render-derived-configs.py \
+              scripts/deploy-easyemail-release.ps1 \
+              .github/workflows/deploy-cloudflare-email.yml
+          )
+
+          if [[ "${#matched_files[@]}" -eq 0 ]]; then
+            {
+              echo "should_deploy=false"
+              echo "reason=no_relevant_changes"
+              echo "matched_files<<EOF"
+              echo "EOF"
+            } >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          {
+            echo "should_deploy=true"
+            echo "reason=relevant_changes_detected"
+            echo "matched_files<<EOF"
+            printf '%s\n' "${matched_files[@]}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Validate Release Tag
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/validate-release-tag.py \
+            --mode cloudflare \
+            --tag "${GITHUB_REF_NAME}"
+
+      - name: Skip Deployment Summary
+        if: steps.change_gate.outputs.should_deploy != 'true'
+        shell: bash
+        run: |
+          {
+            echo "## Cloudflare Email Deploy"
+            echo
+            echo "- Result: skipped"
+            echo "- Reason: \`${{ steps.change_gate.outputs.reason }}\`"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Prepare Operator Config
+        if: steps.change_gate.outputs.should_deploy == 'true'
+        id: operator_config
+        shell: pwsh
+        run: |
+          $configPath = Join-Path $PWD 'config.yaml'
+          if ($env:EASYEMAIL_OPERATOR_CONFIG) {
+            [System.IO.File]::WriteAllText($configPath, $env:EASYEMAIL_OPERATOR_CONFIG, [System.Text.UTF8Encoding]::new($false))
+            Write-Host "Wrote operator config from EASYEMAIL_OPERATOR_CONFIG secret."
+            "source=secret" >> $env:GITHUB_OUTPUT
+          } elseif ($env:ALLOW_EXAMPLE_CONFIG -eq 'true') {
+            Copy-Item -LiteralPath 'config.example.yaml' -Destination $configPath -Force
+            Write-Warning 'EASYEMAIL_OPERATOR_CONFIG was not provided; using config.example.yaml for dry-run validation.'
+            "source=example" >> $env:GITHUB_OUTPUT
+          } else {
+            throw 'Missing EASYEMAIL_OPERATOR_CONFIG secret. Add the root operator config as a repository secret.'
+          }
+
+      - name: Install Frontend Dependencies
+        if: steps.change_gate.outputs.should_deploy == 'true'
+        shell: bash
+        working-directory: upstreams/cloudflare_temp_email/frontend
+        run: |
+          set -euo pipefail
+          if [[ ! -d node_modules ]]; then
+            corepack pnpm install --frozen-lockfile
+          fi
+
+      - name: Install Worker Dependencies
+        if: steps.change_gate.outputs.should_deploy == 'true'
+        shell: bash
+        working-directory: upstreams/cloudflare_temp_email/worker
+        run: |
+          set -euo pipefail
+          if [[ ! -d node_modules ]]; then
+            corepack pnpm install --frozen-lockfile
+          fi
+
+      - name: Deploy Cloudflare Email
+        if: steps.change_gate.outputs.should_deploy == 'true'
+        shell: pwsh
+        env:
+          SKIP_HEALTH_CHECK: ${{ github.event_name == 'workflow_dispatch' && !inputs.run_health_check }}
+        run: |
+          $deployArgs = @(
+            '-ConfigPath', '.\config.yaml',
+            '-SkipServiceBaseGhcr',
+            '-NoInstall'
+          )
+
+          if ("${{ github.event_name }}" -eq 'workflow_dispatch') {
+            $deployArgs += '-SyncMode'
+            $deployArgs += '${{ inputs.sync_mode }}'
+            if ('${{ inputs.no_routing_sync }}' -eq 'true') {
+              $deployArgs += '-NoRoutingSync'
+            }
+            if ('${{ inputs.dry_run }}' -eq 'true') {
+              $deployArgs += '-DryRun'
+            }
+            if ($env:SKIP_HEALTH_CHECK -eq 'true') {
+              $deployArgs += '-SkipCloudflareHealthCheck'
+            }
+          }
+
+          & .\scripts\deploy-easyemail-release.ps1 @deployArgs
+          if ($LASTEXITCODE -ne 0) {
+            throw "Cloudflare email deployment failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Read Back Deployed Cloudflare Runtime
+        if: steps.change_gate.outputs.should_deploy == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run) && !(github.event_name == 'workflow_dispatch' && !inputs.run_health_check)
+        id: runtime
+        shell: pwsh
+        run: |
+          . .\scripts\lib\easyemail-config.ps1
+
+          $config = Read-EasyEmailConfig -ConfigPath '.\config.yaml'
+          $cloudflare = Get-EasyEmailSection -Config $config -Name 'cloudflareMail'
+          $baseUrl = [string](Get-EasyEmailConfigValue -Object $cloudflare -Name 'publicBaseUrl' -Default '')
+          if ([string]::IsNullOrWhiteSpace($baseUrl)) {
+            throw 'cloudflareMail.publicBaseUrl is required for runtime readback.'
+          }
+
+          $healthUrl = ($baseUrl.TrimEnd('/') + '/health_check')
+          $settingsUrl = ($baseUrl.TrimEnd('/') + '/open_api/settings')
+
+          $health = (Invoke-WebRequest -Uri $healthUrl -Method Get -TimeoutSec 10).Content.Trim()
+          if ($health -ne 'OK') {
+            throw "Unexpected health response from $healthUrl: $health"
+          }
+
+          $settings = Invoke-RestMethod -Uri $settingsUrl -Method Get -TimeoutSec 10
+          $runtimeReadback = [pscustomobject]@{
+            baseUrl = $baseUrl
+            healthUrl = $healthUrl
+            settingsUrl = $settingsUrl
+            version = [string]$settings.version
+            domains = @($settings.domains)
+            randomSubdomainDomains = @($settings.randomSubdomainDomains)
+            needAuth = [bool]$settings.needAuth
+            gitSha = '${{ github.sha }}'
+            ref = '${{ github.ref }}'
+          }
+
+          $runtimePath = Join-Path $PWD 'cloudflare-email-runtime-readback.json'
+          $runtimeReadback | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $runtimePath -Encoding UTF8
+          "runtime_path=$runtimePath" >> $env:GITHUB_OUTPUT
+          "version=$($runtimeReadback.version)" >> $env:GITHUB_OUTPUT
+          "base_url=$($runtimeReadback.baseUrl)" >> $env:GITHUB_OUTPUT
+
+      - name: Write Deployment Manifest
+        if: steps.change_gate.outputs.should_deploy == 'true'
+        id: manifest
+        shell: pwsh
+        run: |
+          . .\scripts\lib\easyemail-config.ps1
+
+          $config = Read-EasyEmailConfig -ConfigPath '.\config.yaml'
+          $cloudflare = Get-EasyEmailSection -Config $config -Name 'cloudflareMail'
+          $routing = Get-EasyEmailSection -Config $cloudflare -Name 'routing'
+          $baseUrl = [string](Get-EasyEmailConfigValue -Object $cloudflare -Name 'publicBaseUrl' -Default '')
+          $tagOrRefName = '${{ github.ref_name }}'
+          $isDryRun = ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.dry_run }}' -eq 'true')
+          $shouldRunHealthCheck = -not ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.run_health_check }}' -eq 'false')
+          $result = if ($isDryRun) { 'validated' } else { 'deployed' }
+          $channel = Get-EasyEmailReleaseChannel -Tag $tagOrRefName
+
+          $matchedFilesRaw = @'
+          ${{ steps.change_gate.outputs.matched_files }}
+          '@
+          $matchedFiles = @(
+            $matchedFilesRaw -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+          )
+          if ($matchedFiles.Count -eq 0) {
+            $matchedFiles = @('(manual or forced run)')
+          }
+
+          $runtimeReadback = $null
+          if ('${{ steps.runtime.outputs.runtime_path }}') {
+            $runtimeReadback = Get-Content -Raw -LiteralPath '${{ steps.runtime.outputs.runtime_path }}' | ConvertFrom-Json
+          }
+
+          $routingSyncEnabled = if ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.no_routing_sync }}' -eq 'true') {
+            $false
+          } else {
+            [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'syncRouting' -Default $false)
+          }
+
+          $scopeSummary = Get-EasyEmailReleaseScopeSummary -Files $matchedFiles
+
+          $manifest = [ordered]@{
+            schemaVersion = 1
+            generatedAtUtc = [DateTime]::UtcNow.ToString('o')
+            repository = '${{ github.repository }}'
+            workflow = [ordered]@{
+              name = '${{ github.workflow }}'
+              runId = '${{ github.run_id }}'
+              runNumber = '${{ github.run_number }}'
+              runAttempt = '${{ github.run_attempt }}'
+              url = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            }
+            source = [ordered]@{
+              eventName = '${{ github.event_name }}'
+              actor = '${{ github.actor }}'
+              ref = '${{ github.ref }}'
+              sha = '${{ github.sha }}'
+              changeReason = '${{ steps.change_gate.outputs.reason }}'
+              matchedFiles = $matchedFiles
+            }
+            audit = [ordered]@{
+              scopeSummary = $scopeSummary.summary
+              scopeGroups = $scopeSummary.groups
+            }
+            deployment = [ordered]@{
+              kind = 'cloudflare-email'
+              channel = $channel
+              result = $result
+              dryRun = $isDryRun
+              baseUrl = $baseUrl
+              version = if ($runtimeReadback) { [string]$runtimeReadback.version } else { 'n/a' }
+              syncMode = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.sync_mode }}' } else { [string](Get-EasyEmailConfigValue -Object $routing -Name 'mode' -Default 'exact') }
+              routingSyncEnabled = $routingSyncEnabled
+              domains = if ($runtimeReadback) { @($runtimeReadback.domains) } else { @() }
+              randomSubdomainDomains = if ($runtimeReadback) { @($runtimeReadback.randomSubdomainDomains) } else { @() }
+              needAuth = if ($runtimeReadback) { [bool]$runtimeReadback.needAuth } else { $false }
+            }
+            validation = [ordered]@{
+              healthCheck = if ($isDryRun) { 'skipped' } elseif ($shouldRunHealthCheck) { 'passed' } else { 'skipped' }
+              routingSync = if ($routingSyncEnabled) { 'enabled' } else { 'disabled' }
+              configSource = '${{ steps.operator_config.outputs.source }}'
+              runtimeReadback = if ($runtimeReadback) { 'captured' } else { 'pending' }
+            }
+            markdown = [ordered]@{
+              matchedFiles = (($matchedFiles | ForEach-Object { "- `$_`" }) -join "`n")
+              scopeSummary = $scopeSummary.markdown
+            }
+          }
+
+          $manifestPath = Join-Path $PWD 'cloudflare-email-release-manifest.json'
+          $manifest | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+          "path=$manifestPath" >> $env:GITHUB_OUTPUT
+
+      - name: Render Deployment Notes
+        if: steps.change_gate.outputs.should_deploy == 'true'
+        id: deployment_notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/render-release-template.py \
+            --template .github/release-notes/cloudflare-email-run.md.tmpl \
+            --context "${{ steps.manifest.outputs.path }}" \
+            --output cloudflare-email-deployment-notes.md
+          echo "path=cloudflare-email-deployment-notes.md" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload Release Manifest
+        if: steps.change_gate.outputs.should_deploy == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-email-release-manifest
+          path: ${{ steps.manifest.outputs.path }}
+
+      - name: Upload Deployment Notes Artifact
+        if: steps.change_gate.outputs.should_deploy == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-email-deployment-notes
+          path: ${{ steps.deployment_notes.outputs.path }}
+
+      - name: Upload Runtime Readback Artifact
+        if: steps.change_gate.outputs.should_deploy == 'true' && steps.runtime.outputs.runtime_path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-email-runtime-readback
+          path: ${{ steps.runtime.outputs.runtime_path }}
+
+      - name: Create Or Update GitHub Release
+        if: steps.change_gate.outputs.should_deploy == 'true' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          existing_body="existing-release-body.md"
+          merged_body="merged-release-body.md"
+
+          if gh release view "${tag}" --json body --jq .body > "${existing_body}" 2>/dev/null; then
+            release_exists="true"
+          else
+            release_exists="false"
+            : > "${existing_body}"
+          fi
+
+          python scripts/upsert-release-notes-section.py \
+            --section-id cloudflare-email \
+            --section-file "${{ steps.deployment_notes.outputs.path }}" \
+            --existing "${existing_body}" \
+            --output "${merged_body}"
+
+          if [[ "${release_exists}" == "true" ]]; then
+            gh release edit "${tag}" \
+              --title "${tag}" \
+              --notes-file "${merged_body}"
+          else
+            gh release create "${tag}" \
+              --target "${GITHUB_SHA}" \
+              --title "${tag}" \
+              --notes-file "${merged_body}"
+          fi
+
+          upload_args=(
+            "${{ steps.manifest.outputs.path }}"
+            "${{ steps.deployment_notes.outputs.path }}"
+          )
+          if [[ -n "${{ steps.runtime.outputs.runtime_path }}" ]]; then
+            upload_args+=("${{ steps.runtime.outputs.runtime_path }}")
+          fi
+
+          gh release upload "${tag}" "${upload_args[@]}" --clobber
+
+      - name: Write Deployment Summary
+        if: steps.change_gate.outputs.should_deploy == 'true'
+        shell: bash
+        run: |
+          cat "${{ steps.deployment_notes.outputs.path }}" >> "${GITHUB_STEP_SUMMARY}"

@@ -19,12 +19,32 @@ The deploy scripts render everything else they need:
 1. Copy `config.example.yaml` to `config.yaml`.
 2. Fill in the `cloudflareMail` section in the root config.
 3. If you want routing synchronization, fill in `cloudflareMail.routing.plan`
-   and the routing secrets in the same root file.
+   and the routing secrets in the root `config.yaml`.
 4. Run:
 
 ```powershell
 pwsh .\scripts\deploy-cloudflare-email.ps1
 ```
+
+If you also want to publish the `service/base` image to GHCR in the same
+operator flow, use:
+
+```powershell
+pwsh .\scripts\deploy-easyemail-release.ps1
+```
+
+The root release command also performs a post-deploy Cloudflare health check
+and version readback by default.
+
+If you want GitHub-hosted automation instead of a local operator shell, use the
+repository workflow:
+
+- `.github/workflows/deploy-cloudflare-email.yml`
+
+It supports both tag pushes and `workflow_dispatch`. Store the same root
+operator config in the `EASYEMAIL_OPERATOR_CONFIG` repository secret when you
+want GitHub-hosted deployment. For manual dry-run validation, the workflow can
+fall back to `config.example.yaml` when no operator config secret is present.
 
 ## What The Root Config Needs
 

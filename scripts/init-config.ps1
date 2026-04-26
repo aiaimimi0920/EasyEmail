@@ -1,6 +1,6 @@
 param(
-    [string]$ExamplePath = (Join-Path $PSScriptRoot '..\config.example.yaml'),
-    [string]$ConfigPath = (Join-Path $PSScriptRoot '..\config.yaml'),
+    [string]$ExamplePath = 'config.example.yaml',
+    [string]$ConfigPath = 'config.yaml',
     [switch]$Force
 )
 

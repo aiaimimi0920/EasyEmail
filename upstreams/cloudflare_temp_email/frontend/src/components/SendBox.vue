@@ -32,8 +32,10 @@ const props = defineProps({
   },
 })
 
-const { isDark, mailboxSplitSize, loading, useUTCDate } = useGlobalState()
+const { beginLoading, endLoading, isDark, mailboxSplitSize, loading, useUTCDate } = useGlobalState()
 const data = ref([])
+const refreshing = ref(false)
+let refreshRequestId = 0
 
 const count = ref(0)
 const page = ref(1)
@@ -55,11 +57,14 @@ watch([page, pageSize], async ([page, pageSize], [oldPage, oldPageSize]) => {
 })
 
 const refresh = async () => {
+  const requestId = ++refreshRequestId
+  refreshing.value = true
+  beginLoading()
   try {
     const { results, count: totalCount } = await props.fetchMailData(
       pageSize.value, (page.value - 1) * pageSize.value
     );
-    data.value = results.map((item) => {
+    const nextData = results.map((item) => {
       try {
         const data = JSON.parse(item.raw);
         if (data.version == "v2") {
@@ -82,15 +87,26 @@ const refresh = async () => {
       }
       return item;
     });
-    if (totalCount > 0) {
-      count.value = totalCount;
+    if (requestId !== refreshRequestId) {
+      return;
     }
+    data.value = nextData;
+    count.value = totalCount ?? 0;
     if (!isMobile.value && !curMail.value && data.value.length > 0) {
       curMail.value = data.value[0];
+    } else if (data.value.length === 0) {
+      curMail.value = null;
     }
   } catch (error) {
-    message.error(error.message || "error");
-    console.error(error);
+    if (requestId === refreshRequestId) {
+      message.error(error.message || "error");
+      console.error(error);
+    }
+  } finally {
+    if (requestId === refreshRequestId) {
+      refreshing.value = false;
+    }
+    endLoading()
   }
 };
 
@@ -143,7 +159,7 @@ const multiActionSelectAll = (checked) => {
 
 const multiActionDeleteMail = async () => {
   try {
-    loading.value = true;
+    beginLoading();
     const selectedMails = data.value.filter((item) => item.checked);
     if (selectedMails.length === 0) {
       message.error(t('pleaseSelectMail'));
@@ -166,7 +182,7 @@ const multiActionDeleteMail = async () => {
   } catch (error) {
     message.error(error.message || "error");
   } finally {
-    loading.value = false;
+    endLoading();
     showMultiActionDelete.value = true;
   }
 }

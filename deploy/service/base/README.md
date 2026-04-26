@@ -65,3 +65,13 @@ pwsh .\deploy\service\base\publish-ghcr-easy-email-service.ps1 -Owner <github-ow
 
 If `publishing.ghcr` is filled in inside the root `config.yaml`, the publish
 script can read the registry owner, username, and token from there.
+
+## GitHub Actions Publish
+
+The repository also includes `.github/workflows/publish-service-base-ghcr.yml`.
+
+It supports:
+
+- automatic publish on tag push
+- manual publish through `workflow_dispatch`
+- pre-push smoke validation for the `service/base` container

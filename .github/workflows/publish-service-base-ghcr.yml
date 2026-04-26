@@ -1,0 +1,386 @@
+name: Publish Service Base GHCR
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "release-*"
+      - "service-base-*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional image version tag override"
+        required: false
+        type: string
+      platform:
+        description: "Docker build platform list"
+        required: false
+        default: "linux/amd64"
+        type: string
+      push_latest:
+        description: "Also publish the latest tag"
+        required: false
+        default: true
+        type: boolean
+      run_smoke:
+        description: "Run service/base smoke check before pushing"
+        required: false
+        default: true
+        type: boolean
+      force_publish:
+        description: "Publish even when the current commit does not touch service/base or deployment files"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: easy-email-service
+
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set Up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Prepare Operator Config
+        shell: pwsh
+        run: Copy-Item config.example.yaml config.yaml
+
+      - name: Resolve Release Metadata
+        id: release_meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          short_sha="$(git rev-parse --short HEAD)"
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            version="${GITHUB_REF_NAME}"
+            push_latest="true"
+            run_smoke="true"
+            platform="linux/amd64"
+            force_publish="false"
+          else
+            version="${{ inputs.version }}"
+            if [[ -z "${version}" ]]; then
+              version="release-$(date -u +%Y%m%d)-${GITHUB_RUN_NUMBER}"
+            fi
+            push_latest="${{ inputs.push_latest }}"
+            run_smoke="${{ inputs.run_smoke }}"
+            platform="${{ inputs.platform }}"
+            force_publish="${{ inputs.force_publish }}"
+          fi
+
+          image_ref="${REGISTRY}/${owner}/${IMAGE_NAME}"
+          smoke_image="${image_ref}:smoke-${GITHUB_RUN_ID}"
+
+          {
+            echo "owner=${owner}"
+            echo "version=${version}"
+            echo "short_sha=${short_sha}"
+            echo "platform=${platform}"
+            echo "image_ref=${image_ref}"
+            echo "smoke_image=${smoke_image}"
+            echo "push_latest=${push_latest}"
+            echo "run_smoke=${run_smoke}"
+            echo "force_publish=${force_publish}"
+            echo "tags<<EOF"
+            echo "${image_ref}:${version}"
+            echo "${image_ref}:sha-${short_sha}"
+            if [[ "${push_latest}" == "true" ]]; then
+              echo "${image_ref}:latest"
+            fi
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Validate Release Tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/validate-release-tag.py \
+            --mode service-base \
+            --tag "${{ steps.release_meta.outputs.version }}"
+
+      - name: Detect Relevant Changes
+        id: change_gate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ steps.release_meta.outputs.force_publish }}" == "true" ]]; then
+            {
+              echo "should_publish=true"
+              echo "reason=force_publish"
+              echo "matched_files<<EOF"
+              echo "(forced)"
+              echo "EOF"
+            } >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          mapfile -t matched_files < <(
+            git diff-tree --no-commit-id --name-only -r "${GITHUB_SHA}" -- \
+              service/base \
+              deploy/service/base \
+              scripts/compile-service-base-image.ps1 \
+              scripts/deploy-service-base.ps1 \
+              scripts/deploy-easyemail-release.ps1 \
+              .github/workflows/publish-service-base-ghcr.yml
+          )
+
+          if [[ "${#matched_files[@]}" -eq 0 ]]; then
+            {
+              echo "should_publish=false"
+              echo "reason=no_relevant_changes"
+              echo "matched_files<<EOF"
+              echo "EOF"
+            } >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          {
+            echo "should_publish=true"
+            echo "reason=relevant_changes_detected"
+            echo "matched_files<<EOF"
+            printf '%s\n' "${matched_files[@]}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Skip Publish Summary
+        if: steps.change_gate.outputs.should_publish != 'true'
+        shell: bash
+        run: |
+          {
+            echo "## Service Base GHCR Publish"
+            echo
+            echo "- Result: skipped"
+            echo "- Reason: \`${{ steps.change_gate.outputs.reason }}\`"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Set Up Docker Buildx
+        if: steps.change_gate.outputs.should_publish == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Smoke Image
+        if: steps.change_gate.outputs.should_publish == 'true' && steps.release_meta.outputs.run_smoke == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            -f deploy/service/base/Dockerfile \
+            -t "${{ steps.release_meta.outputs.smoke_image }}" \
+            .
+
+      - name: Run Service Base Smoke Check
+        if: steps.change_gate.outputs.should_publish == 'true' && steps.release_meta.outputs.run_smoke == 'true'
+        shell: pwsh
+        run: >
+          .\deploy\service\base\smoke-easy-email-docker-api.ps1
+          -ConfigPath .\config.yaml
+          -Image "${{ steps.release_meta.outputs.smoke_image }}"
+
+      - name: Resolve Smoke Label
+        if: steps.change_gate.outputs.should_publish == 'true'
+        id: smoke_label
+        shell: bash
+        run: |
+          if [[ "${{ steps.release_meta.outputs.run_smoke }}" == "true" ]]; then
+            echo "value=passed" >> "${GITHUB_OUTPUT}"
+          else
+            echo "value=skipped" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Log In To GHCR
+        if: steps.change_gate.outputs.should_publish == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build And Push Service Base Image
+        if: steps.change_gate.outputs.should_publish == 'true'
+        id: build_push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/service/base/Dockerfile
+          push: true
+          provenance: mode=max
+          sbom: true
+          platforms: ${{ steps.release_meta.outputs.platform }}
+          tags: ${{ steps.release_meta.outputs.tags }}
+          cache-from: type=gha,scope=service-base-ghcr
+          cache-to: type=gha,mode=max,scope=service-base-ghcr
+
+      - name: Write Release Manifest
+        if: steps.change_gate.outputs.should_publish == 'true'
+        id: manifest
+        shell: pwsh
+        run: |
+          . .\scripts\lib\easyemail-config.ps1
+
+          $version = '${{ steps.release_meta.outputs.version }}'
+          $tags = @(
+            "${{ steps.release_meta.outputs.image_ref }}:${{ steps.release_meta.outputs.version }}"
+            "${{ steps.release_meta.outputs.image_ref }}:sha-${{ steps.release_meta.outputs.short_sha }}"
+          )
+          if ('${{ steps.release_meta.outputs.push_latest }}' -eq 'true') {
+            $tags += "${{ steps.release_meta.outputs.image_ref }}:latest"
+          }
+
+          $matchedFilesRaw = @'
+          ${{ steps.change_gate.outputs.matched_files }}
+          '@
+          $matchedFiles = @(
+            $matchedFilesRaw -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+          )
+          if ($matchedFiles.Count -eq 0) {
+            $matchedFiles = @('(no matched files recorded)')
+          }
+
+          $scopeSummary = Get-EasyEmailReleaseScopeSummary -Files $matchedFiles
+          $channel = Get-EasyEmailReleaseChannel -Tag $version
+
+          $manifest = [ordered]@{
+            schemaVersion = 1
+            generatedAtUtc = [DateTime]::UtcNow.ToString('o')
+            repository = '${{ github.repository }}'
+            workflow = [ordered]@{
+              name = '${{ github.workflow }}'
+              runId = '${{ github.run_id }}'
+              runNumber = '${{ github.run_number }}'
+              runAttempt = '${{ github.run_attempt }}'
+              url = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            }
+            source = [ordered]@{
+              eventName = '${{ github.event_name }}'
+              actor = '${{ github.actor }}'
+              ref = '${{ github.ref }}'
+              sha = '${{ github.sha }}'
+              shortSha = '${{ steps.release_meta.outputs.short_sha }}'
+              changeReason = '${{ steps.change_gate.outputs.reason }}'
+              matchedFiles = $matchedFiles
+            }
+            audit = [ordered]@{
+              scopeSummary = $scopeSummary.summary
+              scopeGroups = $scopeSummary.groups
+            }
+            release = [ordered]@{
+              kind = 'service-base-ghcr'
+              version = $version
+              channel = $channel
+              imageRef = '${{ steps.release_meta.outputs.image_ref }}'
+              platform = '${{ steps.release_meta.outputs.platform }}'
+              digest = '${{ steps.build_push.outputs.digest }}'
+              tags = $tags
+              publishLatest = ('${{ steps.release_meta.outputs.push_latest }}' -eq 'true')
+            }
+            validation = [ordered]@{
+              smoke = '${{ steps.smoke_label.outputs.value }}'
+              sbom = 'enabled'
+              provenance = 'mode=max'
+            }
+            markdown = [ordered]@{
+              tags = (($tags | ForEach-Object { "- `$_`" }) -join "`n")
+              matchedFiles = (($matchedFiles | ForEach-Object { "- `$_`" }) -join "`n")
+              scopeSummary = $scopeSummary.markdown
+            }
+          }
+
+          $manifestPath = Join-Path $PWD 'service-base-release-manifest.json'
+          $manifest | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+          "path=$manifestPath" >> $env:GITHUB_OUTPUT
+
+      - name: Render Release Notes
+        if: steps.change_gate.outputs.should_publish == 'true'
+        id: release_notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/render-release-template.py \
+            --template .github/release-notes/service-base-ghcr.md.tmpl \
+            --context "${{ steps.manifest.outputs.path }}" \
+            --output service-base-release-notes.md
+          echo "path=service-base-release-notes.md" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload Release Manifest
+        if: steps.change_gate.outputs.should_publish == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-base-release-manifest
+          path: ${{ steps.manifest.outputs.path }}
+
+      - name: Upload Release Notes Artifact
+        if: steps.change_gate.outputs.should_publish == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-base-release-notes
+          path: ${{ steps.release_notes.outputs.path }}
+
+      - name: Create Or Update GitHub Release
+        if: steps.change_gate.outputs.should_publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${{ steps.release_meta.outputs.version }}"
+          existing_body="existing-release-body.md"
+          merged_body="merged-release-body.md"
+
+          if gh release view "${tag}" --json body --jq .body > "${existing_body}" 2>/dev/null; then
+            release_exists="true"
+          else
+            release_exists="false"
+            : > "${existing_body}"
+          fi
+
+          python scripts/upsert-release-notes-section.py \
+            --section-id service-base-ghcr \
+            --section-file "${{ steps.release_notes.outputs.path }}" \
+            --existing "${existing_body}" \
+            --output "${merged_body}"
+
+          if [[ "${release_exists}" == "true" ]]; then
+            gh release edit "${tag}" \
+              --title "${tag}" \
+              --notes-file "${merged_body}"
+          else
+            gh release create "${tag}" \
+              --target "${GITHUB_SHA}" \
+              --title "${tag}" \
+              --notes-file "${merged_body}"
+          fi
+
+          gh release upload "${tag}" \
+            "${{ steps.manifest.outputs.path }}" \
+            "${{ steps.release_notes.outputs.path }}" \
+            --clobber
+
+      - name: Write Release Summary
+        if: steps.change_gate.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          cat "${{ steps.release_notes.outputs.path }}" >> "${GITHUB_STEP_SUMMARY}"

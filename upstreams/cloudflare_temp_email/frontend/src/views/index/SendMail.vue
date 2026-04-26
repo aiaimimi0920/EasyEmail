@@ -1,16 +1,14 @@
 <script setup>
-import '@wangeditor/editor/dist/css/style.css'
-import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import { useScopedI18n } from '@/i18n/app'
-import { onMounted, onBeforeUnmount, ref, shallowRef } from 'vue'
+import { defineAsyncComponent, onMounted, ref } from 'vue'
 import AdminContact from '../common/AdminContact.vue'
 
 import { useGlobalState } from '../../store'
 import { api } from '../../api'
 
+const RichMailEditor = defineAsyncComponent(() => import('../../components/RichMailEditor.vue'))
 const message = useMessage()
 const isPreview = ref(false)
-const editorRef = shallowRef()
 const sending = ref(false)
 
 
@@ -123,32 +121,6 @@ const requestAccess = async () => {
     }
 }
 
-const toolbarConfig = {
-    excludeKeys: ["uploadVideo"]
-}
-
-const editorConfig = {
-    MENU_CONF: {
-        'uploadImage': {
-            async customUpload() {
-                message.error(t('tooLarge'))
-            },
-            maxFileSize: 1 * 1024 * 1024,
-            base64LimitSize: 1 * 1024 * 1024,
-        }
-    }
-}
-
-onBeforeUnmount(() => {
-    const editor = editorRef.value
-    if (editor == null) return
-    editor.destroy()
-})
-
-const handleCreated = (editor) => {
-    editorRef.value = editor;
-}
-
 onMounted(async () => {
     // make sure user_id is fetched
     if (!userSettings.value.user_id) await api.getUserSettings(message);
@@ -205,12 +177,8 @@ onMounted(async () => {
                             <n-card :bordered="false" embedded v-if="isPreview">
                                 <div v-html="sendMailModel.content" />
                             </n-card>
-                            <div v-else-if="sendMailModel.contentType == 'rich'" style="border: 1px solid #ccc">
-                                <Toolbar style="border-bottom: 1px solid #ccc" :defaultConfig="toolbarConfig"
-                                    :editor="editorRef" mode="default" />
-                                <Editor style="height: 500px; overflow-y: hidden;" v-model="sendMailModel.content"
-                                    :defaultConfig="editorConfig" mode="default" @onCreated="handleCreated" />
-                            </div>
+                            <RichMailEditor v-else-if="sendMailModel.contentType == 'rich'"
+                                v-model="sendMailModel.content" :too-large-message="t('tooLarge')" />
                             <n-input v-else type="textarea" v-model:value="sendMailModel.content" :autosize="{
                                 minRows: 3
                             }" />

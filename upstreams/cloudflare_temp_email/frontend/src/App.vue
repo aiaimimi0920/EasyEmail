@@ -2,7 +2,7 @@
 import {
   darkTheme,
 } from 'naive-ui'
-import { computed, onMounted, watchEffect } from 'vue'
+import { computed, onMounted, shallowRef, watch, watchEffect } from 'vue'
 import { useScript } from '@unhead/vue'
 import { useI18n } from 'vue-i18n'
 import { useGlobalState } from './store'
@@ -10,7 +10,7 @@ import { useIsMobile } from './utils/composables'
 import Header from './views/Header.vue';
 import Footer from './views/Footer.vue';
 import { api } from './api'
-import { getNaiveLocaleConfig } from './i18n/naive-locale'
+import { DEFAULT_NAIVE_LOCALE_CONFIG, loadNaiveLocaleConfig } from './i18n/naive-locale'
 import { DEFAULT_LOCALE, isSupportedLocale } from './i18n/utils'
 
 const {
@@ -20,15 +20,25 @@ const adClient = import.meta.env.VITE_GOOGLE_AD_CLIENT;
 const adSlot = import.meta.env.VITE_GOOGLE_AD_SLOT;
 const { locale } = useI18n({ useScope: 'global' });
 const theme = computed(() => isDark.value ? darkTheme : null)
-const localeConfig = computed(() => getNaiveLocaleConfig(isSupportedLocale(locale.value) ? locale.value : DEFAULT_LOCALE))
+const resolvedLocale = computed(() => isSupportedLocale(locale.value) ? locale.value : DEFAULT_LOCALE)
+const localeConfig = shallowRef(DEFAULT_NAIVE_LOCALE_CONFIG)
 const isMobile = useIsMobile()
 const showSideMargin = computed(() => !isMobile.value && useSideMargin.value);
 const showAd = computed(() => !isMobile.value && adClient && adSlot);
 const gridMaxCols = computed(() => showAd.value ? 8 : 12);
+let localeConfigRequestId = 0
+
+watch(resolvedLocale, async (nextLocale) => {
+  const requestId = ++localeConfigRequestId
+  const nextLocaleConfig = await loadNaiveLocaleConfig(nextLocale)
+  if (requestId === localeConfigRequestId) {
+    localeConfig.value = nextLocaleConfig
+  }
+}, { immediate: true })
 
 watchEffect(() => {
   if (typeof document === 'undefined') return
-  document.documentElement.lang = isSupportedLocale(locale.value) ? locale.value : DEFAULT_LOCALE
+  document.documentElement.lang = resolvedLocale.value
 })
 
 // Load Google Ad script at top level (not inside onMounted)

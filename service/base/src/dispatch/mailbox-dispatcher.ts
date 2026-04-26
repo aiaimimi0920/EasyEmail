@@ -611,7 +611,11 @@ export class MailboxDispatcher {
     }
 
     const [head, ...tail] = rotated;
-    return [head, ...tail.sort(() => Math.random() - 0.5)];
+    for (let index = tail.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [tail[index], tail[swapIndex]] = [tail[swapIndex]!, tail[index]!];
+    }
+    return [head, ...tail];
   }
 
   private orderProviderGroupsByAvailability(

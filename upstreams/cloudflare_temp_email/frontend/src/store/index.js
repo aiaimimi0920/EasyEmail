@@ -8,7 +8,22 @@ export const useGlobalState = createGlobalState(
     () => {
         const isDark = useDark()
         const toggleDark = useToggle(isDark)
-        const loading = ref(false);
+        const loadingCount = ref(0);
+        const loading = computed(() => loadingCount.value > 0);
+        const beginLoading = () => {
+            loadingCount.value += 1;
+        };
+        const endLoading = () => {
+            loadingCount.value = Math.max(0, loadingCount.value - 1);
+        };
+        const runWithLoading = async (action) => {
+            beginLoading();
+            try {
+                return await action();
+            } finally {
+                endLoading();
+            }
+        };
         const announcement = useLocalStorage('announcement', '');
         const useSimpleIndex = useLocalStorage('useSimpleIndex', false);
         const openSettings = ref({
@@ -132,6 +147,9 @@ export const useGlobalState = createGlobalState(
             isDark,
             toggleDark,
             loading,
+            beginLoading,
+            endLoading,
+            runWithLoading,
             settings,
             sendMailModel,
             announcement,

@@ -1,5 +1,3 @@
-import PostalMime from 'postal-mime';
-
 function humanFileSize(size) {
     const i = size === 0 ? 0 : Math.floor(Math.log(size) / Math.log(1024));
     return parseFloat((size / Math.pow(1024, i)).toFixed(2)) + ' ' + ['B', 'KB', 'MB', 'GB', 'TB'][i];
@@ -41,6 +39,7 @@ export async function processItem(item) {
     }
     // Fallback to PostalMime
     try {
+        const { default: PostalMime } = await import('postal-mime');
         const parsedEmail = await PostalMime.parse(item.raw);
         item.source = parsedEmail.from.address || item.source;
         if (parsedEmail.from.address && parsedEmail.from.name) {

@@ -1,12 +1,14 @@
 param(
-    [string]$ConfigPath = (Join-Path $PSScriptRoot '..\config.yaml'),
+    [string]$ConfigPath = 'config.yaml',
+    [string]$SourcePath,
+    [string]$OutputPath,
     [switch]$CopyToClipboard
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-. (Join-Path $PSScriptRoot 'lib\easyemail-config.ps1')
+. (Join-Path $PSScriptRoot 'lib/easyemail-config.ps1')
 
 function Get-SecretText {
     param(
@@ -35,8 +37,24 @@ if ($null -eq $userscript) {
     throw 'Missing userscript section in config.yaml.'
 }
 
-$sourcePath = Resolve-EasyEmailPath -Path (Get-EasyEmailConfigValue -Object $userscript -Name 'sourcePath' -Default 'runtimes/userscript/easy_email_proxy.user.js')
-$outputPath = Resolve-EasyEmailPath -Path (Get-EasyEmailConfigValue -Object $userscript -Name 'outputPath' -Default 'runtimes/userscript/easy_email_proxy.local.user.js')
+$sourcePath = if (
+    $PSBoundParameters.ContainsKey('SourcePath') -and
+    -not [string]::IsNullOrWhiteSpace($SourcePath)
+) {
+    Resolve-EasyEmailPath -Path $SourcePath
+} else {
+    Resolve-EasyEmailPath -Path (Get-EasyEmailConfigValue -Object $userscript -Name 'sourcePath' -Default 'runtimes/userscript/easy_email_proxy.user.js')
+}
+
+$outputPath = if (
+    $PSBoundParameters.ContainsKey('OutputPath') -and
+    -not [string]::IsNullOrWhiteSpace($OutputPath)
+) {
+    Resolve-EasyEmailPath -Path $OutputPath
+} else {
+    Resolve-EasyEmailPath -Path (Get-EasyEmailConfigValue -Object $userscript -Name 'outputPath' -Default 'runtimes/userscript/easy_email_proxy.local.user.js')
+}
+
 $shouldCopyToClipboard = $CopyToClipboard -or [bool](Get-EasyEmailConfigValue -Object $userscript -Name 'copyToClipboard' -Default $false)
 $secrets = Get-EasyEmailSection -Config $userscript -Name 'secrets'
 
@@ -60,19 +78,27 @@ $tokenMap = @{
     '__LOCAL_SECRET_IM215_API_KEY__'          = $secretMap.im215_apiKey
 }
 
-if (-not [string]::IsNullOrWhiteSpace($secretMap.gptmail_apiKey)) {
-    $escaped = $secretMap.gptmail_apiKey.Replace('\', '\\').Replace("'", "\'")
-    $source = [regex]::Replace(
-        $source,
-        "gptmail_apiKey:\s*'[^']*'",
-        "gptmail_apiKey: '$escaped'"
-    )
-}
+$escapedGptmailApiKey = $secretMap.gptmail_apiKey.Replace('\', '\\').Replace("'", "\'")
+$source = [regex]::Replace(
+    $source,
+    "gptmail_apiKey:\s*'[^']*'",
+    "gptmail_apiKey: '$escapedGptmailApiKey'"
+)
 
 foreach ($token in $tokenMap.Keys) {
     $replacement = [string]$tokenMap[$token]
     $escaped = $replacement.Replace('\', '\\').Replace("'", "\'")
     $source = $source.Replace($token, $escaped)
+}
+
+$unreplacedSecretTokens = @(
+    [regex]::Matches($source, '__LOCAL_SECRET_[A-Z0-9_]+__') |
+        ForEach-Object { $_.Value } |
+        Select-Object -Unique
+)
+
+if ($unreplacedSecretTokens.Count -gt 0) {
+    throw "Userscript still contains unreplaced local secret placeholders: $($unreplacedSecretTokens -join ', ')"
 }
 
 $banner = @(
