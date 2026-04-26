@@ -290,7 +290,7 @@ jobs:
 
           $health = (Invoke-WebRequest -Uri $healthUrl -Method Get -TimeoutSec 10).Content.Trim()
           if ($health -ne 'OK') {
-            throw "Unexpected health response from $healthUrl: $health"
+            throw "Unexpected health response from ${healthUrl}: $health"
           }
 
           $settings = Invoke-RestMethod -Uri $settingsUrl -Method Get -TimeoutSec 10
