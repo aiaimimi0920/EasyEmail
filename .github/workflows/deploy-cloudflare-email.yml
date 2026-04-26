@@ -149,6 +149,8 @@ jobs:
           EASYEMAIL_OPERATOR_CONFIG: ${{ secrets.EASYEMAIL_OPERATOR_CONFIG }}
           EASYEMAIL_CLOUDFLARE_MAIL_CONFIG: ${{ secrets.EASYEMAIL_CLOUDFLARE_MAIL_CONFIG }}
         run: |
+          . .\scripts\lib\easyemail-config.ps1
+
           $configPath = Join-Path $PWD 'config.yaml'
           if ($env:EASYEMAIL_OPERATOR_CONFIG -or $env:EASYEMAIL_CLOUDFLARE_MAIL_CONFIG) {
             & python scripts/materialize-action-config.py --base-config config.example.yaml --output $configPath
