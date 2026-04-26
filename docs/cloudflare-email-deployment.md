@@ -43,8 +43,10 @@ repository workflow:
 
 It supports both tag pushes and `workflow_dispatch`. Store the same root
 operator config in the `EASYEMAIL_OPERATOR_CONFIG` repository secret when you
-want GitHub-hosted deployment. For manual dry-run validation, the workflow can
-fall back to `config.example.yaml` when no operator config secret is present.
+want GitHub-hosted deployment, or store only the `cloudflareMail` overlay in
+`EASYEMAIL_CLOUDFLARE_MAIL_CONFIG` if you prefer a narrower secret scope. For
+manual dry-run validation, the workflow can fall back to `config.example.yaml`
+when no operator config secret is present.
 
 ## What The Root Config Needs
 

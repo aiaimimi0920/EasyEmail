@@ -145,11 +145,21 @@ jobs:
         if: steps.change_gate.outputs.should_deploy == 'true'
         id: operator_config
         shell: pwsh
+        env:
+          EASYEMAIL_OPERATOR_CONFIG: ${{ secrets.EASYEMAIL_OPERATOR_CONFIG }}
+          EASYEMAIL_CLOUDFLARE_MAIL_CONFIG: ${{ secrets.EASYEMAIL_CLOUDFLARE_MAIL_CONFIG }}
         run: |
           $configPath = Join-Path $PWD 'config.yaml'
-          if ($env:EASYEMAIL_OPERATOR_CONFIG) {
-            [System.IO.File]::WriteAllText($configPath, $env:EASYEMAIL_OPERATOR_CONFIG, [System.Text.UTF8Encoding]::new($false))
-            Write-Host "Wrote operator config from EASYEMAIL_OPERATOR_CONFIG secret."
+          if ($env:EASYEMAIL_OPERATOR_CONFIG -or $env:EASYEMAIL_CLOUDFLARE_MAIL_CONFIG) {
+            & python scripts/materialize-action-config.py --base-config config.example.yaml --output $configPath
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to materialize config.yaml from GitHub Actions secrets with exit code $LASTEXITCODE"
+            }
+            if ($env:EASYEMAIL_OPERATOR_CONFIG) {
+              Write-Host "Wrote operator config from EASYEMAIL_OPERATOR_CONFIG secret."
+            } else {
+              Write-Host "Wrote Cloudflare config overlay from EASYEMAIL_CLOUDFLARE_MAIL_CONFIG secret."
+            }
             "source=secret" >> $env:GITHUB_OUTPUT
           } elseif ($env:ALLOW_EXAMPLE_CONFIG -eq 'true') {
             Copy-Item -LiteralPath 'config.example.yaml' -Destination $configPath -Force

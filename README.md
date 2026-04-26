@@ -119,6 +119,7 @@ GitHub Actions release automation lives under `.github/workflows/`:
 - `scripts/deploy-easyemail-release.ps1`
 - `scripts/quick-deploy-cloudflare-mail.ps1`
 - `scripts/publish-control-center-release-catalog.ps1`
+- `scripts/materialize-action-config.py`
 - `scripts/validate-release-tag.py`
 
 ## Shared Config

@@ -71,6 +71,7 @@ Write-Host "Validating release automation scripts..."
 & python -m py_compile `
     (Join-Path $repoRoot 'scripts/render-release-template.py') `
     (Join-Path $repoRoot 'scripts/upsert-release-notes-section.py') `
+    (Join-Path $repoRoot 'scripts/materialize-action-config.py') `
     (Join-Path $repoRoot 'scripts/validate-release-tag.py')
 if ($LASTEXITCODE -ne 0) {
     throw "Release automation script validation failed with exit code $LASTEXITCODE"
@@ -84,6 +85,7 @@ $sampleNotesPath = Join-Path $releaseAutomationTempRoot 'sample-service-notes.md
 $sampleCloudflareNotesPath = Join-Path $releaseAutomationTempRoot 'sample-cloudflare-notes.md'
 $sampleMergedNotesPath = Join-Path $releaseAutomationTempRoot 'sample-merged-notes.md'
 $sampleExistingReleaseBodyPath = Join-Path $releaseAutomationTempRoot 'sample-existing-release-body.md'
+$materializedConfigPath = Join-Path $releaseAutomationTempRoot 'materialized-config.yaml'
 $sampleScopeSummary = @'
 ### Scope Summary
 
@@ -167,4 +169,31 @@ if ($LASTEXITCODE -ne 0) {
 & python (Join-Path $repoRoot 'scripts/validate-release-tag.py') --mode cloudflare --tag v1.2.3 | Out-Null
 if ($LASTEXITCODE -ne 0) {
     throw "Cloudflare release tag validation smoke check failed with exit code $LASTEXITCODE"
+}
+
+$previousCloudflareMailConfig = $env:EASYEMAIL_CLOUDFLARE_MAIL_CONFIG
+try {
+    $env:EASYEMAIL_CLOUDFLARE_MAIL_CONFIG = @'
+cloudflareMail:
+  publicBaseUrl: https://mail.example.com
+  publicDomain: mail.example.com
+  worker:
+    vars:
+      PASSWORDS:
+        - change-me
+      JWT_SECRET: change-me
+'@
+
+    & python (Join-Path $repoRoot 'scripts/materialize-action-config.py') `
+        --base-config (Join-Path $repoRoot 'config.example.yaml') `
+        --output $materializedConfigPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Cloudflare action config materialization smoke check failed with exit code $LASTEXITCODE"
+    }
+
+    if (-not (Test-Path -LiteralPath $materializedConfigPath)) {
+        throw 'Cloudflare action config materialization did not produce an output file.'
+    }
+} finally {
+    $env:EASYEMAIL_CLOUDFLARE_MAIL_CONFIG = $previousCloudflareMailConfig
 }

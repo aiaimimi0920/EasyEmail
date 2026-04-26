@@ -68,6 +68,10 @@ For a dry run:
 pwsh .\scripts\deploy-cloudflare-email.ps1 -DryRun -NoRoutingSync
 ```
 
+If you want GitHub-hosted deployment later, the matching workflow can read the
+same root config as a repository secret, or just the `cloudflareMail` overlay
+if you prefer a narrower secret scope.
+
 ## 7. Publish The Service Image And Deploy Cloudflare Together
 
 Use the root release entrypoint when you want to publish the `service/base`
