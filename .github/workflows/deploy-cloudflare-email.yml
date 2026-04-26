@@ -51,8 +51,6 @@ jobs:
     env:
       CI: true
       ALLOW_EXAMPLE_CONFIG: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
     steps:
       - name: Check Out Repository
@@ -69,10 +67,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: pnpm
-          cache-dependency-path: |
-            upstreams/cloudflare_temp_email/frontend/pnpm-lock.yaml
-            upstreams/cloudflare_temp_email/worker/pnpm-lock.yaml
 
       - name: Enable Corepack
         shell: bash
@@ -156,6 +150,19 @@ jobs:
             & python scripts/materialize-action-config.py --base-config config.example.yaml --output $configPath
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to materialize config.yaml from GitHub Actions secrets with exit code $LASTEXITCODE"
+            }
+            $materializedConfig = Read-EasyEmailConfig -ConfigPath $configPath
+            $cloudflareMail = Get-EasyEmailSection -Config $materializedConfig -Name 'cloudflareMail'
+            $routing = Get-EasyEmailSection -Config $cloudflareMail -Name 'routing'
+            $globalAuth = Get-EasyEmailSection -Config $routing -Name 'cloudflareGlobalAuth'
+            $authEmail = [string](Get-EasyEmailConfigValue -Object $globalAuth -Name 'authEmail' -Default '')
+            $globalApiKey = [string](Get-EasyEmailConfigValue -Object $globalAuth -Name 'globalApiKey' -Default '')
+            if (-not [string]::IsNullOrWhiteSpace($authEmail) -and -not [string]::IsNullOrWhiteSpace($globalApiKey)) {
+              Write-Host 'Config contains Cloudflare global auth credentials; exporting them for Wrangler.'
+              Write-Host "::add-mask::$authEmail"
+              Write-Host "::add-mask::$globalApiKey"
+              "CLOUDFLARE_EMAIL=$authEmail" >> $env:GITHUB_ENV
+              "CLOUDFLARE_API_KEY=$globalApiKey" >> $env:GITHUB_ENV
             }
             if ($env:EASYEMAIL_OPERATOR_CONFIG) {
               Write-Host "Wrote operator config from EASYEMAIL_OPERATOR_CONFIG secret."
