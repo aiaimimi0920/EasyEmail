@@ -3,6 +3,7 @@ param(
     [switch]$NoBuild,
     [string]$Image = '',
     [switch]$Pull,
+    [string]$ImportCode = '',
     [string]$BootstrapFile = '',
     [string]$InstanceName = '',
     [string]$ContainerName = '',
@@ -66,16 +67,34 @@ $serviceOutput = Join-Path $hostConfigRoot 'config.yaml'
 $serviceEnvOutput = Join-Path $hostConfigRoot 'runtime.env'
 $bootstrapHostDir = Join-Path $hostConfigRoot 'bootstrap'
 
-if ([string]::IsNullOrWhiteSpace($BootstrapFile)) {
+if (-not [string]::IsNullOrWhiteSpace($BootstrapFile) -and -not [string]::IsNullOrWhiteSpace($ImportCode)) {
+    throw 'Specify either BootstrapFile or ImportCode, not both.'
+}
+
+$effectiveImportCode = $ImportCode
+if ([string]::IsNullOrWhiteSpace($effectiveImportCode) -and -not (Test-Path -LiteralPath $resolvedConfigPath)) {
+    $effectiveImportCode = Read-Host 'Local config.yaml was not found. Enter an EasyEmail import code to bootstrap from R2, or press Enter to cancel'
+}
+
+if ([string]::IsNullOrWhiteSpace($BootstrapFile) -and [string]::IsNullOrWhiteSpace($effectiveImportCode)) {
     & $render -ConfigPath $resolvedConfigPath -ServiceBase -ServiceOutput $serviceOutput -ServiceEnvOutput $serviceEnvOutput
 } else {
-    $resolvedBootstrapFile = Resolve-EasyEmailPath -Path $BootstrapFile
-    if (-not (Test-Path -LiteralPath $resolvedBootstrapFile)) {
-        throw "Bootstrap file not found: $resolvedBootstrapFile"
-    }
-
     New-Item -ItemType Directory -Force -Path $bootstrapHostDir | Out-Null
-    Copy-Item -LiteralPath $resolvedBootstrapFile -Destination (Join-Path $bootstrapHostDir 'r2-bootstrap.json') -Force
+    if (-not [string]::IsNullOrWhiteSpace($effectiveImportCode)) {
+        & (Join-Path $PSScriptRoot 'write-service-base-r2-bootstrap.ps1') `
+            -ImportCode $effectiveImportCode `
+            -OutputPath (Join-Path $bootstrapHostDir 'r2-bootstrap.json')
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to materialize bootstrap file from import code with exit code $LASTEXITCODE"
+        }
+    } else {
+        $resolvedBootstrapFile = Resolve-EasyEmailPath -Path $BootstrapFile
+        if (-not (Test-Path -LiteralPath $resolvedBootstrapFile)) {
+            throw "Bootstrap file not found: $resolvedBootstrapFile"
+        }
+
+        Copy-Item -LiteralPath $resolvedBootstrapFile -Destination (Join-Path $bootstrapHostDir 'r2-bootstrap.json') -Force
+    }
     Remove-Item -LiteralPath $serviceOutput -ErrorAction SilentlyContinue
     Set-Content -LiteralPath $serviceEnvOutput -Value '' -Encoding UTF8
 }

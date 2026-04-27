@@ -19,6 +19,23 @@
 
   const STORAGE_PREFIX = 'easyemail.runtime.';
   const LOCAL_SECRET_PREFIX = '__LOCAL_SECRET_';
+  const IMPORT_CODE_PREFIX = 'easyemail-import-v1.';
+  const IMPORT_SYNC_INTERVAL_MS_DEFAULT = 2 * 60 * 60 * 1000;
+  const IMPORT_STATE_STORAGE_KEY = 'importState';
+  const IMPORT_PROMPT_STATE_STORAGE_KEY = 'importPromptState';
+  const IMPORT_MANAGED_SETTING_KEYS = Object.freeze([
+    'cloudflare_baseUrl',
+    'cloudflare_customAuth',
+    'cloudflare_adminAuth',
+    'cloudflare_preferredDomain',
+    'moemail_baseUrl',
+    'moemail_apiKey',
+    'moemail_expiryTimeMs',
+    'gptmail_baseUrl',
+    'gptmail_apiKey',
+    'im215_baseUrl',
+    'im215_apiKey',
+  ]);
   const DEFAULTS = {
     locale: 'zh-CN',
     providerMode: 'auto',
@@ -183,6 +200,7 @@
   };
 
   let globalListenersBound = false;
+  let importSyncTimer = 0;
 
   const state = {
     busy: false,
@@ -205,6 +223,8 @@
   function sk(key) { return `${STORAGE_PREFIX}${key}`; }
   function loadSetting(key) { try { const value = GM_getValue(sk(key), DEFAULTS[key]); return value === undefined ? DEFAULTS[key] : value; } catch { return DEFAULTS[key]; } }
   function saveSetting(key, value) { GM_setValue(sk(key), value); }
+  function loadScopedValue(key, fallback = '') { try { const value = GM_getValue(sk(key), fallback); return value === undefined ? fallback : value; } catch { return fallback; } }
+  function saveScopedValue(key, value) { GM_setValue(sk(key), value); }
   function isLocalSecretPlaceholder(value) { return String(value || '').startsWith(LOCAL_SECRET_PREFIX) && String(value || '').endsWith('__'); }
   function seedMissingSettings() {
     const legacyDefaultProviderPool = 'cloudflare_temp_email,mailtm,duckmail,guerrillamail,tempmail-lol,etempmail,tmailor,moemail,gptmail,im215';
@@ -254,6 +274,10 @@
   }
   function loadJson(key, fallback) { const raw = GM_getValue(sk(key), ''); if (!raw || typeof raw !== 'string') return fallback; try { return JSON.parse(raw); } catch { return fallback; } }
   function saveJson(key, value) { GM_setValue(sk(key), JSON.stringify(value)); }
+  function loadImportState() { return loadJson(IMPORT_STATE_STORAGE_KEY, {}); }
+  function saveImportState(value) { saveJson(IMPORT_STATE_STORAGE_KEY, value || {}); }
+  function loadImportPromptState() { return loadJson(IMPORT_PROMPT_STATE_STORAGE_KEY, {}); }
+  function saveImportPromptState(value) { saveJson(IMPORT_PROMPT_STATE_STORAGE_KEY, value || {}); }
   function currentLocale() { const requested = String(loadSetting('locale') || DEFAULTS.locale); return I18N[requested] ? requested : 'zh-CN'; }
   function bundle() { return I18N[currentLocale()] || I18N['zh-CN']; }
   function interpolate(text, vars) { return String(text).replace(/\{([^}]+)\}/g, (_, name) => vars && vars[name] !== undefined ? String(vars[name]) : ''); }
@@ -286,6 +310,25 @@
   function readValueRecordList(value) { return Array.isArray(value) ? value.filter((item) => item && typeof item === 'object') : []; }
   function readSenderValue(value) { if (typeof value === 'string') return normalizeText(value) || undefined; if (value && typeof value === 'object' && !Array.isArray(value)) { const record = value; return readValueString(record.address) || readValueString(record.email) || readValueString(record.name) || readValueString(record.username) || readValueString(record.mail); } return undefined; }
   function readBool(key) { return String(loadSetting(key)) === 'true'; }
+  function readImportSyncEnabled() {
+    const stateRecord = loadImportState();
+    if (typeof stateRecord.syncEnabled === 'boolean') return stateRecord.syncEnabled;
+    return true;
+  }
+  function currentImportCode() {
+    const stateRecord = loadImportState();
+    return String(stateRecord.importCode || '').trim();
+  }
+  function hasAnyStoredUserSettings() {
+    return Object.keys(DEFAULTS).some((key) => loadScopedValue(key, undefined) !== undefined);
+  }
+  function refreshRuntimeUi() {
+    createPanel();
+    createMiniBar();
+    updateMiniBarVisibility();
+    attachEvents();
+  }
+  function rebuildUi() { refreshRuntimeUi(); }
   function setStatus(text, tone = 'neutral') { const node = document.getElementById('eep-status'); if (node) { node.dataset.tone = tone; node.textContent = text; } const mini = document.getElementById('eep-mini-status'); if (mini) mini.textContent = text; }
   function logLine(text, level = 'info') { const message = `[${nowStamp()}] ${text}`; state.logs = [message, ...(Array.isArray(state.logs) ? state.logs : [])].slice(0, 200); const node = document.getElementById('eep-log'); if (node) node.textContent = state.logs.join('\n'); if (level === 'error') setStatus(text, 'error'); }
   function setJsonOutput(value) { const node = document.getElementById('eep-json'); if (node) node.textContent = JSON.stringify(value ?? {}, null, 2); }
@@ -495,6 +538,212 @@
     });
   }
   function requestJsonAbsolute(method, url, headers, body) { return requestAbsolute(method, url, headers, body, true); }
+  function requestTextAbsolute(method, url, headers, body) { return requestAbsolute(method, url, headers, body, false); }
+  function encodeUtf8(value) { return new TextEncoder().encode(String(value)); }
+  function bytesToHex(bytes) { return Array.from(bytes).map((value) => value.toString(16).padStart(2, '0')).join(''); }
+  function base64UrlToText(value) {
+    const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized + '==='.slice((normalized.length + 3) % 4);
+    return decodeURIComponent(Array.prototype.map.call(atob(padded), (char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`).join(''));
+  }
+  function parseImportCodePayload(importCode) {
+    const text = String(importCode || '').trim();
+    if (!text.startsWith(IMPORT_CODE_PREFIX)) throw new Error('Unsupported EasyEmail import code format.');
+    const payload = asJson(base64UrlToText(text.slice(IMPORT_CODE_PREFIX.length)), null);
+    if (!payload || payload.kind !== 'easyemail-import-code') throw new Error('Invalid EasyEmail import code payload.');
+    return payload;
+  }
+  function encodeRfc3986(value) { return encodeURIComponent(String(value)).replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`); }
+  function toAmzDate(value) {
+    const date = value instanceof Date ? value : new Date(value);
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const hour = String(date.getUTCHours()).padStart(2, '0');
+    const minute = String(date.getUTCMinutes()).padStart(2, '0');
+    const second = String(date.getUTCSeconds()).padStart(2, '0');
+    return `${year}${month}${day}T${hour}${minute}${second}Z`;
+  }
+  function toDateStamp(value) { return toAmzDate(value).slice(0, 8); }
+  async function sha256Hex(value) {
+    const bytes = value instanceof Uint8Array ? value : encodeUtf8(value);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return bytesToHex(new Uint8Array(digest));
+  }
+  async function hmacSha256(keyBytes, value) {
+    const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const signature = await crypto.subtle.sign('HMAC', cryptoKey, encodeUtf8(value));
+    return new Uint8Array(signature);
+  }
+  async function deriveAwsV4SigningKey(secretAccessKey, dateStamp, region, service) {
+    const kDate = await hmacSha256(encodeUtf8(`AWS4${secretAccessKey}`), dateStamp);
+    const kRegion = await hmacSha256(kDate, region);
+    const kService = await hmacSha256(kRegion, service);
+    return hmacSha256(kService, 'aws4_request');
+  }
+  function buildR2ObjectUrl(importPayload, objectKey) {
+    const baseUrl = normalizeUrl(importPayload.endpoint || `https://${importPayload.accountId}.r2.cloudflarestorage.com`);
+    const encodedKey = String(objectKey || '').split('/').map((segment) => encodeRfc3986(segment)).join('/');
+    return `${baseUrl}/${encodeRfc3986(importPayload.bucket)}/${encodedKey}`;
+  }
+  async function fetchR2ObjectText(importPayload, objectKey) {
+    const requestUrl = buildR2ObjectUrl(importPayload, objectKey);
+    const url = new URL(requestUrl);
+    const host = url.host;
+    const now = new Date();
+    const amzDate = toAmzDate(now);
+    const dateStamp = toDateStamp(now);
+    const payloadHash = await sha256Hex('');
+    const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
+    const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+    const canonicalRequest = `GET\n${url.pathname}\n\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
+    const credentialScope = `${dateStamp}/auto/s3/aws4_request`;
+    const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${credentialScope}\n${await sha256Hex(canonicalRequest)}`;
+    const signingKey = await deriveAwsV4SigningKey(String(importPayload.secretAccessKey || '').trim(), dateStamp, 'auto', 's3');
+    const signature = bytesToHex(await hmacSha256(signingKey, stringToSign));
+    const authorization = `AWS4-HMAC-SHA256 Credential=${String(importPayload.accessKeyId || '').trim()}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+    const response = await requestTextAbsolute('GET', requestUrl, {
+      'x-amz-content-sha256': payloadHash,
+      'x-amz-date': amzDate,
+      authorization,
+    });
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`R2 request failed (${response.status}) for ${objectKey}`);
+    }
+    return String(response.text || '');
+  }
+  async function fetchImportManifest(importPayload) {
+    const manifestObjectKey = String(importPayload.manifestObjectKey || '').trim();
+    if (!manifestObjectKey) throw new Error('Import code is missing manifestObjectKey.');
+    const manifestText = await fetchR2ObjectText(importPayload, manifestObjectKey);
+    const manifest = asJson(manifestText, null);
+    if (!manifest || typeof manifest !== 'object') throw new Error('Failed to parse EasyEmail distribution manifest.');
+    return manifest;
+  }
+  async function fetchUserscriptSettingsFromManifest(importPayload, manifest) {
+    const userscriptBlock = readValueRecord(manifest && manifest.userscript);
+    const settingsEntry = readValueRecord(userscriptBlock.settings);
+    const objectKey = readValueString(settingsEntry.objectKey);
+    if (!objectKey) throw new Error('Distribution manifest does not contain userscript settings objectKey.');
+    const settingsText = await fetchR2ObjectText(importPayload, objectKey);
+    if (readValueString(settingsEntry.sha256)) {
+      const actualSha256 = await sha256Hex(settingsText);
+      if (actualSha256 !== readValueString(settingsEntry.sha256)) {
+        throw new Error(`Userscript settings sha256 mismatch for ${objectKey}.`);
+      }
+    }
+    const payload = asJson(settingsText, null);
+    if (!payload || payload.kind !== 'easyemail-userscript-settings') throw new Error('Downloaded userscript settings payload is invalid.');
+    return {
+      payload,
+      fingerprint: readValueString(userscriptBlock.fingerprint) || readValueString(settingsEntry.md5) || readValueString(settingsEntry.sha256) || objectKey,
+    };
+  }
+  function normalizeImportSyncIntervalMs(payload, existingState) {
+    const candidateSeconds = Number(payload && payload.syncIntervalSeconds || existingState && existingState.syncIntervalSeconds || 7200);
+    return Math.max(300, Number.isFinite(candidateSeconds) ? candidateSeconds : 7200) * 1000;
+  }
+  function persistImportedUserscriptSettings(importCode, importPayload, manifest, settingsPayload, fingerprint, options = {}) {
+    const settingsRecord = readValueRecord(settingsPayload && settingsPayload.settings);
+    Object.entries(settingsRecord).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      saveSetting(key, String(value));
+    });
+    const previousState = loadImportState();
+    const syncEnabled = options.syncEnabled === undefined ? (typeof previousState.syncEnabled === 'boolean' ? previousState.syncEnabled : Boolean(importPayload.syncEnabled !== false)) : Boolean(options.syncEnabled);
+    const syncIntervalMs = normalizeImportSyncIntervalMs(importPayload, previousState);
+    saveImportState({
+      importCode,
+      syncEnabled,
+      syncIntervalSeconds: Math.floor(syncIntervalMs / 1000),
+      lastSyncedAtMs: Date.now(),
+      userscriptFingerprint: fingerprint,
+      manifestObjectKey: String(importPayload.manifestObjectKey || ''),
+      bucket: String(importPayload.bucket || ''),
+      endpoint: String(importPayload.endpoint || ''),
+      releaseVersion: readValueString(manifest && manifest.releaseVersion) || readValueString(importPayload.releaseVersion),
+    });
+    state.providerDomainCache = {};
+  }
+  async function importUserscriptSettings(importCode, options = {}) {
+    const payload = parseImportCodePayload(importCode);
+    const manifest = await fetchImportManifest(payload);
+    const settingsBundle = await fetchUserscriptSettingsFromManifest(payload, manifest);
+    persistImportedUserscriptSettings(importCode, payload, manifest, settingsBundle.payload, settingsBundle.fingerprint, options);
+    return {
+      importCode,
+      payload,
+      manifest,
+      userscriptFingerprint: settingsBundle.fingerprint,
+      settingsCount: Object.keys(readValueRecord(settingsBundle.payload.settings)).length,
+    };
+  }
+  async function maybeSyncImportedUserscriptSettings(reason = 'sync') {
+    const importState = loadImportState();
+    const importCode = String(importState.importCode || '').trim();
+    if (!importCode || importState.syncEnabled === false) return null;
+    const intervalMs = normalizeImportSyncIntervalMs(importState, importState);
+    const lastSyncedAtMs = Number(importState.lastSyncedAtMs || 0);
+    if (reason !== 'force' && lastSyncedAtMs && (Date.now() - lastSyncedAtMs) < intervalMs) return null;
+    const payload = parseImportCodePayload(importCode);
+    const manifest = await fetchImportManifest(payload);
+    const settingsBundle = await fetchUserscriptSettingsFromManifest(payload, manifest);
+    if (reason !== 'force' && String(importState.userscriptFingerprint || '') === String(settingsBundle.fingerprint || '')) {
+      saveImportState({ ...importState, lastSyncedAtMs: Date.now() });
+      return { updated: false, userscriptFingerprint: settingsBundle.fingerprint };
+    }
+    persistImportedUserscriptSettings(importCode, payload, manifest, settingsBundle.payload, settingsBundle.fingerprint, { syncEnabled: importState.syncEnabled });
+    return { updated: true, userscriptFingerprint: settingsBundle.fingerprint };
+  }
+  function scheduleImportSyncIfNeeded() {
+    if (importSyncTimer) {
+      clearInterval(importSyncTimer);
+      importSyncTimer = 0;
+    }
+    const importState = loadImportState();
+    if (!String(importState.importCode || '').trim() || importState.syncEnabled === false) return;
+    const intervalMs = normalizeImportSyncIntervalMs(importState, importState);
+    importSyncTimer = setInterval(() => {
+      maybeSyncImportedUserscriptSettings('interval').then((result) => {
+        if (result && result.updated) {
+          refreshRuntimeUi();
+          logLine(currentLocale() === 'zh-CN' ? '已从远程同步最新导入配置。' : 'Imported settings synced from remote.');
+        }
+      }).catch((error) => logLine(String(error && error.message ? error.message : error || 'Import sync failed.'), 'error'));
+    }, intervalMs);
+  }
+  function readImportCodeFromLocation() {
+    try {
+      const url = new URL(location.href);
+      return String(
+        url.searchParams.get('easyemail_import_code')
+        || url.searchParams.get('easyemailImportCode')
+        || url.hash.replace(/^#?easyemail_import_code=/, '')
+      ).trim();
+    } catch {
+      return '';
+    }
+  }
+  async function promptForImportCode(messageText) {
+    const entered = window.prompt(messageText, currentImportCode() || '');
+    return String(entered || '').trim();
+  }
+  async function promptAndImportUserscriptSettings() {
+    const importCode = await promptForImportCode(currentLocale() === 'zh-CN'
+      ? '请输入 EasyEmail 导入码。'
+      : 'Enter your EasyEmail import code.');
+    if (!importCode) return null;
+    const result = await importUserscriptSettings(importCode, {});
+    saveImportPromptState({});
+    scheduleImportSyncIfNeeded();
+    refreshRuntimeUi();
+    return result;
+  }
+  function clearImportedUserscriptBinding() {
+    saveImportState({});
+    saveImportPromptState({});
+    scheduleImportSyncIfNeeded();
+  }
   function extractResponseSetCookie(rawHeaders) {
     const text = String(rawHeaders || '');
     const matches = [...text.matchAll(/^set-cookie:\s*(.+)$/gim)].map((match) => String(match[1] || '').trim()).filter(Boolean);
@@ -2269,7 +2518,103 @@
   }
 
   function installStyles() { GM_addStyle(`#eep-panel{position:fixed;top:16px;right:16px;width:420px;max-height:calc(100vh - 32px);overflow:auto;z-index:2147483000;background:linear-gradient(180deg,rgba(15,24,44,.98),rgba(11,19,34,.98));color:#edf5ff;border:1px solid rgba(120,160,255,.18);box-shadow:0 20px 60px rgba(0,0,0,.35);border-radius:20px;padding:16px;font-family:Inter,'Microsoft YaHei UI',sans-serif}#eep-panel.is-minimized{display:none}#eep-panel .eep-head{display:flex;align-items:flex-start;justify-content:flex-start;gap:12px}#eep-panel h1{margin:0;font-size:28px;line-height:1.1}#eep-panel button,#eep-mini-bar button,#eep-panel input,#eep-panel select,#eep-panel summary{font:inherit}#eep-panel button,#eep-mini-bar button{border:none;border-radius:12px;background:linear-gradient(90deg,#2563eb,#22a7f0);color:#fff;padding:10px 14px;cursor:pointer}#eep-panel button:disabled,#eep-mini-bar button:disabled{opacity:.45;cursor:not-allowed}#eep-panel details{margin-top:14px;border:1px solid rgba(130,170,255,.12);border-radius:14px;background:rgba(17,27,47,.72)}#eep-panel summary{list-style:none;cursor:pointer;padding:12px 14px;font-weight:700}#eep-panel summary::-webkit-details-marker{display:none}.eep-main-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.eep-main-span{grid-column:1/-1}.eep-field{display:flex;flex-direction:column;gap:6px;color:rgba(237,245,255,.86)}.eep-field span{font-size:13px;letter-spacing:.03em;text-transform:uppercase;color:rgba(237,245,255,.68)}.eep-field input,.eep-field select{width:100%;box-sizing:border-box;border-radius:14px;border:1px solid rgba(130,170,255,.12);background:rgba(13,20,37,.92);color:#edf5ff;padding:12px 14px}.eep-help{justify-content:center;background:rgba(9,15,27,.66);border-radius:14px;padding:10px 14px}.eep-settings-shell,.eep-manual-card{margin-top:14px;padding:14px;border-radius:16px;background:rgba(17,27,47,.72);border:1px solid rgba(130,170,255,.12)}.eep-settings-block{margin-top:12px}.eep-manual-head,.eep-current-head{font-weight:700;margin-bottom:10px}.eep-manual-actions{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:12px}.eep-manual-guess{display:grid;gap:4px;min-width:0;flex:1 1 auto}.eep-manual-guess span{font-size:12px;color:rgba(237,245,255,.66);text-transform:uppercase}.eep-manual-guess strong{display:block;word-break:break-word}.eep-manual-guess strong[data-tone="warn"]{color:#ffd7a8}.eep-manual-guess strong[data-tone="success"]{color:#9ff0c0}.eep-current-card{margin-top:14px;padding:14px;border-radius:16px;background:rgba(12,19,34,.92);border:1px solid rgba(130,170,255,.12)}.eep-current-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.eep-current-grid span{display:block;color:rgba(237,245,255,.66);font-size:12px;text-transform:uppercase}.eep-current-grid strong{display:block;margin-top:4px;word-break:break-word}.eep-copy-value{cursor:pointer;transition:opacity .2s ease}.eep-copy-value:hover{opacity:.82}.eep-provider-pool{display:flex;flex-wrap:wrap;gap:8px}.eep-chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:8px 10px;background:rgba(13,20,37,.92);border:1px solid rgba(130,170,255,.12)}.eep-chip small{color:rgba(237,245,255,.66);font-size:11px}.eep-chip.is-selected{border-color:rgba(61,181,255,.55);background:rgba(21,72,120,.45)}.eep-provider-settings{display:grid;gap:12px;padding:14px}.eep-provider-card{border:1px solid rgba(130,170,255,.12);border-radius:16px;background:rgba(9,15,27,.66);padding:12px}.eep-provider-card.is-configured{border-color:rgba(88,200,145,.3)}.eep-provider-card.is-unconfigured{border-color:rgba(255,170,120,.28)}.eep-provider-card.is-disabled{border-color:rgba(130,170,255,.12);opacity:.8}.eep-provider-card.is-cooling{border-color:rgba(255,215,100,.45)}.eep-provider-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.eep-provider-card-head h4{margin:0}.eep-provider-pill{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;background:rgba(18,30,53,.88);border:1px solid rgba(130,170,255,.12);color:rgba(237,245,255,.78)}.eep-provider-status-note{margin:-2px 0 10px;color:rgba(237,245,255,.72);font-size:12px;line-height:1.45}.eep-provider-card-fields{display:grid;gap:10px}#eep-history-list{display:grid;gap:10px;padding:0 14px 14px;max-height:330px;overflow:auto}.eep-history-item{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;padding:12px;border-radius:14px;background:rgba(9,15,27,.66);border:1px solid rgba(130,170,255,.08)}.eep-history-item.is-current{border-color:rgba(61,181,255,.45)}.eep-history-main{flex:1 1 200px;cursor:pointer}.eep-history-email{font-weight:700;word-break:break-all}.eep-history-meta{color:rgba(237,245,255,.65);font-size:12px;margin-top:4px}.eep-history-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}.eep-history-actions button{padding:8px 10px;font-size:12px}.eep-history-message-shell{width:100%;display:grid;gap:10px;margin-top:6px}.eep-code-detail{display:grid;gap:6px;padding:12px;border-radius:14px;background:rgba(9,15,27,.66);border:1px solid rgba(130,170,255,.08)}.eep-code-value{font-size:24px;font-weight:800;letter-spacing:.04em;word-break:break-word}.eep-code-meta{font-size:12px;color:rgba(237,245,255,.66)}.eep-message-list{display:grid;gap:8px;max-height:220px;overflow:auto}.eep-message-list-inline{grid-template-columns:1fr}.eep-message-item{text-align:left;background:rgba(9,15,27,.66)}.eep-message-item.is-active{outline:2px solid rgba(61,181,255,.45)}.eep-message-item strong,.eep-message-item span{display:block}.eep-message-item span{font-size:12px;color:rgba(237,245,255,.72);margin-top:4px}.eep-raw-message{max-height:min(72vh,680px);overflow:auto;background:rgba(9,15,27,.66);border-radius:14px;padding:12px;border:1px solid rgba(130,170,255,.08)}.eep-raw-message-inline{margin-top:2px}.eep-raw-head{display:grid;gap:6px;margin-bottom:14px}.eep-raw-block{display:grid;gap:8px;margin-top:12px}.eep-raw-block-compact{margin-top:0;padding:0 12px 12px}.eep-raw-block h4{margin:0}.eep-raw-block pre{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;background:rgba(9,15,27,.66);border-radius:14px;padding:12px;margin:0;border:1px solid rgba(130,170,255,.08);color:#d9ebff;line-height:1.58;max-height:360px;overflow:auto}.eep-raw-body-pre{font-size:13px}.eep-raw-meta-pre{font-size:12px;color:rgba(217,235,255,.82)}.eep-raw-source-pre{font-size:12px;color:rgba(217,235,255,.78)}.eep-raw-toggle{margin-top:12px;border:1px solid rgba(130,170,255,.08);border-radius:14px;background:rgba(8,13,24,.5)}.eep-raw-toggle summary{padding:10px 12px;font-size:12px;letter-spacing:.03em;text-transform:uppercase;color:rgba(237,245,255,.72)}.eep-empty{color:rgba(237,245,255,.66);padding:14px}#eep-mini-bar{position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:2147483001;display:flex;flex-direction:column;gap:10px;color:#fff;font-family:Inter,'Microsoft YaHei UI',sans-serif}.eep-side-row{display:flex;align-items:center;justify-content:flex-end;gap:8px}.eep-side-btn{width:30px;height:30px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;padding:0;background:linear-gradient(180deg,#ffffff,#eef5ff)!important;color:#ff6a8d!important;box-shadow:0 8px 18px rgba(0,0,0,.18)}.eep-mini-chip{max-width:220px;border:none;border-radius:999px;padding:10px 14px;background:rgba(9,15,27,.94)!important;color:#edf5ff!important;box-shadow:0 14px 28px rgba(0,0,0,.28);opacity:0;transform:translateX(10px);pointer-events:none;transition:opacity .35s ease,transform .35s ease;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.eep-mini-chip.is-visible{opacity:1;transform:translateX(0);pointer-events:auto}@media (max-width:920px){#eep-panel{width:calc(100vw - 24px);right:12px;left:12px;top:12px}.eep-main-grid,.eep-current-grid{grid-template-columns:1fr}.eep-main-span{grid-column:auto}#eep-mini-bar{right:10px}.eep-manual-actions{flex-direction:column;align-items:stretch}.eep-raw-message{max-height:min(68vh,540px)}}`); }
-  function maybeRegisterMenu() { if (typeof GM_registerMenuCommand !== 'function') return; GM_registerMenuCommand('EasyEmail Runtime: 切换面板', () => toggleMinimize()); }
-  function bootstrap() { if (typeof GM_getValue !== 'function' || typeof GM_setValue !== 'function' || typeof GM_xmlhttpRequest !== 'function') { console.warn('EasyEmail Runtime userscript requires GM_* APIs.'); return; } seedMissingSettings(); state.currentMailboxId = String(loadSetting('currentMailboxId') || ''); state.mailboxHistory = loadJson('mailboxHistory', []); state.providerStats = loadJson('providerStats', {}); state.historyDetailMode = 'code'; document.body.dataset.eepMinimized = 'true'; installStyles(); createPanel(); createMiniBar(); updateMiniBarVisibility(); attachEvents(); maybeRegisterMenu(); setStatus(t('ready')); hideMiniChip('email'); hideMiniChip('code'); logLine(t('ready')); }
-  bootstrap();
+  async function bootstrapImportFlow() {
+    const locationImportCode = readImportCodeFromLocation();
+    if (locationImportCode) {
+      const imported = await importUserscriptSettings(locationImportCode, {});
+      logLine(currentLocale() === 'zh-CN'
+        ? `已通过 URL 参数导入 ${imported.settingsCount} 项远程配置。`
+        : `Imported ${imported.settingsCount} remote settings from URL parameter.`);
+      scheduleImportSyncIfNeeded();
+      refreshRuntimeUi();
+      return;
+    }
+
+    const existingImportCode = currentImportCode();
+    if (existingImportCode) {
+      const syncResult = await maybeSyncImportedUserscriptSettings('boot');
+      scheduleImportSyncIfNeeded();
+      if (syncResult && syncResult.updated) {
+        logLine(currentLocale() === 'zh-CN' ? '已同步最新导入配置。' : 'Imported settings synced.');
+        refreshRuntimeUi();
+      }
+      return;
+    }
+
+    if (hasAnyStoredUserSettings()) return;
+    const promptState = loadImportPromptState();
+    if (promptState && promptState.dismissed) return;
+    const enteredImportCode = await promptForImportCode(currentLocale() === 'zh-CN'
+      ? '当前没有远程导入配置。请输入 EasyEmail 导入码，或直接取消后手动配置。'
+      : 'No remote import config is set. Enter your EasyEmail import code, or cancel to configure manually.');
+    if (!enteredImportCode) {
+      saveImportPromptState({ dismissed: true, dismissedAtMs: Date.now() });
+      return;
+    }
+    const imported = await importUserscriptSettings(enteredImportCode, {});
+    saveImportPromptState({});
+    scheduleImportSyncIfNeeded();
+    refreshRuntimeUi();
+    logLine(currentLocale() === 'zh-CN'
+      ? `已导入 ${imported.settingsCount} 项远程配置。`
+      : `Imported ${imported.settingsCount} remote settings.`);
+  }
+  function maybeRegisterMenu() {
+    if (typeof GM_registerMenuCommand !== 'function') return;
+    GM_registerMenuCommand('EasyEmail Runtime: 切换面板', () => toggleMinimize());
+    GM_registerMenuCommand(currentLocale() === 'zh-CN' ? 'EasyEmail Runtime: 导入/替换导入码' : 'EasyEmail Runtime: Import or replace code', () => {
+      promptAndImportUserscriptSettings().then((result) => {
+        if (result) logLine(currentLocale() === 'zh-CN' ? '导入码已更新。' : 'Import code updated.');
+      }).catch((error) => logLine(String(error && error.message ? error.message : error || 'Import failed.'), 'error'));
+    });
+    GM_registerMenuCommand(currentLocale() === 'zh-CN' ? 'EasyEmail Runtime: 立即同步导入配置' : 'EasyEmail Runtime: Sync imported config now', () => {
+      maybeSyncImportedUserscriptSettings('force').then((result) => {
+        if (result && result.updated) {
+          refreshRuntimeUi();
+          logLine(currentLocale() === 'zh-CN' ? '已同步最新导入配置。' : 'Imported settings synced.');
+        } else {
+          logLine(currentLocale() === 'zh-CN' ? '远程导入配置没有变化。' : 'Remote imported settings are unchanged.');
+        }
+      }).catch((error) => logLine(String(error && error.message ? error.message : error || 'Sync failed.'), 'error'));
+    });
+    GM_registerMenuCommand(readImportSyncEnabled()
+      ? (currentLocale() === 'zh-CN' ? 'EasyEmail Runtime: 关闭导入配置自动同步' : 'EasyEmail Runtime: Disable import auto-sync')
+      : (currentLocale() === 'zh-CN' ? 'EasyEmail Runtime: 开启导入配置自动同步' : 'EasyEmail Runtime: Enable import auto-sync'), () => {
+      const stateRecord = loadImportState();
+      saveImportState({ ...stateRecord, syncEnabled: !readImportSyncEnabled() });
+      scheduleImportSyncIfNeeded();
+      logLine(readImportSyncEnabled()
+        ? (currentLocale() === 'zh-CN' ? '已开启导入配置自动同步。' : 'Import auto-sync enabled.')
+        : (currentLocale() === 'zh-CN' ? '已关闭导入配置自动同步。' : 'Import auto-sync disabled.'));
+    });
+    GM_registerMenuCommand(currentLocale() === 'zh-CN' ? 'EasyEmail Runtime: 清除导入码绑定' : 'EasyEmail Runtime: Clear import code binding', () => {
+      clearImportedUserscriptBinding();
+      logLine(currentLocale() === 'zh-CN' ? '已清除导入码绑定，当前配置已保留。' : 'Import code binding cleared. Current settings were kept.');
+    });
+  }
+  async function bootstrap() {
+    if (typeof GM_getValue !== 'function' || typeof GM_setValue !== 'function' || typeof GM_xmlhttpRequest !== 'function') { console.warn('EasyEmail Runtime userscript requires GM_* APIs.'); return; }
+    seedMissingSettings();
+    state.currentMailboxId = String(loadSetting('currentMailboxId') || '');
+    state.mailboxHistory = loadJson('mailboxHistory', []);
+    state.providerStats = loadJson('providerStats', {});
+    state.historyDetailMode = 'code';
+    document.body.dataset.eepMinimized = 'true';
+    installStyles();
+    createPanel();
+    createMiniBar();
+    updateMiniBarVisibility();
+    attachEvents();
+    maybeRegisterMenu();
+    setStatus(t('ready'));
+    hideMiniChip('email');
+    hideMiniChip('code');
+    await bootstrapImportFlow();
+    logLine(t('ready'));
+  }
+  bootstrap().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[EasyEmail Runtime] bootstrap failed:', error);
+    try { logLine(message, 'error'); } catch {}
+  });
 })();

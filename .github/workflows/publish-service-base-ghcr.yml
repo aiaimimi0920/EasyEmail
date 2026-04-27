@@ -298,6 +298,8 @@ jobs:
           EASYEMAIL_R2_CONFIG_ENDPOINT: ${{ secrets.EASYEMAIL_R2_CONFIG_ENDPOINT }}
           EASYEMAIL_R2_CONFIG_CONFIG_OBJECT_KEY: ${{ secrets.EASYEMAIL_R2_CONFIG_CONFIG_OBJECT_KEY }}
           EASYEMAIL_R2_CONFIG_ENV_OBJECT_KEY: ${{ secrets.EASYEMAIL_R2_CONFIG_ENV_OBJECT_KEY }}
+          EASYEMAIL_R2_CONFIG_USERSCRIPT_OBJECT_KEY: ${{ secrets.EASYEMAIL_R2_CONFIG_USERSCRIPT_OBJECT_KEY }}
+          EASYEMAIL_R2_CONFIG_MANIFEST_OBJECT_KEY: ${{ secrets.EASYEMAIL_R2_CONFIG_MANIFEST_OBJECT_KEY }}
           EASYEMAIL_R2_CONFIG_UPLOAD_ACCESS_KEY_ID: ${{ secrets.EASYEMAIL_R2_CONFIG_UPLOAD_ACCESS_KEY_ID }}
           EASYEMAIL_R2_CONFIG_UPLOAD_SECRET_ACCESS_KEY: ${{ secrets.EASYEMAIL_R2_CONFIG_UPLOAD_SECRET_ACCESS_KEY }}
         shell: pwsh
@@ -307,6 +309,8 @@ jobs:
             'EASYEMAIL_R2_CONFIG_BUCKET',
             'EASYEMAIL_R2_CONFIG_CONFIG_OBJECT_KEY',
             'EASYEMAIL_R2_CONFIG_ENV_OBJECT_KEY',
+            'EASYEMAIL_R2_CONFIG_USERSCRIPT_OBJECT_KEY',
+            'EASYEMAIL_R2_CONFIG_MANIFEST_OBJECT_KEY',
             'EASYEMAIL_R2_CONFIG_UPLOAD_ACCESS_KEY_ID',
             'EASYEMAIL_R2_CONFIG_UPLOAD_SECRET_ACCESS_KEY'
           )) {
@@ -324,10 +328,66 @@ jobs:
             -SecretAccessKey $env:EASYEMAIL_R2_CONFIG_UPLOAD_SECRET_ACCESS_KEY `
             -ConfigObjectKey $env:EASYEMAIL_R2_CONFIG_CONFIG_OBJECT_KEY `
             -RuntimeEnvObjectKey $env:EASYEMAIL_R2_CONFIG_ENV_OBJECT_KEY `
+            -UserscriptSettingsObjectKey $env:EASYEMAIL_R2_CONFIG_USERSCRIPT_OBJECT_KEY `
+            -ManifestObjectKey $env:EASYEMAIL_R2_CONFIG_MANIFEST_OBJECT_KEY `
             -Endpoint $env:EASYEMAIL_R2_CONFIG_ENDPOINT `
+            -ReleaseVersion '${{ steps.release_meta.outputs.version }}' `
             -ManifestOutput $manifestPath
 
           "path=$manifestPath" >> $env:GITHUB_OUTPUT
+
+      - name: Generate Encrypted Owner Import Code
+        if: steps.change_gate.outputs.should_publish == 'true'
+        id: import_code
+        env:
+          EASYEMAIL_R2_CONFIG_ACCOUNT_ID: ${{ secrets.EASYEMAIL_R2_CONFIG_ACCOUNT_ID }}
+          EASYEMAIL_R2_CONFIG_BUCKET: ${{ secrets.EASYEMAIL_R2_CONFIG_BUCKET }}
+          EASYEMAIL_R2_CONFIG_ENDPOINT: ${{ secrets.EASYEMAIL_R2_CONFIG_ENDPOINT }}
+          EASYEMAIL_R2_CONFIG_MANIFEST_OBJECT_KEY: ${{ secrets.EASYEMAIL_R2_CONFIG_MANIFEST_OBJECT_KEY }}
+          EASYEMAIL_R2_CONFIG_READ_ACCESS_KEY_ID: ${{ secrets.EASYEMAIL_R2_CONFIG_READ_ACCESS_KEY_ID }}
+          EASYEMAIL_R2_CONFIG_READ_SECRET_ACCESS_KEY: ${{ secrets.EASYEMAIL_R2_CONFIG_READ_SECRET_ACCESS_KEY }}
+          EASYEMAIL_IMPORT_CODE_OWNER_PUBLIC_KEY: ${{ secrets.EASYEMAIL_IMPORT_CODE_OWNER_PUBLIC_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for name in \
+            EASYEMAIL_R2_CONFIG_ACCOUNT_ID \
+            EASYEMAIL_R2_CONFIG_BUCKET \
+            EASYEMAIL_R2_CONFIG_MANIFEST_OBJECT_KEY \
+            EASYEMAIL_R2_CONFIG_READ_ACCESS_KEY_ID \
+            EASYEMAIL_R2_CONFIG_READ_SECRET_ACCESS_KEY \
+            EASYEMAIL_IMPORT_CODE_OWNER_PUBLIC_KEY
+          do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required import-code secret: ${name}" >&2
+              exit 1
+            fi
+          done
+
+          python -m pip install --disable-pip-version-check pynacl
+
+          python scripts/easyemail-import-code.py encode \
+            --account-id "${EASYEMAIL_R2_CONFIG_ACCOUNT_ID}" \
+            --bucket "${EASYEMAIL_R2_CONFIG_BUCKET}" \
+            --manifest-object-key "${EASYEMAIL_R2_CONFIG_MANIFEST_OBJECT_KEY}" \
+            --access-key-id "${EASYEMAIL_R2_CONFIG_READ_ACCESS_KEY_ID}" \
+            --secret-access-key "${EASYEMAIL_R2_CONFIG_READ_SECRET_ACCESS_KEY}" \
+            --endpoint "${EASYEMAIL_R2_CONFIG_ENDPOINT}" \
+            --sync-enabled \
+            --sync-interval-seconds 7200 \
+            --release-version "${{ steps.release_meta.outputs.version }}" \
+            --json-output \
+            --output service-base-import-code.bundle.json
+
+          python scripts/easyemail-import-code.py encrypt \
+            --bundle-file service-base-import-code.bundle.json \
+            --public-key "${EASYEMAIL_IMPORT_CODE_OWNER_PUBLIC_KEY}" \
+            --metadata-json "{\"releaseVersion\":\"${{ steps.release_meta.outputs.version }}\",\"imageRef\":\"${{ steps.release_meta.outputs.image_ref }}\",\"manifestObjectKey\":\"${EASYEMAIL_R2_CONFIG_MANIFEST_OBJECT_KEY}\"}" \
+            --output service-base-import-code.encrypted.json
+
+          echo "bundle_path=service-base-import-code.bundle.json" >> "${GITHUB_OUTPUT}"
+          echo "encrypted_path=service-base-import-code.encrypted.json" >> "${GITHUB_OUTPUT}"
 
       - name: Write Release Manifest
         if: steps.change_gate.outputs.should_publish == 'true'
@@ -442,6 +502,13 @@ jobs:
           name: service-base-r2-config-manifest
           path: ${{ steps.runtime_config_upload.outputs.path }}
 
+      - name: Upload Encrypted Import Code
+        if: steps.change_gate.outputs.should_publish == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: service-base-import-code-encrypted
+          path: ${{ steps.import_code.outputs.encrypted_path }}
+
       - name: Upload Release Notes Artifact
         if: steps.change_gate.outputs.should_publish == 'true'
         uses: actions/upload-artifact@v6
@@ -495,3 +562,11 @@ jobs:
         shell: bash
         run: |
           cat "${{ steps.release_notes.outputs.path }}" >> "${GITHUB_STEP_SUMMARY}"
+          {
+            echo
+            echo "## Encrypted Import Code"
+            echo
+            echo "- Artifact: \`service-base-import-code-encrypted\`"
+            echo "- Manifest key: \`${{ secrets.EASYEMAIL_R2_CONFIG_MANIFEST_OBJECT_KEY }}\`"
+            echo "- Decrypt locally with: \`python scripts/easyemail-import-code.py decrypt --encrypted-file <downloaded-json> --private-key-file <owner-private-key.txt> --import-code-only\`"
+          } >> "${GITHUB_STEP_SUMMARY}"

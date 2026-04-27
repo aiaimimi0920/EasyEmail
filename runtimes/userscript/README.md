@@ -28,6 +28,32 @@ pwsh .\scripts\compile-userscript.ps1
 pwsh .\scripts\compile-userscript.ps1 -CopyToClipboard
 ```
 
+## Remote Import-Code Flow
+
+The tracked userscript template now also supports a remote import-code
+bootstrap path.
+
+That path is designed for trusted machines that should receive provider
+configuration from the same private R2 distribution manifest used by
+`service/base`.
+
+Supported behaviors:
+
+- first install without local provider secrets
+- paste one EasyEmail import code once
+- import remote provider settings into `GM_setValue`
+- optional auto-sync every two hours
+- replace the import code later
+- clear the import-code binding without clearing the currently stored settings
+
+Runtime entry points:
+
+- URL parameter: `?easyemail_import_code=<easyemail-import-v1...>`
+- menu command: `EasyEmail Runtime: 导入/替换导入码`
+- menu command: `EasyEmail Runtime: 立即同步导入配置`
+- menu command: `EasyEmail Runtime: 开启/关闭导入配置自动同步`
+- menu command: `EasyEmail Runtime: 清除导入码绑定`
+
 ## Security Rules
 
 - never commit `easy_email_proxy.local.user.js`

@@ -159,6 +159,8 @@ config and uploads it to a private R2 bucket. Add these repository secrets:
 | `EASYEMAIL_R2_CONFIG_ENDPOINT` | Optional explicit R2 S3 endpoint. Leave empty to derive from account id. | Single line |
 | `EASYEMAIL_R2_CONFIG_CONFIG_OBJECT_KEY` | Object key for rendered `config.yaml` | Single line |
 | `EASYEMAIL_R2_CONFIG_ENV_OBJECT_KEY` | Object key for rendered `runtime.env` | Single line |
+| `EASYEMAIL_R2_CONFIG_USERSCRIPT_OBJECT_KEY` | Object key for remote userscript settings JSON | Single line |
+| `EASYEMAIL_R2_CONFIG_MANIFEST_OBJECT_KEY` | Object key for the unified EasyEmail distribution manifest | Single line |
 | `EASYEMAIL_R2_CONFIG_UPLOAD_ACCESS_KEY_ID` | R2 upload access key id used by GitHub Actions | Single line |
 | `EASYEMAIL_R2_CONFIG_UPLOAD_SECRET_ACCESS_KEY` | R2 upload secret access key used by GitHub Actions | Single line |
 
@@ -168,6 +170,33 @@ Optional repository-only admin storage for the client bootstrap key pair:
 | --- | --- | --- |
 | `EASYEMAIL_R2_CONFIG_READ_ACCESS_KEY_ID` | Client-side R2 read-only access key id | Single line |
 | `EASYEMAIL_R2_CONFIG_READ_SECRET_ACCESS_KEY` | Client-side R2 read-only secret access key | Single line |
+| `EASYEMAIL_IMPORT_CODE_OWNER_PUBLIC_KEY` | Owner-only import-code encryption public key. GitHub Actions uses it to emit only an encrypted import-code artifact; keep the matching private key local. | Single line |
+
+### Encrypted Import Code Output
+
+`Publish Service Base GHCR` now uploads four private R2 artifacts together:
+
+- rendered `service/base` `config.yaml`
+- rendered `service/base` `runtime.env`
+- remote userscript settings JSON
+- unified distribution manifest
+
+After that upload finishes, the workflow also generates an EasyEmail import
+code and immediately encrypts it with `EASYEMAIL_IMPORT_CODE_OWNER_PUBLIC_KEY`.
+
+The workflow publishes only the encrypted JSON artifact:
+
+- `service-base-import-code-encrypted`
+
+To recover the plain import code locally, keep the matching private key on the
+trusted operator machine and run:
+
+```powershell
+pwsh .\scripts\decrypt-import-code.ps1 `
+  -EncryptedFilePath .\service-base-import-code.encrypted.json `
+  -PrivateKeyPath C:\path\to\easyemail_import_code_owner_private.txt `
+  -ImportCodeOnly
+```
 
 ## Local Operator Config
 

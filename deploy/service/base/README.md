@@ -117,7 +117,8 @@ pwsh .\scripts\test-service-base-instance.ps1 `
 If you want the image to fetch its config from a private R2 bucket on first
 boot:
 
-1. Upload the rendered runtime config with:
+1. Upload the rendered runtime config, userscript settings, and unified
+distribution manifest with:
 
 ```powershell
 pwsh .\scripts\upload-service-base-r2-config.ps1 `
@@ -128,10 +129,12 @@ pwsh .\scripts\upload-service-base-r2-config.ps1 `
   -SecretAccessKey <upload-secret-access-key> `
   -ConfigObjectKey <config-object-key> `
   -RuntimeEnvObjectKey <env-object-key> `
+  -UserscriptSettingsObjectKey <userscript-settings-object-key> `
+  -ManifestObjectKey <manifest-object-key> `
   -ManifestOutput .\.tmp\service-base-r2-manifest.json
 ```
 
-2. Generate a local bootstrap file for the trusted machine:
+2. Either generate a local bootstrap file:
 
 ```powershell
 pwsh .\scripts\write-service-base-r2-bootstrap.ps1 `
@@ -141,7 +144,18 @@ pwsh .\scripts\write-service-base-r2-bootstrap.ps1 `
   -OutputPath .\.tmp\service-base-r2-bootstrap.json
 ```
 
-3. Start an isolated instance without rendering a local config:
+3. Or generate an EasyEmail import-code key pair once, keep the private key
+local, and let GitHub Actions emit encrypted import-code artifacts for later
+decryption:
+
+```powershell
+pwsh .\scripts\generate-import-code-keypair.ps1 `
+  -PublicKeyOutputPath .\.tmp\easyemail-import-code-owner-public.txt `
+  -PrivateKeyOutputPath .\.tmp\easyemail-import-code-owner-private.txt
+```
+
+4. Start an isolated instance without rendering a local config by using either
+the bootstrap file or an import code:
 
 ```powershell
 pwsh .\scripts\deploy-service-base.ps1 `
@@ -150,3 +164,18 @@ pwsh .\scripts\deploy-service-base.ps1 `
   -InstanceName r2-bootstrap `
   -HostPort 18084
 ```
+
+```powershell
+pwsh .\scripts\deploy-service-base.ps1 `
+  -ConfigPath .\config.yaml `
+  -ImportCode <easyemail-import-v1...> `
+  -InstanceName r2-import-code `
+  -HostPort 18087
+```
+
+When the bootstrap/import code has `syncEnabled=true`, the container keeps the
+bootstrap metadata in its state directory and checks the remote manifest every
+two hours. If the remote config changed, the container pulls the updated
+artifacts and restarts itself automatically. Clear or replace the import code
+at the next launch by updating the bootstrap file or rerunning
+`deploy-service-base.ps1 -ImportCode ...`.

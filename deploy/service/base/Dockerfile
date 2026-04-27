@@ -24,16 +24,18 @@ COPY --from=builder /workspace/service/base/dist ./dist
 
 COPY deploy/service/base/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY deploy/service/base/bootstrap-service-config.py /usr/local/bin/bootstrap-service-config.py
+COPY scripts/easyemail-import-code.py /usr/local/bin/easyemail-import-code.py
 
 RUN apt-get -o Acquire::Retries=5 update \
     && apt-get -o Acquire::Retries=5 install -y --fix-missing --no-install-recommends ca-certificates gosu python3 python3-pip \
-    && python3 -m pip install --no-cache-dir --break-system-packages boto3 cloudscraper \
+    && python3 -m pip install --no-cache-dir --break-system-packages boto3 cloudscraper pynacl \
     && ln -sf /usr/bin/python3 /usr/bin/python \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -r -u 10001 easy \
     && sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
     && chmod +x /usr/local/bin/docker-entrypoint.sh \
     && chmod +x /usr/local/bin/bootstrap-service-config.py \
+    && chmod +x /usr/local/bin/easyemail-import-code.py \
     && mkdir -p /etc/easy-email /var/lib/easy-email/state \
     && chown -R easy:easy /etc/easy-email /var/lib/easy-email
 

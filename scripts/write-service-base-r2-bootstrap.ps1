@@ -1,8 +1,10 @@
 param(
     [string]$OutputPath = 'deploy/service/base/bootstrap/r2-bootstrap.json',
+    [string]$ImportCode = '',
     [string]$ManifestPath = '',
     [string]$AccountId = '',
     [string]$Bucket = '',
+    [string]$ManifestObjectKey = '',
     [string]$ConfigObjectKey = '',
     [string]$RuntimeEnvObjectKey = '',
     [string]$AccessKeyId = '',
@@ -17,6 +19,34 @@ $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot 'lib/easyemail-config.ps1')
 
+$importSyncEnabled = $null
+$importSyncIntervalSeconds = $null
+
+if (-not [string]::IsNullOrWhiteSpace($ImportCode)) {
+    $importPayloadPath = New-EasyEmailTempFile -Prefix 'easyemail-import-code' -Extension '.json'
+    try {
+        Assert-EasyEmailPythonModule -ModuleName 'nacl' -PackageName 'pynacl'
+        & python (Join-Path $PSScriptRoot 'easyemail-import-code.py') inspect `
+            --import-code $ImportCode `
+            --output $importPayloadPath
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to decode import code with exit code $LASTEXITCODE"
+        }
+
+        $importPayload = Get-Content -LiteralPath $importPayloadPath -Raw | ConvertFrom-Json
+        if (-not $AccountId) { $AccountId = [string]$importPayload.accountId }
+        if (-not $Bucket) { $Bucket = [string]$importPayload.bucket }
+        if (-not $Endpoint) { $Endpoint = [string]$importPayload.endpoint }
+        if (-not $ManifestObjectKey) { $ManifestObjectKey = [string]$importPayload.manifestObjectKey }
+        if (-not $AccessKeyId) { $AccessKeyId = [string]$importPayload.accessKeyId }
+        if (-not $SecretAccessKey) { $SecretAccessKey = [string]$importPayload.secretAccessKey }
+        $importSyncEnabled = $importPayload.syncEnabled
+        $importSyncIntervalSeconds = $importPayload.syncIntervalSeconds
+    } finally {
+        Remove-Item -LiteralPath $importPayloadPath -ErrorAction SilentlyContinue
+    }
+}
+
 if (-not [string]::IsNullOrWhiteSpace($ManifestPath)) {
     $resolvedManifestPath = Resolve-EasyEmailPath -Path $ManifestPath
     if (-not (Test-Path -LiteralPath $resolvedManifestPath)) {
@@ -27,17 +57,17 @@ if (-not [string]::IsNullOrWhiteSpace($ManifestPath)) {
     if (-not $AccountId) { $AccountId = [string]$manifest.accountId }
     if (-not $Bucket) { $Bucket = [string]$manifest.bucket }
     if (-not $Endpoint) { $Endpoint = [string]$manifest.endpoint }
-    if (-not $ConfigObjectKey) { $ConfigObjectKey = [string]$manifest.config.objectKey }
-    if (-not $RuntimeEnvObjectKey) { $RuntimeEnvObjectKey = [string]$manifest.runtimeEnv.objectKey }
-    if (-not $ExpectedConfigSha256) { $ExpectedConfigSha256 = [string]$manifest.config.sha256 }
-    if (-not $ExpectedRuntimeEnvSha256) { $ExpectedRuntimeEnvSha256 = [string]$manifest.runtimeEnv.sha256 }
+    if (-not $ManifestObjectKey) { $ManifestObjectKey = [string]$manifest.manifestObjectKey }
+    if (-not $ConfigObjectKey) { $ConfigObjectKey = [string]$manifest.serviceBase.config.objectKey }
+    if (-not $RuntimeEnvObjectKey) { $RuntimeEnvObjectKey = [string]$manifest.serviceBase.runtimeEnv.objectKey }
+    if (-not $ExpectedConfigSha256) { $ExpectedConfigSha256 = [string]$manifest.serviceBase.config.sha256 }
+    if (-not $ExpectedRuntimeEnvSha256) { $ExpectedRuntimeEnvSha256 = [string]$manifest.serviceBase.runtimeEnv.sha256 }
 }
 
 foreach ($required in @(
     @{ Name = 'AccountId'; Value = $AccountId },
     @{ Name = 'Bucket'; Value = $Bucket },
-    @{ Name = 'ConfigObjectKey'; Value = $ConfigObjectKey },
-    @{ Name = 'RuntimeEnvObjectKey'; Value = $RuntimeEnvObjectKey },
+    @{ Name = 'ManifestObjectKey or ConfigObjectKey'; Value = if ([string]::IsNullOrWhiteSpace($ManifestObjectKey)) { $ConfigObjectKey } else { $ManifestObjectKey } },
     @{ Name = 'AccessKeyId'; Value = $AccessKeyId },
     @{ Name = 'SecretAccessKey'; Value = $SecretAccessKey }
 )) {
@@ -54,17 +84,30 @@ $bootstrap = [ordered]@{
         $Endpoint
     }
     bucket = $Bucket
-    configObjectKey = $ConfigObjectKey
-    runtimeEnvObjectKey = $RuntimeEnvObjectKey
     accessKeyId = $AccessKeyId
     secretAccessKey = $SecretAccessKey
 }
 
+if (-not [string]::IsNullOrWhiteSpace($ManifestObjectKey)) {
+    $bootstrap.manifestObjectKey = $ManifestObjectKey
+}
+if (-not [string]::IsNullOrWhiteSpace($ConfigObjectKey)) {
+    $bootstrap.configObjectKey = $ConfigObjectKey
+}
+if (-not [string]::IsNullOrWhiteSpace($RuntimeEnvObjectKey)) {
+    $bootstrap.runtimeEnvObjectKey = $RuntimeEnvObjectKey
+}
 if (-not [string]::IsNullOrWhiteSpace($ExpectedConfigSha256)) {
     $bootstrap.expectedConfigSha256 = $ExpectedConfigSha256
 }
 if (-not [string]::IsNullOrWhiteSpace($ExpectedRuntimeEnvSha256)) {
     $bootstrap.expectedRuntimeEnvSha256 = $ExpectedRuntimeEnvSha256
+}
+if ($null -ne $importSyncEnabled) {
+    $bootstrap.syncEnabled = [bool]$importSyncEnabled
+}
+if ($null -ne $importSyncIntervalSeconds -and [int]$importSyncIntervalSeconds -gt 0) {
+    $bootstrap.syncIntervalSeconds = [int]$importSyncIntervalSeconds
 }
 
 $resolvedOutputPath = Resolve-EasyEmailPath -Path $OutputPath

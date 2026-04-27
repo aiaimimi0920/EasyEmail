@@ -69,7 +69,9 @@ Invoke-InDirectory $frontendDir { & $frontendVite build -m prod --emptyOutDir }
 
 Write-Host "Validating release automation scripts..."
 & python -m py_compile `
+    (Join-Path $repoRoot 'scripts/easyemail-import-code.py') `
     (Join-Path $repoRoot 'scripts/render-release-template.py') `
+    (Join-Path $repoRoot 'scripts/render-userscript-remote-config.py') `
     (Join-Path $repoRoot 'scripts/upsert-release-notes-section.py') `
     (Join-Path $repoRoot 'scripts/materialize-action-config.py') `
     (Join-Path $repoRoot 'scripts/upload-service-base-r2-config.py') `
@@ -91,6 +93,12 @@ $sampleMergedNotesPath = Join-Path $releaseAutomationTempRoot 'sample-merged-not
 $sampleExistingReleaseBodyPath = Join-Path $releaseAutomationTempRoot 'sample-existing-release-body.md'
 $materializedConfigPath = Join-Path $releaseAutomationTempRoot 'materialized-config.yaml'
 $sampleBootstrapPath = Join-Path $releaseAutomationTempRoot 'sample-r2-bootstrap.json'
+$sampleImportPublicKeyPath = Join-Path $releaseAutomationTempRoot 'sample-import-public.txt'
+$sampleImportPrivateKeyPath = Join-Path $releaseAutomationTempRoot 'sample-import-private.txt'
+$sampleImportBundlePath = Join-Path $releaseAutomationTempRoot 'sample-import-bundle.json'
+$sampleEncryptedImportPath = Join-Path $releaseAutomationTempRoot 'sample-import-encrypted.json'
+$sampleImportCodePath = Join-Path $releaseAutomationTempRoot 'sample-import-code.txt'
+$sampleUserscriptRemoteConfigPath = Join-Path $releaseAutomationTempRoot 'sample-userscript-remote-config.json'
 $sampleScopeSummary = @'
 ### Scope Summary
 
@@ -269,6 +277,70 @@ example.com
 
     if (-not (Test-Path -LiteralPath $sampleBootstrapPath)) {
         throw 'Service-base R2 bootstrap writer did not produce an output file.'
+    }
+
+    & $powerShellCommand -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts/generate-import-code-keypair.ps1') `
+        -PublicKeyOutputPath $sampleImportPublicKeyPath `
+        -PrivateKeyOutputPath $sampleImportPrivateKeyPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Import code keypair generation smoke check failed with exit code $LASTEXITCODE"
+    }
+
+    & python (Join-Path $repoRoot 'scripts/easyemail-import-code.py') `
+        encode `
+        --account-id account-id `
+        --bucket bucket-name `
+        --manifest-object-key easyemail/manifest.json `
+        --access-key-id read-access-key `
+        --secret-access-key read-secret-key `
+        --sync-enabled `
+        --sync-interval-seconds 7200 `
+        --release-version release-test `
+        --json-output `
+        --output $sampleImportBundlePath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Import code encoding smoke check failed with exit code $LASTEXITCODE"
+    }
+
+    & python (Join-Path $repoRoot 'scripts/easyemail-import-code.py') `
+        encrypt `
+        --bundle-file $sampleImportBundlePath `
+        --public-key-file $sampleImportPublicKeyPath `
+        --output $sampleEncryptedImportPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Import code encryption smoke check failed with exit code $LASTEXITCODE"
+    }
+
+    & $powerShellCommand -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts/decrypt-import-code.ps1') `
+        -EncryptedFilePath $sampleEncryptedImportPath `
+        -PrivateKeyPath $sampleImportPrivateKeyPath `
+        -ImportCodeOnly `
+        -OutputPath $sampleImportCodePath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Import code decryption smoke check failed with exit code $LASTEXITCODE"
+    }
+
+    $sampleImportCode = (Get-Content -LiteralPath $sampleImportCodePath -Raw).Trim()
+    if (-not $sampleImportCode.StartsWith('easyemail-import-v1.')) {
+        throw 'Import code decryption smoke check did not produce a valid import code.'
+    }
+
+    & $powerShellCommand -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts/write-service-base-r2-bootstrap.ps1') `
+        -ImportCode $sampleImportCode `
+        -OutputPath $sampleBootstrapPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Import-code bootstrap writer smoke check failed with exit code $LASTEXITCODE"
+    }
+
+    & python (Join-Path $repoRoot 'scripts/render-userscript-remote-config.py') `
+        --config (Join-Path $repoRoot 'config.example.yaml') `
+        --output $sampleUserscriptRemoteConfigPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Userscript remote config renderer smoke check failed with exit code $LASTEXITCODE"
+    }
+
+    if (-not (Test-Path -LiteralPath $sampleUserscriptRemoteConfigPath)) {
+        throw 'Userscript remote config renderer did not produce an output file.'
     }
 } finally {
     foreach ($secretName in $previousGranularSecrets.Keys) {

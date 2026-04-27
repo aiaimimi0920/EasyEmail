@@ -5,14 +5,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import boto3
 
 
-def sha256_hex(path: Path) -> str:
-    hasher = hashlib.sha256()
+def hash_hex(path: Path, algorithm: str) -> str:
+    hasher = hashlib.new(algorithm)
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             hasher.update(chunk)
@@ -42,7 +43,8 @@ def upload_file(client: Any, *, bucket: str, object_key: str, source_path: Path)
         "bucket": bucket,
         "objectKey": object_key,
         "sizeBytes": source_path.stat().st_size,
-        "sha256": sha256_hex(source_path),
+        "md5": hash_hex(source_path, "md5"),
+        "sha256": hash_hex(source_path, "sha256"),
         "contentType": "application/octet-stream",
     }
 
@@ -57,16 +59,23 @@ def main() -> int:
     parser.add_argument("--config-object-key", required=True)
     parser.add_argument("--runtime-env-path", required=True)
     parser.add_argument("--runtime-env-object-key", required=True)
+    parser.add_argument("--userscript-settings-path", required=True)
+    parser.add_argument("--userscript-settings-object-key", required=True)
+    parser.add_argument("--manifest-object-key", required=True)
     parser.add_argument("--endpoint", default="")
+    parser.add_argument("--release-version", default="")
     parser.add_argument("--manifest-output", default="")
     args = parser.parse_args()
 
     config_path = Path(args.config_path).resolve()
     runtime_env_path = Path(args.runtime_env_path).resolve()
+    userscript_settings_path = Path(args.userscript_settings_path).resolve()
     if not config_path.exists():
         raise SystemExit(f"Rendered service config not found: {config_path}")
     if not runtime_env_path.exists():
         raise SystemExit(f"Rendered runtime env not found: {runtime_env_path}")
+    if not userscript_settings_path.exists():
+        raise SystemExit(f"Rendered userscript settings not found: {userscript_settings_path}")
 
     client = build_s3_client(
         account_id=args.account_id,
@@ -87,20 +96,44 @@ def main() -> int:
         object_key=args.runtime_env_object_key,
         source_path=runtime_env_path,
     )
+    userscript_upload = upload_file(
+        client,
+        bucket=args.bucket,
+        object_key=args.userscript_settings_object_key,
+        source_path=userscript_settings_path,
+    )
 
     manifest = {
+        "schemaVersion": 1,
+        "generatedAtUtc": datetime.now(timezone.utc).isoformat(),
+        "releaseVersion": args.release_version.strip(),
         "accountId": args.account_id,
         "endpoint": args.endpoint.strip() or f"https://{args.account_id}.r2.cloudflarestorage.com",
         "bucket": args.bucket,
-        "config": config_upload,
-        "runtimeEnv": runtime_env_upload,
+        "manifestObjectKey": args.manifest_object_key,
+        "serviceBase": {
+            "config": config_upload,
+            "runtimeEnv": runtime_env_upload,
+            "fingerprint": f"{config_upload['md5']}:{runtime_env_upload['md5']}",
+        },
+        "userscript": {
+            "settings": userscript_upload,
+            "fingerprint": userscript_upload["md5"],
+        },
     }
 
     manifest_text = json.dumps(manifest, ensure_ascii=False, indent=2)
     if args.manifest_output:
         manifest_path = Path(args.manifest_output).resolve()
-        manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        manifest_path.write_text(manifest_text, encoding="utf-8")
+    else:
+        manifest_path = config_path.parent / "easyemail-distribution-manifest.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(manifest_text, encoding="utf-8")
+
+    client.upload_file(str(manifest_path), args.bucket, args.manifest_object_key)
+
+    if args.manifest_output:
+        print(str(manifest_path))
     else:
         print(manifest_text)
 
