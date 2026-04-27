@@ -107,6 +107,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python -m pip install --disable-pip-version-check pyyaml
           python scripts/materialize-action-config.py \
             --base-config config.example.yaml \
             --output config.yaml
