@@ -25,6 +25,11 @@ on:
         required: false
         default: false
         type: boolean
+      bootstrap_missing_resources:
+        description: "Create missing Cloudflare zones and D1 resources before first deploy"
+        required: false
+        default: false
+        type: boolean
       run_health_check:
         description: "Run post-deploy health check and version readback"
         required: false
@@ -98,7 +103,9 @@ jobs:
               scripts/quick-deploy-cloudflare-mail.ps1 \
               scripts/render-derived-configs.ps1 \
               scripts/render-derived-configs.py \
+              scripts/materialize-action-config.py \
               scripts/deploy-easyemail-release.ps1 \
+              deploy/upstreams/cloudflare_temp_email/scripts/bootstrap_cloudflare_mail.py \
               .github/workflows/deploy-cloudflare-email.yml
           )
 
@@ -148,6 +155,7 @@ jobs:
         env:
           EASYEMAIL_CF_PUBLIC_BASE_URL: ${{ secrets.EASYEMAIL_CF_PUBLIC_BASE_URL }}
           EASYEMAIL_CF_PUBLIC_DOMAIN: ${{ secrets.EASYEMAIL_CF_PUBLIC_DOMAIN }}
+          EASYEMAIL_CF_PUBLIC_ZONE: ${{ secrets.EASYEMAIL_CF_PUBLIC_ZONE }}
           EASYEMAIL_CF_WORKER_NAME: ${{ secrets.EASYEMAIL_CF_WORKER_NAME }}
           EASYEMAIL_CF_WORKER_ENV: ${{ secrets.EASYEMAIL_CF_WORKER_ENV }}
           EASYEMAIL_CF_PASSWORDS: ${{ secrets.EASYEMAIL_CF_PASSWORDS }}
@@ -165,6 +173,15 @@ jobs:
           EASYEMAIL_CF_D1_DATABASE_ID: ${{ secrets.EASYEMAIL_CF_D1_DATABASE_ID }}
           EASYEMAIL_CF_D1_DATABASE_NAME: ${{ secrets.EASYEMAIL_CF_D1_DATABASE_NAME }}
           EASYEMAIL_CF_D1_DATABASE_BINDING: ${{ secrets.EASYEMAIL_CF_D1_DATABASE_BINDING }}
+          EASYEMAIL_CF_API_TOKEN: ${{ secrets.EASYEMAIL_CF_API_TOKEN }}
+          EASYEMAIL_CF_BOOTSTRAP_ENABLED: ${{ secrets.EASYEMAIL_CF_BOOTSTRAP_ENABLED }}
+          EASYEMAIL_CF_BOOTSTRAP_CREATE_ZONES: ${{ secrets.EASYEMAIL_CF_BOOTSTRAP_CREATE_ZONES }}
+          EASYEMAIL_CF_BOOTSTRAP_ACCOUNT_ID: ${{ secrets.EASYEMAIL_CF_BOOTSTRAP_ACCOUNT_ID }}
+          EASYEMAIL_CF_BOOTSTRAP_ZONES: ${{ secrets.EASYEMAIL_CF_BOOTSTRAP_ZONES }}
+          EASYEMAIL_CF_D1_LOCATION_HINT: ${{ secrets.EASYEMAIL_CF_D1_LOCATION_HINT }}
+          EASYEMAIL_CF_D1_JURISDICTION: ${{ secrets.EASYEMAIL_CF_D1_JURISDICTION }}
+          EASYEMAIL_CF_BOOTSTRAP_ZONE_TYPE: ${{ secrets.EASYEMAIL_CF_BOOTSTRAP_ZONE_TYPE }}
+          EASYEMAIL_CF_BOOTSTRAP_JUMP_START: ${{ secrets.EASYEMAIL_CF_BOOTSTRAP_JUMP_START }}
           EASYEMAIL_CF_SYNC_ROUTING: ${{ secrets.EASYEMAIL_CF_SYNC_ROUTING }}
           EASYEMAIL_CF_ROUTING_MODE: ${{ secrets.EASYEMAIL_CF_ROUTING_MODE }}
           EASYEMAIL_CF_CONTROL_CENTER_DNS_TOKEN: ${{ secrets.EASYEMAIL_CF_CONTROL_CENTER_DNS_TOKEN }}
@@ -183,8 +200,10 @@ jobs:
             'EASYEMAIL_CF_DOMAINS',
             'EASYEMAIL_CF_SUBDOMAIN_LABEL_POOL',
             'EASYEMAIL_CF_D1_DATABASE_ID',
+            'EASYEMAIL_CF_D1_DATABASE_NAME',
             'EASYEMAIL_CF_AUTH_EMAIL',
-            'EASYEMAIL_CF_GLOBAL_API_KEY'
+            'EASYEMAIL_CF_GLOBAL_API_KEY',
+            'EASYEMAIL_CF_API_TOKEN'
           )
 
           $hasGranularSecrets = $false
@@ -207,12 +226,19 @@ jobs:
             $globalAuth = Get-EasyEmailSection -Config $routing -Name 'cloudflareGlobalAuth'
             $authEmail = [string](Get-EasyEmailConfigValue -Object $globalAuth -Name 'authEmail' -Default '')
             $globalApiKey = [string](Get-EasyEmailConfigValue -Object $globalAuth -Name 'globalApiKey' -Default '')
-            if (-not [string]::IsNullOrWhiteSpace($authEmail) -and -not [string]::IsNullOrWhiteSpace($globalApiKey)) {
+            $apiToken = [string]$env:EASYEMAIL_CF_API_TOKEN
+            if (-not [string]::IsNullOrWhiteSpace($apiToken)) {
+              Write-Host 'Exporting CLOUDFLARE_API_TOKEN for Wrangler and bootstrap scripts.'
+              Write-Host "::add-mask::$apiToken"
+              "CLOUDFLARE_API_TOKEN=$apiToken" >> $env:GITHUB_ENV
+            } elseif (-not [string]::IsNullOrWhiteSpace($authEmail) -and -not [string]::IsNullOrWhiteSpace($globalApiKey)) {
               Write-Host 'Config contains Cloudflare global auth credentials; exporting them for Wrangler.'
               Write-Host "::add-mask::$authEmail"
               Write-Host "::add-mask::$globalApiKey"
               "CLOUDFLARE_EMAIL=$authEmail" >> $env:GITHUB_ENV
               "CLOUDFLARE_API_KEY=$globalApiKey" >> $env:GITHUB_ENV
+            } else {
+              throw 'Missing Cloudflare authentication. Set EASYEMAIL_CF_API_TOKEN, or set both EASYEMAIL_CF_AUTH_EMAIL and EASYEMAIL_CF_GLOBAL_API_KEY.'
             }
             Write-Host "Wrote Cloudflare config from EASYEMAIL_CF_* repository secrets."
             "source=granular-secrets" >> $env:GITHUB_OUTPUT
@@ -252,18 +278,35 @@ jobs:
           $syncMode = if ($isWorkflowDispatch) { '${{ inputs.sync_mode }}' } else { 'exact' }
           $isDryRun = $isWorkflowDispatch -and ('${{ inputs.dry_run }}' -eq 'true')
           $skipRoutingSync = $isWorkflowDispatch -and ('${{ inputs.no_routing_sync }}' -eq 'true')
+          $bootstrapMissingResources = $isWorkflowDispatch -and ('${{ inputs.bootstrap_missing_resources }}' -eq 'true')
 
           if ($isDryRun) {
             if ($skipRoutingSync) {
-              & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -NoRoutingSync -DryRun
+              if ($bootstrapMissingResources) {
+                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall -NoRoutingSync -DryRun
+              } else {
+                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -NoRoutingSync -DryRun
+              }
             } else {
-              & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -DryRun
+              if ($bootstrapMissingResources) {
+                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall -DryRun
+              } else {
+                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -DryRun
+              }
             }
           } else {
             if ($skipRoutingSync) {
-              & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -NoRoutingSync
+              if ($bootstrapMissingResources) {
+                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall -NoRoutingSync
+              } else {
+                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -NoRoutingSync
+              }
             } else {
-              & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall
+              if ($bootstrapMissingResources) {
+                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall
+              } else {
+                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall
+              }
             }
           }
 
@@ -382,6 +425,7 @@ jobs:
               dryRun = $isDryRun
               baseUrl = $baseUrl
               version = if ($runtimeReadback) { [string]$runtimeReadback.version } else { 'n/a' }
+              bootstrap = ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.bootstrap_missing_resources }}' -eq 'true')
               syncMode = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.sync_mode }}' } else { [string](Get-EasyEmailConfigValue -Object $routing -Name 'mode' -Default 'exact') }
               routingSyncEnabled = $routingSyncEnabled
               domains = if ($runtimeReadback) { @($runtimeReadback.domains) } else { @() }

@@ -53,14 +53,42 @@ For manual dry-run validation, the workflow can fall back to
 The full secret inventory is documented in
 [github-actions-secrets.md](./github-actions-secrets.md).
 
+## Supported Deployment Modes
+
+The repository now supports both deployment modes through the same script path:
+
+1. **Mode 1: first deploy**
+   This is the bootstrap path for an account where the EasyEmail worker, D1
+   database, and worker custom domain have not been created yet.
+2. **Mode 2: update deploy**
+   This is the normal redeploy path when Cloudflare resources already exist and
+   only code or config changed.
+
+The operator entrypoint stays the same:
+
+```powershell
+pwsh .\scripts\deploy-cloudflare-email.ps1
+```
+
+To force mode 1 bootstrap locally, add:
+
+```powershell
+pwsh .\scripts\deploy-cloudflare-email.ps1 -BootstrapMissingResources
+```
+
+For GitHub Actions, use the workflow input `bootstrap_missing_resources=true`.
+
 ## What The Root Config Needs
 
 The deploy scripts read the root `config.yaml`, specifically:
 
 - `cloudflareMail.publicBaseUrl`
 - `cloudflareMail.publicDomain`
+- `cloudflareMail.publicZone`
 - `cloudflareMail.worker.vars.PASSWORDS`
+- `cloudflareMail.worker.vars.ADMIN_PASSWORDS`
 - `cloudflareMail.worker.vars.JWT_SECRET`
+- `cloudflareMail.worker.d1_databases[0].database_name`
 - `cloudflareMail.routing.mode`
 - `cloudflareMail.routing.plan.subdomainLabelPool`
 - `cloudflareMail.routing.plan.domains`
@@ -68,17 +96,39 @@ The deploy scripts read the root `config.yaml`, specifically:
 - `cloudflareMail.routing.cloudflareGlobalAuth.authEmail`
 - `cloudflareMail.routing.cloudflareGlobalAuth.globalApiKey`
 
+For mode 1, the bootstrap section is also relevant:
+
+- `cloudflareMail.bootstrap.enabled`
+- `cloudflareMail.bootstrap.createZones`
+- `cloudflareMail.bootstrap.accountId`
+- `cloudflareMail.bootstrap.zones`
+- `cloudflareMail.bootstrap.d1LocationHint`
+- `cloudflareMail.bootstrap.d1Jurisdiction`
+
 Concrete example:
 
 ```yaml
 cloudflareMail:
   publicBaseUrl: https://mail.example.com
   publicDomain: mail.example.com
+  publicZone: example.com
+  bootstrap:
+    enabled: false
+    createZones: true
+    accountId: ""
+    zones:
+      - example.com
   worker:
     vars:
       PASSWORDS:
         - change-me
+      ADMIN_PASSWORDS:
+        - admin-change-me
       JWT_SECRET: change-me
+    d1_databases:
+      - binding: DB
+        database_name: cloudflare-temp-email
+        database_id: "00000000-0000-0000-0000-000000000000"
   routing:
     mode: exact
     plan:
@@ -101,8 +151,19 @@ cloudflareMail:
 - `scripts/render-derived-configs.ps1` merges the root config onto the internal
   worker template and writes a temporary `wrangler` file.
 - `scripts/quick-deploy-cloudflare-mail.ps1` uses that rendered worker config to
-  build the frontend and deploy the worker.
+  build the frontend, bootstrap missing Cloudflare resources when requested, and
+  deploy the worker.
 - `scripts/deploy-cloudflare-email.ps1` is the short operator entrypoint.
+
+In mode 1, the quick deploy flow also:
+
+- resolves the target Cloudflare account
+- creates missing zones when bootstrap allows it
+- creates the D1 database when it does not exist yet
+- re-renders a temporary config with the resolved D1 database id
+- deploys the worker to the public custom domain
+- waits for `/health_check`
+- calls the worker admin endpoints to initialize and migrate the D1 schema
 
 ## Safe Dry Run
 

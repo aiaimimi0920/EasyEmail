@@ -2,6 +2,7 @@ param(
     [string]$ConfigPath = 'config.yaml',
     [ValidateSet('exact', 'wildcard')]
     [string]$SyncMode = 'exact',
+    [switch]$BootstrapMissingResources,
     [switch]$NoInstall,
     [switch]$NoRoutingSync,
     [switch]$DryRun,
@@ -189,6 +190,9 @@ if (-not $SkipCloudflareMail) {
     )
     if ($NoInstall) {
         $cloudflareArgs += '-NoInstall'
+    }
+    if ($BootstrapMissingResources) {
+        $cloudflareArgs += '-BootstrapMissingResources'
     }
     if ($NoRoutingSync) {
         $cloudflareArgs += '-NoRoutingSync'

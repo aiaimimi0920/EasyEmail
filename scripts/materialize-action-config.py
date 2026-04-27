@@ -122,6 +122,7 @@ def build_granular_cloudflare_overlay(base_config: dict[str, Any]) -> dict[str, 
     names = [
         "EASYEMAIL_CF_PUBLIC_BASE_URL",
         "EASYEMAIL_CF_PUBLIC_DOMAIN",
+        "EASYEMAIL_CF_PUBLIC_ZONE",
         "EASYEMAIL_CF_WORKER_NAME",
         "EASYEMAIL_CF_WORKER_ENV",
         "EASYEMAIL_CF_PASSWORDS",
@@ -139,6 +140,14 @@ def build_granular_cloudflare_overlay(base_config: dict[str, Any]) -> dict[str, 
         "EASYEMAIL_CF_D1_DATABASE_ID",
         "EASYEMAIL_CF_D1_DATABASE_NAME",
         "EASYEMAIL_CF_D1_DATABASE_BINDING",
+        "EASYEMAIL_CF_BOOTSTRAP_ENABLED",
+        "EASYEMAIL_CF_BOOTSTRAP_CREATE_ZONES",
+        "EASYEMAIL_CF_BOOTSTRAP_ACCOUNT_ID",
+        "EASYEMAIL_CF_BOOTSTRAP_ZONES",
+        "EASYEMAIL_CF_D1_LOCATION_HINT",
+        "EASYEMAIL_CF_D1_JURISDICTION",
+        "EASYEMAIL_CF_BOOTSTRAP_ZONE_TYPE",
+        "EASYEMAIL_CF_BOOTSTRAP_JUMP_START",
         "EASYEMAIL_CF_SYNC_ROUTING",
         "EASYEMAIL_CF_ROUTING_MODE",
         "EASYEMAIL_CF_CONTROL_CENTER_DNS_TOKEN",
@@ -169,9 +178,11 @@ def build_granular_cloudflare_overlay(base_config: dict[str, Any]) -> dict[str, 
     routing: dict[str, Any] = {}
     routing_plan: dict[str, Any] = {}
     global_auth: dict[str, Any] = {}
+    bootstrap: dict[str, Any] = {}
 
     set_if_present(cloudflare_mail, "publicBaseUrl", get_secret_text("EASYEMAIL_CF_PUBLIC_BASE_URL"))
     set_if_present(cloudflare_mail, "publicDomain", get_secret_text("EASYEMAIL_CF_PUBLIC_DOMAIN"))
+    set_if_present(cloudflare_mail, "publicZone", get_secret_text("EASYEMAIL_CF_PUBLIC_ZONE"))
     set_if_present(cloudflare_mail, "workerName", get_secret_text("EASYEMAIL_CF_WORKER_NAME"))
     set_if_present(cloudflare_mail, "workerEnv", get_secret_text("EASYEMAIL_CF_WORKER_ENV"))
 
@@ -193,14 +204,14 @@ def build_granular_cloudflare_overlay(base_config: dict[str, Any]) -> dict[str, 
     set_if_present(worker_vars, "ENABLE_USER_DELETE_EMAIL", parse_bool_secret("EASYEMAIL_CF_ENABLE_USER_DELETE_EMAIL"))
 
     d1_database_id = get_secret_text("EASYEMAIL_CF_D1_DATABASE_ID")
-    if d1_database_id:
+    d1_database_name = get_secret_text("EASYEMAIL_CF_D1_DATABASE_NAME")
+    d1_database_binding = get_secret_text("EASYEMAIL_CF_D1_DATABASE_BINDING")
+    if d1_database_id or d1_database_name or d1_database_binding:
         d1_entry = {
-            "binding": get_secret_text("EASYEMAIL_CF_D1_DATABASE_BINDING")
-            or str(base_d1_first.get("binding", "DB")),
-            "database_name": get_secret_text("EASYEMAIL_CF_D1_DATABASE_NAME")
-            or str(base_d1_first.get("database_name", "cloudflare-temp-email")),
-            "database_id": d1_database_id,
+            "binding": d1_database_binding or str(base_d1_first.get("binding", "DB")),
+            "database_name": d1_database_name or str(base_d1_first.get("database_name", "cloudflare-temp-email")),
         }
+        set_if_present(d1_entry, "database_id", d1_database_id)
         worker["d1_databases"] = [d1_entry]
 
     set_if_present(routing_plan, "domains", domains)
@@ -212,6 +223,14 @@ def build_granular_cloudflare_overlay(base_config: dict[str, Any]) -> dict[str, 
     set_if_present(routing, "controlCenterDnsToken", get_secret_text("EASYEMAIL_CF_CONTROL_CENTER_DNS_TOKEN"))
     set_if_present(global_auth, "authEmail", get_secret_text("EASYEMAIL_CF_AUTH_EMAIL"))
     set_if_present(global_auth, "globalApiKey", get_secret_text("EASYEMAIL_CF_GLOBAL_API_KEY"))
+    set_if_present(bootstrap, "enabled", parse_bool_secret("EASYEMAIL_CF_BOOTSTRAP_ENABLED"))
+    set_if_present(bootstrap, "createZones", parse_bool_secret("EASYEMAIL_CF_BOOTSTRAP_CREATE_ZONES"))
+    set_if_present(bootstrap, "accountId", get_secret_text("EASYEMAIL_CF_BOOTSTRAP_ACCOUNT_ID"))
+    set_if_present(bootstrap, "zones", parse_list_secret("EASYEMAIL_CF_BOOTSTRAP_ZONES"))
+    set_if_present(bootstrap, "d1LocationHint", get_secret_text("EASYEMAIL_CF_D1_LOCATION_HINT"))
+    set_if_present(bootstrap, "d1Jurisdiction", get_secret_text("EASYEMAIL_CF_D1_JURISDICTION"))
+    set_if_present(bootstrap, "zoneType", get_secret_text("EASYEMAIL_CF_BOOTSTRAP_ZONE_TYPE"))
+    set_if_present(bootstrap, "jumpStart", parse_bool_secret("EASYEMAIL_CF_BOOTSTRAP_JUMP_START"))
 
     if worker_vars:
         worker["vars"] = worker_vars
@@ -223,6 +242,8 @@ def build_granular_cloudflare_overlay(base_config: dict[str, Any]) -> dict[str, 
         routing["cloudflareGlobalAuth"] = global_auth
     if routing:
         cloudflare_mail["routing"] = routing
+    if bootstrap:
+        cloudflare_mail["bootstrap"] = bootstrap
 
     return overlay if cloudflare_mail else None
 

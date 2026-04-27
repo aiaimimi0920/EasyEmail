@@ -43,6 +43,7 @@ serviceBase:
 cloudflareMail:
   publicBaseUrl: https://mail.example.com
   publicDomain: mail.example.com
+  publicZone: example.com
   projectRoot: upstreams/cloudflare_temp_email
   workerDir: worker
   frontendDir: frontend
@@ -51,10 +52,22 @@ cloudflareMail:
   buildFrontend: true
   deployWorker: true
   syncRouting: false
+  bootstrap:
+    enabled: false
+    createZones: true
+    accountId: ""
+    zones:
+      - example.com
+    d1LocationHint: ""
+    d1Jurisdiction: ""
+    zoneType: full
+    jumpStart: false
   worker:
     vars:
       PASSWORDS:
         - change-me
+      ADMIN_PASSWORDS:
+        - admin-change-me
       JWT_SECRET: change-me
     d1_databases:
       - binding: DB

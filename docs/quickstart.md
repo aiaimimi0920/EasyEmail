@@ -62,6 +62,13 @@ Use the single operator entrypoint:
 pwsh .\scripts\deploy-cloudflare-email.ps1
 ```
 
+For a first deploy where the Cloudflare worker or D1 database does not exist
+yet, use bootstrap mode:
+
+```powershell
+pwsh .\scripts\deploy-cloudflare-email.ps1 -BootstrapMissingResources
+```
+
 For a dry run:
 
 ```powershell
@@ -74,6 +81,9 @@ granular `EASYEMAIL_CF_*` secrets documented in
 deployment fork-friendly because users can fill each field separately instead
 of maintaining a full YAML secret.
 
+That same workflow also supports mode 1 bootstrap through the
+`bootstrap_missing_resources` workflow input.
+
 See [github-actions-secrets.md](./github-actions-secrets.md) for the complete
 secret inventory used by the hosted deployment workflows.
 
@@ -85,6 +95,13 @@ result:
 
 ```powershell
 pwsh .\scripts\deploy-easyemail-release.ps1
+```
+
+If the Cloudflare side is a first deploy, you can pass the same bootstrap flag
+through the root release entrypoint:
+
+```powershell
+pwsh .\scripts\deploy-easyemail-release.ps1 -BootstrapMissingResources
 ```
 
 Safe dry run:

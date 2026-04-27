@@ -72,7 +72,8 @@ Write-Host "Validating release automation scripts..."
     (Join-Path $repoRoot 'scripts/render-release-template.py') `
     (Join-Path $repoRoot 'scripts/upsert-release-notes-section.py') `
     (Join-Path $repoRoot 'scripts/materialize-action-config.py') `
-    (Join-Path $repoRoot 'scripts/validate-release-tag.py')
+    (Join-Path $repoRoot 'scripts/validate-release-tag.py') `
+    (Join-Path $repoRoot 'deploy/upstreams/cloudflare_temp_email/scripts/bootstrap_cloudflare_mail.py')
 if ($LASTEXITCODE -ne 0) {
     throw "Release automation script validation failed with exit code $LASTEXITCODE"
 }
@@ -174,18 +175,24 @@ if ($LASTEXITCODE -ne 0) {
 $previousGranularSecrets = @{
     EASYEMAIL_CF_PUBLIC_BASE_URL = $env:EASYEMAIL_CF_PUBLIC_BASE_URL
     EASYEMAIL_CF_PUBLIC_DOMAIN = $env:EASYEMAIL_CF_PUBLIC_DOMAIN
+    EASYEMAIL_CF_PUBLIC_ZONE = $env:EASYEMAIL_CF_PUBLIC_ZONE
     EASYEMAIL_CF_PASSWORDS = $env:EASYEMAIL_CF_PASSWORDS
     EASYEMAIL_CF_ADMIN_PASSWORDS = $env:EASYEMAIL_CF_ADMIN_PASSWORDS
     EASYEMAIL_CF_JWT_SECRET = $env:EASYEMAIL_CF_JWT_SECRET
     EASYEMAIL_CF_DOMAINS = $env:EASYEMAIL_CF_DOMAINS
     EASYEMAIL_CF_SUBDOMAIN_LABEL_POOL = $env:EASYEMAIL_CF_SUBDOMAIN_LABEL_POOL
     EASYEMAIL_CF_D1_DATABASE_ID = $env:EASYEMAIL_CF_D1_DATABASE_ID
+    EASYEMAIL_CF_D1_DATABASE_NAME = $env:EASYEMAIL_CF_D1_DATABASE_NAME
+    EASYEMAIL_CF_BOOTSTRAP_ENABLED = $env:EASYEMAIL_CF_BOOTSTRAP_ENABLED
+    EASYEMAIL_CF_BOOTSTRAP_CREATE_ZONES = $env:EASYEMAIL_CF_BOOTSTRAP_CREATE_ZONES
+    EASYEMAIL_CF_BOOTSTRAP_ZONES = $env:EASYEMAIL_CF_BOOTSTRAP_ZONES
     EASYEMAIL_CF_AUTH_EMAIL = $env:EASYEMAIL_CF_AUTH_EMAIL
     EASYEMAIL_CF_GLOBAL_API_KEY = $env:EASYEMAIL_CF_GLOBAL_API_KEY
 }
 try {
     $env:EASYEMAIL_CF_PUBLIC_BASE_URL = 'https://mail.example.com'
     $env:EASYEMAIL_CF_PUBLIC_DOMAIN = 'mail.example.com'
+    $env:EASYEMAIL_CF_PUBLIC_ZONE = 'example.com'
     $env:EASYEMAIL_CF_PASSWORDS = @'
 change-me
 '@
@@ -203,7 +210,13 @@ alpha
 beta
 gamma
 '@
-    $env:EASYEMAIL_CF_D1_DATABASE_ID = '00000000-0000-0000-0000-000000000000'
+    Remove-Item -Path 'Env:EASYEMAIL_CF_D1_DATABASE_ID' -ErrorAction SilentlyContinue
+    $env:EASYEMAIL_CF_D1_DATABASE_NAME = 'cloudflare-temp-email'
+    $env:EASYEMAIL_CF_BOOTSTRAP_ENABLED = 'true'
+    $env:EASYEMAIL_CF_BOOTSTRAP_CREATE_ZONES = 'true'
+    $env:EASYEMAIL_CF_BOOTSTRAP_ZONES = @'
+example.com
+'@
     $env:EASYEMAIL_CF_AUTH_EMAIL = 'operator@example.com'
     $env:EASYEMAIL_CF_GLOBAL_API_KEY = 'global-api-key'
 

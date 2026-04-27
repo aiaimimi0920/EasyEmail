@@ -2,6 +2,7 @@ param(
     [string]$ConfigPath = 'config.yaml',
     [ValidateSet('exact', 'wildcard')]
     [string]$SyncMode = 'exact',
+    [switch]$BootstrapMissingResources,
     [switch]$NoInstall,
     [switch]$NoRoutingSync,
     [switch]$DryRun
@@ -31,6 +32,7 @@ if (-not (Test-Path -LiteralPath $quickDeploy)) {
 & $quickDeploy `
     -ConfigPath $resolvedConfigPath `
     -SyncMode $SyncMode `
+    -BootstrapMissingResources:([bool]$BootstrapMissingResources) `
     -NoInstall:([bool]$NoInstall) `
     -NoRoutingSync:([bool]$NoRoutingSync) `
     -DryRun:([bool]$DryRun)

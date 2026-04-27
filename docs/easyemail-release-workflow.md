@@ -21,6 +21,16 @@ pwsh .\scripts\deploy-easyemail-release.ps1
 - runs a Cloudflare `health_check` + `open_api/settings` verification unless skipped
 - prints the released image tags and detected Cloudflare version
 
+The same entrypoint also supports mode 1 bootstrap for the Cloudflare side:
+
+```powershell
+pwsh .\scripts\deploy-easyemail-release.ps1 -BootstrapMissingResources
+```
+
+That switch is only forwarded into the Cloudflare deploy path. It lets the
+release flow create missing Cloudflare zones and D1 resources before deploying
+the worker.
+
 For GitHub-hosted automation, there are also dedicated workflows under
 `.github/workflows/`:
 
