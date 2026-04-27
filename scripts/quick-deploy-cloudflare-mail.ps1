@@ -76,6 +76,24 @@ function Invoke-Tool {
     }
 }
 
+function Assert-PythonModule {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ModuleName
+    )
+
+    & python -c "import $ModuleName"
+    if ($LASTEXITCODE -eq 0) {
+        return
+    }
+
+    Write-Host "Installing missing Python module: $ModuleName" -ForegroundColor Cyan
+    & python -m pip install --disable-pip-version-check $ModuleName
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to install required Python module: $ModuleName"
+    }
+}
+
 function Invoke-PythonJsonTool {
     param(
         [Parameter(Mandatory = $true)]
@@ -474,6 +492,7 @@ if ($syncRouting) {
             }
 
             if ($globalAuthFile) {
+                Assert-PythonModule -ModuleName 'requests'
                 Write-Host "Syncing cloudflare email routing state..." -ForegroundColor Cyan
                 Invoke-Tool -Executable 'python' -Arguments @(
                     (Resolve-EasyEmailPath -Path 'deploy/upstreams/cloudflare_temp_email/scripts/sync_email_routing_state.py'),
