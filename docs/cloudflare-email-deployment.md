@@ -64,6 +64,11 @@ The repository now supports both deployment modes through the same script path:
    This is the normal redeploy path when Cloudflare resources already exist and
    only code or config changed.
 
+For large explicit subdomain pools, the important rule is:
+
+- first deploy or subdomain-pool rebuild: run bootstrap and routing-state sync
+- ordinary code update: skip the heavy routing-state rebuild
+
 The operator entrypoint stays the same:
 
 ```powershell
@@ -82,6 +87,15 @@ For the current production-sized domain pool, the hosted workflow should prefer
 `sync_mode=wildcard`. The `exact` mode can exceed Cloudflare DNS record quotas
 when the label pool is large.
 
+If you only changed Worker or frontend code and did not change the explicit
+subdomain pool, do not force routing-state sync. The update path can reuse the
+already registered Cloudflare Email Routing subdomains.
+
+If you changed the explicit domain pool or want to rebuild it deliberately, use:
+
+- local script: `-ForceRoutingStateSync`
+- GitHub Actions input: `force_routing_state_sync=true`
+
 ## What The Root Config Needs
 
 The deploy scripts read the root `config.yaml`, specifically:
@@ -94,6 +108,7 @@ The deploy scripts read the root `config.yaml`, specifically:
 - `cloudflareMail.worker.vars.JWT_SECRET`
 - `cloudflareMail.worker.d1_databases[0].database_name`
 - `cloudflareMail.routing.mode`
+- `cloudflareMail.routing.stateSyncPolicy`
 - `cloudflareMail.routing.plan.subdomainLabelPool`
 - `cloudflareMail.routing.plan.domains`
 - `cloudflareMail.routing.controlCenterDnsToken`
@@ -135,6 +150,7 @@ cloudflareMail:
         database_id: "00000000-0000-0000-0000-000000000000"
   routing:
     mode: exact
+    stateSyncPolicy: bootstrap-or-forced
     plan:
       subdomainLabelPool:
         - alpha
@@ -168,6 +184,13 @@ In mode 1, the quick deploy flow also:
 - deploys the worker to the public custom domain
 - waits for `/health_check`
 - calls the worker admin endpoints to initialize and migrate the D1 schema
+
+For large explicit pools, `cloudflareMail.routing.stateSyncPolicy` controls when
+the heavy Email Routing subdomain preparation runs:
+
+- `bootstrap-or-forced`: default. Run it on first deploy or when you explicitly force it.
+- `always`: run it on every deploy.
+- `never`: skip it entirely.
 
 ## Safe Dry Run
 

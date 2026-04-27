@@ -69,6 +69,17 @@ yet, use bootstrap mode:
 pwsh .\scripts\deploy-cloudflare-email.ps1 -BootstrapMissingResources
 ```
 
+If you changed only worker or frontend code and did not rebuild the explicit
+subdomain pool, a normal deploy is enough. The routing-state rebuild is no
+longer part of the default update path.
+
+If you intentionally changed the explicit subdomain pool and want to rebuild
+Cloudflare Email Routing state, add:
+
+```powershell
+pwsh .\scripts\deploy-cloudflare-email.ps1 -ForceRoutingStateSync
+```
+
 For a dry run:
 
 ```powershell

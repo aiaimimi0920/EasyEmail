@@ -30,6 +30,11 @@ on:
         required: false
         default: false
         type: boolean
+      force_routing_state_sync:
+        description: "Rebuild the full configured subdomain routing state for the explicit domain pool"
+        required: false
+        default: false
+        type: boolean
       run_health_check:
         description: "Run post-deploy health check and version readback"
         required: false
@@ -279,33 +284,66 @@ jobs:
           $isDryRun = $isWorkflowDispatch -and ('${{ inputs.dry_run }}' -eq 'true')
           $skipRoutingSync = $isWorkflowDispatch -and ('${{ inputs.no_routing_sync }}' -eq 'true')
           $bootstrapMissingResources = $isWorkflowDispatch -and ('${{ inputs.bootstrap_missing_resources }}' -eq 'true')
+          $forceRoutingStateSync = $isWorkflowDispatch -and ('${{ inputs.force_routing_state_sync }}' -eq 'true')
 
           if ($isDryRun) {
             if ($skipRoutingSync) {
               if ($bootstrapMissingResources) {
-                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall -NoRoutingSync -DryRun
+                if ($forceRoutingStateSync) {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -ForceRoutingStateSync -NoInstall -NoRoutingSync -DryRun
+                } else {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall -NoRoutingSync -DryRun
+                }
               } else {
-                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -NoRoutingSync -DryRun
+                if ($forceRoutingStateSync) {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -ForceRoutingStateSync -NoInstall -NoRoutingSync -DryRun
+                } else {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -NoRoutingSync -DryRun
+                }
               }
             } else {
               if ($bootstrapMissingResources) {
-                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall -DryRun
+                if ($forceRoutingStateSync) {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -ForceRoutingStateSync -NoInstall -DryRun
+                } else {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall -DryRun
+                }
               } else {
-                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -DryRun
+                if ($forceRoutingStateSync) {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -ForceRoutingStateSync -NoInstall -DryRun
+                } else {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -DryRun
+                }
               }
             }
           } else {
             if ($skipRoutingSync) {
               if ($bootstrapMissingResources) {
-                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall -NoRoutingSync
+                if ($forceRoutingStateSync) {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -ForceRoutingStateSync -NoInstall -NoRoutingSync
+                } else {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall -NoRoutingSync
+                }
               } else {
-                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -NoRoutingSync
+                if ($forceRoutingStateSync) {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -ForceRoutingStateSync -NoInstall -NoRoutingSync
+                } else {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -NoRoutingSync
+                }
               }
             } else {
               if ($bootstrapMissingResources) {
-                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall
+                if ($forceRoutingStateSync) {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -ForceRoutingStateSync -NoInstall
+                } else {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall
+                }
               } else {
-                & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall
+                if ($forceRoutingStateSync) {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -ForceRoutingStateSync -NoInstall
+                } else {
+                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall
+                }
               }
             }
           }

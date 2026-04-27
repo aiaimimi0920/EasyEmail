@@ -3,6 +3,7 @@ param(
     [ValidateSet('exact', 'wildcard')]
     [string]$SyncMode = 'exact',
     [switch]$BootstrapMissingResources,
+    [switch]$ForceRoutingStateSync,
     [switch]$NoInstall,
     [switch]$NoRoutingSync,
     [switch]$DryRun
@@ -403,6 +404,7 @@ $buildFrontend = [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'buil
 $deployWorker = [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'deployWorker' -Default $true)
 $syncRouting = -not $NoRoutingSync -and [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'syncRouting' -Default $false)
 $workerEnv = [string](Get-EasyEmailConfigValue -Object $cloudflare -Name 'workerEnv' -Default 'production')
+$routingStateSyncPolicy = [string](Get-EasyEmailConfigValue -Object $routing -Name 'stateSyncPolicy' -Default 'bootstrap-or-forced')
 $effectiveSyncMode = if ($PSBoundParameters.ContainsKey('SyncMode')) {
     $SyncMode
 } else {
@@ -491,7 +493,20 @@ if ($syncRouting) {
                 } | Out-Null
             }
 
-            if ($globalAuthFile) {
+            $shouldRunRoutingStateSync = $false
+            switch ($routingStateSyncPolicy) {
+                'always' {
+                    $shouldRunRoutingStateSync = $true
+                }
+                'never' {
+                    $shouldRunRoutingStateSync = $false
+                }
+                default {
+                    $shouldRunRoutingStateSync = $bootstrapEnabled -or $ForceRoutingStateSync
+                }
+            }
+
+            if ($globalAuthFile -and $shouldRunRoutingStateSync) {
                 Assert-PythonModule -ModuleName 'requests'
                 Write-Host "Syncing cloudflare email routing state..." -ForegroundColor Cyan
                 Invoke-Tool -Executable 'python' -Arguments @(
@@ -500,6 +515,8 @@ if ($syncRouting) {
                     '--secret-file', $globalAuthFile,
                     '--worker-name', [string](Get-EasyEmailConfigValue -Object $cloudflare -Name 'workerName' -Default 'cloudflare_temp_email')
                 ) -WorkingDirectory $projectRoot
+            } elseif ($globalAuthFile) {
+                Write-Host 'Skipping cloudflare email routing state sync for this update run.' -ForegroundColor Yellow
             }
 
             if ($controlCenterTokenFile) {

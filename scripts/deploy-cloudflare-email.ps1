@@ -3,6 +3,7 @@ param(
     [ValidateSet('exact', 'wildcard')]
     [string]$SyncMode = 'exact',
     [switch]$BootstrapMissingResources,
+    [switch]$ForceRoutingStateSync,
     [switch]$NoInstall,
     [switch]$NoRoutingSync,
     [switch]$DryRun
@@ -33,6 +34,7 @@ if (-not (Test-Path -LiteralPath $quickDeploy)) {
     -ConfigPath $resolvedConfigPath `
     -SyncMode $SyncMode `
     -BootstrapMissingResources:([bool]$BootstrapMissingResources) `
+    -ForceRoutingStateSync:([bool]$ForceRoutingStateSync) `
     -NoInstall:([bool]$NoInstall) `
     -NoRoutingSync:([bool]$NoRoutingSync) `
     -DryRun:([bool]$DryRun)

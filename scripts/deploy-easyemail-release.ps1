@@ -3,6 +3,7 @@ param(
     [ValidateSet('exact', 'wildcard')]
     [string]$SyncMode = 'exact',
     [switch]$BootstrapMissingResources,
+    [switch]$ForceRoutingStateSync,
     [switch]$NoInstall,
     [switch]$NoRoutingSync,
     [switch]$DryRun,
@@ -193,6 +194,9 @@ if (-not $SkipCloudflareMail) {
     }
     if ($BootstrapMissingResources) {
         $cloudflareArgs += '-BootstrapMissingResources'
+    }
+    if ($ForceRoutingStateSync) {
+        $cloudflareArgs += '-ForceRoutingStateSync'
     }
     if ($NoRoutingSync) {
         $cloudflareArgs += '-NoRoutingSync'
