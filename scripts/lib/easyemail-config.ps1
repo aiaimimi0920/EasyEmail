@@ -229,6 +229,31 @@ function Get-EasyEmailReleaseScopeSummary {
     }
 }
 
+function Assert-EasyEmailPythonModule {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ModuleName,
+        [string]$PackageName = ''
+    )
+
+    $effectivePackageName = if ([string]::IsNullOrWhiteSpace($PackageName)) {
+        $ModuleName
+    } else {
+        $PackageName
+    }
+
+    & python -c "import $ModuleName"
+    if ($LASTEXITCODE -eq 0) {
+        return
+    }
+
+    Write-Host "Installing missing Python module: $effectivePackageName" -ForegroundColor Cyan
+    & python -m pip install --disable-pip-version-check $effectivePackageName
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to install required Python module: $effectivePackageName"
+    }
+}
+
 function Read-EasyEmailConfig {
     param(
         [string]$ConfigPath = (Join-Path $script:EasyEmailRepoRoot 'config.yaml')
@@ -238,6 +263,8 @@ function Read-EasyEmailConfig {
     if (-not (Test-Path -LiteralPath $resolvedConfigPath)) {
         throw "Config file not found: $resolvedConfigPath. Copy config.example.yaml to config.yaml first."
     }
+
+    Assert-EasyEmailPythonModule -ModuleName 'yaml' -PackageName 'pyyaml'
 
     $python = @'
 import json
