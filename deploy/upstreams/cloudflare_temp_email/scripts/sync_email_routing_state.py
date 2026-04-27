@@ -170,6 +170,30 @@ def get_dns_records(zone_id: str, auth: GlobalCloudflareAuth, *, name: str | Non
     return records
 
 
+def get_dns_record_ids_for_names(
+    zone_id: str,
+    auth: GlobalCloudflareAuth,
+    names: list[str],
+    *,
+    max_workers: int,
+) -> list[str]:
+    unique_names = list(dict.fromkeys(name for name in names if name))
+    if not unique_names:
+        return []
+
+    record_ids: list[str] = []
+
+    def fetch_name(target_name: str) -> list[str]:
+        return [record["id"] for record in get_dns_records(zone_id, auth, name=target_name)]
+
+    with ThreadPoolExecutor(max_workers=max(1, min(max_workers, len(unique_names)))) as executor:
+        future_map = {executor.submit(fetch_name, target_name): target_name for target_name in unique_names}
+        for future in as_completed(future_map):
+            record_ids.extend(future.result())
+
+    return record_ids
+
+
 def batch_delete_dns_records(zone_id: str, auth: GlobalCloudflareAuth, record_ids: list[str]) -> int:
     if not record_ids:
         return 0
@@ -295,7 +319,8 @@ def main() -> None:
     parser.add_argument("--record-safety-margin", type=int, default=20)
     parser.add_argument("--max-create-batch-size", type=int, default=20)
     parser.add_argument("--max-workers", type=int, default=6)
-    parser.add_argument("--sleep-seconds", type=float, default=0.15)
+    parser.add_argument("--dns-record-query-workers", type=int, default=8)
+    parser.add_argument("--sleep-seconds", type=float, default=0.05)
     args = parser.parse_args()
 
     release_pool_exact_records = args.release_pool_exact_records and not args.keep_pool_exact_records
@@ -390,9 +415,12 @@ def main() -> None:
                     time.sleep(args.sleep_seconds)
 
             if release_pool_exact_records and batch:
-                refreshed_records = get_dns_records(zone["id"], auth)
-                batch_names = set(batch)
-                delete_ids = [record["id"] for record in refreshed_records if record["name"] in batch_names]
+                delete_ids = get_dns_record_ids_for_names(
+                    zone["id"],
+                    auth,
+                    batch,
+                    max_workers=args.dns_record_query_workers,
+                )
                 local["exact_records_deleted"] += batch_delete_dns_records(zone["id"], auth, delete_ids)
                 time.sleep(args.sleep_seconds)
 
