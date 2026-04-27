@@ -24,6 +24,7 @@ deploy/service/base/config.yaml
 deploy/service/base/config/config.yaml
 deploy/service/base/config/runtime.env
 deploy/service/base/data/state/
+deploy/service/base/instances/
 runtimes/userscript/easy_email_proxy.local.user.js
 runtimes/userscript/easy_email_proxy.secrets.local.json
 **/easy-email-state.json

@@ -75,3 +75,28 @@ It supports:
 - automatic publish on tag push
 - manual publish through `workflow_dispatch`
 - pre-push smoke validation for the `service/base` container
+
+## Start A Non-Conflicting GHCR Instance
+
+To pull a published GHCR image and start it locally without reusing the default
+container name, port, or state directory, use the root deployment script with
+an instance name:
+
+```powershell
+pwsh .\scripts\deploy-service-base.ps1 `
+  -ConfigPath .\config.yaml `
+  -NoBuild `
+  -Pull `
+  -Image ghcr.io/<owner>/easy-email-service:<tag> `
+  -InstanceName ghcr-smoke `
+  -HostPort 18082
+```
+
+Then validate that isolated instance with:
+
+```powershell
+pwsh .\scripts\test-service-base-instance.ps1 `
+  -ConfigPath .\config.yaml `
+  -BaseUrl http://127.0.0.1:18082 `
+  -RequestRandomSubdomain
+```

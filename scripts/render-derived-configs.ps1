@@ -22,6 +22,8 @@ if (-not (Test-Path -LiteralPath $renderer)) {
     throw "Missing renderer script: $renderer"
 }
 
+Assert-EasyEmailPythonModule -ModuleName 'yaml' -PackageName 'pyyaml'
+
 $resolvedConfigPath = Resolve-EasyEmailPath -Path $ConfigPath
 $args = @($renderer, '--root-config', $resolvedConfigPath)
 if ($ServiceBase) {

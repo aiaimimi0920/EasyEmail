@@ -4,24 +4,25 @@ services:
       context: ../..
       dockerfile: deploy/service/base/Dockerfile
     image: ${EASY_EMAIL_SERVICE_IMAGE:-easyemail/easy-email-service:local}
-    container_name: easyemail-service-base
+    container_name: ${EASY_EMAIL_SERVICE_CONTAINER_NAME:-easyemail-service-base}
     restart: unless-stopped
     cpus: 0.75
     mem_limit: 384m
     ports:
-      - "18081:8080"
+      - "${EASY_EMAIL_SERVICE_HOST_PORT:-18081}:8080"
     env_file:
-      - ./config/runtime.env
+      - ${EASY_EMAIL_SERVICE_ENV_FILE:-./config/runtime.env}
     environment:
       EASY_EMAIL_CONFIG_PATH: /etc/easy-email/config.yaml
       EASY_EMAIL_STATE_DIR: /var/lib/easy-email
       EASY_EMAIL_RESET_STORE_ON_BOOT: "${EASY_EMAIL_RESET_STORE_ON_BOOT:-false}"
     volumes:
-      - ./config:/etc/easy-email
-      - ./data:/var/lib/easy-email
+      - ${EASY_EMAIL_SERVICE_CONFIG_DIR:-./config}:/etc/easy-email
+      - ${EASY_EMAIL_SERVICE_DATA_DIR:-./data}:/var/lib/easy-email
     networks:
-      - Easy
+      - easyemail_service_network
 
 networks:
-  Easy:
+  easyemail_service_network:
+    name: ${EASY_EMAIL_SERVICE_NETWORK:-Easy}
     external: true
