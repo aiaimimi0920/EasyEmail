@@ -209,6 +209,11 @@ $previousGranularSecrets = @{
     EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT = $env:EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT
     EASYEMAIL_PROVIDER_MAIL2925_PASSWORD = $env:EASYEMAIL_PROVIDER_MAIL2925_PASSWORD
     EASYEMAIL_PROVIDER_GPTMAIL_API_KEY = $env:EASYEMAIL_PROVIDER_GPTMAIL_API_KEY
+    EASYEMAIL_USERSCRIPT_CLOUDFLARE_CUSTOM_AUTH = $env:EASYEMAIL_USERSCRIPT_CLOUDFLARE_CUSTOM_AUTH
+    EASYEMAIL_USERSCRIPT_CLOUDFLARE_ADMIN_AUTH = $env:EASYEMAIL_USERSCRIPT_CLOUDFLARE_ADMIN_AUTH
+    EASYEMAIL_USERSCRIPT_MOEMAIL_API_KEY = $env:EASYEMAIL_USERSCRIPT_MOEMAIL_API_KEY
+    EASYEMAIL_USERSCRIPT_GPTMAIL_API_KEY = $env:EASYEMAIL_USERSCRIPT_GPTMAIL_API_KEY
+    EASYEMAIL_USERSCRIPT_IM215_API_KEY = $env:EASYEMAIL_USERSCRIPT_IM215_API_KEY
 }
 try {
     $env:EASYEMAIL_CF_PUBLIC_BASE_URL = 'https://mail.example.com'
@@ -249,6 +254,11 @@ example.com
     $env:EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT = 'demo@example.com'
     $env:EASYEMAIL_PROVIDER_MAIL2925_PASSWORD = 'demo-password'
     $env:EASYEMAIL_PROVIDER_GPTMAIL_API_KEY = 'gptmail-key'
+    $env:EASYEMAIL_USERSCRIPT_CLOUDFLARE_CUSTOM_AUTH = 'userscript-cf-auth'
+    $env:EASYEMAIL_USERSCRIPT_CLOUDFLARE_ADMIN_AUTH = 'userscript-cf-admin'
+    $env:EASYEMAIL_USERSCRIPT_MOEMAIL_API_KEY = 'userscript-moemail'
+    $env:EASYEMAIL_USERSCRIPT_GPTMAIL_API_KEY = 'userscript-gptmail'
+    $env:EASYEMAIL_USERSCRIPT_IM215_API_KEY = 'userscript-im215'
 
     & python (Join-Path $repoRoot 'scripts/materialize-action-config.py') `
         --base-config (Join-Path $repoRoot 'config.example.yaml') `
@@ -333,7 +343,7 @@ example.com
     }
 
     & python (Join-Path $repoRoot 'scripts/render-userscript-remote-config.py') `
-        --config (Join-Path $repoRoot 'config.example.yaml') `
+        --config $materializedConfigPath `
         --output $sampleUserscriptRemoteConfigPath
     if ($LASTEXITCODE -ne 0) {
         throw "Userscript remote config renderer smoke check failed with exit code $LASTEXITCODE"
@@ -341,6 +351,11 @@ example.com
 
     if (-not (Test-Path -LiteralPath $sampleUserscriptRemoteConfigPath)) {
         throw 'Userscript remote config renderer did not produce an output file.'
+    }
+
+    $renderedUserscriptRemoteConfig = Get-Content -LiteralPath $sampleUserscriptRemoteConfigPath -Raw
+    if ($renderedUserscriptRemoteConfig -notmatch 'userscript-cf-auth') {
+        throw 'Userscript remote config renderer smoke check did not include the materialized userscript secrets.'
     }
 } finally {
     foreach ($secretName in $previousGranularSecrets.Keys) {

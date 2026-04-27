@@ -321,6 +321,34 @@ def build_granular_service_overlay(base_config: dict[str, Any]) -> dict[str, Any
     return overlay if runtime else None
 
 
+def build_granular_userscript_overlay(base_config: dict[str, Any]) -> dict[str, Any] | None:
+    del base_config  # currently unused but kept for a parallel builder signature
+    names = [
+        "EASYEMAIL_USERSCRIPT_CLOUDFLARE_CUSTOM_AUTH",
+        "EASYEMAIL_USERSCRIPT_CLOUDFLARE_ADMIN_AUTH",
+        "EASYEMAIL_USERSCRIPT_MOEMAIL_API_KEY",
+        "EASYEMAIL_USERSCRIPT_GPTMAIL_API_KEY",
+        "EASYEMAIL_USERSCRIPT_IM215_API_KEY",
+    ]
+    if not any(has_secret_value(name) for name in names):
+        return None
+
+    secrets: dict[str, Any] = {}
+    set_if_present(secrets, "cloudflare_customAuth", get_secret_text("EASYEMAIL_USERSCRIPT_CLOUDFLARE_CUSTOM_AUTH"))
+    set_if_present(secrets, "cloudflare_adminAuth", get_secret_text("EASYEMAIL_USERSCRIPT_CLOUDFLARE_ADMIN_AUTH"))
+    set_if_present(secrets, "moemail_apiKey", get_secret_text("EASYEMAIL_USERSCRIPT_MOEMAIL_API_KEY"))
+    set_if_present(secrets, "gptmail_apiKey", get_secret_text("EASYEMAIL_USERSCRIPT_GPTMAIL_API_KEY"))
+    set_if_present(secrets, "im215_apiKey", get_secret_text("EASYEMAIL_USERSCRIPT_IM215_API_KEY"))
+    if not secrets:
+        return None
+
+    return {
+        "userscript": {
+            "secrets": secrets
+        }
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Materialize a deployable EasyEmail config from GitHub Actions secrets.")
     parser.add_argument("--base-config", required=True, help="Path to the base config YAML to merge onto.")
@@ -332,10 +360,11 @@ def main() -> int:
     base_config = load_yaml_file(base_path)
     cloudflare_overlay = build_granular_cloudflare_overlay(base_config)
     service_overlay = build_granular_service_overlay(base_config)
+    userscript_overlay = build_granular_userscript_overlay(base_config)
 
-    if not cloudflare_overlay and not service_overlay:
+    if not cloudflare_overlay and not service_overlay and not userscript_overlay:
         raise SystemExit(
-            "Missing GitHub Actions config secrets. Set the EASYEMAIL_CF_* and/or EASYEMAIL_SERVICE_* granular secrets."
+            "Missing GitHub Actions config secrets. Set the EASYEMAIL_CF_*, EASYEMAIL_SERVICE_*, and/or EASYEMAIL_USERSCRIPT_* granular secrets."
         )
 
     merged_config = base_config
@@ -343,6 +372,8 @@ def main() -> int:
         merged_config = deep_merge(merged_config, cloudflare_overlay)
     if service_overlay:
         merged_config = deep_merge(merged_config, service_overlay)
+    if userscript_overlay:
+        merged_config = deep_merge(merged_config, userscript_overlay)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
