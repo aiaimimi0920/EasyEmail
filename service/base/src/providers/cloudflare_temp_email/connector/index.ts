@@ -6,6 +6,7 @@ import type { MailboxSession } from "../../../domain/models.js";
 import type { MailProviderAdapter, ProviderProbeResult } from "../../contracts.js";
 import {
   CloudflareTempEmailCreateClient,
+  type CloudflareTempEmailSendResult,
   decodeCloudflareTempMailboxRef,
   encodeCloudflareTempMailboxRef,
   probeCloudflareTempEmailInstance,
@@ -111,6 +112,38 @@ export class CloudflareTempEmailConnectorAdapter implements MailProviderAdapter 
       instance.id,
       session.metadata.fromContains,
     );
+  }
+
+  public async sendMailboxMessage(
+    { session, instance, request, now }: Parameters<NonNullable<MailProviderAdapter["sendMailboxMessage"]>>[0],
+  ) {
+    const mailbox = decodeCloudflareTempMailboxRef(session.mailboxRef, instance.id);
+    if (!mailbox) {
+      throw new EasyEmailError(
+        "MAILBOX_SEND_NOT_SUPPORTED",
+        `Cloudflare Temp Email session ${session.id} is missing mailbox credentials.`,
+      );
+    }
+
+    const client = CloudflareTempEmailCreateClient.fromInstance(instance);
+    if (!client) {
+      throw new EasyEmailError(
+        "MAILBOX_SEND_NOT_SUPPORTED",
+        `Cloudflare Temp Email instance ${instance.id} is missing baseUrl/connectionRef and cannot send mail.`,
+      );
+    }
+
+    const sendResult: CloudflareTempEmailSendResult = await client.sendMailboxMessage(mailbox, request);
+    return {
+      sessionId: session.id,
+      providerTypeKey: this.typeKey,
+      providerInstanceId: instance.id,
+      senderEmailAddress: session.emailAddress,
+      recipientEmailAddress: request.toEmailAddress,
+      sentAt: now.toISOString(),
+      deliveryMode: sendResult.deliveryMode,
+      detail: sendResult.detail,
+    };
   }
 
   public async probeInstance(

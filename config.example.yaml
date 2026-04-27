@@ -34,6 +34,7 @@ serviceBase:
       cloudflareTempEmail:
         baseUrl: https://mail.example.com
         apiKey: ""
+        adminAuth: ""
         domain: mail.example.com
         domains:
           - mail.example.com

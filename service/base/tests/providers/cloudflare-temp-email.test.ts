@@ -94,4 +94,66 @@ describe("cloudflare temp email connector", () => {
       randomSubdomainDomainsJson: JSON.stringify(["root.example.com", "team.example.com"]),
     });
   });
+
+  it("falls back to admin delegated sending when mailbox-token sending is blocked by balance", async () => {
+    const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
+      if (input.endsWith("/api/request_send_mail_access")) {
+        return new Response('{"status":"ok"}', { status: 200 });
+      }
+      if (input.endsWith("/api/send_mail")) {
+        return new Response("No balance", { status: 400 });
+      }
+      if (input.endsWith("/admin/send_mail")) {
+        return new Response('{"status":"ok"}', { status: 200 });
+      }
+      throw new Error(`Unexpected request: ${input}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new CloudflareTempEmailCreateClient({
+      baseUrl: "https://temp.example.test",
+      customAuth: "custom-auth",
+      adminAuth: "admin-auth",
+      domains: ["pool.example.com"],
+      randomSubdomainDomains: ["root.example.com"],
+      timeoutSeconds: 30,
+    });
+
+    const result = await client.sendMailboxMessage(
+      {
+        address: "sender@pool.example.com",
+        jwt: "jwt-demo",
+      },
+      {
+        toEmailAddress: "receiver@example.com",
+        subject: "Verification code",
+        textBody: "Your verification code is 112233.",
+        fromName: "Matrix Sender",
+      },
+    );
+
+    expect(result).toEqual({
+      deliveryMode: "admin_delegate",
+      detail: "mailbox_token_fallback_to_admin",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://temp.example.test/api/send_mail",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer jwt-demo",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://temp.example.test/admin/send_mail",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "x-custom-auth": "custom-auth",
+          "x-admin-auth": "admin-auth",
+        }),
+      }),
+    );
+  });
 });

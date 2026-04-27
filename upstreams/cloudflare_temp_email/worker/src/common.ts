@@ -61,7 +61,14 @@ export const isSendMailBindingEnabled = (
     if (sendMailDomains.length === 0) {
         return true;
     }
-    return sendMailDomains.includes(normalizeDomainValue(mailDomain));
+    const normalizedMailDomain = normalizeDomainValue(mailDomain);
+    if (sendMailDomains.includes(normalizedMailDomain)) {
+        return true;
+    }
+    return sendMailDomains.some((configuredDomain) => {
+        return normalizedMailDomain.length > configuredDomain.length
+            && normalizedMailDomain.endsWith(`.${configuredDomain}`);
+    });
 }
 
 /**
@@ -206,6 +213,35 @@ const findMatchedAllowedDomain = (
             });
         });
     return matchedDomain || null;
+}
+
+export const resolveManagedSenderDomain = async (
+    c: Context<HonoCustomType>,
+    mailDomain: string | undefined | null,
+): Promise<string | null> => {
+    const normalizedDomain = typeof mailDomain === "string"
+        ? normalizeDomainValue(mailDomain)
+        : "";
+    if (!normalizedDomain) {
+        return null;
+    }
+
+    const configuredDomains = getDomains(c);
+    if (configuredDomains.includes(normalizedDomain)) {
+        return normalizedDomain;
+    }
+
+    const randomSubdomainMatch = findMatchedAllowedDomain(
+        normalizedDomain,
+        getRandomSubdomainDomains(c),
+        true,
+    );
+    if (randomSubdomainMatch) {
+        return randomSubdomainMatch;
+    }
+
+    const { effectiveEnabled: enableSubdomainMatch } = await getAddressCreationSubdomainMatchStatus(c);
+    return findMatchedAllowedDomain(normalizedDomain, configuredDomains, enableSubdomainMatch);
 }
 
 const checkNameRegex = (c: Context<HonoCustomType>, name: string) => {

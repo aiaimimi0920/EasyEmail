@@ -39,6 +39,8 @@ import { MailboxBindingService, MailboxDispatcher } from "../dispatch/index.js";
 import type {
   ActionLinkCandidate,
   AuthenticationLinkResult,
+  MailboxSendRequest,
+  MailboxSendResult,
   HostBinding,
   MailAliasOutcome,
   MailAliasPlan,
@@ -401,6 +403,9 @@ export class EasyEmailService {
         ...(request.customAuth !== undefined
           ? { customAuth: request.customAuth.trim() }
           : (existing?.metadata.customAuth ? { customAuth: existing.metadata.customAuth } : {})),
+        ...(request.adminAuth !== undefined
+          ? { adminAuth: request.adminAuth.trim() }
+          : (existing?.metadata.adminAuth ? { adminAuth: existing.metadata.adminAuth } : {})),
         ...(request.domains && request.domains.length > 0
           ? {
               domains: request.domains
@@ -913,6 +918,51 @@ export class EasyEmailService {
       adapterMap: this.adapterMap,
     });
     this.syncOperationalState();
+    return result;
+  }
+
+  public async sendMailboxMessage(
+    request: MailboxSendRequest,
+    now: Date = new Date(),
+  ): Promise<MailboxSendResult> {
+    this.syncOperationalState(now);
+    const session = this.registry.findSessionById(request.sessionId);
+    if (!session) {
+      throw new EasyEmailError("MAILBOX_SESSION_NOT_FOUND", `Unknown mailbox session: ${request.sessionId}.`);
+    }
+
+    const instance = this.registry.findInstanceById(session.providerInstanceId);
+    if (!instance) {
+      throw new EasyEmailError(
+        "PROVIDER_INSTANCE_NOT_FOUND",
+        `Unknown provider instance for mailbox session ${request.sessionId}: ${session.providerInstanceId}.`,
+      );
+    }
+
+    const adapter = this.adapterMap.get(session.providerTypeKey);
+    if (!adapter?.sendMailboxMessage) {
+      throw new EasyEmailError(
+        "MAILBOX_SEND_NOT_SUPPORTED",
+        `Provider ${session.providerTypeKey} does not support mailbox sending.`,
+      );
+    }
+
+    const credentialSets = this.registry.resolveCredentialSetsForInstance(instance.id, "generate");
+    const result = await adapter.sendMailboxMessage({
+      session,
+      instance,
+      credentialSets,
+      now,
+      request: {
+        toEmailAddress: request.toEmailAddress,
+        toName: request.toName,
+        subject: request.subject,
+        textBody: request.textBody,
+        htmlBody: request.htmlBody,
+        fromName: request.fromName,
+      },
+    });
+    this.syncOperationalState(now);
     return result;
   }
 

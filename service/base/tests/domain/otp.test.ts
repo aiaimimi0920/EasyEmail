@@ -63,6 +63,17 @@ describe("extractOtpFromContent", () => {
     });
   });
 
+  it("accepts pure uppercase character verification codes with strong context", () => {
+    const extracted = extractOtpFromContent({
+      textBody: "Your verification code is QWERTY. Enter it to continue.",
+    });
+
+    expect(extracted).toEqual({
+      code: "QWERTY",
+      source: "text",
+    });
+  });
+
   it("accepts grouped longer tokens with strong context", () => {
     const extracted = extractOtpFromContent({
       textBody: "Use confirmation code ZX-41Q8-PLM7 to finish linking this device.",
@@ -82,6 +93,18 @@ describe("extractOtpFromContent", () => {
     expect(extracted).toBeDefined();
     expect(extracted).toMatchObject({
       code: "654321",
+      source: "text",
+    });
+  });
+
+  it("extracts numeric OTP cores when html strips whitespace between the code and nearby words", () => {
+    const extracted = extractOtpFromContent({
+      htmlBody: "<div>Your one-time verification code is <strong>445566Use</strong> this to continue.</div>",
+      textBody: "Your one-time verification code is 445566Use this to continue.",
+    });
+
+    expect(extracted).toMatchObject({
+      code: "445566",
       source: "text",
     });
   });

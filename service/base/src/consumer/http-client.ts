@@ -5,11 +5,14 @@ import {
   type PlanMailboxHttpResponse,
   type ReadAuthenticationLinkHttpResponse,
   type ReadVerificationCodeHttpResponse,
+  type SendMailboxMessageHttpResponse,
   type ReportMailboxOutcomeHttpResponse,
 } from "../http/contracts.js";
 import type {
   AuthenticationLinkResult,
   EasyEmailCatalog,
+  MailboxSendRequest,
+  MailboxSendResult,
   MailboxOutcomeReport,
   MailboxOutcomeReportResult,
   VerificationCodeResult,
@@ -32,6 +35,7 @@ export interface VerificationInboxClient {
   getCatalog(): Promise<EasyEmailCatalog>;
   planMailbox(request: VerificationMailboxRequest): Promise<PlanMailboxHttpResponse["plan"]>;
   openMailbox(request: VerificationMailboxRequest): Promise<VerificationMailboxOpenResult>;
+  sendMailboxMessage(request: MailboxSendRequest): Promise<MailboxSendResult>;
   readVerificationCode(sessionId: string): Promise<VerificationCodeResult | undefined>;
   readAuthenticationLink(sessionId: string): Promise<AuthenticationLinkResult | undefined>;
   reportMailboxOutcome(report: MailboxOutcomeReport): Promise<MailboxOutcomeReportResult>;
@@ -152,6 +156,14 @@ export class HttpVerificationInboxClient implements VerificationInboxClient {
   public async openMailbox(request: VerificationMailboxRequest): Promise<VerificationMailboxOpenResult> {
     const response = await this.httpClient.post<VerificationMailboxRequest, OpenMailboxHttpResponse>(
       EASY_EMAIL_HTTP_ROUTES.openMailbox,
+      request,
+    );
+    return response.result;
+  }
+
+  public async sendMailboxMessage(request: MailboxSendRequest): Promise<MailboxSendResult> {
+    const response = await this.httpClient.post<MailboxSendRequest, SendMailboxMessageHttpResponse>(
+      EASY_EMAIL_HTTP_ROUTES.sendMailboxMessage,
       request,
     );
     return response.result;

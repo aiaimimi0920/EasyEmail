@@ -6,9 +6,9 @@ import { WorkerMailer, WorkerMailerOptions } from 'worker-mailer';
 
 import i18n from '../i18n';
 import { CONSTANTS } from '../constants'
-import { getJsonSetting, getDomains, getBooleanValue, getJsonObjectValue } from '../utils';
+import { getJsonSetting, getBooleanValue, getJsonObjectValue } from '../utils';
 import { GeoData } from '../models'
-import { handleListQuery, isSendMailBindingEnabled, updateAddressUpdatedAt } from '../common'
+import { handleListQuery, isSendMailBindingEnabled, resolveManagedSenderDomain, updateAddressUpdatedAt } from '../common'
 import { getSendBalanceState, requestSendMailAccess } from './send_balance';
 import { ensureSendMailLimit, increaseSendMailLimitCount } from './send_mail_limit_utils';
 
@@ -146,8 +146,8 @@ export const sendMail = async (
     }
     // check domain
     const mailDomain = address.split("@")[1];
-    const domains = getDomains(c);
-    if (!domains.includes(mailDomain)) {
+    const managedSenderDomain = await resolveManagedSenderDomain(c, mailDomain);
+    if (!managedSenderDomain) {
         throw new Error(msgs.InvalidDomainMsg)
     }
     const sendBalanceState = await getSendBalanceState(c, address, {
@@ -179,12 +179,14 @@ export const sendMail = async (
     await ensureSendMailLimit(c);
 
     // send to verified address list, do not update balance
-    const resendEnabled = c.env.RESEND_TOKEN || c.env[
-        `RESEND_TOKEN_${mailDomain.replace(/\./g, "_").toUpperCase()}`
-    ];
+    const resendEnabled = c.env.RESEND_TOKEN
+        || c.env[`RESEND_TOKEN_${mailDomain.replace(/\./g, "_").toUpperCase()}`]
+        || c.env[`RESEND_TOKEN_${managedSenderDomain.replace(/\./g, "_").toUpperCase()}`];
     // send by smtp
     const smtpConfigMap = getJsonObjectValue<Record<string, WorkerMailerOptions>>(c.env.SMTP_CONFIG);
-    const smtpConfig = smtpConfigMap ? smtpConfigMap[mailDomain] : null;
+    const smtpConfig = smtpConfigMap
+        ? (smtpConfigMap[mailDomain] || smtpConfigMap[managedSenderDomain])
+        : null;
     // send by verified address list
     let sendByVerifiedAddressList = false;
     if (c.env.SEND_MAIL) {
@@ -194,7 +196,8 @@ export const sendMail = async (
             sendByVerifiedAddressList = true;
         }
     }
-    const sendMailBindingEnabled = isSendMailBindingEnabled(c, mailDomain);
+    const sendMailBindingEnabled = isSendMailBindingEnabled(c, mailDomain)
+        || (managedSenderDomain !== mailDomain && isSendMailBindingEnabled(c, managedSenderDomain));
 
     // send mail workflow
     if (sendByVerifiedAddressList) {

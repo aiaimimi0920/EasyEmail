@@ -809,6 +809,7 @@ function buildCloudflareTempEmailRegistrationRequest(
     displayName: config.cloudflareTempEmail.displayName,
     baseUrl,
     customAuth: config.cloudflareTempEmail.apiKey,
+    adminAuth: config.cloudflareTempEmail.adminAuth,
     domain: config.cloudflareTempEmail.domain?.trim() || config.cloudflareTempEmail.domains?.[0]?.trim() || inferredDomain,
     domains: config.cloudflareTempEmail.domains,
     randomSubdomainDomains: config.cloudflareTempEmail.randomSubdomainDomains,

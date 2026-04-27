@@ -252,6 +252,7 @@ def build_granular_service_overlay(base_config: dict[str, Any]) -> dict[str, Any
     names = [
         "EASYEMAIL_SERVICE_RUNTIME_API_KEY",
         "EASYEMAIL_PROVIDER_CLOUDFLARE_API_KEY",
+        "EASYEMAIL_PROVIDER_CLOUDFLARE_ADMIN_AUTH",
         "EASYEMAIL_PROVIDER_MOEMAIL_API_KEY",
         "EASYEMAIL_PROVIDER_MOEMAIL_WEB_SESSION_TOKEN",
         "EASYEMAIL_PROVIDER_MOEMAIL_WEB_CSRF_TOKEN",
@@ -276,6 +277,10 @@ def build_granular_service_overlay(base_config: dict[str, Any]) -> dict[str, Any
     cloudflare_temp_email: dict[str, Any] = {}
     cloudflare_public_base_url = get_secret_text("EASYEMAIL_CF_PUBLIC_BASE_URL")
     cloudflare_public_domain = get_secret_text("EASYEMAIL_CF_PUBLIC_DOMAIN")
+    cloudflare_admin_auth = (
+        get_secret_text("EASYEMAIL_PROVIDER_CLOUDFLARE_ADMIN_AUTH")
+        or get_secret_text("EASYEMAIL_USERSCRIPT_CLOUDFLARE_ADMIN_AUTH")
+    )
     cloudflare_domains = (
         parse_list_secret("EASYEMAIL_CF_DEFAULT_DOMAINS")
         or parse_list_secret("EASYEMAIL_CF_DOMAINS")
@@ -286,6 +291,7 @@ def build_granular_service_overlay(base_config: dict[str, Any]) -> dict[str, Any
     )
     set_if_present(cloudflare_temp_email, "baseUrl", cloudflare_public_base_url)
     set_if_present(cloudflare_temp_email, "apiKey", get_secret_text("EASYEMAIL_PROVIDER_CLOUDFLARE_API_KEY"))
+    set_if_present(cloudflare_temp_email, "adminAuth", cloudflare_admin_auth)
     set_if_present(cloudflare_temp_email, "domain", cloudflare_public_domain)
     set_if_present(cloudflare_temp_email, "domains", cloudflare_domains)
     set_if_present(cloudflare_temp_email, "randomSubdomainDomains", cloudflare_random_domains)

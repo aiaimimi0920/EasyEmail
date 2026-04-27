@@ -36,6 +36,10 @@ export async function handlePublicRoute(context: PublicRouteContext): Promise<un
     return handler.openMailbox(await readJsonBody());
   }
 
+  if (method === "POST" && path === EASY_EMAIL_HTTP_ROUTES.sendMailboxMessage) {
+    return handler.sendMailboxMessage(await readJsonBody());
+  }
+
   if (method === "POST" && path === EASY_EMAIL_HTTP_ROUTES.releaseMailbox) {
     return handler.releaseMailbox(await readJsonBody());
   }

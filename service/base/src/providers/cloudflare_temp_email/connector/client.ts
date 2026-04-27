@@ -17,6 +17,7 @@ import type { ObservedMessage, ProviderInstance } from "../../../domain/models.j
 export interface CloudflareTempEmailConfig {
   baseUrl: string;
   customAuth?: string;
+  adminAuth?: string;
   domain?: string;
   domains: string[];
   randomSubdomainDomains: string[];
@@ -26,6 +27,11 @@ export interface CloudflareTempEmailConfig {
 export interface CloudflareTempMailboxCredentials {
   address: string;
   jwt: string;
+}
+
+export interface CloudflareTempEmailSendResult {
+  deliveryMode: "mailbox_token" | "admin_delegate";
+  detail?: string;
 }
 
 interface MailCreateAddressResponse {
@@ -313,6 +319,7 @@ export function resolveCloudflareTempEmailConfig(instance: ProviderInstance): Cl
   return {
     baseUrl,
     customAuth: readMetadata(instance, "customAuth"),
+    adminAuth: readMetadata(instance, "adminAuth"),
     domain: readMetadata(instance, "domain"),
     domains: parseDomainList(instance),
     randomSubdomainDomains: parseRandomSubdomainDomainList(instance),
@@ -425,6 +432,148 @@ export class CloudflareTempEmailCreateClient {
     }
 
     return asRecord(response.body);
+  }
+
+  public async requestSendMailAccess(jwt: string): Promise<void> {
+    const response = await requestJson(this.config, "POST", "/api/request_send_mail_access", {
+      bearerToken: jwt,
+      jsonBody: {},
+    });
+    if (response.status !== 200) {
+      const detail = extractErrorDetail(response.body, response.rawText);
+      throw new Error(`Cloudflare Temp Email requestSendMailAccess failed with status ${response.status}${detail ? `: ${detail}` : "."}`);
+    }
+  }
+
+  private async sendMailWithMailboxToken(
+    mailbox: CloudflareTempMailboxCredentials,
+    request: {
+      toEmailAddress: string;
+      toName?: string;
+      subject: string;
+      textBody?: string;
+      htmlBody?: string;
+      fromName?: string;
+    },
+  ): Promise<void> {
+    const response = await requestJson(this.config, "POST", "/api/send_mail", {
+      bearerToken: mailbox.jwt,
+      jsonBody: {
+        from_name: request.fromName?.trim() || "",
+        to_mail: request.toEmailAddress,
+        to_name: request.toName?.trim() || "",
+        subject: request.subject,
+        content: request.htmlBody?.trim() ? request.htmlBody : (request.textBody ?? ""),
+        is_html: Boolean(request.htmlBody?.trim()),
+      },
+    });
+    if (response.status !== 200) {
+      const detail = extractErrorDetail(response.body, response.rawText);
+      throw new Error(`Cloudflare Temp Email sendMail failed with status ${response.status}${detail ? `: ${detail}` : "."}`);
+    }
+  }
+
+  private async sendMailWithAdminDelegate(
+    mailbox: CloudflareTempMailboxCredentials,
+    request: {
+      toEmailAddress: string;
+      toName?: string;
+      subject: string;
+      textBody?: string;
+      htmlBody?: string;
+      fromName?: string;
+    },
+  ): Promise<void> {
+    if (!this.config.adminAuth?.trim()) {
+      throw new Error("Cloudflare Temp Email adminAuth is not configured.");
+    }
+
+    const controller = new AbortController();
+    const timeoutMs = Math.max(1000, this.config.timeoutSeconds * 1000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await (fetch as unknown as (
+        input: string,
+        init?: Record<string, unknown>,
+      ) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>)(
+        `${this.config.baseUrl.replace(/\/$/, "")}/admin/send_mail`,
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json, text/plain, */*",
+            "Content-Type": "application/json",
+            ...(this.config.customAuth ? { "x-custom-auth": this.config.customAuth } : {}),
+            "x-admin-auth": this.config.adminAuth,
+          },
+          body: JSON.stringify({
+            from_name: request.fromName?.trim() || "",
+            from_mail: mailbox.address,
+            to_mail: request.toEmailAddress,
+            to_name: request.toName?.trim() || "",
+            subject: request.subject,
+            content: request.htmlBody?.trim() ? request.htmlBody : (request.textBody ?? ""),
+            is_html: Boolean(request.htmlBody?.trim()),
+          }),
+          signal: controller.signal,
+        },
+      );
+      const text = await response.text();
+      if (response.status !== 200) {
+        throw new Error(`Cloudflare Temp Email admin sendMail failed with status ${response.status}${text?.trim() ? `: ${text.trim()}` : "."}`);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error(`Cloudflare Temp Email admin sendMail timed out after ${this.config.timeoutSeconds}s.`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  public async sendMailboxMessage(
+    mailbox: CloudflareTempMailboxCredentials,
+    request: {
+      toEmailAddress: string;
+      toName?: string;
+      subject: string;
+      textBody?: string;
+      htmlBody?: string;
+      fromName?: string;
+    },
+  ): Promise<CloudflareTempEmailSendResult> {
+    if (!request.toEmailAddress.trim()) {
+      throw new Error("Cloudflare Temp Email sendMailboxMessage requires a recipient email address.");
+    }
+    if (!request.subject.trim()) {
+      throw new Error("Cloudflare Temp Email sendMailboxMessage requires a subject.");
+    }
+    if (!request.textBody?.trim() && !request.htmlBody?.trim()) {
+      throw new Error("Cloudflare Temp Email sendMailboxMessage requires textBody or htmlBody.");
+    }
+
+    try {
+      await this.requestSendMailAccess(mailbox.jwt);
+    } catch {
+      // Best-effort only. Some deployments still rely on admin delegation or manual balance wiring.
+    }
+
+    try {
+      await this.sendMailWithMailboxToken(mailbox, request);
+      return { deliveryMode: "mailbox_token" };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const shouldFallback = /no balance|failed to send mail|status 400|status 401|status 403/i.test(message);
+      if (!shouldFallback || !this.config.adminAuth?.trim()) {
+        throw error;
+      }
+    }
+
+    await this.sendMailWithAdminDelegate(mailbox, request);
+    return {
+      deliveryMode: "admin_delegate",
+      detail: "mailbox_token_fallback_to_admin",
+    };
   }
 
   public async tryReadLatestCode(

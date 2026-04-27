@@ -242,6 +242,27 @@ export interface VerificationCodeResult {
   candidates?: string[];
 }
 
+export interface MailboxSendRequest {
+  sessionId: string;
+  toEmailAddress: string;
+  toName?: string;
+  subject: string;
+  textBody?: string;
+  htmlBody?: string;
+  fromName?: string;
+}
+
+export interface MailboxSendResult {
+  sessionId: string;
+  providerTypeKey: MailProviderTypeKey;
+  providerInstanceId: string;
+  senderEmailAddress: string;
+  recipientEmailAddress: string;
+  sentAt: string;
+  deliveryMode: string;
+  detail?: string;
+}
+
 export interface AuthenticationLinkResult {
   sessionId: string;
   providerInstanceId: string;
@@ -366,6 +387,7 @@ export interface RegisterCloudflareTempEmailRuntimeRequest {
   displayName?: string;
   baseUrl: string;
   customAuth?: string;
+  adminAuth?: string;
   domain?: string;
   domains?: string[];
   randomSubdomainDomains?: string[];

@@ -6,6 +6,8 @@ import type {
   MailPersistenceStats,
   EasyEmailCatalog,
   EasyEmailSnapshot,
+  MailboxSendRequest,
+  MailboxSendResult,
   MailboxOutcomeReport,
   MailboxOutcomeReportResult,
   MailboxPlanResult,
@@ -49,6 +51,7 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   persistenceStats: "/mail/query/stats",
   planMailbox: "/mail/mailboxes/plan",
   openMailbox: "/mail/mailboxes/open",
+  sendMailboxMessage: "/mail/mailboxes/send",
   releaseMailbox: "/mail/mailboxes/release",
   recoverMailboxByEmail: "/mail/mailboxes/recover-by-email",
   recoverMailboxCapacity: "/mail/mailboxes/recover-capacity",
@@ -131,6 +134,11 @@ export interface PlanMailboxHttpResponse {
 export type OpenMailboxHttpRequest = VerificationMailboxRequest;
 export interface OpenMailboxHttpResponse {
   result: VerificationMailboxOpenResult;
+}
+
+export type SendMailboxMessageHttpRequest = MailboxSendRequest;
+export interface SendMailboxMessageHttpResponse {
+  result: MailboxSendResult;
 }
 
 export interface ReleaseMailboxHttpRequest {

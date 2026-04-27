@@ -84,6 +84,7 @@ export interface Mail2925RuntimeConfig extends BasicAuthProviderRuntimeConfig {
 export interface CloudflareTempEmailRuntimeConfig {
   baseUrl?: string;
   apiKey?: string;
+  adminAuth?: string;
   domain?: string;
   domains?: string[];
   randomSubdomainDomains?: string[];
@@ -241,6 +242,7 @@ export interface EasyEmailServiceConfigDocument {
     cloudflare_temp_email?: {
       baseUrl?: unknown;
       apiKey?: unknown;
+      adminAuth?: unknown;
       domain?: unknown;
       domains?: unknown;
       randomSubdomainDomains?: unknown;
@@ -660,6 +662,7 @@ export function parseEasyEmailServiceRuntimeConfig(
     cloudflareTempEmail: {
       baseUrl: asNonEmptyString(cloudflareTempEmail.baseUrl),
       apiKey: asNonEmptyString(cloudflareTempEmail.apiKey),
+      adminAuth: asNonEmptyString(cloudflareTempEmail.adminAuth),
       domain: asNonEmptyString(cloudflareTempEmail.domain),
       domains: parseStringList(cloudflareTempEmail.domains),
       randomSubdomainDomains: parseStringList(cloudflareTempEmail.randomSubdomainDomains),

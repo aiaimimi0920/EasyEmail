@@ -1,4 +1,6 @@
 import type {
+  MailboxSendRequest,
+  MailboxSendResult,
   MailboxSession,
   ObservedMessage,
   ProviderCredentialSet,
@@ -41,6 +43,14 @@ export interface ReleaseMailboxSessionResult {
   detail?: string;
 }
 
+export interface SendMailboxMessageInput {
+  session: MailboxSession;
+  instance: ProviderInstance;
+  credentialSets: ProviderCredentialSet[];
+  now: Date;
+  request: Omit<MailboxSendRequest, "sessionId">;
+}
+
 export type MailboxRecoveryStrategy =
   | "account_restore"
   | "session_restore"
@@ -73,6 +83,7 @@ export interface MailProviderAdapter {
   readonly typeKey: ProviderInstance["providerTypeKey"];
   createMailboxSession(input: CreateMailboxSessionInput): MaybePromise<MailboxSession>;
   syncMailboxCode?(input: SyncMailboxCodeInput): Promise<ObservedMessage | undefined>;
+  sendMailboxMessage?(input: SendMailboxMessageInput): MaybePromise<MailboxSendResult>;
   releaseMailboxSession?(input: ReleaseMailboxSessionInput): MaybePromise<ReleaseMailboxSessionResult | undefined>;
   recoverMailboxSession?(input: RecoverMailboxSessionInput): MaybePromise<RecoverMailboxSessionResult | undefined>;
   probeInstance(input: ProbeProviderInstanceInput): MaybePromise<ProviderProbeResult>;
