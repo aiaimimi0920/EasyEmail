@@ -241,6 +241,18 @@ function extractCandidates(
         source,
         score: scoreCandidate(source, code, context, occurrencesByCode, uniqueCodeCount),
       });
+
+      const fusedNumericMatch = code.trim().match(/^(?:[A-Za-z]{2,})?(\d{4,10})(?:[A-Za-z]{2,})?$/);
+      if (fusedNumericMatch && fusedNumericMatch[1] !== code.trim()) {
+        const numericCore = fusedNumericMatch[1];
+        const numericCanonical = normalizeCandidateCode(numericCore);
+        candidates.push({
+          code: numericCore,
+          canonicalCode: numericCanonical,
+          source,
+          score: scoreCandidate(source, numericCore, context, occurrencesByCode, uniqueCodeCount) + 6,
+        });
+      }
     }
   }
 
