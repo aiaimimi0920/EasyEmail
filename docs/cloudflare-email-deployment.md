@@ -78,6 +78,10 @@ pwsh .\scripts\deploy-cloudflare-email.ps1 -BootstrapMissingResources
 
 For GitHub Actions, use the workflow input `bootstrap_missing_resources=true`.
 
+For the current production-sized domain pool, the hosted workflow should prefer
+`sync_mode=wildcard`. The `exact` mode can exceed Cloudflare DNS record quotas
+when the label pool is large.
+
 ## What The Root Config Needs
 
 The deploy scripts read the root `config.yaml`, specifically:

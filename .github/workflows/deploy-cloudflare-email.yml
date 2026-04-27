@@ -15,7 +15,7 @@ on:
       sync_mode:
         description: "Routing sync mode when routing sync is enabled"
         required: false
-        default: "exact"
+        default: "wildcard"
         type: choice
         options:
           - exact
