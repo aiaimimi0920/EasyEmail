@@ -83,9 +83,11 @@ pwsh .\scripts\deploy-cloudflare-email.ps1 -BootstrapMissingResources
 
 For GitHub Actions, use the workflow input `bootstrap_missing_resources=true`.
 
-For the current production-sized domain pool, the hosted workflow should prefer
-`sync_mode=wildcard`. The `exact` mode can exceed Cloudflare DNS record quotas
-when the label pool is large.
+For the current production-sized domain pool, `wildcard` should be the default
+DNS sync mode. The hosted workflow uses `sync_mode=wildcard` for manual runs,
+and tag-triggered deploys now fall back to the config value instead of forcing
+`exact`. Keep `exact` for deliberate cases only; it can exceed Cloudflare DNS
+record quotas when the label pool is large.
 
 If you only changed Worker or frontend code and did not change the explicit
 subdomain pool, do not force routing-state sync. The update path can reuse the
@@ -149,7 +151,7 @@ cloudflareMail:
         database_name: cloudflare-temp-email
         database_id: "00000000-0000-0000-0000-000000000000"
   routing:
-    mode: exact
+    mode: wildcard
     stateSyncPolicy: bootstrap-or-forced
     plan:
       subdomainLabelPool:
@@ -191,6 +193,11 @@ the heavy Email Routing subdomain preparation runs:
 - `bootstrap-or-forced`: default. Run it on first deploy or when you explicitly force it.
 - `always`: run it on every deploy.
 - `never`: skip it entirely.
+
+For the same large explicit pools, `cloudflareMail.routing.mode` should usually
+stay on `wildcard`. That still preserves the explicit subdomain pool in the
+worker and routing plan, but it avoids exploding the per-zone DNS record count
+on every deploy.
 
 ## Safe Dry Run
 

@@ -1,7 +1,6 @@
 param(
     [string]$ConfigPath = 'config.yaml',
-    [ValidateSet('exact', 'wildcard')]
-    [string]$SyncMode = 'exact',
+    [string]$SyncMode = '',
     [switch]$BootstrapMissingResources,
     [switch]$ForceRoutingStateSync,
     [switch]$NoInstall,
@@ -19,6 +18,10 @@ $minimumNodeVersion = [Version]'20.19.0'
 $powerShellCommand = Get-EasyEmailPowerShellCommand
 $placeholderDatabaseId = '00000000-0000-0000-0000-000000000000'
 $placeholderDomains = @('example.com', 'mail.example.com', '*.example.com')
+
+if (-not [string]::IsNullOrWhiteSpace($SyncMode) -and @('exact', 'wildcard') -notcontains $SyncMode) {
+    throw "Unsupported sync mode '$SyncMode'. Use 'exact' or 'wildcard'."
+}
 
 function Assert-MinimumNodeVersion {
     param(
@@ -408,7 +411,7 @@ $routingStateSyncPolicy = [string](Get-EasyEmailConfigValue -Object $routing -Na
 $effectiveSyncMode = if ($PSBoundParameters.ContainsKey('SyncMode')) {
     $SyncMode
 } else {
-    [string](Get-EasyEmailConfigValue -Object $routing -Name 'mode' -Default 'exact')
+    [string](Get-EasyEmailConfigValue -Object $routing -Name 'mode' -Default 'wildcard')
 }
 
 if (-not (Test-Path -LiteralPath $workerDir)) {

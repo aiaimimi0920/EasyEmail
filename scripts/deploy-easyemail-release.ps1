@@ -1,7 +1,6 @@
 param(
     [string]$ConfigPath = 'config.yaml',
-    [ValidateSet('exact', 'wildcard')]
-    [string]$SyncMode = 'exact',
+    [string]$SyncMode = '',
     [switch]$BootstrapMissingResources,
     [switch]$ForceRoutingStateSync,
     [switch]$NoInstall,
@@ -19,6 +18,10 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if (-not [string]::IsNullOrWhiteSpace($SyncMode) -and @('exact', 'wildcard') -notcontains $SyncMode) {
+    throw "Unsupported sync mode '$SyncMode'. Use 'exact' or 'wildcard'."
+}
 
 . (Join-Path $PSScriptRoot 'lib/easyemail-config.ps1')
 
@@ -186,9 +189,12 @@ if (-not $SkipCloudflareMail) {
     }
 
     $cloudflareArgs = @(
-        '-ConfigPath', $resolvedConfigPath,
-        '-SyncMode', $SyncMode
+        '-ConfigPath', $resolvedConfigPath
     )
+    if ($PSBoundParameters.ContainsKey('SyncMode') -and -not [string]::IsNullOrWhiteSpace($SyncMode)) {
+        $cloudflareArgs += '-SyncMode'
+        $cloudflareArgs += $SyncMode
+    }
     if ($NoInstall) {
         $cloudflareArgs += '-NoInstall'
     }

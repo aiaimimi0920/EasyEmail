@@ -10,6 +10,7 @@
 # TypeScript and logs
 **/*.tsbuildinfo
 **/*.log
+**/__pycache__/
 logs/
 .tmp/
 

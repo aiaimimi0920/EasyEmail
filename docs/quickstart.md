@@ -62,6 +62,11 @@ Use the single operator entrypoint:
 pwsh .\scripts\deploy-cloudflare-email.ps1
 ```
 
+With the current large explicit subdomain pool, the deploy scripts now default
+to the config's DNS sync mode, and the recommended default is `wildcard`.
+Ordinary updates should not force `exact` unless you intentionally want
+per-subdomain DNS records.
+
 For a first deploy where the Cloudflare worker or D1 database does not exist
 yet, use bootstrap mode:
 

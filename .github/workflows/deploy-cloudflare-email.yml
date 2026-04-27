@@ -280,73 +280,29 @@ jobs:
         shell: pwsh
         run: |
           $isWorkflowDispatch = "${{ github.event_name }}" -eq 'workflow_dispatch'
-          $syncMode = if ($isWorkflowDispatch) { '${{ inputs.sync_mode }}' } else { 'exact' }
-          $isDryRun = $isWorkflowDispatch -and ('${{ inputs.dry_run }}' -eq 'true')
-          $skipRoutingSync = $isWorkflowDispatch -and ('${{ inputs.no_routing_sync }}' -eq 'true')
-          $bootstrapMissingResources = $isWorkflowDispatch -and ('${{ inputs.bootstrap_missing_resources }}' -eq 'true')
-          $forceRoutingStateSync = $isWorkflowDispatch -and ('${{ inputs.force_routing_state_sync }}' -eq 'true')
+          $args = @(
+            '-ConfigPath', '.\config.yaml',
+            '-NoInstall'
+          )
 
-          if ($isDryRun) {
-            if ($skipRoutingSync) {
-              if ($bootstrapMissingResources) {
-                if ($forceRoutingStateSync) {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -ForceRoutingStateSync -NoInstall -NoRoutingSync -DryRun
-                } else {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall -NoRoutingSync -DryRun
-                }
-              } else {
-                if ($forceRoutingStateSync) {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -ForceRoutingStateSync -NoInstall -NoRoutingSync -DryRun
-                } else {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -NoRoutingSync -DryRun
-                }
-              }
-            } else {
-              if ($bootstrapMissingResources) {
-                if ($forceRoutingStateSync) {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -ForceRoutingStateSync -NoInstall -DryRun
-                } else {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall -DryRun
-                }
-              } else {
-                if ($forceRoutingStateSync) {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -ForceRoutingStateSync -NoInstall -DryRun
-                } else {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -DryRun
-                }
-              }
-            }
-          } else {
-            if ($skipRoutingSync) {
-              if ($bootstrapMissingResources) {
-                if ($forceRoutingStateSync) {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -ForceRoutingStateSync -NoInstall -NoRoutingSync
-                } else {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall -NoRoutingSync
-                }
-              } else {
-                if ($forceRoutingStateSync) {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -ForceRoutingStateSync -NoInstall -NoRoutingSync
-                } else {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall -NoRoutingSync
-                }
-              }
-            } else {
-              if ($bootstrapMissingResources) {
-                if ($forceRoutingStateSync) {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -ForceRoutingStateSync -NoInstall
-                } else {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -BootstrapMissingResources -NoInstall
-                }
-              } else {
-                if ($forceRoutingStateSync) {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -ForceRoutingStateSync -NoInstall
-                } else {
-                  & .\scripts\deploy-cloudflare-email.ps1 -ConfigPath '.\config.yaml' -SyncMode $syncMode -NoInstall
-                }
-              }
-            }
+          if ($isWorkflowDispatch) {
+            $args += '-SyncMode'
+            $args += '${{ inputs.sync_mode }}'
           }
+          if ($isWorkflowDispatch -and ('${{ inputs.bootstrap_missing_resources }}' -eq 'true')) {
+            $args += '-BootstrapMissingResources'
+          }
+          if ($isWorkflowDispatch -and ('${{ inputs.force_routing_state_sync }}' -eq 'true')) {
+            $args += '-ForceRoutingStateSync'
+          }
+          if ($isWorkflowDispatch -and ('${{ inputs.no_routing_sync }}' -eq 'true')) {
+            $args += '-NoRoutingSync'
+          }
+          if ($isWorkflowDispatch -and ('${{ inputs.dry_run }}' -eq 'true')) {
+            $args += '-DryRun'
+          }
+
+          & .\scripts\deploy-cloudflare-email.ps1 @args
 
           if ($LASTEXITCODE -ne 0) {
             throw "Cloudflare email deployment failed with exit code $LASTEXITCODE"
