@@ -140,7 +140,7 @@ function Invoke-LocalNodeTool {
 function Get-FirstEasyEmailString {
     param([object]$Value)
 
-    $values = Convert-ToEasyEmailStringArray -Value $Value
+    $values = @(Convert-ToEasyEmailStringArray -Value $Value)
     if ($values.Count -eq 0) {
         return ''
     }
