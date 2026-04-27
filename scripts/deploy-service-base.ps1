@@ -3,6 +3,7 @@ param(
     [switch]$NoBuild,
     [string]$Image = '',
     [switch]$Pull,
+    [string]$BootstrapFile = '',
     [string]$InstanceName = '',
     [string]$ContainerName = '',
     [int]$HostPort = 0,
@@ -41,27 +42,43 @@ if (-not (Test-Path -LiteralPath $composeFile)) {
 $resolvedConfigPath = Resolve-EasyEmailPath -Path $ConfigPath
 $composeDir = Split-Path -Parent $composeFile
 $instanceRoot = $null
-$serviceOutput = 'deploy/service/base/config/config.yaml'
-$serviceEnvOutput = 'deploy/service/base/config/runtime.env'
 $configMountPath = './config'
 $dataMountPath = './data'
 $envFilePath = './config/runtime.env'
+$hostConfigRoot = Resolve-EasyEmailPath -Path (Join-Path $composeDir 'config')
+$hostDataRoot = Resolve-EasyEmailPath -Path (Join-Path $composeDir 'data')
 
 if (-not [string]::IsNullOrWhiteSpace($InstanceName)) {
     $instanceRoot = Join-Path $composeDir ("instances/{0}" -f $InstanceName)
     $instanceConfigRoot = Join-Path $instanceRoot 'config'
     $instanceDataRoot = Join-Path $instanceRoot 'data'
-    New-Item -ItemType Directory -Force -Path $instanceConfigRoot | Out-Null
-    New-Item -ItemType Directory -Force -Path $instanceDataRoot | Out-Null
-
-    $serviceOutput = Resolve-EasyEmailPath -Path (Join-Path $instanceConfigRoot 'config.yaml')
-    $serviceEnvOutput = Resolve-EasyEmailPath -Path (Join-Path $instanceConfigRoot 'runtime.env')
+    $hostConfigRoot = Resolve-EasyEmailPath -Path $instanceConfigRoot
+    $hostDataRoot = Resolve-EasyEmailPath -Path $instanceDataRoot
     $configMountPath = "./instances/$InstanceName/config"
     $dataMountPath = "./instances/$InstanceName/data"
     $envFilePath = "./instances/$InstanceName/config/runtime.env"
 }
 
-& $render -ConfigPath $resolvedConfigPath -ServiceBase -ServiceOutput $serviceOutput -ServiceEnvOutput $serviceEnvOutput
+New-Item -ItemType Directory -Force -Path $hostConfigRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $hostDataRoot | Out-Null
+
+$serviceOutput = Join-Path $hostConfigRoot 'config.yaml'
+$serviceEnvOutput = Join-Path $hostConfigRoot 'runtime.env'
+$bootstrapHostDir = Join-Path $hostConfigRoot 'bootstrap'
+
+if ([string]::IsNullOrWhiteSpace($BootstrapFile)) {
+    & $render -ConfigPath $resolvedConfigPath -ServiceBase -ServiceOutput $serviceOutput -ServiceEnvOutput $serviceEnvOutput
+} else {
+    $resolvedBootstrapFile = Resolve-EasyEmailPath -Path $BootstrapFile
+    if (-not (Test-Path -LiteralPath $resolvedBootstrapFile)) {
+        throw "Bootstrap file not found: $resolvedBootstrapFile"
+    }
+
+    New-Item -ItemType Directory -Force -Path $bootstrapHostDir | Out-Null
+    Copy-Item -LiteralPath $resolvedBootstrapFile -Destination (Join-Path $bootstrapHostDir 'r2-bootstrap.json') -Force
+    Remove-Item -LiteralPath $serviceOutput -ErrorAction SilentlyContinue
+    Set-Content -LiteralPath $serviceEnvOutput -Value '' -Encoding UTF8
+}
 
 if ($Image -and $Pull) {
     Write-Host "Pulling service image: $Image" -ForegroundColor Cyan

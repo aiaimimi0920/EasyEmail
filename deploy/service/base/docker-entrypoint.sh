@@ -11,16 +11,28 @@ esac
 
 CONFIG_PATH="${EASY_EMAIL_CONFIG_PATH:-/etc/easy-email/config.yaml}"
 STATE_DIR="${EASY_EMAIL_STATE_DIR:-/var/lib/easy-email}"
+RUNTIME_ENV_PATH="${EASY_EMAIL_RUNTIME_ENV_PATH:-/etc/easy-email/runtime.env}"
+BOOTSTRAP_PATH="${EASY_EMAIL_BOOTSTRAP_PATH:-/etc/easy-email/bootstrap/r2-bootstrap.json}"
 export EASY_EMAIL_CONFIG_PATH="$CONFIG_PATH"
 export EASY_EMAIL_STATE_DIR="$STATE_DIR"
 RESET_STORE_ON_BOOT="${EASY_EMAIL_RESET_STORE_ON_BOOT:-false}"
 STATE_LAYOUT_DIR="${STATE_DIR}/state"
 
-mkdir -p "$(dirname "$CONFIG_PATH")" "$STATE_DIR" "$STATE_LAYOUT_DIR"
+mkdir -p "$(dirname "$CONFIG_PATH")" "$(dirname "$RUNTIME_ENV_PATH")" "$STATE_DIR" "$STATE_LAYOUT_DIR"
+
+if [ ! -f "$CONFIG_PATH" ]; then
+  if [ -f "$BOOTSTRAP_PATH" ]; then
+    echo "[easy-email] runtime config missing, attempting bootstrap via $BOOTSTRAP_PATH"
+    python /usr/local/bin/bootstrap-service-config.py \
+      --bootstrap-path "$BOOTSTRAP_PATH" \
+      --config-path "$CONFIG_PATH" \
+      --runtime-env-path "$RUNTIME_ENV_PATH"
+  fi
+fi
 
 if [ ! -f "$CONFIG_PATH" ]; then
   echo "[easy-email] missing generated runtime config at $CONFIG_PATH" >&2
-  echo "[easy-email] render it from the repository root config.yaml before starting the container" >&2
+  echo "[easy-email] provide a rendered config.yaml or mount $BOOTSTRAP_PATH so the container can pull it from R2" >&2
   exit 1
 fi
 
@@ -32,6 +44,13 @@ case "$(echo "$RESET_STORE_ON_BOOT" | tr '[:upper:]' '[:lower:]')" in
   *)
     ;;
 esac
+
+if [ -f "$RUNTIME_ENV_PATH" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$RUNTIME_ENV_PATH"
+  set +a
+fi
 
 if [ "$(id -u)" = "0" ]; then
   chown -R easy:easy "$STATE_DIR" "$(dirname "$CONFIG_PATH")" /app

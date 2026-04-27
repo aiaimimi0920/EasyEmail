@@ -248,6 +248,65 @@ def build_granular_cloudflare_overlay(base_config: dict[str, Any]) -> dict[str, 
     return overlay if cloudflare_mail else None
 
 
+def build_granular_service_overlay(base_config: dict[str, Any]) -> dict[str, Any] | None:
+    names = [
+        "EASYEMAIL_SERVICE_RUNTIME_API_KEY",
+        "EASYEMAIL_PROVIDER_CLOUDFLARE_API_KEY",
+        "EASYEMAIL_PROVIDER_MOEMAIL_API_KEY",
+        "EASYEMAIL_PROVIDER_MOEMAIL_WEB_SESSION_TOKEN",
+        "EASYEMAIL_PROVIDER_MOEMAIL_WEB_CSRF_TOKEN",
+        "EASYEMAIL_PROVIDER_IM215_API_KEY",
+        "EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT",
+        "EASYEMAIL_PROVIDER_MAIL2925_PASSWORD",
+        "EASYEMAIL_PROVIDER_GPTMAIL_API_KEY",
+    ]
+    if not any(has_secret_value(name) for name in names):
+        return None
+
+    overlay: dict[str, Any] = {"serviceBase": {"runtime": {}}}
+    service_base = overlay["serviceBase"]
+    runtime = service_base["runtime"]
+    server: dict[str, Any] = {}
+    providers: dict[str, Any] = {}
+
+    set_if_present(server, "apiKey", get_secret_text("EASYEMAIL_SERVICE_RUNTIME_API_KEY"))
+    if server:
+        runtime["server"] = server
+
+    cloudflare_temp_email: dict[str, Any] = {}
+    set_if_present(cloudflare_temp_email, "apiKey", get_secret_text("EASYEMAIL_PROVIDER_CLOUDFLARE_API_KEY"))
+    if cloudflare_temp_email:
+        providers["cloudflareTempEmail"] = cloudflare_temp_email
+
+    moemail: dict[str, Any] = {}
+    set_if_present(moemail, "apiKey", get_secret_text("EASYEMAIL_PROVIDER_MOEMAIL_API_KEY"))
+    set_if_present(moemail, "webSessionToken", get_secret_text("EASYEMAIL_PROVIDER_MOEMAIL_WEB_SESSION_TOKEN"))
+    set_if_present(moemail, "webCsrfToken", get_secret_text("EASYEMAIL_PROVIDER_MOEMAIL_WEB_CSRF_TOKEN"))
+    if moemail:
+        providers["moemail"] = moemail
+
+    im215: dict[str, Any] = {}
+    set_if_present(im215, "apiKey", get_secret_text("EASYEMAIL_PROVIDER_IM215_API_KEY"))
+    if im215:
+        providers["im215"] = im215
+
+    mail2925: dict[str, Any] = {}
+    set_if_present(mail2925, "account", get_secret_text("EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT"))
+    set_if_present(mail2925, "password", get_secret_text("EASYEMAIL_PROVIDER_MAIL2925_PASSWORD"))
+    if mail2925:
+        providers["mail2925"] = mail2925
+
+    gptmail: dict[str, Any] = {}
+    set_if_present(gptmail, "apiKey", get_secret_text("EASYEMAIL_PROVIDER_GPTMAIL_API_KEY"))
+    if gptmail:
+        providers["gptmail"] = gptmail
+
+    if providers:
+        runtime["providers"] = providers
+
+    return overlay if runtime else None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Materialize a deployable EasyEmail config from GitHub Actions secrets.")
     parser.add_argument("--base-config", required=True, help="Path to the base config YAML to merge onto.")
@@ -257,14 +316,19 @@ def main() -> int:
     base_path = Path(args.base_config)
     output_path = Path(args.output)
     base_config = load_yaml_file(base_path)
-    granular_overlay = build_granular_cloudflare_overlay(base_config)
+    cloudflare_overlay = build_granular_cloudflare_overlay(base_config)
+    service_overlay = build_granular_service_overlay(base_config)
 
-    if not granular_overlay:
+    if not cloudflare_overlay and not service_overlay:
         raise SystemExit(
-            "Missing GitHub Actions config secret. Set the EASYEMAIL_CF_* granular secrets."
+            "Missing GitHub Actions config secrets. Set the EASYEMAIL_CF_* and/or EASYEMAIL_SERVICE_* granular secrets."
         )
 
-    merged_config = deep_merge(base_config, granular_overlay)
+    merged_config = base_config
+    if cloudflare_overlay:
+        merged_config = deep_merge(merged_config, cloudflare_overlay)
+    if service_overlay:
+        merged_config = deep_merge(merged_config, service_overlay)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(

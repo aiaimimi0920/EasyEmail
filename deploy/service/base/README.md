@@ -22,6 +22,16 @@ The runtime config that the container consumes is generated from the root
 Container-only environment variables are generated into `config/runtime.env`
 from the same root config.
 
+If a trusted machine does not have a local `/etc/easy-email/config.yaml`, the
+container can also bootstrap from a local
+`/etc/easy-email/bootstrap/r2-bootstrap.json` file. In that mode the entrypoint
+downloads both:
+
+- `/etc/easy-email/config.yaml`
+- `/etc/easy-email/runtime.env`
+
+from a private Cloudflare R2 bucket before starting the Node runtime.
+
 ## Key Files
 
 - `Dockerfile`: build the EasyEmail service image
@@ -75,6 +85,7 @@ It supports:
 - automatic publish on tag push
 - manual publish through `workflow_dispatch`
 - pre-push smoke validation for the `service/base` container
+- rendering the final `service/base` runtime config and uploading it to private R2
 
 ## Start A Non-Conflicting GHCR Instance
 
@@ -99,4 +110,43 @@ pwsh .\scripts\test-service-base-instance.ps1 `
   -ConfigPath .\config.yaml `
   -BaseUrl http://127.0.0.1:18082 `
   -RequestRandomSubdomain
+```
+
+## Start From R2 Bootstrap Instead Of Local Config
+
+If you want the image to fetch its config from a private R2 bucket on first
+boot:
+
+1. Upload the rendered runtime config with:
+
+```powershell
+pwsh .\scripts\upload-service-base-r2-config.ps1 `
+  -ConfigPath .\config.yaml `
+  -AccountId <cloudflare-account-id> `
+  -Bucket <private-bucket> `
+  -AccessKeyId <upload-access-key-id> `
+  -SecretAccessKey <upload-secret-access-key> `
+  -ConfigObjectKey <config-object-key> `
+  -RuntimeEnvObjectKey <env-object-key> `
+  -ManifestOutput .\.tmp\service-base-r2-manifest.json
+```
+
+2. Generate a local bootstrap file for the trusted machine:
+
+```powershell
+pwsh .\scripts\write-service-base-r2-bootstrap.ps1 `
+  -ManifestPath .\.tmp\service-base-r2-manifest.json `
+  -AccessKeyId <client-read-access-key-id> `
+  -SecretAccessKey <client-read-secret-access-key> `
+  -OutputPath .\.tmp\service-base-r2-bootstrap.json
+```
+
+3. Start an isolated instance without rendering a local config:
+
+```powershell
+pwsh .\scripts\deploy-service-base.ps1 `
+  -ConfigPath .\config.yaml `
+  -BootstrapFile .\.tmp\service-base-r2-bootstrap.json `
+  -InstanceName r2-bootstrap `
+  -HostPort 18084
 ```

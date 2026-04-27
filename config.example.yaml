@@ -39,6 +39,31 @@ serviceBase:
           - mail.example.com
         randomSubdomainDomains:
           - mail.example.com
+      moemail:
+        baseUrl: https://sall.cc
+        apiKey: ""
+        domain: sall.cc
+        expiryTimeMs: 3600000
+        webSessionToken: ""
+        webCsrfToken: ""
+        webCallbackUrl: "https%3A%2F%2Fsall.cc"
+        webReferer: "https://sall.cc/zh-CN/moe"
+      im215:
+        apiKey: ""
+        autoDomainStrategy: balanced
+        timeoutSeconds: 30
+      mail2925:
+        baseUrl: https://mail.2925.com
+        account: ""
+        password: ""
+        domain: 2925.com
+        folderName: Inbox
+        aliasSeparator: _
+        aliasSuffixLength: 10
+        timeoutSeconds: 60
+      gptmail:
+        baseUrl: https://mail.chatgpt.org.uk
+        apiKey: ""
 
 cloudflareMail:
   publicBaseUrl: https://mail.example.com

@@ -72,7 +72,9 @@ Write-Host "Validating release automation scripts..."
     (Join-Path $repoRoot 'scripts/render-release-template.py') `
     (Join-Path $repoRoot 'scripts/upsert-release-notes-section.py') `
     (Join-Path $repoRoot 'scripts/materialize-action-config.py') `
+    (Join-Path $repoRoot 'scripts/upload-service-base-r2-config.py') `
     (Join-Path $repoRoot 'scripts/validate-release-tag.py') `
+    (Join-Path $repoRoot 'deploy/service/base/bootstrap-service-config.py') `
     (Join-Path $repoRoot 'deploy/upstreams/cloudflare_temp_email/scripts/bootstrap_cloudflare_mail.py') `
     (Join-Path $repoRoot 'deploy/upstreams/cloudflare_temp_email/scripts/teardown_cloudflare_mail.py')
 if ($LASTEXITCODE -ne 0) {
@@ -88,6 +90,7 @@ $sampleCloudflareNotesPath = Join-Path $releaseAutomationTempRoot 'sample-cloudf
 $sampleMergedNotesPath = Join-Path $releaseAutomationTempRoot 'sample-merged-notes.md'
 $sampleExistingReleaseBodyPath = Join-Path $releaseAutomationTempRoot 'sample-existing-release-body.md'
 $materializedConfigPath = Join-Path $releaseAutomationTempRoot 'materialized-config.yaml'
+$sampleBootstrapPath = Join-Path $releaseAutomationTempRoot 'sample-r2-bootstrap.json'
 $sampleScopeSummary = @'
 ### Scope Summary
 
@@ -189,6 +192,15 @@ $previousGranularSecrets = @{
     EASYEMAIL_CF_BOOTSTRAP_ZONES = $env:EASYEMAIL_CF_BOOTSTRAP_ZONES
     EASYEMAIL_CF_AUTH_EMAIL = $env:EASYEMAIL_CF_AUTH_EMAIL
     EASYEMAIL_CF_GLOBAL_API_KEY = $env:EASYEMAIL_CF_GLOBAL_API_KEY
+    EASYEMAIL_SERVICE_RUNTIME_API_KEY = $env:EASYEMAIL_SERVICE_RUNTIME_API_KEY
+    EASYEMAIL_PROVIDER_CLOUDFLARE_API_KEY = $env:EASYEMAIL_PROVIDER_CLOUDFLARE_API_KEY
+    EASYEMAIL_PROVIDER_MOEMAIL_API_KEY = $env:EASYEMAIL_PROVIDER_MOEMAIL_API_KEY
+    EASYEMAIL_PROVIDER_MOEMAIL_WEB_SESSION_TOKEN = $env:EASYEMAIL_PROVIDER_MOEMAIL_WEB_SESSION_TOKEN
+    EASYEMAIL_PROVIDER_MOEMAIL_WEB_CSRF_TOKEN = $env:EASYEMAIL_PROVIDER_MOEMAIL_WEB_CSRF_TOKEN
+    EASYEMAIL_PROVIDER_IM215_API_KEY = $env:EASYEMAIL_PROVIDER_IM215_API_KEY
+    EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT = $env:EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT
+    EASYEMAIL_PROVIDER_MAIL2925_PASSWORD = $env:EASYEMAIL_PROVIDER_MAIL2925_PASSWORD
+    EASYEMAIL_PROVIDER_GPTMAIL_API_KEY = $env:EASYEMAIL_PROVIDER_GPTMAIL_API_KEY
 }
 try {
     $env:EASYEMAIL_CF_PUBLIC_BASE_URL = 'https://mail.example.com'
@@ -220,6 +232,15 @@ example.com
 '@
     $env:EASYEMAIL_CF_AUTH_EMAIL = 'operator@example.com'
     $env:EASYEMAIL_CF_GLOBAL_API_KEY = 'global-api-key'
+    $env:EASYEMAIL_SERVICE_RUNTIME_API_KEY = 'service-api-key'
+    $env:EASYEMAIL_PROVIDER_CLOUDFLARE_API_KEY = 'cf-provider-key'
+    $env:EASYEMAIL_PROVIDER_MOEMAIL_API_KEY = 'moemail-key'
+    $env:EASYEMAIL_PROVIDER_MOEMAIL_WEB_SESSION_TOKEN = 'moemail-session'
+    $env:EASYEMAIL_PROVIDER_MOEMAIL_WEB_CSRF_TOKEN = 'moemail-csrf'
+    $env:EASYEMAIL_PROVIDER_IM215_API_KEY = 'im215-key'
+    $env:EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT = 'demo@example.com'
+    $env:EASYEMAIL_PROVIDER_MAIL2925_PASSWORD = 'demo-password'
+    $env:EASYEMAIL_PROVIDER_GPTMAIL_API_KEY = 'gptmail-key'
 
     & python (Join-Path $repoRoot 'scripts/materialize-action-config.py') `
         --base-config (Join-Path $repoRoot 'config.example.yaml') `
@@ -230,6 +251,24 @@ example.com
 
     if (-not (Test-Path -LiteralPath $materializedConfigPath)) {
         throw 'Granular Cloudflare action config materialization did not produce an output file.'
+    }
+
+    & $powerShellCommand -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts/write-service-base-r2-bootstrap.ps1') `
+        -OutputPath $sampleBootstrapPath `
+        -AccountId 'account-id' `
+        -Bucket 'bucket-name' `
+        -ConfigObjectKey 'service/config.yaml' `
+        -RuntimeEnvObjectKey 'service/runtime.env' `
+        -AccessKeyId 'access-key' `
+        -SecretAccessKey 'secret-key' `
+        -ExpectedConfigSha256 'deadbeef' `
+        -ExpectedRuntimeEnvSha256 'feedface'
+    if ($LASTEXITCODE -ne 0) {
+        throw "Service-base R2 bootstrap writer smoke check failed with exit code $LASTEXITCODE"
+    }
+
+    if (-not (Test-Path -LiteralPath $sampleBootstrapPath)) {
+        throw 'Service-base R2 bootstrap writer did not produce an output file.'
     }
 } finally {
     foreach ($secretName in $previousGranularSecrets.Keys) {

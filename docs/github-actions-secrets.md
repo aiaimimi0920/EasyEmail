@@ -131,8 +131,43 @@ either `EASYEMAIL_CF_PUBLIC_ZONE` or `EASYEMAIL_CF_BOOTSTRAP_ZONES`.
 
 ## GHCR Publish Secrets
 
-`.github/workflows/publish-service-base-ghcr.yml` does not require a custom
-publish secret. It uses the built-in `GITHUB_TOKEN`.
+`.github/workflows/publish-service-base-ghcr.yml` uses these secrets:
+
+| Secret name | Purpose | Format |
+| --- | --- | --- |
+| `EASYEMAIL_PUBLISH_GHCR_USERNAME` | GHCR login username | Single line |
+| `EASYEMAIL_PUBLISH_GHCR_TOKEN` | GHCR push token | Single line |
+| `EASYEMAIL_SERVICE_RUNTIME_API_KEY` | `service/base` server bearer token | Single line |
+| `EASYEMAIL_PROVIDER_CLOUDFLARE_API_KEY` | `service/base` shared Cloudflare temp email provider key | Single line |
+| `EASYEMAIL_PROVIDER_MOEMAIL_API_KEY` | `service/base` MoeMail provider key | Single line |
+| `EASYEMAIL_PROVIDER_MOEMAIL_WEB_SESSION_TOKEN` | MoeMail web session token | Single line |
+| `EASYEMAIL_PROVIDER_MOEMAIL_WEB_CSRF_TOKEN` | MoeMail web CSRF token | Single line |
+| `EASYEMAIL_PROVIDER_IM215_API_KEY` | `service/base` IM215 provider key | Single line |
+| `EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT` | `service/base` 2925 account | Single line |
+| `EASYEMAIL_PROVIDER_MAIL2925_PASSWORD` | `service/base` 2925 password | Single line |
+| `EASYEMAIL_PROVIDER_GPTMAIL_API_KEY` | `service/base` GPTMail provider key | Single line |
+
+### Private R2 Runtime Config Distribution
+
+`Publish Service Base GHCR` now also renders the final `service/base` runtime
+config and uploads it to a private R2 bucket. Add these repository secrets:
+
+| Secret name | Purpose | Format |
+| --- | --- | --- |
+| `EASYEMAIL_R2_CONFIG_ACCOUNT_ID` | Cloudflare account id that owns the R2 bucket | Single line |
+| `EASYEMAIL_R2_CONFIG_BUCKET` | Private R2 bucket name for `service/base` runtime config | Single line |
+| `EASYEMAIL_R2_CONFIG_ENDPOINT` | Optional explicit R2 S3 endpoint. Leave empty to derive from account id. | Single line |
+| `EASYEMAIL_R2_CONFIG_CONFIG_OBJECT_KEY` | Object key for rendered `config.yaml` | Single line |
+| `EASYEMAIL_R2_CONFIG_ENV_OBJECT_KEY` | Object key for rendered `runtime.env` | Single line |
+| `EASYEMAIL_R2_CONFIG_UPLOAD_ACCESS_KEY_ID` | R2 upload access key id used by GitHub Actions | Single line |
+| `EASYEMAIL_R2_CONFIG_UPLOAD_SECRET_ACCESS_KEY` | R2 upload secret access key used by GitHub Actions | Single line |
+
+Optional repository-only admin storage for the client bootstrap key pair:
+
+| Secret name | Purpose | Format |
+| --- | --- | --- |
+| `EASYEMAIL_R2_CONFIG_READ_ACCESS_KEY_ID` | Client-side R2 read-only access key id | Single line |
+| `EASYEMAIL_R2_CONFIG_READ_SECRET_ACCESS_KEY` | Client-side R2 read-only secret access key | Single line |
 
 ## Local Operator Config
 

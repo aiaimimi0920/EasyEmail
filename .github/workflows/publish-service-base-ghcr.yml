@@ -60,9 +60,56 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Prepare Operator Config
-        shell: pwsh
-        run: Copy-Item config.example.yaml config.yaml
+      - name: Materialize Operator Config
+        env:
+          EASYEMAIL_CF_PUBLIC_BASE_URL: ${{ secrets.EASYEMAIL_CF_PUBLIC_BASE_URL }}
+          EASYEMAIL_CF_PUBLIC_DOMAIN: ${{ secrets.EASYEMAIL_CF_PUBLIC_DOMAIN }}
+          EASYEMAIL_CF_PUBLIC_ZONE: ${{ secrets.EASYEMAIL_CF_PUBLIC_ZONE }}
+          EASYEMAIL_CF_WORKER_NAME: ${{ secrets.EASYEMAIL_CF_WORKER_NAME }}
+          EASYEMAIL_CF_WORKER_ENV: ${{ secrets.EASYEMAIL_CF_WORKER_ENV }}
+          EASYEMAIL_CF_PASSWORDS: ${{ secrets.EASYEMAIL_CF_PASSWORDS }}
+          EASYEMAIL_CF_ADMIN_PASSWORDS: ${{ secrets.EASYEMAIL_CF_ADMIN_PASSWORDS }}
+          EASYEMAIL_CF_JWT_SECRET: ${{ secrets.EASYEMAIL_CF_JWT_SECRET }}
+          EASYEMAIL_CF_PREFIX: ${{ secrets.EASYEMAIL_CF_PREFIX }}
+          EASYEMAIL_CF_DOMAINS: ${{ secrets.EASYEMAIL_CF_DOMAINS }}
+          EASYEMAIL_CF_DEFAULT_DOMAINS: ${{ secrets.EASYEMAIL_CF_DEFAULT_DOMAINS }}
+          EASYEMAIL_CF_RANDOM_SUBDOMAIN_DOMAINS: ${{ secrets.EASYEMAIL_CF_RANDOM_SUBDOMAIN_DOMAINS }}
+          EASYEMAIL_CF_SUBDOMAIN_LABEL_POOL: ${{ secrets.EASYEMAIL_CF_SUBDOMAIN_LABEL_POOL }}
+          EASYEMAIL_CF_ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH: ${{ secrets.EASYEMAIL_CF_ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH }}
+          EASYEMAIL_CF_RANDOM_SUBDOMAIN_LENGTH: ${{ secrets.EASYEMAIL_CF_RANDOM_SUBDOMAIN_LENGTH }}
+          EASYEMAIL_CF_ENABLE_USER_CREATE_EMAIL: ${{ secrets.EASYEMAIL_CF_ENABLE_USER_CREATE_EMAIL }}
+          EASYEMAIL_CF_ENABLE_USER_DELETE_EMAIL: ${{ secrets.EASYEMAIL_CF_ENABLE_USER_DELETE_EMAIL }}
+          EASYEMAIL_CF_D1_DATABASE_ID: ${{ secrets.EASYEMAIL_CF_D1_DATABASE_ID }}
+          EASYEMAIL_CF_D1_DATABASE_NAME: ${{ secrets.EASYEMAIL_CF_D1_DATABASE_NAME }}
+          EASYEMAIL_CF_D1_DATABASE_BINDING: ${{ secrets.EASYEMAIL_CF_D1_DATABASE_BINDING }}
+          EASYEMAIL_CF_BOOTSTRAP_ENABLED: ${{ secrets.EASYEMAIL_CF_BOOTSTRAP_ENABLED }}
+          EASYEMAIL_CF_BOOTSTRAP_CREATE_ZONES: ${{ secrets.EASYEMAIL_CF_BOOTSTRAP_CREATE_ZONES }}
+          EASYEMAIL_CF_BOOTSTRAP_ACCOUNT_ID: ${{ secrets.EASYEMAIL_CF_BOOTSTRAP_ACCOUNT_ID }}
+          EASYEMAIL_CF_BOOTSTRAP_ZONES: ${{ secrets.EASYEMAIL_CF_BOOTSTRAP_ZONES }}
+          EASYEMAIL_CF_D1_LOCATION_HINT: ${{ secrets.EASYEMAIL_CF_D1_LOCATION_HINT }}
+          EASYEMAIL_CF_D1_JURISDICTION: ${{ secrets.EASYEMAIL_CF_D1_JURISDICTION }}
+          EASYEMAIL_CF_BOOTSTRAP_ZONE_TYPE: ${{ secrets.EASYEMAIL_CF_BOOTSTRAP_ZONE_TYPE }}
+          EASYEMAIL_CF_BOOTSTRAP_JUMP_START: ${{ secrets.EASYEMAIL_CF_BOOTSTRAP_JUMP_START }}
+          EASYEMAIL_CF_SYNC_ROUTING: ${{ secrets.EASYEMAIL_CF_SYNC_ROUTING }}
+          EASYEMAIL_CF_ROUTING_MODE: ${{ secrets.EASYEMAIL_CF_ROUTING_MODE }}
+          EASYEMAIL_CF_CONTROL_CENTER_DNS_TOKEN: ${{ secrets.EASYEMAIL_CF_CONTROL_CENTER_DNS_TOKEN }}
+          EASYEMAIL_CF_AUTH_EMAIL: ${{ secrets.EASYEMAIL_CF_AUTH_EMAIL }}
+          EASYEMAIL_CF_GLOBAL_API_KEY: ${{ secrets.EASYEMAIL_CF_GLOBAL_API_KEY }}
+          EASYEMAIL_SERVICE_RUNTIME_API_KEY: ${{ secrets.EASYEMAIL_SERVICE_RUNTIME_API_KEY }}
+          EASYEMAIL_PROVIDER_CLOUDFLARE_API_KEY: ${{ secrets.EASYEMAIL_PROVIDER_CLOUDFLARE_API_KEY }}
+          EASYEMAIL_PROVIDER_MOEMAIL_API_KEY: ${{ secrets.EASYEMAIL_PROVIDER_MOEMAIL_API_KEY }}
+          EASYEMAIL_PROVIDER_MOEMAIL_WEB_SESSION_TOKEN: ${{ secrets.EASYEMAIL_PROVIDER_MOEMAIL_WEB_SESSION_TOKEN }}
+          EASYEMAIL_PROVIDER_MOEMAIL_WEB_CSRF_TOKEN: ${{ secrets.EASYEMAIL_PROVIDER_MOEMAIL_WEB_CSRF_TOKEN }}
+          EASYEMAIL_PROVIDER_IM215_API_KEY: ${{ secrets.EASYEMAIL_PROVIDER_IM215_API_KEY }}
+          EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT: ${{ secrets.EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT }}
+          EASYEMAIL_PROVIDER_MAIL2925_PASSWORD: ${{ secrets.EASYEMAIL_PROVIDER_MAIL2925_PASSWORD }}
+          EASYEMAIL_PROVIDER_GPTMAIL_API_KEY: ${{ secrets.EASYEMAIL_PROVIDER_GPTMAIL_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/materialize-action-config.py \
+            --base-config config.example.yaml \
+            --output config.yaml
 
       - name: Resolve Release Metadata
         id: release_meta
@@ -141,9 +188,17 @@ jobs:
             git diff-tree --no-commit-id --name-only -r "${GITHUB_SHA}" -- \
               service/base \
               deploy/service/base \
+              config.example.yaml \
               scripts/compile-service-base-image.ps1 \
               scripts/deploy-service-base.ps1 \
               scripts/deploy-easyemail-release.ps1 \
+              scripts/materialize-action-config.py \
+              scripts/render-derived-configs.py \
+              scripts/render-derived-configs.ps1 \
+              scripts/upload-service-base-r2-config.ps1 \
+              scripts/upload-service-base-r2-config.py \
+              scripts/write-service-base-r2-bootstrap.ps1 \
+              deploy/service/base/bootstrap-service-config.py \
               .github/workflows/publish-service-base-ghcr.yml
           )
 
@@ -233,6 +288,46 @@ jobs:
           cache-from: type=gha,scope=service-base-ghcr
           cache-to: type=gha,mode=max,scope=service-base-ghcr
 
+      - name: Upload Service Base Runtime Config To R2
+        if: steps.change_gate.outputs.should_publish == 'true'
+        id: runtime_config_upload
+        env:
+          EASYEMAIL_R2_CONFIG_ACCOUNT_ID: ${{ secrets.EASYEMAIL_R2_CONFIG_ACCOUNT_ID }}
+          EASYEMAIL_R2_CONFIG_BUCKET: ${{ secrets.EASYEMAIL_R2_CONFIG_BUCKET }}
+          EASYEMAIL_R2_CONFIG_ENDPOINT: ${{ secrets.EASYEMAIL_R2_CONFIG_ENDPOINT }}
+          EASYEMAIL_R2_CONFIG_CONFIG_OBJECT_KEY: ${{ secrets.EASYEMAIL_R2_CONFIG_CONFIG_OBJECT_KEY }}
+          EASYEMAIL_R2_CONFIG_ENV_OBJECT_KEY: ${{ secrets.EASYEMAIL_R2_CONFIG_ENV_OBJECT_KEY }}
+          EASYEMAIL_R2_CONFIG_UPLOAD_ACCESS_KEY_ID: ${{ secrets.EASYEMAIL_R2_CONFIG_UPLOAD_ACCESS_KEY_ID }}
+          EASYEMAIL_R2_CONFIG_UPLOAD_SECRET_ACCESS_KEY: ${{ secrets.EASYEMAIL_R2_CONFIG_UPLOAD_SECRET_ACCESS_KEY }}
+        shell: pwsh
+        run: |
+          foreach ($name in @(
+            'EASYEMAIL_R2_CONFIG_ACCOUNT_ID',
+            'EASYEMAIL_R2_CONFIG_BUCKET',
+            'EASYEMAIL_R2_CONFIG_CONFIG_OBJECT_KEY',
+            'EASYEMAIL_R2_CONFIG_ENV_OBJECT_KEY',
+            'EASYEMAIL_R2_CONFIG_UPLOAD_ACCESS_KEY_ID',
+            'EASYEMAIL_R2_CONFIG_UPLOAD_SECRET_ACCESS_KEY'
+          )) {
+            if ([string]::IsNullOrWhiteSpace([string](Get-Item "Env:$name").Value)) {
+              throw "Missing required R2 config secret: $name"
+            }
+          }
+
+          $manifestPath = Join-Path $PWD 'service-base-r2-config-manifest.json'
+          .\scripts\upload-service-base-r2-config.ps1 `
+            -ConfigPath .\config.yaml `
+            -AccountId $env:EASYEMAIL_R2_CONFIG_ACCOUNT_ID `
+            -Bucket $env:EASYEMAIL_R2_CONFIG_BUCKET `
+            -AccessKeyId $env:EASYEMAIL_R2_CONFIG_UPLOAD_ACCESS_KEY_ID `
+            -SecretAccessKey $env:EASYEMAIL_R2_CONFIG_UPLOAD_SECRET_ACCESS_KEY `
+            -ConfigObjectKey $env:EASYEMAIL_R2_CONFIG_CONFIG_OBJECT_KEY `
+            -RuntimeEnvObjectKey $env:EASYEMAIL_R2_CONFIG_ENV_OBJECT_KEY `
+            -Endpoint $env:EASYEMAIL_R2_CONFIG_ENDPOINT `
+            -ManifestOutput $manifestPath
+
+          "path=$manifestPath" >> $env:GITHUB_OUTPUT
+
       - name: Write Release Manifest
         if: steps.change_gate.outputs.should_publish == 'true'
         id: manifest
@@ -247,6 +342,11 @@ jobs:
           )
           if ('${{ steps.release_meta.outputs.push_latest }}' -eq 'true') {
             $tags += "${{ steps.release_meta.outputs.image_ref }}:latest"
+          }
+
+          $distribution = $null
+          if (Test-Path -LiteralPath '${{ steps.runtime_config_upload.outputs.path }}') {
+            $distribution = Get-Content -LiteralPath '${{ steps.runtime_config_upload.outputs.path }}' -Raw | ConvertFrom-Json
           }
 
           $matchedFilesRaw = @'
@@ -298,6 +398,7 @@ jobs:
               tags = $tags
               publishLatest = ('${{ steps.release_meta.outputs.push_latest }}' -eq 'true')
             }
+            distribution = $distribution
             validation = [ordered]@{
               smoke = '${{ steps.smoke_label.outputs.value }}'
               sbom = 'enabled'
@@ -332,6 +433,13 @@ jobs:
         with:
           name: service-base-release-manifest
           path: ${{ steps.manifest.outputs.path }}
+
+      - name: Upload Runtime Config Distribution Manifest
+        if: steps.change_gate.outputs.should_publish == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: service-base-r2-config-manifest
+          path: ${{ steps.runtime_config_upload.outputs.path }}
 
       - name: Upload Release Notes Artifact
         if: steps.change_gate.outputs.should_publish == 'true'

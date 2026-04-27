@@ -44,9 +44,14 @@ GitHub Actions workflow:
 
 - tag push triggers `.github/workflows/publish-service-base-ghcr.yml`
 - manual publish is available through `workflow_dispatch`
+- published images are smoke-checked before push
+- the workflow also renders the final `service/base` runtime config and uploads
+  it to a private R2 bucket
 
 ## Notes
 
 - the Docker build context is still the repository root, but the Dockerfile only
   copies the service runtime and its deployment assets
 - adjust `serviceBase.image` in `config.yaml` if you want a different tag
+- the public GHCR image does not carry runtime provider secrets; those stay in
+  GitHub secrets and/or the private R2 bootstrap flow
