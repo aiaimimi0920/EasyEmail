@@ -130,7 +130,7 @@ jobs:
           else
             version="${{ inputs.version }}"
             if [[ -z "${version}" ]]; then
-              version="release-$(date -u +%Y%m%d)-${GITHUB_RUN_NUMBER}"
+              version="release-$(date -u +%Y%m%d)-$(printf '%03d' "${GITHUB_RUN_NUMBER}")"
             fi
             push_latest="${{ inputs.push_latest }}"
             run_smoke="${{ inputs.run_smoke }}"
