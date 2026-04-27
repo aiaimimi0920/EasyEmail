@@ -73,7 +73,8 @@ Write-Host "Validating release automation scripts..."
     (Join-Path $repoRoot 'scripts/upsert-release-notes-section.py') `
     (Join-Path $repoRoot 'scripts/materialize-action-config.py') `
     (Join-Path $repoRoot 'scripts/validate-release-tag.py') `
-    (Join-Path $repoRoot 'deploy/upstreams/cloudflare_temp_email/scripts/bootstrap_cloudflare_mail.py')
+    (Join-Path $repoRoot 'deploy/upstreams/cloudflare_temp_email/scripts/bootstrap_cloudflare_mail.py') `
+    (Join-Path $repoRoot 'deploy/upstreams/cloudflare_temp_email/scripts/teardown_cloudflare_mail.py')
 if ($LASTEXITCODE -ne 0) {
     throw "Release automation script validation failed with exit code $LASTEXITCODE"
 }

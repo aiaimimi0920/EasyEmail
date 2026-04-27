@@ -32,6 +32,7 @@ is:
 ## Script Inventory
 
 - `deploy_mailcreate_wrangler.ps1`
+- `teardown_cloudflare_mail.py`
 - `sync_email_routing_dns.ps1`
 - `sync_email_routing_dns.py`
 - `sync_email_routing_state.py`

@@ -75,6 +75,12 @@ For a dry run:
 pwsh .\scripts\deploy-cloudflare-email.ps1 -DryRun -NoRoutingSync
 ```
 
+To back up and remove an existing Cloudflare mail deployment:
+
+```powershell
+pwsh .\scripts\remove-cloudflare-email.ps1
+```
+
 If you want GitHub-hosted deployment later, the matching workflow can read the
 granular `EASYEMAIL_CF_*` secrets documented in
 [github-actions-secrets.md](./github-actions-secrets.md). That keeps hosted

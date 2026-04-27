@@ -174,6 +174,25 @@ publishing:
 pwsh .\scripts\deploy-cloudflare-email.ps1 -DryRun -NoRoutingSync
 ```
 
+## Remove A Deployed Cloudflare Mail Runtime
+
+If you need to back up the current Cloudflare mail topology and then remove the
+deployed worker, custom domain, Email Routing state, managed MX/TXT records,
+and D1 database, use:
+
+```powershell
+pwsh .\scripts\remove-cloudflare-email.ps1
+```
+
+The script writes a backup JSON file under `.tmp/` before it starts deleting
+resources.
+
+To preview the deletion plan without mutating Cloudflare resources:
+
+```powershell
+pwsh .\scripts\remove-cloudflare-email.ps1 -DryRun
+```
+
 ## For AI Agents
 
 When reading this repository, the relevant order is:
