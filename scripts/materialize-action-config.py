@@ -274,7 +274,21 @@ def build_granular_service_overlay(base_config: dict[str, Any]) -> dict[str, Any
         runtime["server"] = server
 
     cloudflare_temp_email: dict[str, Any] = {}
+    cloudflare_public_base_url = get_secret_text("EASYEMAIL_CF_PUBLIC_BASE_URL")
+    cloudflare_public_domain = get_secret_text("EASYEMAIL_CF_PUBLIC_DOMAIN")
+    cloudflare_domains = (
+        parse_list_secret("EASYEMAIL_CF_DEFAULT_DOMAINS")
+        or parse_list_secret("EASYEMAIL_CF_DOMAINS")
+    )
+    cloudflare_random_domains = (
+        parse_list_secret("EASYEMAIL_CF_RANDOM_SUBDOMAIN_DOMAINS")
+        or cloudflare_domains
+    )
+    set_if_present(cloudflare_temp_email, "baseUrl", cloudflare_public_base_url)
     set_if_present(cloudflare_temp_email, "apiKey", get_secret_text("EASYEMAIL_PROVIDER_CLOUDFLARE_API_KEY"))
+    set_if_present(cloudflare_temp_email, "domain", cloudflare_public_domain)
+    set_if_present(cloudflare_temp_email, "domains", cloudflare_domains)
+    set_if_present(cloudflare_temp_email, "randomSubdomainDomains", cloudflare_random_domains)
     if cloudflare_temp_email:
         providers["cloudflareTempEmail"] = cloudflare_temp_email
 
