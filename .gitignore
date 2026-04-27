@@ -13,6 +13,7 @@
 **/__pycache__/
 logs/
 .tmp/
+.playwright-cli/
 
 # Environment and local secrets
 config.yaml

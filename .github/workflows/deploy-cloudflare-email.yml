@@ -280,29 +280,28 @@ jobs:
         shell: pwsh
         run: |
           $isWorkflowDispatch = "${{ github.event_name }}" -eq 'workflow_dispatch'
-          $args = @(
-            '-ConfigPath', '.\config.yaml',
-            '-NoInstall'
-          )
+          $deployParams = @{
+            ConfigPath = '.\config.yaml'
+            NoInstall = $true
+          }
 
           if ($isWorkflowDispatch) {
-            $args += '-SyncMode'
-            $args += '${{ inputs.sync_mode }}'
+            $deployParams.SyncMode = '${{ inputs.sync_mode }}'
           }
           if ($isWorkflowDispatch -and ('${{ inputs.bootstrap_missing_resources }}' -eq 'true')) {
-            $args += '-BootstrapMissingResources'
+            $deployParams.BootstrapMissingResources = $true
           }
           if ($isWorkflowDispatch -and ('${{ inputs.force_routing_state_sync }}' -eq 'true')) {
-            $args += '-ForceRoutingStateSync'
+            $deployParams.ForceRoutingStateSync = $true
           }
           if ($isWorkflowDispatch -and ('${{ inputs.no_routing_sync }}' -eq 'true')) {
-            $args += '-NoRoutingSync'
+            $deployParams.NoRoutingSync = $true
           }
           if ($isWorkflowDispatch -and ('${{ inputs.dry_run }}' -eq 'true')) {
-            $args += '-DryRun'
+            $deployParams.DryRun = $true
           }
 
-          & .\scripts\deploy-cloudflare-email.ps1 @args
+          & .\scripts\deploy-cloudflare-email.ps1 @deployParams
 
           if ($LASTEXITCODE -ne 0) {
             throw "Cloudflare email deployment failed with exit code $LASTEXITCODE"
