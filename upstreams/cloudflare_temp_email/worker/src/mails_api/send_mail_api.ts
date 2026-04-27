@@ -66,9 +66,11 @@ export const sendMailByBinding = async (
         from_name, to_mail, to_name,
         subject, content, is_html
     } = reqJson;
+    // Cloudflare SEND_MAIL rejects RFC5322 display-name strings in `to`.
+    // Keep the address list canonical and let subject/body carry user-facing context.
     await c.env.SEND_MAIL.send({
         from: from_name ? { email: address, name: from_name } : address,
-        to: to_name ? [`${to_name} <${to_mail}>`] : [to_mail],
+        to: [to_mail],
         subject,
         ...(is_html ? { html: content } : { text: content }),
     });
