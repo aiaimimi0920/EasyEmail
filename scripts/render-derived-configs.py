@@ -127,9 +127,17 @@ def format_toml_value(value: Any) -> str:
         return format_toml_string(value)
     if value is None:
         return '""'
+    if isinstance(value, dict):
+        items = []
+        for key, nested_value in value.items():
+            items.append(f"{key} = {format_toml_value(nested_value)}")
+        return "{ " + ", ".join(items) + " }"
     if isinstance(value, list):
         return "[" + ", ".join(format_toml_value(item) for item in value) + "]"
     raise TypeError(f"Unsupported TOML value type: {type(value)!r}")
+
+
+INLINE_ARRAY_TABLE_KEYS = {"send_email"}
 
 
 def emit_toml_table(mapping: dict[str, Any], path: list[str] | None = None) -> list[str]:
@@ -143,7 +151,12 @@ def emit_toml_table(mapping: dict[str, Any], path: list[str] | None = None) -> l
     for key, value in mapping.items():
         if isinstance(value, dict):
             dict_items.append((key, value))
-        elif isinstance(value, list) and value and all(isinstance(item, dict) for item in value):
+        elif (
+            isinstance(value, list)
+            and value
+            and all(isinstance(item, dict) for item in value)
+            and key not in INLINE_ARRAY_TABLE_KEYS
+        ):
             array_table_items.append((key, value))
         else:
             scalar_items.append((key, value))

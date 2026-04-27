@@ -88,6 +88,8 @@ cloudflareMail:
     zoneType: full
     jumpStart: false
   worker:
+    send_email:
+      - name: SEND_MAIL
     vars:
       PASSWORDS:
         - change-me
