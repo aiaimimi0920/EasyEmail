@@ -17,6 +17,7 @@ $resolvedConfigPath = Resolve-EasyEmailPath -Path $ConfigPath
 $minimumNodeVersion = [Version]'20.19.0'
 $powerShellCommand = Get-EasyEmailPowerShellCommand
 $placeholderDatabaseId = '00000000-0000-0000-0000-000000000000'
+$placeholderDomains = @('example.com', 'mail.example.com', '*.example.com')
 
 function Assert-MinimumNodeVersion {
     param(
@@ -288,6 +289,13 @@ function Convert-ToEasyEmailTomlArray {
     return "[`r`n$($formatted -join ",`r`n")`r`n]"
 }
 
+function Remove-EasyEmailPlaceholderDomains {
+    param([object]$Value)
+
+    $items = Convert-ToEasyEmailStringArray -Value $Value
+    return @($items | Where-Object { $script:placeholderDomains -notcontains $_.Trim().ToLowerInvariant() })
+}
+
 function Write-CloudflareRoutingPlanFile {
     param(
         [Parameter(Mandatory = $true)]
@@ -295,12 +303,12 @@ function Write-CloudflareRoutingPlanFile {
     )
 
     $labels = Convert-ToEasyEmailStringArray -Value (Get-EasyEmailConfigValue -Object $Plan -Name 'subdomainLabelPool' -Default @())
-    $domains = Convert-ToEasyEmailStringArray -Value (Get-EasyEmailConfigValue -Object $Plan -Name 'domains' -Default @())
+    $domains = Remove-EasyEmailPlaceholderDomains -Value (Get-EasyEmailConfigValue -Object $Plan -Name 'domains' -Default @())
     $defaultDomainsValue = Get-EasyEmailConfigValue -Object $Plan -Name 'defaultDomains' -Default $null
     $defaultDomains = if ($null -eq $defaultDomainsValue) {
         $domains
     } else {
-        Convert-ToEasyEmailStringArray -Value $defaultDomainsValue
+        Remove-EasyEmailPlaceholderDomains -Value $defaultDomainsValue
     }
 
     if ($labels.Count -eq 0) {

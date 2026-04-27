@@ -20,6 +20,11 @@ import yaml
 
 
 ZERO_UUID = "00000000-0000-0000-0000-000000000000"
+PLACEHOLDER_DOMAINS = {
+    "example.com",
+    "mail.example.com",
+    "*.example.com",
+}
 
 
 def load_yaml_file(path: Path) -> dict[str, Any]:
@@ -67,6 +72,10 @@ def normalize_string_list(value: Any) -> list[str]:
     return items
 
 
+def filter_placeholder_domains(values: list[str]) -> list[str]:
+    return [value for value in values if value.strip().lower() not in PLACEHOLDER_DOMAINS]
+
+
 def unique_preserve_order(values: list[str]) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []
@@ -111,7 +120,7 @@ def resolve_public_zone(config: dict[str, Any]) -> str | None:
 
     routing = as_dict(cloudflare.get("routing"))
     plan = as_dict(routing.get("plan"))
-    plan_domains = normalize_string_list(plan.get("domains"))
+    plan_domains = filter_placeholder_domains(normalize_string_list(plan.get("domains")))
     wildcard_roots = [domain[2:] for domain in plan_domains if domain.startswith("*.")]
     exact_domains = [domain for domain in plan_domains if not domain.startswith("*.")]
 
@@ -138,7 +147,7 @@ def collect_desired_zones(config: dict[str, Any]) -> list[str]:
     plan = as_dict(routing.get("plan"))
     bootstrap = get_bootstrap_config(config)
 
-    plan_domains = normalize_string_list(plan.get("domains"))
+    plan_domains = filter_placeholder_domains(normalize_string_list(plan.get("domains")))
     wildcard_roots = [domain[2:] for domain in plan_domains if domain.startswith("*.")]
     exact_domains = [domain for domain in plan_domains if not domain.startswith("*.")]
     manual_zones = normalize_string_list(bootstrap.get("zones"))
