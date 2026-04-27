@@ -215,8 +215,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.EASYEMAIL_PUBLISH_GHCR_USERNAME != '' && secrets.EASYEMAIL_PUBLISH_GHCR_USERNAME || github.actor }}
+          password: ${{ secrets.EASYEMAIL_PUBLISH_GHCR_TOKEN != '' && secrets.EASYEMAIL_PUBLISH_GHCR_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Build And Push Service Base Image
         if: steps.change_gate.outputs.should_publish == 'true'
