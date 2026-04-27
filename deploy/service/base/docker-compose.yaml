@@ -1,7 +1,7 @@
 services:
   easy-email-service:
     build:
-      context: ../..
+      context: ../../..
       dockerfile: deploy/service/base/Dockerfile
     image: ${EASY_EMAIL_SERVICE_IMAGE:-easyemail/easy-email-service:local}
     container_name: ${EASY_EMAIL_SERVICE_CONTAINER_NAME:-easyemail-service-base}

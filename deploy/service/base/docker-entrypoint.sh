@@ -34,7 +34,7 @@ case "$(echo "$RESET_STORE_ON_BOOT" | tr '[:upper:]' '[:lower:]')" in
 esac
 
 if [ "$(id -u)" = "0" ]; then
-  chown -R easy:easy "$STATE_DIR" "$(dirname "$CONFIG_PATH")" /opt/easy-email
+  chown -R easy:easy "$STATE_DIR" "$(dirname "$CONFIG_PATH")" /app
   exec gosu easy node dist/src/runtime/main.js
 fi
 
