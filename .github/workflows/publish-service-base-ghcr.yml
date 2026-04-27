@@ -261,6 +261,8 @@ jobs:
 
           $scopeSummary = Get-EasyEmailReleaseScopeSummary -Files $matchedFiles
           $channel = Get-EasyEmailReleaseChannel -Tag $version
+          $tagMarkdown = ($tags | ForEach-Object { '- `{0}`' -f $_ }) -join [Environment]::NewLine
+          $matchedFilesMarkdown = ($matchedFiles | ForEach-Object { '- `{0}`' -f $_ }) -join [Environment]::NewLine
 
           $manifest = [ordered]@{
             schemaVersion = 1
@@ -302,8 +304,8 @@ jobs:
               provenance = 'mode=max'
             }
             markdown = [ordered]@{
-              tags = (($tags | ForEach-Object { "- `$_`" }) -join "`n")
-              matchedFiles = (($matchedFiles | ForEach-Object { "- `$_`" }) -join "`n")
+              tags = $tagMarkdown
+              matchedFiles = $matchedFilesMarkdown
               scopeSummary = $scopeSummary.markdown
             }
           }
