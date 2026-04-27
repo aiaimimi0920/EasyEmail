@@ -40,12 +40,12 @@ jobs:
       - name: Install Cloudflare Worker Dependencies
         shell: pwsh
         working-directory: upstreams/cloudflare_temp_email/worker
-        run: corepack pnpm install --frozen-lockfile
+        run: corepack pnpm install --no-frozen-lockfile
 
       - name: Install Cloudflare Frontend Dependencies
         shell: pwsh
         working-directory: upstreams/cloudflare_temp_email/frontend
-        run: corepack pnpm install --frozen-lockfile
+        run: corepack pnpm install --no-frozen-lockfile
 
       - name: Run Repository Validation
         shell: pwsh
