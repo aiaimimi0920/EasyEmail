@@ -401,6 +401,9 @@ jobs:
             -BaseUrl '${{ steps.sender_matrix_instance.outputs.base_url }}' `
             -ConfigPath .\config.yaml `
             -Providers 'cloudflare_temp_email','mailtm','m2u','gptmail','mail2925' `
+            -CodeTimeoutSeconds 300 `
+            -ProviderRetryCount 2 `
+            -RecipientRetryCount 4 `
             -ResultOutputPath $resultPath
 
           $results = Get-Content -Raw -LiteralPath $resultPath | ConvertFrom-Json

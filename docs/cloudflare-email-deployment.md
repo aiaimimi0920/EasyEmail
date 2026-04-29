@@ -135,6 +135,10 @@ post-deploy acceptance:
 - `gptmail`
 - `mail2925`
 
+That hosted sender-matrix step also runs with a more conservative timeout and
+retry budget than the local default so the GitHub runner has extra room for
+slow upstream inbox delivery.
+
 ## Supported Deployment Modes
 
 The repository now supports both deployment modes through the same script path:
