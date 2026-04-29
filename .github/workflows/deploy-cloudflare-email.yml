@@ -427,7 +427,7 @@ jobs:
             }
           }
 
-          Set-Content -LiteralPath $summaryPath -Value ($summaryLines -join \"`n\") -Encoding UTF8
+          Set-Content -LiteralPath $summaryPath -Value ($summaryLines -join "`n") -Encoding UTF8
           Get-Content -LiteralPath $summaryPath >> $env:GITHUB_STEP_SUMMARY
 
           "result_path=$resultPath" >> $env:GITHUB_OUTPUT
