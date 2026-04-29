@@ -47,6 +47,18 @@ interface MailCreateMailItem {
   raw?: string;
 }
 
+interface MailCreateParsedMailResponse {
+  sender?: string;
+  subject?: string;
+  text?: string;
+  html?: string;
+}
+
+interface CloudflareTempAdminAddressRecord {
+  id?: number | string;
+  name?: string;
+}
+
 function readMetadata(instance: ProviderInstance, key: string): string | undefined {
   const value = instance.metadata[key];
   return value && value.trim() ? value.trim() : undefined;
@@ -198,6 +210,10 @@ function asMailItems(value: unknown): MailCreateMailItem[] {
   return value.filter((item) => item && typeof item === "object") as MailCreateMailItem[];
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function parseRawMailHeader(raw: string | undefined, headerName: string): string | undefined {
   if (!raw) {
     return undefined;
@@ -217,6 +233,104 @@ function extractObservedAtFromRaw(raw: string | undefined): string {
 
   const parsed = Date.parse(dateHeader);
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : "";
+}
+
+function decodeQuotedPrintableBody(value: string): string {
+  const normalized = value.replace(/=\r?\n/g, "");
+  const bytes: number[] = [];
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const current = normalized[index]!;
+    if (
+      current === "="
+      && index + 2 < normalized.length
+      && /^[0-9A-Fa-f]{2}$/.test(normalized.slice(index + 1, index + 3))
+    ) {
+      bytes.push(Number.parseInt(normalized.slice(index + 1, index + 3), 16));
+      index += 2;
+      continue;
+    }
+
+    bytes.push(current.charCodeAt(0));
+  }
+
+  return Buffer.from(bytes).toString("utf8");
+}
+
+function decodeMimeBodyByTransferEncoding(body: string, transferEncoding: string | undefined): string {
+  const normalizedEncoding = transferEncoding?.trim().toLowerCase();
+  if (normalizedEncoding?.includes("quoted-printable")) {
+    return decodeQuotedPrintableBody(body).trim();
+  }
+  return body.trim();
+}
+
+function parseRawMailBodies(raw: string | undefined): { textBody?: string; htmlBody?: string } {
+  if (!raw?.trim()) {
+    return {};
+  }
+
+  const normalized = raw.replace(/\r\n/g, "\n");
+  const parsed: { textBody?: string; htmlBody?: string } = {};
+
+  const boundary = parseRawMailHeader(raw, "Content-Type")?.match(/boundary="?([^";\r\n]+)"?/i)?.[1]?.trim();
+  if (boundary) {
+    const boundaryRegex = new RegExp(`\\n--${escapeRegex(boundary)}(?:--)?\\n`, "g");
+    const parts = normalized
+      .split(boundaryRegex)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0 && part !== "--");
+
+    for (const part of parts) {
+      const separatorIndex = part.indexOf("\n\n");
+      if (separatorIndex < 0) {
+        continue;
+      }
+
+      const headers = part.slice(0, separatorIndex).trim();
+      const body = part.slice(separatorIndex + 2);
+      const contentType = headers.match(/Content-Type:\s*(text\/plain|text\/html)/i)?.[1]?.trim().toLowerCase();
+      if (!contentType) {
+        continue;
+      }
+
+      const transferEncoding = headers.match(/Content-Transfer-Encoding:\s*([^\n]+)/i)?.[1];
+      const decoded = decodeMimeBodyByTransferEncoding(body, transferEncoding);
+      if (!decoded) {
+        continue;
+      }
+
+      if (contentType === "text/plain") {
+        parsed.textBody = decoded;
+      } else if (contentType === "text/html") {
+        parsed.htmlBody = decoded;
+      }
+    }
+  }
+
+  if (!parsed.textBody && !parsed.htmlBody) {
+    const separatorIndex = normalized.indexOf("\n\n");
+    if (separatorIndex >= 0) {
+      const headers = normalized.slice(0, separatorIndex).trim();
+      const body = normalized.slice(separatorIndex + 2);
+      const contentType = headers.match(/Content-Type:\s*(text\/plain|text\/html)/i)?.[1]?.trim().toLowerCase();
+      const transferEncoding = headers.match(/Content-Transfer-Encoding:\s*([^\n]+)/i)?.[1];
+      const decoded = decodeMimeBodyByTransferEncoding(body, transferEncoding);
+      if (decoded && contentType === "text/plain") {
+        parsed.textBody = decoded;
+      } else if (decoded && contentType === "text/html") {
+        parsed.htmlBody = decoded;
+      }
+    }
+  }
+
+  if (!parsed.textBody && !parsed.htmlBody) {
+    return {
+      textBody: raw.trim(),
+    };
+  }
+
+  return parsed;
 }
 
 async function requestJson(
@@ -283,6 +397,74 @@ async function requestJson(
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new Error(`Cloudflare Temp Email request timed out after ${config.timeoutSeconds}s.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function requestAdminJson(
+  config: CloudflareTempEmailConfig,
+  method: string,
+  path: string,
+  options: {
+    jsonBody?: Record<string, unknown>;
+  } = {},
+): Promise<{ status: number; body: unknown; rawText: string }> {
+  if (!config.adminAuth?.trim()) {
+    throw new Error("Cloudflare Temp Email adminAuth is not configured.");
+  }
+
+  const controller = new AbortController();
+  const timeoutMs = Math.max(1000, config.timeoutSeconds * 1000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await (fetch as unknown as (
+      input: string,
+      init?: Record<string, unknown>,
+    ) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>)(
+      `${config.baseUrl.replace(/\/$/, "")}${path}`,
+      {
+        method,
+        headers: {
+          Accept: "application/json, text/plain, */*",
+          ...(config.customAuth ? { "x-custom-auth": config.customAuth } : {}),
+          "x-admin-auth": config.adminAuth,
+          ...(options.jsonBody ? { "Content-Type": "application/json" } : {}),
+        },
+        body: options.jsonBody ? JSON.stringify(options.jsonBody) : undefined,
+        signal: controller.signal,
+      },
+    );
+
+    const text = await response.text();
+    const trimmed = text.trim();
+    const parsedBody = (() => {
+      if (!trimmed) {
+        return {};
+      }
+
+      if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+        return trimmed;
+      }
+
+      try {
+        return JSON.parse(trimmed) as unknown;
+      } catch {
+        return trimmed;
+      }
+    })();
+
+    return {
+      status: response.status,
+      body: parsedBody,
+      rawText: text,
+    };
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Cloudflare Temp Email admin request timed out after ${config.timeoutSeconds}s.`);
     }
     throw error;
   } finally {
@@ -407,6 +589,54 @@ export class CloudflareTempEmailCreateClient {
     return { address, jwt };
   }
 
+  public async recoverMailboxByEmail(emailAddress: string): Promise<CloudflareTempMailboxCredentials | undefined> {
+    const normalizedEmail = emailAddress.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return undefined;
+    }
+
+    const encodedQuery = encodeURIComponent(normalizedEmail);
+    const addressResponse = await requestAdminJson(
+      this.config,
+      "GET",
+      `/admin/address?query=${encodedQuery}&limit=20&offset=0`,
+    );
+    if (addressResponse.status !== 200) {
+      const detail = extractErrorDetail(addressResponse.body, addressResponse.rawText);
+      throw new Error(`Cloudflare Temp Email admin address query failed with status ${addressResponse.status}${detail ? `: ${detail}` : "."}`);
+    }
+
+    const addressBody = asRecord(addressResponse.body);
+    const results = Array.isArray(addressBody.results) ? addressBody.results : [];
+    const match = results
+      .map((item) => asRecord(item) as CloudflareTempAdminAddressRecord)
+      .find((item) => typeof item.name === "string" && item.name.trim().toLowerCase() === normalizedEmail);
+    if (!match?.id) {
+      return undefined;
+    }
+
+    const jwtResponse = await requestAdminJson(
+      this.config,
+      "GET",
+      `/admin/show_password/${encodeURIComponent(String(match.id))}`,
+    );
+    if (jwtResponse.status !== 200) {
+      const detail = extractErrorDetail(jwtResponse.body, jwtResponse.rawText);
+      throw new Error(`Cloudflare Temp Email admin JWT recovery failed with status ${jwtResponse.status}${detail ? `: ${detail}` : "."}`);
+    }
+
+    const jwtBody = asRecord(jwtResponse.body);
+    const jwt = typeof jwtBody.jwt === "string" ? jwtBody.jwt.trim() : "";
+    if (!jwt) {
+      throw new Error(`Cloudflare Temp Email admin JWT recovery returned an empty jwt for ${normalizedEmail}.`);
+    }
+
+    return {
+      address: normalizedEmail,
+      jwt,
+    };
+  }
+
   public async listMails(jwt: string, limit = 20, offset = 0): Promise<MailCreateMailItem[]> {
     const response = await requestJson(this.config, "GET", "/api/mails", {
       bearerToken: jwt,
@@ -432,6 +662,18 @@ export class CloudflareTempEmailCreateClient {
     }
 
     return asRecord(response.body);
+  }
+
+  public async getParsedMail(jwt: string, mailId: number): Promise<MailCreateParsedMailResponse> {
+    const response = await requestJson(this.config, "GET", `/api/parsed_mail/${encodeURIComponent(String(mailId))}`, {
+      bearerToken: jwt,
+    });
+    if (response.status !== 200) {
+      const detail = extractErrorDetail(response.body, response.rawText);
+      throw new Error(`Cloudflare Temp Email getParsedMail failed with status ${response.status}${detail ? `: ${detail}` : "."}`);
+    }
+
+    return asRecord(response.body) as MailCreateParsedMailResponse;
   }
 
   public async requestSendMailAccess(jwt: string): Promise<void> {
@@ -602,6 +844,7 @@ export class CloudflareTempEmailCreateClient {
         const mailId = typeof mail.id === "number" ? mail.id : undefined;
         const detail = mailId ? await this.getMail(mailbox.jwt, mailId) : {};
         const raw = typeof detail.raw === "string" ? detail.raw : undefined;
+        const parsedBodies = parseRawMailBodies(raw);
         return {
           id: `cloudflare_temp_email:${String(mail.id ?? `${sessionId}:subject`)}`,
           sessionId,
@@ -609,8 +852,8 @@ export class CloudflareTempEmailCreateClient {
           observedAt: extractObservedAtFromRaw(raw),
           sender,
           subject: mail.subject,
-          htmlBody: raw,
-          textBody: raw,
+          htmlBody: parsedBodies.htmlBody,
+          textBody: parsedBodies.textBody,
           extractedCode: subjectCode.code,
           codeSource: subjectCode.source,
         };
@@ -623,12 +866,43 @@ export class CloudflareTempEmailCreateClient {
 
       const detail = await this.getMail(mailbox.jwt, mailId);
       const raw = typeof detail.raw === "string" ? detail.raw : undefined;
-      const rawCode = extractOtpFromContent({
+      const parsedBodies = parseRawMailBodies(raw);
+      const fallbackRaw = !parsedBodies.textBody && !parsedBodies.htmlBody
+        ? raw
+        : undefined;
+      let resolvedTextBody = parsedBodies.textBody;
+      let resolvedHtmlBody = parsedBodies.htmlBody;
+      let rawCode = extractOtpFromContent({
         sender,
         subject: typeof mail.subject === "string" ? mail.subject : undefined,
-        htmlBody: raw,
-        textBody: raw,
+        htmlBody: resolvedHtmlBody ?? fallbackRaw,
+        textBody: resolvedTextBody ?? fallbackRaw,
       });
+      let parsedMailUsedForCode = false;
+      if (!rawCode) {
+        try {
+          const parsedMail = await this.getParsedMail(mailbox.jwt, mailId);
+          const parsedTextBody = typeof parsedMail.text === "string" ? parsedMail.text.trim() : "";
+          const parsedHtmlBody = typeof parsedMail.html === "string" ? parsedMail.html.trim() : "";
+          rawCode = extractOtpFromContent({
+            sender: String(parsedMail.sender ?? sender).trim(),
+            subject: typeof parsedMail.subject === "string" && parsedMail.subject.trim()
+              ? parsedMail.subject
+              : (typeof mail.subject === "string" ? mail.subject : undefined),
+            htmlBody: parsedHtmlBody || undefined,
+            textBody: parsedTextBody || undefined,
+          });
+          parsedMailUsedForCode = Boolean(rawCode);
+          if (parsedTextBody && (!resolvedTextBody || parsedMailUsedForCode)) {
+            resolvedTextBody = parsedTextBody;
+          }
+          if (parsedHtmlBody && (!resolvedHtmlBody || parsedMailUsedForCode)) {
+            resolvedHtmlBody = parsedHtmlBody;
+          }
+        } catch {
+          // Some deployments do not expose /api/parsed_mail; keep the raw-mail fallback only.
+        }
+      }
       if (!rawCode) {
         continue;
       }
@@ -639,8 +913,8 @@ export class CloudflareTempEmailCreateClient {
         observedAt: extractObservedAtFromRaw(raw),
         sender,
         subject: mail.subject,
-        htmlBody: raw,
-        textBody: raw,
+        htmlBody: resolvedHtmlBody,
+        textBody: resolvedTextBody,
         extractedCode: rawCode.code,
         codeSource: rawCode.source,
       };

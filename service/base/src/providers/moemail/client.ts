@@ -514,7 +514,9 @@ function readMessageSender(record: Record<string, unknown>): string | undefined 
   return readString(record.from)
     ?? readString(record.sender)
     ?? readString(record.fromAddress)
-    ?? readString(record.senderAddress);
+    ?? readString(record.senderAddress)
+    ?? readString(record.from_address)
+    ?? readString(record.sender_address);
 }
 
 function readMessageSubject(record: Record<string, unknown>): string | undefined {
@@ -538,17 +540,37 @@ function readMessageHtml(record: Record<string, unknown>): string | undefined {
     ?? readString(record.rawHtml);
 }
 
+function deriveTextBodyFromHtml(htmlBody: string | undefined): string | undefined {
+  const html = readString(htmlBody);
+  if (!html) {
+    return undefined;
+  }
+
+  const text = html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return text || undefined;
+}
+
 function summarizeMessage(record: Record<string, unknown>): MoemailMessageSummary | undefined {
   const messageId = readMessageId(record);
   if (!messageId) {
     return undefined;
   }
+  const htmlBody = readMessageHtml(record);
+  const textBody = readMessageText(record) ?? deriveTextBodyFromHtml(htmlBody);
   return {
     messageId,
     sender: readMessageSender(record),
     subject: readMessageSubject(record),
-    textBody: readMessageText(record),
-    htmlBody: readMessageHtml(record),
+    textBody,
+    htmlBody,
     observedAt: toIsoTimestamp(
       record.received_at
       ?? record.receivedAt
@@ -1153,8 +1175,8 @@ export class MoemailClient {
           continue;
         }
         const subject = readMessageSubject(detail) ?? item.subject;
-        const textBody = readMessageText(detail) ?? item.textBody;
         const htmlBody = readMessageHtml(detail) ?? item.htmlBody;
+        const textBody = readMessageText(detail) ?? item.textBody ?? deriveTextBodyFromHtml(htmlBody);
         const detailOtp = extractOtp({
           subject,
           textBody,

@@ -40,6 +40,11 @@ on:
         required: false
         default: true
         type: boolean
+      run_sender_matrix:
+        description: "Run a slim post-deploy sender matrix against the local service/base verifier"
+        required: false
+        default: true
+        type: boolean
       force_deploy:
         description: "Deploy even when the current commit does not touch Cloudflare email files"
         required: false
@@ -171,6 +176,12 @@ jobs:
           EASYEMAIL_CF_DEFAULT_DOMAINS: ${{ secrets.EASYEMAIL_CF_DEFAULT_DOMAINS }}
           EASYEMAIL_CF_RANDOM_SUBDOMAIN_DOMAINS: ${{ secrets.EASYEMAIL_CF_RANDOM_SUBDOMAIN_DOMAINS }}
           EASYEMAIL_CF_SUBDOMAIN_LABEL_POOL: ${{ secrets.EASYEMAIL_CF_SUBDOMAIN_LABEL_POOL }}
+          EASYEMAIL_CF_SEND_MAIL_DOMAINS: ${{ secrets.EASYEMAIL_CF_SEND_MAIL_DOMAINS }}
+          EASYEMAIL_CF_RESEND_TOKEN: ${{ secrets.EASYEMAIL_CF_RESEND_TOKEN }}
+          EASYEMAIL_CF_SMTP_CONFIG: ${{ secrets.EASYEMAIL_CF_SMTP_CONFIG }}
+          EASYEMAIL_CF_SENDING_DOMAINS: ${{ secrets.EASYEMAIL_CF_SENDING_DOMAINS }}
+          EASYEMAIL_CF_PREFERRED_SENDER_DOMAIN: ${{ secrets.EASYEMAIL_CF_PREFERRED_SENDER_DOMAIN }}
+          EASYEMAIL_CF_PREFERRED_SENDER_LOCAL_PART: ${{ secrets.EASYEMAIL_CF_PREFERRED_SENDER_LOCAL_PART }}
           EASYEMAIL_CF_ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH: ${{ secrets.EASYEMAIL_CF_ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH }}
           EASYEMAIL_CF_RANDOM_SUBDOMAIN_LENGTH: ${{ secrets.EASYEMAIL_CF_RANDOM_SUBDOMAIN_LENGTH }}
           EASYEMAIL_CF_ENABLE_USER_CREATE_EMAIL: ${{ secrets.EASYEMAIL_CF_ENABLE_USER_CREATE_EMAIL }}
@@ -192,6 +203,22 @@ jobs:
           EASYEMAIL_CF_CONTROL_CENTER_DNS_TOKEN: ${{ secrets.EASYEMAIL_CF_CONTROL_CENTER_DNS_TOKEN }}
           EASYEMAIL_CF_AUTH_EMAIL: ${{ secrets.EASYEMAIL_CF_AUTH_EMAIL }}
           EASYEMAIL_CF_GLOBAL_API_KEY: ${{ secrets.EASYEMAIL_CF_GLOBAL_API_KEY }}
+          EASYEMAIL_SERVICE_RUNTIME_API_KEY: ${{ secrets.EASYEMAIL_SERVICE_RUNTIME_API_KEY }}
+          EASYEMAIL_PROVIDER_CLOUDFLARE_API_KEY: ${{ secrets.EASYEMAIL_PROVIDER_CLOUDFLARE_API_KEY }}
+          EASYEMAIL_PROVIDER_CLOUDFLARE_ADMIN_AUTH: ${{ secrets.EASYEMAIL_PROVIDER_CLOUDFLARE_ADMIN_AUTH }}
+          EASYEMAIL_PROVIDER_MOEMAIL_API_KEY: ${{ secrets.EASYEMAIL_PROVIDER_MOEMAIL_API_KEY }}
+          EASYEMAIL_PROVIDER_MOEMAIL_WEB_SESSION_TOKEN: ${{ secrets.EASYEMAIL_PROVIDER_MOEMAIL_WEB_SESSION_TOKEN }}
+          EASYEMAIL_PROVIDER_MOEMAIL_WEB_CSRF_TOKEN: ${{ secrets.EASYEMAIL_PROVIDER_MOEMAIL_WEB_CSRF_TOKEN }}
+          EASYEMAIL_PROVIDER_IM215_API_KEY: ${{ secrets.EASYEMAIL_PROVIDER_IM215_API_KEY }}
+          EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT: ${{ secrets.EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT }}
+          EASYEMAIL_PROVIDER_MAIL2925_PASSWORD: ${{ secrets.EASYEMAIL_PROVIDER_MAIL2925_PASSWORD }}
+          EASYEMAIL_PROVIDER_GPTMAIL_API_KEY: ${{ secrets.EASYEMAIL_PROVIDER_GPTMAIL_API_KEY }}
+          EASYEMAIL_PROVIDER_GPTMAIL_KEYS_TEXT: ${{ secrets.EASYEMAIL_PROVIDER_GPTMAIL_KEYS_TEXT }}
+          EASYEMAIL_PROVIDER_TEMPMAIL_LOL_BASE_URL: ${{ secrets.EASYEMAIL_PROVIDER_TEMPMAIL_LOL_BASE_URL }}
+          EASYEMAIL_PROVIDER_M2U_BASE_URL: ${{ secrets.EASYEMAIL_PROVIDER_M2U_BASE_URL }}
+          EASYEMAIL_PROVIDER_M2U_PREFERRED_DOMAIN: ${{ secrets.EASYEMAIL_PROVIDER_M2U_PREFERRED_DOMAIN }}
+          EASYEMAIL_PROVIDER_M2U_UPSTREAM_PROXY_URL: ${{ secrets.EASYEMAIL_PROVIDER_M2U_UPSTREAM_PROXY_URL }}
+          EASYEMAIL_PROVIDER_M2U_USE_EASY_PROXY_ON_CAPACITY: ${{ secrets.EASYEMAIL_PROVIDER_M2U_USE_EASY_PROXY_ON_CAPACITY }}
         run: |
           . .\scripts\lib\easyemail-config.ps1
 
@@ -204,11 +231,13 @@ jobs:
             'EASYEMAIL_CF_JWT_SECRET',
             'EASYEMAIL_CF_DOMAINS',
             'EASYEMAIL_CF_SUBDOMAIN_LABEL_POOL',
+            'EASYEMAIL_CF_SENDING_DOMAINS',
             'EASYEMAIL_CF_D1_DATABASE_ID',
             'EASYEMAIL_CF_D1_DATABASE_NAME',
             'EASYEMAIL_CF_AUTH_EMAIL',
             'EASYEMAIL_CF_GLOBAL_API_KEY',
-            'EASYEMAIL_CF_API_TOKEN'
+            'EASYEMAIL_CF_API_TOKEN',
+            'EASYEMAIL_CF_RESEND_TOKEN'
           )
 
           $hasGranularSecrets = $false
@@ -347,6 +376,82 @@ jobs:
           "runtime_path=$runtimePath" >> $env:GITHUB_OUTPUT
           "version=$($runtimeReadback.version)" >> $env:GITHUB_OUTPUT
           "base_url=$($runtimeReadback.baseUrl)" >> $env:GITHUB_OUTPUT
+
+      - name: Deploy Local Service Base Sender-Matrix Verifier
+        if: steps.change_gate.outputs.should_deploy == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run) && (github.event_name != 'workflow_dispatch' || inputs.run_sender_matrix)
+        id: sender_matrix_instance
+        shell: pwsh
+        run: |
+          .\scripts\deploy-service-base.ps1 `
+            -ConfigPath .\config.yaml `
+            -InstanceName gha-sender-matrix `
+            -ContainerName easyemail-service-base-gha-sender-matrix `
+            -HostPort 18131 `
+            -ComposeProjectName easyemail-gha-sender-matrix
+
+          "base_url=http://127.0.0.1:18131" >> $env:GITHUB_OUTPUT
+
+      - name: Run Slim Sender Matrix
+        if: steps.change_gate.outputs.should_deploy == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run) && (github.event_name != 'workflow_dispatch' || inputs.run_sender_matrix)
+        id: sender_matrix
+        shell: pwsh
+        run: |
+          $resultPath = Join-Path $PWD 'cloudflare-sender-matrix-smoke.json'
+          .\scripts\test-easyemail-cloudflare-sender-matrix.ps1 `
+            -BaseUrl '${{ steps.sender_matrix_instance.outputs.base_url }}' `
+            -ConfigPath .\config.yaml `
+            -Providers 'cloudflare_temp_email','mailtm','m2u','gptmail','mail2925' `
+            -ResultOutputPath $resultPath
+
+          $results = Get-Content -Raw -LiteralPath $resultPath | ConvertFrom-Json
+          $failed = @($results | Where-Object { -not $_.ok })
+
+          $summaryPath = Join-Path $PWD 'cloudflare-sender-matrix-smoke-summary.md'
+          $summaryLines = @(
+            '## Cloudflare Sender Matrix Smoke'
+            ''
+            '- Providers: `cloudflare_temp_email`, `mailtm`, `m2u`, `gptmail`, `mail2925`'
+            ('- Base URL: `${{ steps.sender_matrix_instance.outputs.base_url }}`')
+            ('- Result: ' + ($(if ($failed.Count -eq 0) { 'passed' } else { 'failed' })))
+            ''
+          )
+
+          foreach ($entry in $results) {
+            if ($entry.ok) {
+              $summaryLines += ('- `'+$entry.provider+'`: passed')
+            } else {
+              $summaryLines += ('- `'+$entry.provider+'`: failed')
+              if ($entry.detail) {
+                $summaryLines += ('  detail: ' + [string]$entry.detail)
+              }
+            }
+          }
+
+          Set-Content -LiteralPath $summaryPath -Value ($summaryLines -join \"`n\") -Encoding UTF8
+          Get-Content -LiteralPath $summaryPath >> $env:GITHUB_STEP_SUMMARY
+
+          "result_path=$resultPath" >> $env:GITHUB_OUTPUT
+          "summary_path=$summaryPath" >> $env:GITHUB_OUTPUT
+
+          if ($failed.Count -gt 0) {
+            throw ('Sender matrix smoke failed for providers: ' + (($failed | ForEach-Object { $_.provider }) -join ', '))
+          }
+
+      - name: Upload Sender Matrix Artifacts
+        if: always() && steps.sender_matrix.outputs.result_path != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: cloudflare-sender-matrix-smoke
+          path: |
+            ${{ steps.sender_matrix.outputs.result_path }}
+            ${{ steps.sender_matrix.outputs.summary_path }}
+
+      - name: Cleanup Sender-Matrix Verifier
+        if: always() && steps.sender_matrix_instance.outputs.base_url != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -p easyemail-gha-sender-matrix -f deploy/service/base/docker-compose.yaml down -v || true
 
       - name: Write Deployment Manifest
         if: steps.change_gate.outputs.should_deploy == 'true'

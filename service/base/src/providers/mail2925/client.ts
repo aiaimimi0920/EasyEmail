@@ -12,6 +12,7 @@ declare const fetch: (
   text(): Promise<string>;
 }>;
 
+import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
   createBasicAuthCredentialSetFromFile,
@@ -37,6 +38,9 @@ export interface Mail2925Config {
   aliasSeparator: string;
   aliasSuffixLength: number;
   timeoutSeconds: number;
+  jwtToken?: string;
+  deviceUid?: string;
+  cookieHeader?: string;
 }
 
 export interface Mail2925MailboxRefPayload {
@@ -74,6 +78,19 @@ const loginTokenCache = new Map<string, Mail2925TokenCacheEntry>();
 const AUTH_ERROR_RE = /(status 401|status 403|unauthorized|forbidden|invalid password|password error|login failed|token|登录|密码|认证)/i;
 const CAPACITY_ERROR_RE = /(status 429|too many requests|rate limit|quota)/i;
 const TRANSIENT_ERROR_RE = /(fetch failed|timeout|timed out|econnreset|socket hang up|network|status 5\d{2}|temporarily unavailable|gateway)/i;
+const MAIL2925_BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
+const PYTHON_MAIL2925_REQUEST_SCRIPT = [
+  "import json, sys",
+  "import requests",
+  "payload = json.loads(sys.argv[1])",
+  "response = requests.request(payload['method'], payload['url'], headers=payload.get('headers') or {}, params=payload.get('params') or {}, timeout=payload.get('timeout', 60))",
+  "text = response.text or ''",
+  "try:",
+  "    body = json.loads(text) if text else {}",
+  "except Exception:",
+  "    body = text",
+  "print(json.dumps({'status': response.status_code, 'body': body}, ensure_ascii=False))",
+].join("\n");
 
 class Mail2925ClientError extends Error {
   public constructor(
@@ -231,6 +248,8 @@ async function requestJson(
           Accept: "application/json, text/plain, */*",
           ...(options.formBody ? { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" } : {}),
           ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+          ...(config.deviceUid ? { deviceUid: config.deviceUid } : {}),
+          ...(config.cookieHeader ? { Cookie: config.cookieHeader } : {}),
           ...(options.extraHeaders ?? {}),
         },
         body: options.formBody ? encodeFormBody(options.formBody) : undefined,
@@ -263,6 +282,65 @@ async function requestJson(
   } finally {
     clearTimeout(timeoutHandle);
   }
+}
+
+async function requestJsonWithPython(
+  method: string,
+  url: string,
+  headers: Record<string, string>,
+  query: Record<string, string | number | boolean | undefined>,
+  timeoutSeconds: number,
+): Promise<{ status: number; body: unknown }> {
+  const payload = JSON.stringify({
+    method,
+    url,
+    headers,
+    params: Object.fromEntries(
+      Object.entries(query).filter(([, value]) => value !== undefined),
+    ),
+    timeout: Math.max(5, timeoutSeconds),
+  });
+
+  const commandCandidates = process.platform === "win32" ? ["python", "python3"] : ["python3", "python"];
+  let lastError: Error | undefined;
+
+  for (const command of commandCandidates) {
+    try {
+      const output = await new Promise<string>((resolve, reject) => {
+        execFile(
+          command,
+          ["-c", PYTHON_MAIL2925_REQUEST_SCRIPT, payload],
+          {
+            maxBuffer: 4 * 1024 * 1024,
+            windowsHide: true,
+          },
+          (error, stdout, stderr) => {
+            if (error) {
+              const detail = stderr?.trim() || stdout?.trim() || error.message;
+              reject(new Error(detail));
+              return;
+            }
+            resolve(stdout);
+          },
+        );
+      });
+
+      const normalized = output.trim();
+      if (!normalized) {
+        return { status: 0, body: {} };
+      }
+      return JSON.parse(normalized) as { status: number; body: unknown };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const normalizedMessage = lastError.message.toLowerCase();
+      if (normalizedMessage.includes("not found") || normalizedMessage.includes("cannot find")) {
+        continue;
+      }
+      throw lastError;
+    }
+  }
+
+  throw lastError ?? new Error("Python runtime is unavailable for 2925 message fallback.");
 }
 
 function normalizeAddress(value: string | undefined): string | undefined {
@@ -631,11 +709,18 @@ export function resolveMail2925Config(
     aliasSeparator: sanitizeAliasSeparator(readMetadata(instance, "aliasSeparator")),
     aliasSuffixLength: parseOptionalInteger(readMetadata(instance, "aliasSuffixLength")) ?? 10,
     timeoutSeconds: parseOptionalInteger(readMetadata(instance, "timeoutSeconds")) ?? 20,
+    jwtToken: readMetadata(instance, "jwtToken") ?? readMetadata(instance, "webJwtToken"),
+    deviceUid: readMetadata(instance, "deviceUid"),
+    cookieHeader: readMetadata(instance, "cookieHeader"),
   };
 }
 
 export class Mail2925Client {
   public constructor(private readonly config: Mail2925Config) {}
+
+  private canRefreshConfiguredSessionToken(): boolean {
+    return Boolean(this.config.cookieHeader?.trim() && this.config.deviceUid?.trim());
+  }
 
   public static fromInstance(
     instance: ProviderInstance,
@@ -837,20 +922,36 @@ export class Mail2925Client {
     path: string,
     options: Omit<Mail2925RequestOptions, "token"> = {},
   ): Promise<unknown> {
-    let token = await this.login(account);
+    const configuredSessionToken = this.config.jwtToken?.trim();
+    let token = configuredSessionToken || await this.login(account);
+    const browserHeaders = {
+      "X-Requested-With": "XMLHttpRequest",
+      Referer: `${this.config.apiBase.replace(/\/$/, "")}/`,
+      "User-Agent": MAIL2925_BROWSER_USER_AGENT,
+      ...(options.extraHeaders ?? {}),
+    };
     let response = await requestJson(this.config, method, path, {
       ...options,
       token,
+      extraHeaders: browserHeaders,
     });
 
     const isAuthFailure = !isSuccessfulEnvelope(response.status, response.body)
       && classifyMail2925Error(readEnvelopeMessage(response.body) ?? `status ${response.status}`) === "auth";
 
-    if (isAuthFailure) {
+    if (isAuthFailure && configuredSessionToken && this.canRefreshConfiguredSessionToken()) {
+      token = await this.refreshConfiguredSessionToken();
+      response = await requestJson(this.config, method, path, {
+        ...options,
+        token,
+        extraHeaders: browserHeaders,
+      });
+    } else if (isAuthFailure && !configuredSessionToken) {
       token = await this.login(account, true);
       response = await requestJson(this.config, method, path, {
         ...options,
         token,
+        extraHeaders: browserHeaders,
       });
     }
 
@@ -859,6 +960,87 @@ export class Mail2925Client {
     }
 
     return response.body;
+  }
+
+  private async getMessageWithPythonFallback(
+    account: Mail2925AccountCredential,
+    messageId: string,
+    folderName: string,
+  ): Promise<Record<string, unknown>> {
+    const browserHeaders = {
+      Accept: "application/json, text/plain, */*",
+      "X-Requested-With": "XMLHttpRequest",
+      Referer: `${this.config.apiBase.replace(/\/$/, "")}/`,
+      "User-Agent": MAIL2925_BROWSER_USER_AGENT,
+      ...(this.config.deviceUid ? { deviceUid: this.config.deviceUid } : {}),
+      ...(this.config.cookieHeader ? { Cookie: this.config.cookieHeader } : {}),
+    };
+
+    const executeWithToken = async (token: string) => {
+      const response = await requestJsonWithPython(
+        "GET",
+        `${this.config.apiBase.replace(/\/$/, "")}/mailv2/maildata/MailRead/mails/read`,
+        {
+          ...browserHeaders,
+          Authorization: `Bearer ${token}`,
+        },
+        {
+          MessageID: messageId,
+          FolderName: folderName,
+          MailBox: account.accountEmail,
+          IsPre: false,
+        },
+        this.config.timeoutSeconds,
+      );
+
+      if (!isSuccessfulEnvelope(response.status, response.body)) {
+        throw buildMail2925StatusError("pythonDetailRead", response.status, response.body);
+      }
+
+      return asRecord(readEnvelopeResult(response.body));
+    };
+
+    let token = this.config.jwtToken?.trim() || await this.login(account);
+    try {
+      return await executeWithToken(token);
+    } catch (error) {
+      const classified = classifyThrownError(error);
+      if (classified.kind !== "auth" || !this.canRefreshConfiguredSessionToken()) {
+        throw error;
+      }
+    }
+
+    token = await this.refreshConfiguredSessionToken();
+    return executeWithToken(token);
+  }
+
+  private async refreshConfiguredSessionToken(): Promise<string> {
+    if (!this.canRefreshConfiguredSessionToken()) {
+      throw new Mail2925ClientError("2925 browser session refresh requires deviceUid and cookieHeader.", "auth");
+    }
+
+    const browserHeaders = {
+      "X-Requested-With": "XMLHttpRequest",
+      Referer: `${this.config.apiBase.replace(/\/$/, "")}/`,
+      "User-Agent": MAIL2925_BROWSER_USER_AGENT,
+    };
+    const response = await requestJson(this.config, "POST", "/mailv2/auth/token", {
+      formBody: {},
+      extraHeaders: browserHeaders,
+    });
+
+    if (!isSuccessfulEnvelope(response.status, response.body)) {
+      throw buildMail2925StatusError("refreshToken", response.status, response.body);
+    }
+
+    const result = readEnvelopeResult(response.body);
+    const token = readString(result);
+    if (!token) {
+      throw new Mail2925ClientError("2925 token refresh returned an empty access token.", "provider");
+    }
+
+    this.config.jwtToken = token;
+    return token;
   }
 
   public async listFolders(account: Mail2925AccountCredential): Promise<string[]> {
@@ -877,14 +1059,12 @@ export class Mail2925Client {
   }): Promise<Mail2925MailboxRefPayload> {
     return this.withCredential("generate", options.sessionHint, async (account) => {
       await this.login(account);
+      // 2925's public webmail API can authenticate the backing account, but it does
+      // not expose alias provisioning. Returning a synthetic alias address produces
+      // non-deliverable mailboxes. Bind sessions to the verified account inbox so the
+      // provider remains usable for real receive/OTP flows.
       return {
-        aliasAddress: buildAliasAddress(
-          account,
-          options.sessionHint,
-          this.config.aliasSeparator,
-          this.config.aliasSuffixLength,
-          options.requestedDomain,
-        ),
+        aliasAddress: account.accountEmail,
         accountEmail: account.accountEmail,
         folderName: this.config.folderName,
         credentialSetId: account.selection.set.id,
@@ -916,16 +1096,23 @@ export class Mail2925Client {
     messageId: string,
     folderName = this.config.folderName,
   ): Promise<Record<string, unknown>> {
-    const body = await this.requestAuthorized(account, "GET", "/mailv2/maildata/MailRead/mails/read", {
-      query: {
-        MessageID: messageId,
-        FolderName: folderName,
-        MailBox: account.accountEmail,
-        IsPre: false,
-      },
-    });
+    try {
+      const body = await this.requestAuthorized(account, "GET", "/mailv2/maildata/MailRead/mails/read", {
+        query: {
+          MessageID: messageId,
+          FolderName: folderName,
+          MailBox: account.accountEmail,
+          IsPre: false,
+        },
+      });
 
-    return asRecord(readEnvelopeResult(body));
+      return asRecord(readEnvelopeResult(body));
+    } catch (error) {
+      if (!this.canRefreshConfiguredSessionToken()) {
+        throw error;
+      }
+      return this.getMessageWithPythonFallback(account, messageId, folderName);
+    }
   }
 
   public async tryReadLatestCode(
@@ -980,9 +1167,9 @@ export class Mail2925Client {
           htmlBody: summaryHtml,
         });
 
-        if (summaryOtp && aliasMatchesSummary) {
+        if (aliasMatchesSummary && (summaryText || summaryHtml) && !messageId) {
           return {
-            id: `mail2925:${messageId ?? summaryOtp.code}`,
+            id: `mail2925:${summaryOtp?.code ?? observedAt ?? "summary"}`,
             sessionId,
             providerInstanceId,
             observedAt,
@@ -990,8 +1177,8 @@ export class Mail2925Client {
             subject,
             textBody: summaryText,
             htmlBody: summaryHtml,
-            extractedCode: summaryOtp.code,
-            codeSource: summaryOtp.source,
+            extractedCode: summaryOtp?.code,
+            codeSource: summaryOtp?.source,
           };
         }
 
@@ -1003,7 +1190,22 @@ export class Mail2925Client {
         try {
           detail = await this.getMessage(account, messageId, mailbox.folderName ?? this.config.folderName);
         } catch {
-          continue;
+          if (!aliasMatchesSummary || (!summaryText && !summaryHtml)) {
+            continue;
+          }
+
+          return {
+            id: `mail2925:${messageId}`,
+            sessionId,
+            providerInstanceId,
+            observedAt,
+            sender,
+            subject,
+            textBody: summaryText,
+            htmlBody: summaryHtml,
+            extractedCode: summaryOtp?.code,
+            codeSource: summaryOtp?.source,
+          };
         }
         const recipients = readRecipients(detail);
         const aliasMatches = recipients.length > 0
@@ -1031,7 +1233,22 @@ export class Mail2925Client {
           htmlBody: detailHtml,
         });
         if (!detailOtp) {
-          continue;
+          if (!aliasMatchesSummary || (!summaryText && !summaryHtml)) {
+            continue;
+          }
+
+          return {
+            id: `mail2925:${messageId}`,
+            sessionId,
+            providerInstanceId,
+            observedAt,
+            sender,
+            subject,
+            textBody: summaryText,
+            htmlBody: summaryHtml,
+            extractedCode: summaryOtp?.code,
+            codeSource: summaryOtp?.source,
+          };
         }
         return {
           id: `mail2925:${messageId}`,

@@ -15,12 +15,11 @@
   "metadata": {
     "tier": "default",
     "apiBase": "https://api.m2u.io",
-    "userAgent": "EasyEmailM2U/1.0",
     "acceptLanguage": "zh-CN,zh;q=0.9",
     "acceptEncoding": "identity",
     "probeMailboxSmokeIntervalSeconds": "900",
-    "useEasyProxyOnCapacity": "true",
-    "easyProxyRequireDedicatedNode": "true",
+    "useEasyProxyOnCapacity": "false",
+    "easyProxyRequireDedicatedNode": "false",
     "easyProxyMaxAttempts": "10"
   },
   "createdAt": "",

@@ -188,6 +188,8 @@ export async function startEasyEmailServiceRuntime(
   configureDefaultStrategyProfile(service, config);
   configureProviderAvailability(service, config);
   configureGptMailProviderInstance(service, config);
+  configureTempmailLolProviderInstance(service, config);
+  configureM2uProviderInstance(service, config);
   configureMoemailProviderInstance(service, config);
   configureIm215ProviderInstance(service, config);
   configureMail2925ProviderInstance(service, config);
@@ -592,6 +594,42 @@ function configureBasicAuthProviderInstance(
   });
 }
 
+function configureMetadataOnlyExternalProviderInstance(
+  service: EasyEmailService,
+  instanceId: string,
+  providerTypeKey: ProviderInstance["providerTypeKey"],
+  enabled: boolean,
+  config: {
+    baseUrl?: string;
+    extraMetadata?: Record<string, string | undefined>;
+  },
+): void {
+  const snapshot = service.getSnapshot();
+  const instance = snapshot.instances.find((item) => item.id === instanceId && item.providerTypeKey === providerTypeKey);
+  if (!instance) {
+    return;
+  }
+
+  const now = new Date();
+  const metadata: Record<string, string> = {
+    ...instance.metadata,
+    ...Object.fromEntries(
+      Object.entries(config.extraMetadata ?? {}).filter(([, value]) => typeof value === "string" && value.trim()),
+    ) as Record<string, string>,
+  };
+  if (config.baseUrl?.trim()) {
+    metadata.apiBase = config.baseUrl.trim();
+  }
+
+  service.saveProviderInstance({
+    ...instance,
+    status: enabled ? "active" : "offline",
+    connectionRef: config.baseUrl?.trim() || instance.connectionRef,
+    metadata,
+    updatedAt: now.toISOString(),
+  });
+}
+
 function configureGptMailProviderInstance(
   service: EasyEmailService,
   config: EasyEmailServiceRuntimeConfig,
@@ -708,6 +746,48 @@ function configureMoemailProviderInstance(
   );
 }
 
+function configureTempmailLolProviderInstance(
+  service: EasyEmailService,
+  config: EasyEmailServiceRuntimeConfig,
+): void {
+  configureMetadataOnlyExternalProviderInstance(
+    service,
+    "tempmail_lol_shared_default",
+    "tempmail-lol",
+    isExternalProviderEnabled(config, "tempmail-lol"),
+    {
+      baseUrl: config.tempmailLol.baseUrl,
+    },
+  );
+}
+
+function configureM2uProviderInstance(
+  service: EasyEmailService,
+  config: EasyEmailServiceRuntimeConfig,
+): void {
+  configureMetadataOnlyExternalProviderInstance(
+    service,
+    "m2u_shared_default",
+    "m2u",
+    isExternalProviderEnabled(config, "m2u"),
+    {
+      baseUrl: config.m2u.baseUrl,
+      extraMetadata: {
+        preferredDomain: config.m2u.preferredDomain,
+        upstreamProxyUrl: config.m2u.upstreamProxyUrl,
+        useEasyProxyOnCapacity: config.m2u.useEasyProxyOnCapacity != null ? String(config.m2u.useEasyProxyOnCapacity) : undefined,
+        easyProxyBaseUrl: config.m2u.easyProxyBaseUrl,
+        easyProxyApiKey: config.m2u.easyProxyApiKey,
+        easyProxyRuntimeHost: config.m2u.easyProxyRuntimeHost,
+        easyProxyHostId: config.m2u.easyProxyHostId,
+        easyProxyRequireDedicatedNode: config.m2u.easyProxyRequireDedicatedNode != null ? String(config.m2u.easyProxyRequireDedicatedNode) : undefined,
+        easyProxyMaxAttempts: config.m2u.easyProxyMaxAttempts != null ? String(config.m2u.easyProxyMaxAttempts) : undefined,
+        pythonCommand: config.m2u.pythonCommand,
+      },
+    },
+  );
+}
+
 function configureIm215ProviderInstance(
   service: EasyEmailService,
   config: EasyEmailServiceRuntimeConfig,
@@ -761,6 +841,9 @@ function configureMail2925ProviderInstance(
         aliasSeparator: config.mail2925.aliasSeparator,
         aliasSuffixLength: config.mail2925.aliasSuffixLength != null ? String(config.mail2925.aliasSuffixLength) : undefined,
         timeoutSeconds: config.mail2925.timeoutSeconds != null ? String(config.mail2925.timeoutSeconds) : undefined,
+        jwtToken: config.mail2925.jwtToken,
+        deviceUid: config.mail2925.deviceUid,
+        cookieHeader: config.mail2925.cookieHeader,
       },
     },
     {

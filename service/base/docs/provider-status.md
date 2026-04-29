@@ -29,7 +29,6 @@ canonical repo：
 | `im215` | key-based（例外保留） | **可用** | `probe/open/read-empty` 通过 | 当前 key 可用，但仍建议持续观察上游波动 |
 | `gptmail` | operator-supplied key | **可用** | `probe/open/read-empty` 通过 | 当前 key 池中混有 `401 invalid` / `429 quota` 项，依赖运行时轮换与 cooling |
 | `mail2925` | credential-based | **可用** | `probe/open/read-code` 通过 (2026-04-07) | 修复 PageIndex 1→0（0-based 分页）、toAddress/bodyContent/sender 字段映射、OTP 未找到时提前 return |
-| `tmailor` | free / anonymous | **可用** | `probe/open/read-empty` 通过 | tmailor.com，有 Cloudflare 保护，服务端需 cloudscraper 降级 |
 
 ## 匿名层
 
@@ -48,7 +47,6 @@ canonical repo：
 - `duckmail`
 - `tempmail-lol`
 - `etempmail`
-- `tmailor`
 
 ### B. key-based 可用层
 
@@ -74,4 +72,3 @@ canonical repo：
 - `duckmail`
 - `tempmail-lol`
 - `etempmail`
-- `tmailor`

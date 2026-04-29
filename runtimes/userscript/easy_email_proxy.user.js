@@ -20,6 +20,8 @@
   const STORAGE_PREFIX = 'easyemail.runtime.';
   const LOCAL_SECRET_PREFIX = '__LOCAL_SECRET_';
   const IMPORT_CODE_PREFIX = 'easyemail-import-v1.';
+  const PROVIDER_BRIDGE_REQUEST_TYPE = 'easyemail-provider-bridge-request-v1';
+  const PROVIDER_BRIDGE_RESPONSE_TYPE = 'easyemail-provider-bridge-response-v1';
   const IMPORT_SYNC_INTERVAL_MS_DEFAULT = 2 * 60 * 60 * 1000;
   const IMPORT_STATE_STORAGE_KEY = 'importState';
   const IMPORT_PROMPT_STATE_STORAGE_KEY = 'importPromptState';
@@ -28,6 +30,9 @@
     'cloudflare_customAuth',
     'cloudflare_adminAuth',
     'cloudflare_preferredDomain',
+    'tempmailLol_baseUrl',
+    'm2u_baseUrl',
+    'm2u_preferredDomain',
     'moemail_baseUrl',
     'moemail_apiKey',
     'moemail_expiryTimeMs',
@@ -35,6 +40,12 @@
     'gptmail_apiKey',
     'im215_baseUrl',
     'im215_apiKey',
+    'mail2925_baseUrl',
+    'mail2925_account',
+    'mail2925_jwtToken',
+    'mail2925_deviceUid',
+    'mail2925_cookieHeader',
+    'mail2925_folderName',
   ]);
   const DEFAULTS = {
     locale: 'zh-CN',
@@ -42,7 +53,7 @@
     explicitProviderKey: 'cloudflare_temp_email',
     configProviderKey: 'cloudflare_temp_email',
     manualQueryEmail: '',
-    selectedProvidersCsv: 'cloudflare_temp_email,mailtm,duckmail,guerrillamail,tempmail-lol,etempmail,tmailor,moemail,m2u,gptmail,im215',
+    selectedProvidersCsv: 'cloudflare_temp_email,mailtm,duckmail,guerrillamail,tempmail-lol,etempmail,moemail,m2u,gptmail,im215,mail2925',
     pollSeconds: '3',
     timeoutSeconds: '180',
     fromContains: '',
@@ -82,13 +93,17 @@
     gptmail_baseUrl: 'https://mail.chatgpt.org.uk',
     gptmail_apiKey: 'gpt-test',
     gptmail_prefix: '',
-    tmailor_enabled: 'true',
-    tmailor_baseUrl: 'https://tmailor.com',
-    tmailor_accessToken: '',
     im215_enabled: 'false',
     im215_baseUrl: 'https://maliapi.215.im/v1',
     im215_apiKey: '__LOCAL_SECRET_IM215_API_KEY__',
     im215_preferredDomain: '',
+    mail2925_enabled: 'false',
+    mail2925_baseUrl: 'https://mail.2925.com',
+    mail2925_account: '__LOCAL_SECRET_MAIL2925_ACCOUNT__',
+    mail2925_jwtToken: '__LOCAL_SECRET_MAIL2925_JWT_TOKEN__',
+    mail2925_deviceUid: '__LOCAL_SECRET_MAIL2925_DEVICE_UID__',
+    mail2925_cookieHeader: '__LOCAL_SECRET_MAIL2925_COOKIE_HEADER__',
+    mail2925_folderName: 'Inbox',
   };
 
   const PROVIDER_META = {
@@ -101,8 +116,8 @@
     moemail: { zh: 'MoEmail', en: 'MoEmail' },
     m2u: { zh: 'MailToYou', en: 'MailToYou' },
     gptmail: { zh: 'GPT Mail', en: 'GPT Mail' },
-    tmailor: { zh: 'Tmailor', en: 'Tmailor' },
     im215: { zh: '215.im', en: '215.im' },
+    mail2925: { zh: '2925 邮箱', en: '2925 Mail' },
   };
 
   const CLOUDFLARE_DOMAIN_LIBRARY = Object.freeze({
@@ -219,6 +234,8 @@
   };
 
   const miniChipTimers = { email: 0, code: 0 };
+  const providerBridgeTargets = new Map();
+  const providerBridgeWarmups = new Map();
 
   function sk(key) { return `${STORAGE_PREFIX}${key}`; }
   function loadSetting(key) { try { const value = GM_getValue(sk(key), DEFAULTS[key]); return value === undefined ? DEFAULTS[key] : value; } catch { return DEFAULTS[key]; } }
@@ -227,8 +244,8 @@
   function saveScopedValue(key, value) { GM_setValue(sk(key), value); }
   function isLocalSecretPlaceholder(value) { return String(value || '').startsWith(LOCAL_SECRET_PREFIX) && String(value || '').endsWith('__'); }
   function seedMissingSettings() {
-    const legacyDefaultProviderPool = 'cloudflare_temp_email,mailtm,duckmail,guerrillamail,tempmail-lol,etempmail,tmailor,moemail,gptmail,im215';
-    const secretKeys = ['cloudflare_customAuth', 'cloudflare_adminAuth', 'moemail_apiKey', 'gptmail_apiKey', 'im215_apiKey'];
+    const legacyDefaultProviderPool = 'cloudflare_temp_email,mailtm,duckmail,guerrillamail,tempmail-lol,etempmail,moemail,gptmail,im215';
+  const secretKeys = ['cloudflare_customAuth', 'cloudflare_adminAuth', 'moemail_apiKey', 'gptmail_apiKey', 'im215_apiKey', 'mail2925_account', 'mail2925_jwtToken', 'mail2925_deviceUid', 'mail2925_cookieHeader'];
     secretKeys.forEach((key) => {
       const seeded = String(DEFAULTS[key] || '').trim();
       if (!seeded || isLocalSecretPlaceholder(seeded)) return;
@@ -364,7 +381,7 @@
     const root = document.getElementById('eep-provider-settings');
     if (root) root.innerHTML = renderProviderConfigForm(currentConfigProviderKey(settings), settings);
   }
-  function isKeylessProvider(providerKey) { return ['cloudflare_temp_email', 'mailtm', 'duckmail', 'guerrillamail', 'tempmail-lol', 'etempmail', 'tmailor', 'm2u'].includes(String(providerKey || '')); }
+  function isKeylessProvider(providerKey) { return ['cloudflare_temp_email', 'mailtm', 'duckmail', 'guerrillamail', 'tempmail-lol', 'etempmail', 'm2u'].includes(String(providerKey || '')); }
   function nextUtcResetAt(nowMs = Date.now()) {
     const now = new Date(nowMs);
     const next = new Date(nowMs);
@@ -539,6 +556,213 @@
   }
   function requestJsonAbsolute(method, url, headers, body) { return requestAbsolute(method, url, headers, body, true); }
   function requestTextAbsolute(method, url, headers, body) { return requestAbsolute(method, url, headers, body, false); }
+  function isProviderBridgeMode() {
+    return String(window.name || '').startsWith('easyemail_provider_bridge_');
+  }
+  function providerBridgeOrigin(baseUrl) {
+    try {
+      return new URL(normalizeUrl(baseUrl)).origin;
+    } catch {
+      return '';
+    }
+  }
+  function providerBridgeName(baseUrl) {
+    const origin = providerBridgeOrigin(baseUrl);
+    return `easyemail_provider_bridge_${btoa(origin).replace(/[^a-z0-9]/gi, '')}`;
+  }
+  function createProviderBridgePopup(baseUrl, origin) {
+    const popup = window.open(`${normalizeUrl(baseUrl)}/`, providerBridgeName(baseUrl), 'popup,width=520,height=760');
+    if (!popup) throw new Error(`Failed to open provider bridge window for ${origin}`);
+    return { kind: 'popup', windowRef: popup, iframe: null };
+  }
+  function openProviderBridgePopupAtUrl(baseUrl, targetUrl) {
+    const origin = providerBridgeOrigin(baseUrl);
+    if (!origin) throw new Error(`Invalid provider bridge URL: ${baseUrl}`);
+    const popup = window.open(String(targetUrl || `${normalizeUrl(baseUrl)}/`), providerBridgeName(baseUrl), 'popup,width=520,height=760');
+    if (!popup) throw new Error(`Failed to open provider bridge window for ${origin}`);
+    const target = { kind: 'popup', windowRef: popup, iframe: null };
+    providerBridgeTargets.set(origin, target);
+    return target;
+  }
+  function createProviderBridgeIframe(baseUrl) {
+    const iframe = document.createElement('iframe');
+    iframe.src = `${normalizeUrl(baseUrl)}/`;
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.position = 'fixed';
+    iframe.style.width = '1px';
+    iframe.style.height = '1px';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    iframe.style.border = '0';
+    iframe.style.left = '-9999px';
+    iframe.style.top = '-9999px';
+    (document.body || document.documentElement).appendChild(iframe);
+    if (!iframe.contentWindow) {
+      iframe.remove();
+      return null;
+    }
+    return { kind: 'iframe', windowRef: iframe.contentWindow, iframe };
+  }
+  function ensureProviderBridgeWindow(baseUrl, mode = 'auto') {
+    const origin = providerBridgeOrigin(baseUrl);
+    if (!origin) throw new Error(`Invalid provider bridge URL: ${baseUrl}`);
+    const existing = providerBridgeTargets.get(origin);
+    if (existing) {
+      if (mode === 'popup' && existing.kind === 'iframe') {
+        try { existing.iframe && existing.iframe.remove(); } catch {}
+        providerBridgeTargets.delete(origin);
+      } else {
+      if (existing.kind === 'iframe' && existing.iframe && existing.iframe.isConnected && existing.windowRef) {
+        return existing;
+      }
+      if (existing.kind === 'popup' && existing.windowRef && !existing.windowRef.closed) {
+        return existing;
+      }
+      }
+    }
+    const target = mode === 'popup'
+      ? createProviderBridgePopup(baseUrl, origin)
+      : (createProviderBridgeIframe(baseUrl) || createProviderBridgePopup(baseUrl, origin));
+    providerBridgeTargets.set(origin, target);
+    return target;
+  }
+  async function warmProviderBridge(baseUrl, timeoutMs = 45000, mode = 'auto') {
+    const bridgeOrigin = providerBridgeOrigin(baseUrl);
+    if (!bridgeOrigin || location.origin === bridgeOrigin) {
+      return;
+    }
+    const existing = providerBridgeWarmups.get(bridgeOrigin);
+    if (existing) {
+      await existing;
+      return;
+    }
+    const task = (async () => {
+      try {
+        await requestJsonViaProviderBridge(
+          baseUrl,
+          'GET',
+          `${normalizeUrl(baseUrl)}/`,
+          { Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
+          undefined,
+          timeoutMs,
+          mode,
+        );
+      } catch (error) {
+        providerBridgeWarmups.delete(bridgeOrigin);
+        throw error;
+      }
+    })();
+    providerBridgeWarmups.set(bridgeOrigin, task);
+    await task;
+  }
+  async function requestJsonViaProviderBridge(baseUrl, method, url, headers, body, timeoutMs = 45000, mode = 'auto') {
+    const bridgeOrigin = providerBridgeOrigin(baseUrl);
+    if (!bridgeOrigin) throw new Error(`Invalid provider bridge URL: ${baseUrl}`);
+    if (location.origin === bridgeOrigin) {
+      return requestJsonAbsolute(method, url, headers, body);
+    }
+    const bridgeTarget = ensureProviderBridgeWindow(baseUrl, mode);
+    const bridgeWindow = bridgeTarget.windowRef;
+    const requestId = `bridge-${Date.now()}-${randomHex(6)}`;
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const cleanup = () => {
+        window.removeEventListener('message', onMessage);
+        if (retryTimer) clearInterval(retryTimer);
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+      };
+      const onMessage = (event) => {
+        if (event.origin !== bridgeOrigin || event.source !== bridgeWindow) return;
+        const payload = event.data || {};
+        if (payload.type !== PROVIDER_BRIDGE_RESPONSE_TYPE || payload.requestId !== requestId) return;
+        settled = true;
+        cleanup();
+        if (payload.error) {
+          reject(new Error(String(payload.error)));
+          return;
+        }
+        resolve({
+          status: Number(payload.status || 0),
+          data: payload.data,
+          text: String(payload.text || ''),
+          headers: String(payload.headers || ''),
+        });
+      };
+      const postRequest = () => {
+        try {
+          bridgeWindow.postMessage({
+            type: PROVIDER_BRIDGE_REQUEST_TYPE,
+            requestId,
+            method,
+            url,
+            headers: headers || {},
+            body: body === undefined ? undefined : (typeof body === 'string' ? body : JSON.stringify(body)),
+          }, bridgeOrigin);
+        } catch {}
+      };
+      window.addEventListener('message', onMessage);
+      const retryTimer = setInterval(() => {
+        if (settled) return;
+        if (bridgeTarget.kind === 'popup' && bridgeWindow.closed) {
+          cleanup();
+          reject(new Error(`Provider bridge window was closed for ${bridgeOrigin}`));
+          return;
+        }
+        postRequest();
+      }, 3000);
+      const timeoutHandle = setTimeout(() => {
+        cleanup();
+        reject(new Error(`Provider bridge request timed out for ${bridgeOrigin}`));
+      }, timeoutMs);
+      postRequest();
+    });
+  }
+  function isCloudflareChallengeHtml(value) {
+    const text = String(value || '');
+    if (!text) return false;
+    return /Just a moment/i.test(text) || /challenge-platform/i.test(text) || /Enable JavaScript and cookies to continue/i.test(text);
+  }
+  function extractCloudflareChallengePath(value) {
+    const text = String(value || '');
+    const match = text.match(/history\.replaceState\(null,\s*null,\s*\\?"([^"]*__cf_chl_rt_tk=[^"]+)\\?"/i);
+    return match && match[1] ? match[1].replace(/\\"/g, '"') : '';
+  }
+  function installProviderBridgeListener() {
+    window.addEventListener('message', async (event) => {
+      const payload = event.data || {};
+      if (payload.type !== PROVIDER_BRIDGE_REQUEST_TYPE || !payload.requestId) return;
+      const source = event.source;
+      const targetOrigin = event.origin || '*';
+      try {
+        const response = await fetch(String(payload.url || ''), {
+          method: String(payload.method || 'GET').toUpperCase(),
+          headers: payload.headers || {},
+          body: payload.body === undefined ? undefined : String(payload.body),
+          credentials: 'include',
+        });
+        const text = await response.text();
+        let data = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          data = text;
+        }
+        source && source.postMessage({
+          type: PROVIDER_BRIDGE_RESPONSE_TYPE,
+          requestId: payload.requestId,
+          status: response.status,
+          text,
+          data,
+        }, targetOrigin);
+      } catch (error) {
+        source && source.postMessage({
+          type: PROVIDER_BRIDGE_RESPONSE_TYPE,
+          requestId: payload.requestId,
+          error: String(error && error.message ? error.message : error || 'Provider bridge request failed.'),
+        }, targetOrigin);
+      }
+    });
+  }
   function encodeUtf8(value) { return new TextEncoder().encode(String(value)); }
   function bytesToHex(bytes) { return Array.from(bytes).map((value) => value.toString(16).padStart(2, '0')).join(''); }
   function base64UrlToText(value) {
@@ -1188,13 +1412,33 @@
   const GROUPED_CODE_RE = /(?<![A-Za-z0-9])([A-Za-z0-9]{2,8}(?:-[A-Za-z0-9]{2,8}){1,3})(?![A-Za-z0-9])/g;
   const CONTEXT_RE = /(?:verification\s*code|verify\s*code|security\s*code|one[-\s]*time\s*(?:pass)?code|login\s*code|sign[\s-]*in\s*code|confirmation\s*code|email\s*code|otp|passcode|验证码|校验码|动态码|动态密码|口令|代码为|代码是|code\s*(?:is|:))/i;
   const VALIDITY_HINT_RE = /(?:expire|expired|expires|valid|validity|minute|minutes|min|mins|second|seconds|sec|secs|分钟|秒|有效期)/i;
-  const NEGATIVE_RE = /(?:order|invoice|tracking|parcel|shipment|ticket|reference|ref\b|phone|mobile|zip|postal|amount|price|total|订单|金额|价格|快递|包裹|物流|手机号|电话|邮编|尾号|参考号)/i;
+  const NEGATIVE_RE = /(?:backup|ignore|secondary|order|invoice|tracking|parcel|shipment|ticket|reference|ref\b|phone|mobile|zip|postal|amount|price|total|订单|金额|价格|快递|包裹|物流|手机号|电话|邮编|尾号|参考号)/i;
   const COLOR_STYLE_HINT_RE = /(?:color|background|border|fill|stroke|font-face|stylesheet|style=|rgba?\(|hsla?\(|#[0-9a-f]{3,8})/i;
   const HTML_TAG_RE = /<[^>]+>/g;
   const EMAIL_AROUND_CANDIDATE_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
   const CONTEXTUAL_NUMERIC_OTP_RE = /(?:verification\s*code|verify\s*code|security\s*code|one[-\s]*time\s*(?:pass)?code|login\s*code|sign[\s-]*in\s*code|confirmation\s*code|email\s*code|otp|passcode|验证码|校验码|动态码|动态密码|口令|代码为|代码是|enter\s+this\s+temporary\s+verification\s+code)[^0-9]{0,80}(\d{6})(?!\d)/i;
-  const LETTER_ONLY_STOPWORDS = new Set(['CODE','IS','VERIFY','VERIFICATION','LOGIN','SIGNIN','PASSWORD','PASSCODE','CONFIRM','CONFIRMATION','SECURITY','EMAIL','ENTER','CONTINUE','IGNORE','TRACKING','NUMBER','EXPIRES','MINUTES','OPENAI','CHATGPT']);
-  function parseDateValue(value) { const normalized = String(value || '').trim(); if (!normalized) return 0; if (/^\d{10,13}$/.test(normalized)) { const num = Number(normalized); return Number.isFinite(num) ? (normalized.length >= 13 ? num : num * 1000) : 0; } const parsed = Date.parse(normalized); return Number.isFinite(parsed) ? parsed : 0; }
+  const CONTEXTUAL_SHORT_OTP_PATTERNS = [
+    /primary\s*code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+    /verification\s*code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+    /verify\s*code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+    /security\s*code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+    /login\s*code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+    /confirmation\s*code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+    /email\s*code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+    /(?:code\s*(?:is|:)|代码为|代码是)[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+    /use\s+(?:the\s+)?code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+    /enter\s+(?:the\s+)?code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+  ];
+  const LETTER_ONLY_STOPWORDS = new Set(['CODE','IS','VERIFY','VERIFICATION','LOGIN','SIGNIN','PASSWORD','PASSCODE','CONFIRM','CONFIRMATION','SECURITY','EMAIL','ENTER','CONTINUE','IGNORE','TRACKING','NUMBER','EXPIRES','MINUTES','OPENAI','CHATGPT','TEMPORARY']);
+  function normalizeUtcLikeTimestamp(value) {
+    const normalized = String(value || '').trim();
+    if (!normalized) return '';
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(normalized)) {
+      return `${normalized.replace(' ', 'T')}Z`;
+    }
+    return normalized;
+  }
+  function parseDateValue(value) { const normalized = normalizeUtcLikeTimestamp(value); if (!normalized) return 0; if (/^\d{10,13}$/.test(normalized)) { const num = Number(normalized); return Number.isFinite(num) ? (normalized.length >= 13 ? num : num * 1000) : 0; } const parsed = Date.parse(normalized); return Number.isFinite(parsed) ? parsed : 0; }
   function chooseObservedAt(...candidates) { for (const candidate of candidates) { const ms = parseDateValue(candidate); if (ms > 0) return new Date(ms).toISOString(); } return ''; }
   function formatObservedAt(value) { const ms = parseDateValue(value); return ms > 0 ? new Date(ms).toLocaleString() : t('none'); }
   function escapeRegex(value) { return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -1202,12 +1446,15 @@
   function appearsInsideEmailAddress(text, code, index) { if (!String(code || '').trim()) return false; const source = String(text || ''); const start = Math.max(0, index - 80); const end = Math.min(source.length, index + String(code || '').length + 80); const segment = source.slice(start, end); const codePattern = new RegExp(escapeRegex(String(code || '')), 'i'); return [...segment.matchAll(EMAIL_AROUND_CANDIDATE_RE)].some((match) => codePattern.test(match[0])); }
   function normalizeContent(value, source) { if (!value || !String(value).trim()) return undefined; const text = source === 'html' ? String(value).replace(HTML_TAG_RE, ' ') : String(value); const normalized = text.replace(/\s+/g, ' ').trim(); return normalized || undefined; }
   function normalizeCandidateCode(code) { return String(code || '').trim().replace(/\s+/g, '-').toUpperCase(); }
-  function scoreCandidate(source, code, context, counts, uniqueCount) { let score = source === 'subject' ? 18 : source === 'text' ? 12 : 9; const canonical = normalizeCandidateCode(code); const compact = canonical.replace(/-/g, ''); const hasDigit = /\d/.test(compact); const hasLetter = /[A-Z]/.test(compact); const isLetterOnly = hasLetter && !hasDigit; const isGrouped = canonical.includes('-'); if (CONTEXT_RE.test(context)) score += 90; if (VALIDITY_HINT_RE.test(context)) score += 10; if (NEGATIVE_RE.test(context)) score -= 85; if (hasDigit && hasLetter) score += 24; else if (hasDigit) { if (compact.length === 6) score += 18; else if (compact.length >= 4 && compact.length <= 8) score += 12; else score += 6; } else if (isLetterOnly) { score += LETTER_ONLY_STOPWORDS.has(compact) ? -30 : 4; if (compact !== compact.toUpperCase()) score -= 12; } if (isGrouped) score += CONTEXT_RE.test(context) ? 12 : -8; const repeated = counts.get(canonical) || 1; if (repeated > 1) score += 12 * (repeated - 1); if (uniqueCount === 1) score += 8; return score; }
-  function isViableCandidate(code, context) { const canonical = normalizeCandidateCode(code); const compact = canonical.replace(/-/g, ''); const hasDigit = /\d/.test(compact); const hasLetter = /[A-Z]/.test(compact); const segments = canonical.split(/[- ]+/).filter(Boolean); const isHexLikeColor = /^[A-F0-9]{6}(?:[A-F0-9]{2})?$/.test(compact) && /[A-F]/.test(compact); if (!hasDigit && !hasLetter) return false; if (isHexLikeColor && COLOR_STYLE_HINT_RE.test(context)) return false; if (hasLetter && !hasDigit) { if (compact.length < 4 || compact.length > 12) return false; if (compact !== compact.toUpperCase()) return false; if (LETTER_ONLY_STOPWORDS.has(compact)) return false; return CONTEXT_RE.test(context); } if (segments.length > 1) { const hasValidSegment = segments.some((segment) => /\d/.test(segment) || /^[A-Z]{4,12}$/.test(segment)); const hasBlockedAlphaSegment = segments.some((segment) => /^[A-Z]+$/.test(segment) && LETTER_ONLY_STOPWORDS.has(segment)); const hasLowercaseAlphaSegment = segments.some((segment) => /[A-Za-z]/.test(segment) && segment !== segment.toUpperCase()); if (!hasValidSegment || hasBlockedAlphaSegment || hasLowercaseAlphaSegment) return false; } if (hasDigit && !hasLetter) return compact.length >= 4 && compact.length <= 10; return compact.length >= 5 && compact.length <= 24; }
-  function extractCandidates(value, source, counts, uniqueCount) { const normalized = normalizeContent(value, source); if (!normalized) return []; const candidates = []; const regexes = [GROUPED_CODE_RE, ALPHANUMERIC_CODE_RE, NUMERIC_CODE_RE]; for (const regex of regexes) { for (const match of normalized.matchAll(regex)) { const code = match[1]; const index = match.index || 0; if (appearsInsideEmailAddress(normalized, code, index)) continue; const context = normalized.slice(Math.max(0, index - 32), Math.min(normalized.length, index + code.length + 48)); if (!isViableCandidate(code, context)) continue; const canonicalCode = normalizeCandidateCode(code); candidates.push({ code: String(code || '').trim(), canonicalCode, source, score: scoreCandidate(source, code, context, counts, uniqueCount) }); const fusedNumericMatch = String(code || '').trim().match(/^(?:[A-Za-z]{2,})?(\d{4,10})(?:[A-Za-z]{2,})?$/); if (fusedNumericMatch && fusedNumericMatch[1] !== String(code || '').trim()) { const numericCore = fusedNumericMatch[1]; candidates.push({ code: numericCore, canonicalCode: normalizeCandidateCode(numericCore), source, score: scoreCandidate(source, numericCore, context, counts, uniqueCount) + 6 }); } } } return candidates; }
+  function scoreCandidate(source, code, context, counts, uniqueCount) { let score = source === 'subject' ? 18 : source === 'text' ? 12 : 9; const canonical = normalizeCandidateCode(code); const compact = canonical.replace(/-/g, ''); const rawCompact = String(code || '').trim().replace(/[-\s]+/g, ''); const hasDigit = /\d/.test(compact); const hasLetter = /[A-Z]/.test(compact); const isLetterOnly = hasLetter && !hasDigit; const isGrouped = canonical.includes('-'); if (CONTEXT_RE.test(context)) score += 90; if (VALIDITY_HINT_RE.test(context)) score += 10; if (NEGATIVE_RE.test(context)) score -= 85; if (hasDigit && hasLetter) score += 24; else if (hasDigit) { if (compact.length === 6) score += 18; else if (compact.length >= 4 && compact.length <= 8) score += 12; else score += 6; } else if (isLetterOnly) { score += LETTER_ONLY_STOPWORDS.has(compact) ? -30 : 4; if (/[a-z]/.test(rawCompact)) score -= 12; } if (isGrouped) score += CONTEXT_RE.test(context) ? 12 : -8; const repeated = counts.get(canonical) || 1; if (repeated > 1) score += 12 * (repeated - 1); if (uniqueCount === 1) score += 8; return score; }
+  function trimFusedMixedCodeSuffix(code) { const rawCode = String(code || '').trim(); if (!/[A-Z]/.test(rawCode) || !/\d/.test(rawCode) || !/[a-z]/.test(rawCode)) return rawCode; for (let length = 5; length <= Math.min(12, rawCode.length - 2); length += 1) { const prefix = rawCode.slice(0, length); const suffix = rawCode.slice(length); if (!/[A-Z]/.test(prefix) || !/\d/.test(prefix)) continue; if (!/^[A-Za-z]{2,}$/.test(suffix) || !/[a-z]/.test(suffix)) continue; return prefix; } return rawCode; }
+  function buildFusedCoreCandidates(code) { const rawCode = String(code || '').trim(); const candidates = new Set(); const fusedNumericMatch = rawCode.match(/^(?:[A-Za-z]{2,})?(\d{4,10})(?:[A-Za-z]{2,})?$/); if (fusedNumericMatch && fusedNumericMatch[1] && fusedNumericMatch[1] !== rawCode) candidates.add(fusedNumericMatch[1]); const trimmedMixedCode = trimFusedMixedCodeSuffix(rawCode); if (trimmedMixedCode !== rawCode) candidates.add(trimmedMixedCode); return [...candidates]; }
+  function isViableCandidate(code, context) { const rawTrimmed = String(code || '').trim(); const canonical = normalizeCandidateCode(code); const compact = canonical.replace(/-/g, ''); const rawCompact = rawTrimmed.replace(/[-\s]+/g, ''); const hasDigit = /\d/.test(compact); const hasLetter = /[A-Z]/.test(compact); const segments = canonical.split(/[- ]+/).filter(Boolean); const rawSegments = rawTrimmed.split(/[- ]+/).filter(Boolean); const isHexLikeColor = /^[A-F0-9]{6}(?:[A-F0-9]{2})?$/.test(compact) && /[A-F]/.test(compact); if (!hasDigit && !hasLetter) return false; if (isHexLikeColor && COLOR_STYLE_HINT_RE.test(context)) return false; if (hasLetter && !hasDigit) { if (compact.length < 4 || compact.length > 12) return false; if (/[a-z]/.test(rawCompact)) return false; if (LETTER_ONLY_STOPWORDS.has(compact)) return false; return CONTEXT_RE.test(context); } if (segments.length > 1) { const hasValidSegment = segments.some((segment) => /\d/.test(segment) || /^[A-Z]{4,12}$/.test(segment)); const hasBlockedAlphaSegment = segments.some((segment) => /^[A-Z]+$/.test(segment) && LETTER_ONLY_STOPWORDS.has(segment)); const hasLowercaseAlphaSegment = rawSegments.some((segment) => /[a-z]/.test(segment)); if (!hasValidSegment || hasBlockedAlphaSegment || hasLowercaseAlphaSegment) return false; } if (hasDigit && !hasLetter) return compact.length >= 4 && compact.length <= 10; return compact.length >= 5 && compact.length <= 24; }
+  function extractCandidates(value, source, counts, uniqueCount) { const normalized = normalizeContent(value, source); if (!normalized) return []; const candidates = []; const regexes = [GROUPED_CODE_RE, ALPHANUMERIC_CODE_RE, NUMERIC_CODE_RE]; for (const regex of regexes) { for (const match of normalized.matchAll(regex)) { const code = match[1]; const index = match.index || 0; if (appearsInsideEmailAddress(normalized, code, index)) continue; const context = normalized.slice(Math.max(0, index - 32), Math.min(normalized.length, index + code.length + 48)); if (!isViableCandidate(code, context)) continue; const canonicalCode = normalizeCandidateCode(code); candidates.push({ code: String(code || '').trim(), canonicalCode, source, score: scoreCandidate(source, code, context, counts, uniqueCount) }); for (const fusedCore of buildFusedCoreCandidates(code)) { candidates.push({ code: fusedCore, canonicalCode: normalizeCandidateCode(fusedCore), source, score: scoreCandidate(source, fusedCore, context, counts, uniqueCount) + 6 }); } } } return candidates; }
   function collectOccurrences(input) { const counts = new Map(); const values = [normalizeContent(input.subject, 'subject'), normalizeContent(input.textBody, 'text'), normalizeContent(input.htmlBody, 'html')]; for (const value of values) { if (!value) continue; const seen = new Set(); for (const regex of [GROUPED_CODE_RE, ALPHANUMERIC_CODE_RE, NUMERIC_CODE_RE]) { for (const match of value.matchAll(regex)) { const code = match[1]; const index = match.index || 0; if (appearsInsideEmailAddress(value, code, index)) continue; const context = value.slice(Math.max(0, index - 32), Math.min(value.length, index + code.length + 48)); if (!isViableCandidate(code, context)) continue; const canonicalCode = normalizeCandidateCode(code); if (seen.has(canonicalCode)) continue; seen.add(canonicalCode); counts.set(canonicalCode, (counts.get(canonicalCode) || 0) + 1); } } } return counts; }
+  function extractContextualShortOtp(input) { const orderedValues = [{ value: input.subject, source: 'subject' }, { value: input.textBody, source: 'text' }, { value: input.htmlBody, source: 'html' }]; for (const entry of orderedValues) { const normalized = normalizeContent(entry.value, entry.source); if (!normalized) continue; for (const pattern of CONTEXTUAL_SHORT_OTP_PATTERNS) { const match = normalized.match(pattern); const rawCode = String(match && match[1] || '').trim(); if (!rawCode) continue; const fusedNumericMatch = rawCode.match(/^(?:[A-Za-z]{2,})?(\\d{4,10})(?:[A-Za-z]{2,})?$/); const code = fusedNumericMatch && fusedNumericMatch[1] !== rawCode ? fusedNumericMatch[1] : rawCode; const context = normalized.slice(Math.max(0, (match.index || 0) - 32), Math.min(normalized.length, (match.index || 0) + rawCode.length + 48)); const isPrimaryCodeHint = /^primary\s*code/i.test(String(match && match[0] || '')); const normalizedCode = normalizeCandidateCode(code); const rawCompact = rawCode.replace(/[-\s]+/g, ''); const contextualPrimaryLooksValid = isPrimaryCodeHint && normalizedCode.replace(/-/g, '').length >= 5 && normalizedCode.replace(/-/g, '').length <= 24 && !/[a-z]/.test(rawCompact); if (/[A-Za-z0-9]/.test(code) && (isViableCandidate(code, context) || contextualPrimaryLooksValid)) return { code, source: entry.source }; } } return undefined; }
   function extractContextualNumericOtp(input) { const orderedValues = [{ value: input.subject, source: 'subject' }, { value: input.textBody, source: 'text' }, { value: input.htmlBody, source: 'html' }]; const matches = []; for (const entry of orderedValues) { const normalized = normalizeContent(entry.value, entry.source); if (!normalized) continue; for (const match of normalized.matchAll(new RegExp(CONTEXTUAL_NUMERIC_OTP_RE, 'ig'))) { const code = String(match[1] || '').trim(); if (/^\d{6}$/.test(code)) matches.push({ code, source: entry.source }); } } if (matches.length === 0) return undefined; const uniqueCodes = [...new Set(matches.map((item) => item.code))]; const best = matches[0]; return { code: best.code, source: best.source, ...(uniqueCodes.length > 1 ? { candidates: uniqueCodes } : {}) }; }
-  function extractOtpFromContent(input) { const contextualNumericOtp = extractContextualNumericOtp(input); if (contextualNumericOtp) return contextualNumericOtp; const counts = collectOccurrences(input); if (!counts.size) return undefined; const candidates = [...extractCandidates(input.subject, 'subject', counts, counts.size), ...extractCandidates(input.textBody, 'text', counts, counts.size), ...extractCandidates(input.htmlBody, 'html', counts, counts.size)]; if (!candidates.length) return undefined; candidates.sort((left, right) => { if (right.score !== left.score) return right.score - left.score; const sourcePriority = { subject: 3, text: 2, html: 1 }; return sourcePriority[right.source] - sourcePriority[left.source]; }); const sixDigitNumericCandidates = candidates.filter((candidate) => /^\d{6}$/.test(compactCandidateCode(candidate.code))); const best = sixDigitNumericCandidates.length > 0 ? sixDigitNumericCandidates[0] : candidates[0]; const usefulCompanions = candidates.filter((candidate) => { const compact = compactCandidateCode(candidate.code); if (/^\d{6}$/.test(compact)) return true; return candidate.score >= Math.max(20, best.score - 12); }).map((candidate) => candidate.code); const uniqueCandidates = [...new Set(usefulCompanions)].slice(0, 8); return best.score >= 15 ? { code: best.code, source: best.source, ...(uniqueCandidates.length > 1 ? { candidates: uniqueCandidates } : {}) } : undefined; }
+  function extractOtpFromContent(input) { const contextualShortOtp = extractContextualShortOtp(input); if (contextualShortOtp) return contextualShortOtp; const contextualNumericOtp = extractContextualNumericOtp(input); if (contextualNumericOtp) return contextualNumericOtp; const counts = collectOccurrences(input); if (!counts.size) return undefined; const candidates = [...extractCandidates(input.subject, 'subject', counts, counts.size), ...extractCandidates(input.textBody, 'text', counts, counts.size), ...extractCandidates(input.htmlBody, 'html', counts, counts.size)]; if (!candidates.length) return undefined; candidates.sort((left, right) => { if (right.score !== left.score) return right.score - left.score; const sourcePriority = { subject: 3, text: 2, html: 1 }; return sourcePriority[right.source] - sourcePriority[left.source]; }); const topCandidate = candidates[0]; const sixDigitNumericCandidates = candidates.filter((candidate) => /^\d{6}$/.test(compactCandidateCode(candidate.code))); const preferredSixDigitNumericCandidate = sixDigitNumericCandidates.find((candidate) => candidate.score >= topCandidate.score - 4); const best = preferredSixDigitNumericCandidate || topCandidate; const usefulCompanions = candidates.filter((candidate) => { const compact = compactCandidateCode(candidate.code); if (/^\d{6}$/.test(compact)) return true; return candidate.score >= Math.max(20, best.score - 12); }).map((candidate) => candidate.code); const uniqueCandidates = [...new Set(usefulCompanions)].slice(0, 8); return best.score >= 15 ? { code: best.code, source: best.source, ...(uniqueCandidates.length > 1 ? { candidates: uniqueCandidates } : {}) } : undefined; }
   function normalizeMessageBodies(textBodyInput, htmlBodyInput) {
     const rawTextBody = normalizeReadableText(textBodyInput);
     const rawHtmlBody = String(htmlBodyInput || '').trim();
@@ -1220,7 +1467,7 @@
   function createLocalPart(seed) { const host = (location.hostname || 'mail').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 8) || 'mail'; const basis = String(seed || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 12); return `${basis || host}${randomHex(6)}`.slice(0, 24); }
   function matchesSenderFilter(message, filter) { const normalized = String(filter || '').trim().toLowerCase(); if (!normalized) return true; const text = `${String(message.sender || '').toLowerCase()}\n${String(message.subject || '').toLowerCase()}\n${String(message.textBody || '').toLowerCase()}\n${String(message.htmlBody || '').toLowerCase()}`; return text.includes(normalized); }
   async function cloudflareGetSettings(cfg) { const result = await requestJsonAbsolute('GET', `${normalizeUrl(cfg.baseUrl)}/open_api/settings`, { Accept: 'application/json, text/plain, */*', ...(cfg.customAuth ? { 'x-custom-auth': cfg.customAuth } : {}) }); if (result.status !== 200) throw new Error(`Cloudflare Temp Email settings failed: HTTP ${result.status}`); const payload = typeof result.data === 'string' ? {} : result.data; const explicitDomains = normalizeDomainEntries(Array.isArray(payload.domains) ? payload.domains : []); const randomSubdomainRoots = normalizeDomainEntries(Array.isArray(payload.randomSubdomainDomains) ? payload.randomSubdomainDomains : []); setCachedProviderDomains('cloudflare_temp_email', explicitDomains, randomSubdomainRoots); return { ...payload, domains: explicitDomains, randomSubdomainDomains: randomSubdomainRoots }; }
-  async function cloudflareOpenMailbox(cfg) { const settings = await cloudflareGetSettings(cfg).catch(() => ({})); const domains = Array.isArray(settings.domains) ? settings.domains.filter((item) => typeof item === 'string' && item.trim()) : []; const selectedDomain = cfg.preferredDomain ? cfg.preferredDomain.trim() : (domains.length ? domains[Math.floor(Math.random() * domains.length)] : ''); const result = await requestJsonAbsolute('POST', `${normalizeUrl(cfg.baseUrl)}/api/new_address`, { Accept: 'application/json, text/plain, */*', ...(cfg.customAuth ? { 'x-custom-auth': cfg.customAuth } : {}), 'Content-Type': 'application/json' }, { name: createLocalPart('cf'), ...(selectedDomain ? { domain: selectedDomain } : {}) }); if (result.status !== 200) throw new Error(`Cloudflare Temp Email open failed: HTTP ${result.status}`); const payload = typeof result.data === 'string' ? {} : result.data; const address = String(payload.address || '').trim(); const jwt = String(payload.jwt || '').trim(); if (!address || !jwt) throw new Error('Cloudflare Temp Email open returned empty address or jwt.'); return { email: address, mailboxData: { address, jwt }, metadata: { selectedDomain: address.split('@')[1] || selectedDomain || '', availableDomains: domains } }; }
+  async function cloudflareOpenMailbox(cfg) { const settings = await cloudflareGetSettings(cfg).catch(() => ({})); const settingsDomains = splitDomainEntries(Array.isArray(settings.domains) ? settings.domains : []); const randomSubdomainRoots = normalizeDomainEntries(Array.isArray(settings.randomSubdomainDomains) ? settings.randomSubdomainDomains : []); const serviceHost = (() => { try { return new URL(normalizeUrl(cfg.baseUrl)).hostname.toLowerCase(); } catch { return ''; } })(); const usableExplicitDomains = settingsDomains.exactDomains.filter((domain) => domain && domain !== serviceHost && !domain.startsWith('tx-mail.')); const requestedPreferredDomain = String(cfg.preferredDomain || '').trim().toLowerCase(); const preferredDomain = requestedPreferredDomain && requestedPreferredDomain !== serviceHost && !requestedPreferredDomain.startsWith('tx-mail.') ? requestedPreferredDomain : ''; const preferredIsRandomRoot = preferredDomain && randomSubdomainRoots.includes(preferredDomain); const selectedDomain = preferredDomain || (usableExplicitDomains.length ? usableExplicitDomains[Math.floor(Math.random() * usableExplicitDomains.length)] : (randomSubdomainRoots[0] || '')); const enableRandomSubdomain = Boolean(preferredIsRandomRoot || (!usableExplicitDomains.includes(selectedDomain) && randomSubdomainRoots.includes(selectedDomain))); const result = await requestJsonAbsolute('POST', `${normalizeUrl(cfg.baseUrl)}/api/new_address`, { Accept: 'application/json, text/plain, */*', ...(cfg.customAuth ? { 'x-custom-auth': cfg.customAuth } : {}), 'Content-Type': 'application/json' }, { name: createLocalPart('cf'), ...(selectedDomain ? { domain: selectedDomain } : {}), ...(enableRandomSubdomain ? { enableRandomSubdomain: true } : {}) }); if (result.status !== 200) throw new Error(`Cloudflare Temp Email open failed: HTTP ${result.status}`); const payload = typeof result.data === 'string' ? {} : result.data; const address = String(payload.address || '').trim(); const jwt = String(payload.jwt || '').trim(); if (!address || !jwt) throw new Error('Cloudflare Temp Email open returned empty address or jwt.'); return { email: address, mailboxData: { address, jwt }, metadata: { selectedDomain: address.split('@')[1] || selectedDomain || '', availableDomains: usableExplicitDomains, randomSubdomainRoots } }; }
   async function cloudflareAdminListMessages(cfg, email) {
     if (!String(cfg.adminAuth || '').trim()) {
       throw new Error('Cloudflare 临时邮箱手动查询需要管理查询密钥。');
@@ -1263,11 +1510,29 @@
     if (!normalized) throw new Error('Invalid 215.im address.');
     return { email: normalized, mailboxData: { address: normalized, email: normalized }, metadata: { manualLookup: true, selectedDomain: normalized.split('@')[1] || '' } };
   }
-  async function mailtmGetDomains(baseUrl) { const result = await requestJsonAbsolute('GET', `${normalizeUrl(baseUrl)}/domains?page=1`, { Accept: 'application/json' }); if (result.status !== 200) throw new Error(`Mail.tm domains failed: HTTP ${result.status}`); const rows = Array.isArray(result.data && result.data['hydra:member']) ? result.data['hydra:member'] : []; const domains = rows.filter((item) => item && item.domain && item.isActive && !item.isPrivate).map((item) => String(item.domain).trim()); setCachedProviderDomains('mailtm', domains); return domains; }
+  async function mailtmGetDomains(baseUrl) { const result = await requestJsonAbsolute('GET', `${normalizeUrl(baseUrl)}/domains`, { Accept: 'application/json' }); if (result.status !== 200) throw new Error(`Mail.tm domains failed: HTTP ${result.status}`); const body = typeof result.data === 'string' ? {} : result.data; const rows = Array.isArray(body) ? body : (Array.isArray(body['hydra:member']) ? body['hydra:member'] : (Array.isArray(body.items) ? body.items : [])); const domains = rows.filter((item) => item && item.domain && (item.isActive ?? true) && !(item.isPrivate ?? false)).map((item) => String(item.domain).trim()).filter(Boolean); setCachedProviderDomains('mailtm', domains); return domains; }
   async function mailtmCreateAccount(baseUrl, email, password) { const result = await requestJsonAbsolute('POST', `${normalizeUrl(baseUrl)}/accounts`, { Accept: 'application/json', 'Content-Type': 'application/json' }, { address: email, password }); if (![200, 201, 422].includes(result.status)) throw new Error(`Mail.tm create account failed: HTTP ${result.status}`); return result; }
   async function mailtmCreateToken(baseUrl, email, password) { const result = await requestJsonAbsolute('POST', `${normalizeUrl(baseUrl)}/token`, { Accept: 'application/json', 'Content-Type': 'application/json' }, { address: email, password }); if (result.status !== 200) throw new Error(`Mail.tm token failed: HTTP ${result.status}`); const token = String(result.data && result.data.token || '').trim(); const id = String(result.data && result.data.id || '').trim(); if (!token) throw new Error('Mail.tm token response missing token.'); return { token, id }; }
-  async function mailtmOpenMailbox(cfg) { const domains = await mailtmGetDomains(cfg.baseUrl); const domain = cfg.preferredDomain && domains.includes(cfg.preferredDomain) ? cfg.preferredDomain : domains[0]; if (!domain) throw new Error('Mail.tm has no public domain.'); const password = `P@ssw0rd_${randomString(10)}`; for (let attempt = 0; attempt < 5; attempt += 1) { const email = `${createLocalPart('tm')}@${domain}`; const created = await mailtmCreateAccount(cfg.baseUrl, email, password); if (created.status === 422) continue; const tokenResult = await mailtmCreateToken(cfg.baseUrl, email, password); return { email, mailboxData: { email, password, token: tokenResult.token, accountId: tokenResult.id || email }, metadata: { selectedDomain: domain } }; } throw new Error('Mail.tm failed to create a unique mailbox.'); }
-  async function mailtmListMessages(cfg, mailbox) { const list = await requestJsonAbsolute('GET', `${normalizeUrl(cfg.baseUrl)}/messages?page=1`, { Accept: 'application/json', Authorization: `Bearer ${mailbox.mailboxData.token}` }); if (list.status !== 200) throw new Error(`Mail.tm list failed: HTTP ${list.status}`); const rows = Array.isArray(list.data && list.data['hydra:member']) ? list.data['hydra:member'] : []; const messages = []; for (const row of rows) { const id = String(row && row.id || '').trim(); if (!id) continue; const detail = await requestJsonAbsolute('GET', `${normalizeUrl(cfg.baseUrl)}/messages/${encodeURIComponent(id)}`, { Accept: 'application/json', Authorization: `Bearer ${mailbox.mailboxData.token}` }); if (detail.status !== 200) continue; const data = typeof detail.data === 'string' ? {} : detail.data; messages.push(normalizeObservedMessage({ id: `mailtm:${id}`, sender: data.from && (data.from.address || data.from.name) || data.from_address || '', subject: data.subject || row.subject || '', textBody: data.text || data.intro || '', htmlBody: data.html || '', observedAt: chooseObservedAt(data.createdAt, data.created_at, row.createdAt, row.created_at, data.receivedAt, row.receivedAt) })); } return messages.filter(Boolean); }
+  async function mailtmOpenMailbox(cfg) { const domains = await mailtmGetDomains(cfg.baseUrl); const preferredDomain = cfg.preferredDomain && domains.includes(cfg.preferredDomain) ? cfg.preferredDomain : ''; if (!preferredDomain && !domains.length) throw new Error('Mail.tm has no public domain.'); for (let attempt = 0; attempt < 5; attempt += 1) { const domain = preferredDomain || domains[Math.floor(Math.random() * domains.length)] || ''; const localPart = `oc${randomString(10)}`; const password = `${randomString(12)}-${randomString(8)}`; const email = `${localPart}@${domain}`; const created = await mailtmCreateAccount(cfg.baseUrl, email, password); if (created.status === 422) continue; const tokenResult = await mailtmCreateToken(cfg.baseUrl, email, password); return { email, mailboxData: { email, password, token: tokenResult.token, accountId: tokenResult.id || email }, metadata: { selectedDomain: domain } }; } throw new Error('Mail.tm failed to create a unique mailbox.'); }
+  async function mailtmListMessages(cfg, mailbox) { const list = await requestJsonAbsolute('GET', `${normalizeUrl(cfg.baseUrl)}/messages`, { Accept: 'application/json', Authorization: `Bearer ${mailbox.mailboxData.token}` }); if (list.status !== 200) throw new Error(`Mail.tm list failed: HTTP ${list.status}`); const body = typeof list.data === 'string' ? {} : list.data; const rows = Array.isArray(body) ? body : (Array.isArray(body['hydra:member']) ? body['hydra:member'] : (Array.isArray(body.messages) ? body.messages : (Array.isArray(body.member) ? body.member : []))); const messages = []; for (const row of rows) { const id = String(row && (row.id || row['@id']) || '').trim(); if (!id) continue; const path = id.startsWith('/') ? id : `/messages/${encodeURIComponent(id)}`; const detail = await requestJsonAbsolute('GET', `${normalizeUrl(cfg.baseUrl)}${path}`, { Accept: 'application/json', Authorization: `Bearer ${mailbox.mailboxData.token}` }); if (detail.status === 429 || detail.status >= 500) throw new Error(`Mail.tm detail failed: HTTP ${detail.status}`); const data = detail.status === 200 && typeof detail.data !== 'string' ? detail.data : {}; messages.push(normalizeObservedMessage({ id: `mailtm:${id}`, sender: data.from && (data.from.address || data.from.name) || row.from && (row.from.address || row.from.name) || data.from_address || '', subject: data.subject || row.subject || '', textBody: Array.isArray(data.text) ? data.text.map((value) => String(value)).join('\\n') : (data.text || data.intro || row.intro || ''), htmlBody: Array.isArray(data.html) ? data.html.map((value) => String(value)).join('\\n') : (data.html || ''), observedAt: chooseObservedAt(data.createdAt, data.created_at, row.createdAt, row.created_at, data.receivedAt, row.receivedAt) })); } return messages.filter(Boolean); }
+  function mail2925ReadEnvelopeCode(body) { const code = readValueRecord(body).code; if (typeof code === 'number' && Number.isFinite(code)) return code; if (typeof code === 'string' && code.trim()) { const parsed = Number.parseInt(code, 10); return Number.isFinite(parsed) ? parsed : undefined; } return undefined; }
+  function mail2925ReadEnvelopeResult(body) { const record = readValueRecord(body); return record.result ?? record.data ?? body; }
+  function mail2925IsSuccessfulEnvelope(status, body) { if (status >= 400) return false; const code = mail2925ReadEnvelopeCode(body); return code === undefined || code === 0 || code === 200; }
+  function mail2925BuildError(phase, status, body) { const detail = readValueString(readValueRecord(body).message) || readValueString(readValueRecord(body).error) || readValueString(readValueRecord(body).detail) || (typeof body === 'string' ? body.trim() : ''); return new Error(`2925 ${phase} failed: HTTP ${status}${detail ? `. ${detail}` : ''}`); }
+  function mail2925ReadAddress(value) { const direct = readSenderValue(value) || readValueString(value); return direct ? (normalizeEmailAddress(direct) || direct.trim().toLowerCase()) : ''; }
+  function mail2925ReadSender(record) { return mail2925ReadAddress(record.mailFrom) || mail2925ReadAddress(record.from) || mail2925ReadAddress(record.sender) || normalizeEmailAddress(readValueString(record.fromAddress)) || normalizeEmailAddress(readValueString(record.mailFromAddress)) || ''; }
+  function mail2925ReadMessageId(record) { return readValueString(record.MessageID) || readValueString(record.messageID) || readValueString(record.messageId) || readValueString(record.id) || readValueString(record.mailId) || ''; }
+  function mail2925ReadObservedAt(record) { const direct = readValueString(record.ReceiveTime) || readValueString(record.receiveTime) || readValueString(record.receivedAt) || readValueString(record.received_at) || readValueString(record.SendDate) || readValueString(record.date); if (direct) return direct; const raw = record.createTime ?? record.modifyDate; if (typeof raw === 'number' && raw > 0) return new Date(raw > 1e12 ? raw : raw * 1000).toISOString(); if (typeof raw === 'string' && raw.trim()) { const parsed = Number.parseInt(raw.trim(), 10); if (Number.isFinite(parsed) && parsed > 0) return new Date(parsed > 1e12 ? parsed : parsed * 1000).toISOString(); } return ''; }
+  function mail2925ReadSubject(record) { return readValueString(record.mailSubject) || readValueString(record.subject) || readValueString(record.title) || ''; }
+  function mail2925ReadText(record) { const raw = record.bodyText ?? record.textBody ?? record.bodyContent ?? record.text ?? record.content; if (Array.isArray(raw)) return raw.map((item) => String(item)).join('\n').trim(); return readValueString(raw) || ''; }
+  function mail2925ReadHtml(record) { const raw = record.bodyHtmlText ?? record.htmlBody ?? record.html ?? record.rawContent; if (Array.isArray(raw)) return raw.map((item) => String(item)).join('\n').trim(); return readValueString(raw) || ''; }
+  function mail2925ExtractMessageList(body) { const result = readValueRecord(mail2925ReadEnvelopeResult(body)); const direct = readValueRecordList(mail2925ReadEnvelopeResult(body)); if (direct.length) return direct; return [].concat(readValueRecordList(result.rows), readValueRecordList(result.list), readValueRecordList(result.items), readValueRecordList(result.mails), readValueRecordList(result.data), readValueRecordList(readValueRecord(result.data).rows), readValueRecordList(readValueRecord(result.data).list), readValueRecordList(readValueRecord(result.data).items)); }
+  function mail2925EncodeQuery(params) { const search = new URLSearchParams(); Object.entries(params || {}).forEach(([key, value]) => { if (value !== undefined && value !== null && String(value) !== '') search.set(key, String(value)); }); const text = search.toString(); return text ? `?${text}` : ''; }
+  async function mail2925Request(cfg, method, path, options = {}) { const headers = { Accept: 'application/json, text/plain, */*', 'X-Requested-With': 'XMLHttpRequest', Referer: `${normalizeUrl(cfg.baseUrl)}/`, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36', ...(cfg.deviceUid ? { deviceUid: cfg.deviceUid } : {}), ...(cfg.cookieHeader ? { Cookie: cfg.cookieHeader } : {}), ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}), ...(options.formBody ? { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' } : {}), ...(options.extraHeaders || {}) }; const body = options.formBody ? new URLSearchParams(Object.entries(options.formBody).filter(([, value]) => value !== undefined && value !== null).map(([key, value]) => [key, String(value)])).toString() : undefined; return requestJsonAbsolute(method, `${normalizeUrl(cfg.baseUrl)}${path}${mail2925EncodeQuery(options.query || {})}`, headers, body); }
+  async function mail2925RefreshToken(cfg) { const response = await mail2925Request(cfg, 'POST', '/mailv2/auth/token', { formBody: {} }); if (!mail2925IsSuccessfulEnvelope(response.status, response.data)) throw mail2925BuildError('refreshToken', response.status, response.data); const token = readValueString(mail2925ReadEnvelopeResult(response.data)); if (!token) throw new Error('2925 token refresh returned an empty access token.'); cfg.jwtToken = token; return token; }
+  async function mail2925RequestAuthorized(cfg, method, path, options = {}) { let token = String(cfg.jwtToken || '').trim(); if (!token) throw new Error('2925 provider requires a JWT token.'); let response = await mail2925Request(cfg, method, path, { ...options, token }); if (!mail2925IsSuccessfulEnvelope(response.status, response.data) && cfg.cookieHeader && cfg.deviceUid) { token = await mail2925RefreshToken(cfg); response = await mail2925Request(cfg, method, path, { ...options, token }); } if (!mail2925IsSuccessfulEnvelope(response.status, response.data)) throw mail2925BuildError(path, response.status, response.data); return response.data; }
+  async function mail2925OpenMailbox(cfg) { const accountEmail = normalizeEmailAddress(cfg.account); if (!accountEmail) throw new Error('2925 provider account is missing.'); if (!String(cfg.jwtToken || '').trim()) throw new Error('2925 provider jwtToken is missing.'); return { email: accountEmail, mailboxData: { accountEmail, folderName: String(cfg.folderName || 'Inbox').trim() || 'Inbox' }, metadata: { selectedDomain: accountEmail.split('@')[1] || String(cfg.domain || '').trim() } }; }
+  async function mail2925ListMessages(cfg, mailbox) { const accountEmail = normalizeEmailAddress(mailbox && mailbox.mailboxData && mailbox.mailboxData.accountEmail || cfg.account); if (!accountEmail) throw new Error('2925 mailbox account is missing.'); const folderName = String(mailbox && mailbox.mailboxData && mailbox.mailboxData.folderName || cfg.folderName || 'Inbox').trim() || 'Inbox'; const listBody = await mail2925RequestAuthorized(cfg, 'GET', '/mailv2/maildata/MailList/mails', { query: { Folder: folderName, MailBox: accountEmail, FilterType: 0, PageIndex: 0, PageCount: 20 } }); const rows = mail2925ExtractMessageList(listBody).sort((left, right) => (Date.parse(mail2925ReadObservedAt(right) || '') || 0) - (Date.parse(mail2925ReadObservedAt(left) || '') || 0)); const messages = []; for (const row of rows) { const messageId = mail2925ReadMessageId(row); const sender = mail2925ReadSender(row); const subject = mail2925ReadSubject(row); const summaryText = mail2925ReadText(row); const summaryHtml = mail2925ReadHtml(row); const summaryObservedAt = mail2925ReadObservedAt(row); let detail = row; if (messageId) { try { const detailBody = await mail2925RequestAuthorized(cfg, 'GET', '/mailv2/maildata/MailRead/mails/read', { query: { MessageID: messageId, FolderName: folderName, MailBox: accountEmail, IsPre: false } }); detail = readValueRecord(mail2925ReadEnvelopeResult(detailBody)); } catch {} } const textBody = mail2925ReadText(detail) || summaryText; const htmlBody = mail2925ReadHtml(detail) || summaryHtml; messages.push(normalizeObservedMessage({ id: `mail2925:${messageId || randomHex(6)}`, sender: mail2925ReadSender(detail) || sender, subject: mail2925ReadSubject(detail) || subject, textBody, htmlBody, observedAt: mail2925ReadObservedAt(detail) || summaryObservedAt || new Date().toISOString() })); } return messages.filter(Boolean); }
   async function duckmailRequest(baseUrl, method, path, options = {}) {
     return requestJsonAbsolute(method, `${normalizeUrl(baseUrl)}${path}`, { Accept: 'application/json', ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}), ...(options.body ? { 'Content-Type': 'application/json' } : {}) }, options.body);
   }
@@ -1382,6 +1647,18 @@
     const record = readValueRecord(body);
     return readValueRecordList(record.emails || record.messages);
   }
+  function tempmailLolDecodeBodies(row) {
+    let textBody = readValueString(row.body || row.text) || '';
+    let htmlBody = readValueString(row.html) || '';
+    if (!htmlBody && textBody && (/(=3D|=\r?\n)/i.test(textBody) || /<html|<body|<div|<span|<p|<table/i.test(textBody))) {
+      const decoded = decodeQuotedPrintable(textBody, 'utf-8');
+      if (decoded) {
+        if (htmlLooksLikeMarkup(decoded)) htmlBody = decoded;
+        textBody = normalizeReadableText(htmlToText(decoded)) || normalizeReadableText(decoded) || textBody;
+      }
+    }
+    return { textBody, htmlBody };
+  }
   async function tempmailLolOpenMailbox(cfg) {
     const result = await tempmailLolRequest(cfg.baseUrl, 'POST', '/inbox/create', { body: {} });
     if (result.status !== 200 && result.status !== 201) throw new Error(`Tempmail.lol open failed: HTTP ${result.status}`);
@@ -1397,14 +1674,25 @@
     const result = await tempmailLolRequest(cfg.baseUrl, 'GET', `/inbox?token=${encodeURIComponent(token)}`);
     if (result.status === 404) return [];
     if (result.status !== 200) throw new Error(`Tempmail.lol inbox failed: HTTP ${result.status}`);
-    return tempmailLolRows(result.data).map((row) => normalizeObservedMessage({
-      id: `tempmail-lol:${readValueString(row.id) || readValueString(row.date) || randomHex(6)}`,
-      sender: readValueString(row.from || row.sender) || '',
-      subject: readValueString(row.subject) || '',
-      textBody: readValueString(row.body || row.text) || '',
-      htmlBody: readValueString(row.html) || '',
-      observedAt: chooseObservedAt(row.createdAt, row.date),
-    })).filter(Boolean);
+    return [...tempmailLolRows(result.data)].sort((left, right) => {
+      const leftTime = parseDateValue(readValueString(left.createdAt || left.date) || '');
+      const rightTime = parseDateValue(readValueString(right.createdAt || right.date) || '');
+      if (rightTime !== leftTime) return rightTime - leftTime;
+      const leftId = Number.parseInt(readValueString(left.id) || '0', 10);
+      const rightId = Number.parseInt(readValueString(right.id) || '0', 10);
+      if (Number.isFinite(leftId) && Number.isFinite(rightId) && rightId !== leftId) return rightId - leftId;
+      return 0;
+    }).map((row) => {
+      const bodies = tempmailLolDecodeBodies(row);
+      return normalizeObservedMessage({
+        id: `tempmail-lol:${readValueString(row.id) || readValueString(row.date) || randomHex(6)}`,
+        sender: readValueString(row.from || row.sender) || '',
+        subject: readValueString(row.subject) || '',
+        textBody: bodies.textBody,
+        htmlBody: bodies.htmlBody,
+        observedAt: chooseObservedAt(row.createdAt, row.date),
+      });
+    }).filter(Boolean);
   }
   function etempmailRequest(baseUrl, method, path, options = {}) {
     const headers = {
@@ -1560,13 +1848,14 @@
         continue;
       }
       const detailBodies = etempmailExtractDetailBodies(detailResult.text);
+      const observedAt = chooseObservedAt(row.date, row.createdAt, row.receivedAt) || new Date().toISOString();
       messages.push(normalizeObservedMessage({
         id: `etempmail:${readValueString(row.id) || String(index + 1)}`,
         sender,
         subject,
         textBody: detailBodies.textBody || '',
         htmlBody: detailBodies.htmlBody || '',
-        observedAt: chooseObservedAt(row.date, row.createdAt, row.receivedAt),
+        observedAt,
       }));
     }
     return messages.filter(Boolean);
@@ -1766,7 +2055,26 @@
     if (!keys.length) return '';
     return keys[Math.floor(Math.random() * keys.length)] || keys[0];
   }
-  async function gptmailGenerateEmail(baseUrl, apiKey, prefix) { if (prefix && String(prefix).trim()) return requestJsonAbsolute('POST', `${normalizeUrl(baseUrl)}/api/generate-email`, { Accept: 'application/json', 'Content-Type': 'application/json', 'X-API-Key': apiKey }, { prefix: String(prefix).trim() }); return requestJsonAbsolute('GET', `${normalizeUrl(baseUrl)}/api/generate-email`, { Accept: 'application/json', 'X-API-Key': apiKey }); }
+  function gptmailBuildHeaders(baseUrl, apiKey, hasBody) {
+    const normalizedBaseUrl = normalizeUrl(baseUrl);
+    return {
+      Accept: 'application/json',
+      'X-API-Key': apiKey,
+      'Origin': normalizedBaseUrl,
+      'Referer': `${normalizedBaseUrl}/`,
+      'X-Requested-With': 'XMLHttpRequest',
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+    };
+  }
+  async function gptmailGenerateEmail(baseUrl, apiKey, prefix) {
+    const normalizedPrefix = String(prefix || '').trim();
+    if (normalizedPrefix) {
+      return requestJsonAbsolute('POST', `${normalizeUrl(baseUrl)}/api/generate-email`, gptmailBuildHeaders(baseUrl, apiKey, true), { prefix: normalizedPrefix });
+    }
+    const getResult = await requestJsonAbsolute('GET', `${normalizeUrl(baseUrl)}/api/generate-email`, gptmailBuildHeaders(baseUrl, apiKey, false));
+    if (getResult.status === 200) return getResult;
+    return requestJsonAbsolute('POST', `${normalizeUrl(baseUrl)}/api/generate-email`, gptmailBuildHeaders(baseUrl, apiKey, true), {});
+  }
   async function gptmailOpenMailbox(cfg) {
     const apiKey = pickConfiguredKey(cfg.apiKeys);
     if (!apiKey) throw new Error('GPT Mail missing API key.');
@@ -1779,15 +2087,17 @@
   async function gptmailListMessages(cfg, mailbox) {
     const apiKey = String(mailbox && mailbox.mailboxData && mailbox.mailboxData.apiKey || pickConfiguredKey(cfg.apiKeys) || '').trim();
     if (!apiKey) throw new Error('GPT Mail missing API key.');
-    const list = await requestJsonAbsolute('GET', `${normalizeUrl(cfg.baseUrl)}/api/emails?email=${encodeURIComponent(mailbox.mailboxData.email)}`, { Accept: 'application/json', 'X-API-Key': apiKey });
+    const list = await requestJsonAbsolute('GET', `${normalizeUrl(cfg.baseUrl)}/api/emails?email=${encodeURIComponent(mailbox.mailboxData.email)}`, gptmailBuildHeaders(cfg.baseUrl, apiKey, false));
     if (list.status !== 200) throw new Error(`GPT Mail list failed: HTTP ${list.status}`);
     const rows = Array.isArray(list.data && list.data.data && list.data.data.emails) ? list.data.data.emails : [];
     const messages = [];
     for (const row of rows) {
       const id = String(row.id || '').trim();
       if (!id) continue;
-      const detail = await requestJsonAbsolute('GET', `${normalizeUrl(cfg.baseUrl)}/api/email/${encodeURIComponent(id)}`, { Accept: 'application/json', 'X-API-Key': apiKey });
-      const payload = detail.status === 200 && typeof detail.data !== 'string' ? detail.data : row;
+      const detail = await requestJsonAbsolute('GET', `${normalizeUrl(cfg.baseUrl)}/api/email/${encodeURIComponent(id)}`, gptmailBuildHeaders(cfg.baseUrl, apiKey, false));
+      const payload = detail.status === 200 && typeof detail.data !== 'string'
+        ? (detail.data && detail.data.data && typeof detail.data.data === 'object' ? detail.data.data : detail.data)
+        : row;
       messages.push(normalizeObservedMessage({ id: `gptmail:${id}`, sender: payload.from_address || row.from_address || '', subject: payload.subject || row.subject || '', textBody: payload.content || payload.raw_content || '', htmlBody: payload.html_content || '', observedAt: chooseObservedAt(payload.created_at, payload.createdAt, row.created_at, row.createdAt, payload.receivedAt, row.receivedAt) }));
     }
     return messages.filter(Boolean);
@@ -1798,63 +2108,6 @@
     const apiKey = pickConfiguredKey(cfg.apiKeys);
     if (!apiKey) throw new Error('GPT Mail missing API key.');
     return { email: normalized, mailboxData: { email: normalized, apiKey }, metadata: { manualLookup: true, selectedDomain: normalized.split('@')[1] || '' } };
-  }
-  async function tmailorRequest(cfg, jsonBody) {
-    const url = `${normalizeUrl(cfg.baseUrl)}/api`;
-    return requestJsonAbsolute('POST', url, {
-      'Accept': 'application/json, text/plain, */*',
-      'Content-Type': 'application/json',
-      'Origin': normalizeUrl(cfg.baseUrl),
-      'Referer': `${normalizeUrl(cfg.baseUrl)}/`,
-    }, jsonBody);
-  }
-  async function tmailorOpenMailbox(cfg) {
-    const existingToken = String(cfg.accessToken || '').trim();
-    if (existingToken) {
-      const checkResult = await tmailorRequest(cfg, { action: 'checktokenlive', accesstoken: existingToken, curentToken: existingToken, fbToken: null });
-      const checkBody = readValueRecord(checkResult.data);
-      if (checkBody.msg === 'ok' && checkBody.permission_desc !== 'exp_token') {
-        const listResult = await tmailorRequest(cfg, { action: 'listinbox', accesstoken: existingToken, curentToken: existingToken, fbToken: null });
-        const listBody = readValueRecord(listResult.data);
-        const email = readValueString(listBody.email);
-        if (email) {
-          return { email: email.toLowerCase(), mailboxData: { email: email.toLowerCase(), token: existingToken }, metadata: { selectedDomain: email.split('@')[1] || '' } };
-        }
-      }
-    }
-    const result = await tmailorRequest(cfg, { action: 'newemail', fbToken: null, curentToken: null });
-    if (result.status !== 200) throw buildStatusError('Tmailor', 'open', result.status, result.data);
-    const body = readValueRecord(result.data);
-    if (body.msg !== 'ok') throw new Error(`Tmailor open failed: msg=${String(body.msg || 'unknown')}`);
-    const email = readValueString(body.email);
-    const token = readValueString(body.accesstoken);
-    if (!email || !token) throw new Error('Tmailor open returned incomplete payload.');
-    return { email: email.toLowerCase(), mailboxData: { email: email.toLowerCase(), token }, metadata: { selectedDomain: email.split('@')[1] || '' } };
-  }
-  async function tmailorListMessages(cfg, mailbox) {
-    const token = readValueString(mailbox && mailbox.mailboxData && mailbox.mailboxData.token);
-    if (!token) throw new Error('Tmailor mailbox token is missing.');
-    const listResult = await tmailorRequest(cfg, { action: 'listinbox', accesstoken: token, curentToken: token, fbToken: null });
-    if (listResult.status !== 200) throw buildStatusError('Tmailor', 'list', listResult.status, listResult.data);
-    const listBody = readValueRecord(listResult.data);
-    if (listBody.msg !== 'ok') return [];
-    const data = listBody.data;
-    if (!data || typeof data !== 'object' || Array.isArray(data)) return [];
-    const entries = Object.values(data);
-    const messages = [];
-    for (const entry of entries) {
-      const msg = readValueRecord(entry);
-      const summarySubject = readValueString(msg.subject) || '';
-      const summaryText = readValueString(msg.text || msg.body) || '';
-      const summaryMessage = normalizeObservedMessage({ id: `tmailor:${readValueString(msg.id || msg.uuid) || randomHex(6)}`, sender: readValueString(msg.sender_email || msg.from || msg.sender) || '', subject: summarySubject, textBody: summaryText, htmlBody: '', observedAt: chooseObservedAt(msg.receive_time, msg.date, msg.createdAt) });
-      if (summaryMessage && summaryMessage.extractedCode) { messages.push(summaryMessage); continue; }
-      const detailResult = await tmailorRequest(cfg, { action: 'read', accesstoken: token, curentToken: token, fbToken: null, email_code: msg.id || msg.uuid, email_token: msg.email_id || msg.uuid });
-      if (detailResult.status !== 200) { if (summaryMessage) messages.push(summaryMessage); continue; }
-      const detailBody = readValueRecord(detailResult.data);
-      const detail = detailBody.msg === 'ok' ? readValueRecord(detailBody.data) : {};
-      messages.push(normalizeObservedMessage({ id: `tmailor:${readValueString(msg.id || msg.uuid) || randomHex(6)}`, sender: readValueString(detail.sender_email || detail.from || detail.sender || msg.sender_email || msg.from || msg.sender) || '', subject: readValueString(detail.subject) || summarySubject, textBody: readValueString(detail.textBody || detail.text || detail.body) || summaryText, htmlBody: readValueString(detail.htmlBody || detail.html || detail.body_html) || '', observedAt: chooseObservedAt(detail.receive_time, detail.date, detail.createdAt, msg.receive_time, msg.date, msg.createdAt) }));
-    }
-    return messages.filter(Boolean);
   }
 
   const PROVIDERS = {
@@ -1867,8 +2120,8 @@
     moemail: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.moemail_baseUrl) && String(s.moemail_apiKey || '').trim()), getConfig: (s) => ({ baseUrl: normalizeUrl(s.moemail_baseUrl), apiKey: String(s.moemail_apiKey || '').trim(), expiryTimeMs: String(s.moemail_expiryTimeMs || '3600000').trim() }), openMailbox: moemailOpenMailbox, listMessages: moemailListMessages },
     m2u: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.m2u_baseUrl)), getConfig: (s) => ({ baseUrl: normalizeUrl(s.m2u_baseUrl), preferredDomain: String(s.m2u_preferredDomain || '').trim() }), openMailbox: m2uOpenMailbox, listMessages: m2uListMessages },
     gptmail: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.gptmail_baseUrl) && splitConfiguredKeys(s.gptmail_apiKey).length), getConfig: (s) => ({ baseUrl: normalizeUrl(s.gptmail_baseUrl), apiKeys: splitConfiguredKeys(s.gptmail_apiKey), prefix: String(s.gptmail_prefix || '').trim() }), openMailbox: gptmailOpenMailbox, listMessages: gptmailListMessages },
-    tmailor: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.tmailor_baseUrl)), getConfig: (s) => ({ baseUrl: normalizeUrl(s.tmailor_baseUrl), accessToken: String(s.tmailor_accessToken || '').trim() }), openMailbox: tmailorOpenMailbox, listMessages: tmailorListMessages },
     im215: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.im215_baseUrl) && String(s.im215_apiKey || '').trim()), getConfig: (s) => ({ baseUrl: normalizeUrl(s.im215_baseUrl), apiKey: String(s.im215_apiKey || '').trim() }), openMailbox: im215OpenMailbox, listMessages: im215ListMessages },
+    mail2925: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.mail2925_baseUrl) && String(s.mail2925_account || '').trim() && String(s.mail2925_jwtToken || '').trim()), getConfig: (s) => ({ baseUrl: normalizeUrl(s.mail2925_baseUrl), account: String(s.mail2925_account || '').trim(), jwtToken: String(s.mail2925_jwtToken || '').trim(), deviceUid: String(s.mail2925_deviceUid || '').trim(), cookieHeader: String(s.mail2925_cookieHeader || '').trim(), folderName: String(s.mail2925_folderName || 'Inbox').trim() || 'Inbox', domain: String(s.mail2925_account || '').trim().split('@')[1] || '2925.com' }), openMailbox: mail2925OpenMailbox, listMessages: mail2925ListMessages },
   };
 
   function selectedProviderPool(settings) { const raw = String(settings.selectedProvidersCsv ?? ''); const requested = raw.split(/[\s,;]+/).map((item) => item.trim()).filter(Boolean); if (!raw.trim()) return []; return requested.filter((key) => PROVIDERS[key]); }
@@ -2000,7 +2253,6 @@
     if (PROVIDERS.duckmail.isConfigured(settings)) checks.push(async () => (await detectDuckmailDomainMatch(domain, PROVIDERS.duckmail.getConfig(settings))) ? ({ providerKey: 'duckmail', supported: false, reason: 'history-only' }) : null);
     if (PROVIDERS.mailtm.isConfigured(settings)) checks.push(async () => (await detectMailtmDomainMatch(domain, PROVIDERS.mailtm.getConfig(settings))) ? ({ providerKey: 'mailtm', supported: false, reason: 'history-only' }) : null);
     if (knownDomainsFromHistory('gptmail').includes(domain)) checks.push(async () => ({ providerKey: 'gptmail', supported: true }));
-    if (knownDomainsFromHistory('tmailor').includes(domain)) checks.push(async () => ({ providerKey: 'tmailor', supported: true, reason: 'history-only' }));
     for (const run of checks) {
       try {
         const matched = await run();
@@ -2059,13 +2311,6 @@
       const cfg = PROVIDERS.im215.getConfig(settings);
       const resolved = await im215ResolveMailboxByEmail(cfg, normalized);
       return { providerKey, ...resolved };
-    }
-    if (providerKey === 'tmailor') {
-      const historyMatch = findHistoryMailboxByEmail(normalized);
-      if (historyMatch && historyMatch.mailboxData && historyMatch.mailboxData.token) {
-        return { providerKey, email: normalized, mailboxData: historyMatch.mailboxData, metadata: { manualLookup: true, selectedDomain: getEmailDomain(normalized) } };
-      }
-      throw new Error(`Tmailor 需要 access token 才能查询邮箱。请先通过自动开邮箱创建，或在 Tmailor 设置中填入 access token。`);
     }
     if (providerKey === 'etempmail') {
       const historyMatch = findHistoryMailboxByEmail(normalized);
@@ -2146,12 +2391,11 @@
     if (providerKey === 'gptmail') {
       return `<div class="${cardClass}"><div class="eep-provider-card-head"><h4>${escapeHtml(providerLabel(providerKey))}</h4><span class="eep-provider-pill">${hint}</span></div><div class="eep-provider-status-note">${detail}</div><div class="eep-provider-card-fields"><label class="eep-field"><span>${escapeHtml(t('url'))}</span><input data-setting="gptmail_baseUrl" value="${escapeHtml(settings.gptmail_baseUrl)}" /></label><label class="eep-field"><span>${escapeHtml(t('apiKeys'))}</span><input type="password" data-setting="gptmail_apiKey" value="${escapeHtml(settings.gptmail_apiKey)}" /></label><label class="eep-field"><span>${escapeHtml(t('prefix'))}</span><input data-setting="gptmail_prefix" value="${escapeHtml(settings.gptmail_prefix)}" /></label></div></div>`;
     }
-    if (providerKey === 'tmailor') {
-      const currentTmailorToken = (() => { const mb = currentMailbox(); return mb && mb.providerKey === 'tmailor' && mb.mailboxData && mb.mailboxData.token ? mb.mailboxData.token : ''; })();
-      return `<div class="${cardClass}"><div class="eep-provider-card-head"><h4>${escapeHtml(providerLabel(providerKey))}</h4><span class="eep-provider-pill">${hint}</span></div><div class="eep-provider-status-note">${detail}</div><div class="eep-provider-card-fields"><label class="eep-field"><span>${escapeHtml(t('url'))}</span><input data-setting="tmailor_baseUrl" value="${escapeHtml(settings.tmailor_baseUrl)}" /></label><label class="eep-field"><span>Access Token</span><input data-setting="tmailor_accessToken" value="${escapeHtml(settings.tmailor_accessToken || '')}" placeholder="留空则自动创建新邮箱" /></label>${currentTmailorToken ? `<label class="eep-field"><span>当前邮箱 Token</span><input readonly value="${escapeHtml(currentTmailorToken)}" class="eep-copy-value" onclick="navigator.clipboard.writeText(this.value).catch(()=>{})" title="点击复制" style="cursor:pointer;opacity:.85" /></label>` : ''}</div></div>`;
-    }
     if (providerKey === 'im215') {
       return `<div class="${cardClass}"><div class="eep-provider-card-head"><h4>${escapeHtml(providerLabel(providerKey))}</h4><span class="eep-provider-pill">${hint}</span></div><div class="eep-provider-status-note">${detail}</div><div class="eep-provider-card-fields"><label class="eep-field"><span>${escapeHtml(t('url'))}</span><input data-setting="im215_baseUrl" value="${escapeHtml(settings.im215_baseUrl)}" /></label><label class="eep-field"><span>${escapeHtml(t('apiKey'))}</span><input type="password" data-setting="im215_apiKey" value="${escapeHtml(settings.im215_apiKey)}" /></label></div></div>`;
+    }
+    if (providerKey === 'mail2925') {
+      return `<div class="${cardClass}"><div class="eep-provider-card-head"><h4>${escapeHtml(providerLabel(providerKey))}</h4><span class="eep-provider-pill">${hint}</span></div><div class="eep-provider-status-note">${detail}</div><div class="eep-provider-card-fields"><label class="eep-field"><span>${escapeHtml(t('url'))}</span><input data-setting="mail2925_baseUrl" value="${escapeHtml(settings.mail2925_baseUrl)}" /></label><label class="eep-field"><span>Account</span><input data-setting="mail2925_account" value="${escapeHtml(settings.mail2925_account || '')}" /></label><label class="eep-field"><span>JWT Token</span><input type="password" data-setting="mail2925_jwtToken" value="${escapeHtml(settings.mail2925_jwtToken || '')}" /></label><label class="eep-field"><span>deviceUid</span><input data-setting="mail2925_deviceUid" value="${escapeHtml(settings.mail2925_deviceUid || '')}" /></label><label class="eep-field"><span>Cookie</span><input data-setting="mail2925_cookieHeader" value="${escapeHtml(settings.mail2925_cookieHeader || '')}" /></label><label class="eep-field"><span>Folder</span><input data-setting="mail2925_folderName" value="${escapeHtml(settings.mail2925_folderName || 'Inbox')}" /></label></div></div>`;
     }
     return '';
   }
@@ -2265,7 +2509,7 @@
   function mailboxOpenedAtMs(mailboxEntry) { return parseDateValue(mailboxEntry && mailboxEntry.metadata && mailboxEntry.metadata.notBeforeAt || mailboxEntry && mailboxEntry.openedAt); }
   function mailboxLastCodeObservedAtMs(mailboxEntry) { return parseDateValue(mailboxEntry && mailboxEntry.metadata && mailboxEntry.metadata.lastCodeObservedAt); }
   function messageIsFreshForMailbox(message, mailboxEntry) { const observedMs = parseDateValue(message && message.observedAt); if (!observedMs) return false; const lastCodeMs = mailboxLastCodeObservedAtMs(mailboxEntry); const lastCodeMessageId = mailboxEntry && mailboxEntry.metadata && mailboxEntry.metadata.lastCodeMessageId ? String(mailboxEntry.metadata.lastCodeMessageId) : ''; if (lastCodeMs) return observedMs > lastCodeMs || (observedMs === lastCodeMs && String(message && message.id || '') !== lastCodeMessageId); const openMs = mailboxOpenedAtMs(mailboxEntry); if (!openMs) return true; return observedMs >= (openMs - 1000); }
-  async function openMailboxUsingProvider(providerKey, settings) { const provider = PROVIDERS[providerKey]; logLine(t('logTryProvider', { provider: providerLabel(providerKey) })); const opened = await provider.openMailbox(provider.getConfig(settings)); const openedAt = new Date().toISOString(); const entry = { id: `${providerKey}:${Date.now()}:${randomHex(6)}`, providerKey, email: opened.email, mailboxData: opened.mailboxData, metadata: { ...(opened.metadata || {}), notBeforeAt: openedAt }, openedAt }; upsertMailbox(entry); state.currentMessages = []; state.currentMessageId = ''; state.historyDetailMode = 'code'; setCurrentCode(''); renderMessages([]); recordProviderSuccess(providerKey, 'open'); showMiniChip('email', opened.email); if (providerKey === 'tmailor' && opened.mailboxData && opened.mailboxData.token) { saveSetting('tmailor_accessToken', opened.mailboxData.token); const tokenInput = document.querySelector('[data-setting="tmailor_accessToken"]'); if (tokenInput) tokenInput.value = opened.mailboxData.token; } logLine(t('logOpen', { email: opened.email, provider: providerLabel(providerKey) })); return entry; }
+  async function openMailboxUsingProvider(providerKey, settings) { const provider = PROVIDERS[providerKey]; logLine(t('logTryProvider', { provider: providerLabel(providerKey) })); const opened = await provider.openMailbox(provider.getConfig(settings)); const openedAt = new Date().toISOString(); const entry = { id: `${providerKey}:${Date.now()}:${randomHex(6)}`, providerKey, email: opened.email, mailboxData: opened.mailboxData, metadata: { ...(opened.metadata || {}), notBeforeAt: openedAt }, openedAt }; upsertMailbox(entry); state.currentMessages = []; state.currentMessageId = ''; state.historyDetailMode = 'code'; setCurrentCode(''); renderMessages([]); recordProviderSuccess(providerKey, 'open'); showMiniChip('email', opened.email); logLine(t('logOpen', { email: opened.email, provider: providerLabel(providerKey) })); return entry; }
   async function openMailboxAuto(settings) {
     const candidates = settings.providerMode === 'explicit' ? [settings.explicitProviderKey] : orderedProviderCandidates(settings);
     if (!candidates.length) throw new Error(t('logNoProvider'));
@@ -2592,8 +2836,52 @@
       logLine(currentLocale() === 'zh-CN' ? '已清除导入码绑定，当前配置已保留。' : 'Import code binding cleared. Current settings were kept.');
     });
   }
+  function installDebugHooks() {
+    try {
+      window.__easyEmailDebug = {
+        snapshot() {
+          const mailbox = currentMailbox();
+          const settings = getSettings();
+          const matched = mailbox ? selectMatchingMessage(state.currentMessages || [], settings, mailbox) : null;
+          return {
+            currentMailboxId: state.currentMailboxId,
+            currentMailbox: mailbox ? JSON.parse(JSON.stringify(mailbox)) : null,
+            currentMessages: JSON.parse(JSON.stringify(state.currentMessages || [])),
+            currentCode: state.lastCode,
+            historyDetailMode: state.historyDetailMode,
+            matchedMessage: matched ? JSON.parse(JSON.stringify(matched)) : null,
+            providerStats: JSON.parse(JSON.stringify(state.providerStats || {})),
+          };
+        },
+        extractOtp(input) {
+          return extractOtpFromContent(input || {});
+        },
+        explainExtract(input) {
+          const payload = input || {};
+          const contextualShortOtp = extractContextualShortOtp(payload);
+          const contextualNumericOtp = extractContextualNumericOtp(payload);
+          const counts = collectOccurrences(payload);
+          const candidates = [
+            ...extractCandidates(payload.subject, 'subject', counts, counts.size),
+            ...extractCandidates(payload.textBody, 'text', counts, counts.size),
+            ...extractCandidates(payload.htmlBody, 'html', counts, counts.size),
+          ];
+          return {
+            contextualShortOtp,
+            contextualNumericOtp,
+            candidates,
+            extracted: extractOtpFromContent(payload),
+          };
+        },
+      };
+    } catch {}
+  }
   async function bootstrap() {
     if (typeof GM_getValue !== 'function' || typeof GM_setValue !== 'function' || typeof GM_xmlhttpRequest !== 'function') { console.warn('EasyEmail Runtime userscript requires GM_* APIs.'); return; }
+    if (isProviderBridgeMode()) {
+      installProviderBridgeListener();
+      return;
+    }
     seedMissingSettings();
     state.currentMailboxId = String(loadSetting('currentMailboxId') || '');
     state.mailboxHistory = loadJson('mailboxHistory', []);
@@ -2605,6 +2893,7 @@
     createMiniBar();
     updateMiniBarVisibility();
     attachEvents();
+    installDebugHooks();
     maybeRegisterMenu();
     setStatus(t('ready'));
     hideMiniChip('email');

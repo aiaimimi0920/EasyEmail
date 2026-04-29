@@ -51,6 +51,15 @@ function resolveSessionLastCodeObservedAt(session: { metadata: Record<string, st
   return parseObservedAt(session.metadata.lastCodeObservedAt);
 }
 
+function resolveObservedAtSkewAllowanceMs(): number {
+  const raw = process.env.MAIL_CODE_OBSERVED_AT_SKEW_MS;
+  if (!raw?.trim()) {
+    return 60_000;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 60_000;
+}
+
 function normalizeSyncedMessageFreshness(
   session: { createdAt: string; metadata: Record<string, string> },
   synced: ObservedMessage,
@@ -69,7 +78,9 @@ function normalizeSyncedMessageFreshness(
   const notBeforeAt = resolveSessionNotBeforeAt(session);
   const lastCodeObservedAt = resolveSessionLastCodeObservedAt(session);
   const lastCodeMessageId = session.metadata.lastCodeMessageId?.trim();
-  const isAfterMailboxOpen = notBeforeAt === undefined || (observedAt !== undefined && observedAt >= notBeforeAt);
+  const skewAllowanceMs = resolveObservedAtSkewAllowanceMs();
+  const isAfterMailboxOpen = notBeforeAt === undefined
+    || (observedAt !== undefined && observedAt >= (notBeforeAt - skewAllowanceMs));
   const isAfterLastResolvedCode = lastCodeObservedAt === undefined
     || (
       observedAt !== undefined

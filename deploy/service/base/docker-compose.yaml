@@ -26,5 +26,5 @@ services:
 
 networks:
   easyemail_service_network:
-    name: ${EASY_EMAIL_SERVICE_NETWORK:-Easy}
+    name: ${EASY_EMAIL_SERVICE_NETWORK:-EasyAiMi}
     external: true

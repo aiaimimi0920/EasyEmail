@@ -18,6 +18,7 @@ import { extractOtpFromContent } from "../../domain/otp.js";
 export interface M2uConfig {
   apiBase: string;
   userAgent: string;
+  userAgents?: string[];
   acceptLanguage: string;
   acceptEncoding: string;
   preferredDomain?: string;
@@ -55,7 +56,12 @@ interface M2uProxyHelperResult {
 type ExecFileFunction = typeof childProcess.execFile;
 
 const M2U_DEFAULT_API_BASE = "https://api.m2u.io";
-const M2U_DEFAULT_USER_AGENT = "EasyEmailM2U/1.0";
+const M2U_BROWSER_USER_AGENTS = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
+] as const;
+const M2U_DEFAULT_USER_AGENT = M2U_BROWSER_USER_AGENTS[0];
 const M2U_DEFAULT_ACCEPT_LANGUAGE = "zh-CN,zh;q=0.9";
 const M2U_DEFAULT_ACCEPT_ENCODING = "identity";
 const M2U_DEFAULT_PROBE_MAILBOX_SMOKE_INTERVAL_SECONDS = 900;
@@ -494,14 +500,35 @@ function formatM2uError(phase: string, status: number, body: unknown): Error {
   return new Error(`M2U_PROVIDER_FAILURE: ${rawMessage}`);
 }
 
-function buildRequestHeaders(config: M2uConfig, options: RequestJsonOptions): Record<string, string> {
+function buildRequestHeaders(
+  config: M2uConfig,
+  options: RequestJsonOptions,
+  userAgentOverride?: string,
+): Record<string, string> {
   return {
     Accept: "application/json",
-    "User-Agent": config.userAgent,
+    "User-Agent": resolveRequestUserAgent(config, userAgentOverride),
     "Accept-Language": config.acceptLanguage,
     "Accept-Encoding": config.acceptEncoding,
     ...(options.jsonBody ? { "Content-Type": "application/json" } : {}),
   };
+}
+
+function resolveRequestUserAgent(config: M2uConfig, userAgentOverride?: string): string {
+  const explicitOverride = userAgentOverride?.trim();
+  if (explicitOverride) {
+    return explicitOverride;
+  }
+
+  const pool = Array.isArray(config.userAgents)
+    ? config.userAgents.map((item) => item.trim()).filter(Boolean)
+    : [];
+  if (pool.length > 0) {
+    const index = Math.floor(Math.random() * pool.length);
+    return pool[index] || config.userAgent;
+  }
+
+  return config.userAgent;
 }
 
 function shouldAttemptProxyFallback(config: M2uConfig, method: string, path: string): boolean {
@@ -548,10 +575,11 @@ async function requestJsonDirect(
   method: string,
   path: string,
   options: RequestJsonOptions = {},
+  userAgentOverride?: string,
 ): Promise<{ status: number; body: unknown }> {
   const response = await fetch(`${config.apiBase.replace(/\/$/, "")}${path}`, {
     method,
-    headers: buildRequestHeaders(config, options),
+    headers: buildRequestHeaders(config, options, userAgentOverride),
     body: options.jsonBody ? JSON.stringify(options.jsonBody) : undefined,
   });
 
@@ -721,7 +749,22 @@ async function requestJson(
   options: RequestJsonOptions = {},
 ): Promise<{ status: number; body: unknown }> {
   try {
-    const direct = await requestJsonDirect(config, method, path, options);
+    let direct = await requestJsonDirect(config, method, path, options);
+    const retryableViaAlternateUa = (
+      direct
+      && !config.upstreamProxyUrl?.trim()
+      && Array.isArray(config.userAgents)
+      && config.userAgents.length > 1
+      && (classifyM2uResponse(direct.status, direct.body, "direct") === "capacity")
+    );
+    if (retryableViaAlternateUa) {
+      for (const candidateUa of config.userAgents.slice(1)) {
+        direct = await requestJsonDirect(config, method, path, options, candidateUa);
+        if (classifyM2uResponse(direct.status, direct.body, "direct") !== "capacity") {
+          break;
+        }
+      }
+    }
     if (
       shouldAttemptProxyFallback(config, method, path)
       && (
@@ -746,6 +789,14 @@ async function requestJson(
 
 export function resolveM2uConfig(instance: ProviderInstance): M2uConfig {
   const env = process.env;
+  const configuredUserAgents = [
+    ...String(readMetadata(instance, "userAgents") ?? readStringLike(env.M2U_USER_AGENTS) ?? "")
+      .split(/[\r\n,;]+/)
+      .map((item) => item.trim())
+      .filter(Boolean),
+  ];
+  const userAgents = [...new Set(configuredUserAgents.length > 0 ? configuredUserAgents : [...M2U_BROWSER_USER_AGENTS])];
+  const explicitUserAgent = readMetadata(instance, "userAgent");
   const easyProxyBaseUrl = readMetadata(instance, "easyProxyBaseUrl")
     ?? readMetadata(instance, "proxyBaseUrl")
     ?? readStringLike(env.EASY_PROXY_BASE_URL);
@@ -760,7 +811,8 @@ export function resolveM2uConfig(instance: ProviderInstance): M2uConfig {
 
   return {
     apiBase: readMetadata(instance, "apiBase") ?? M2U_DEFAULT_API_BASE,
-    userAgent: readMetadata(instance, "userAgent") ?? M2U_DEFAULT_USER_AGENT,
+    userAgent: explicitUserAgent ?? M2U_DEFAULT_USER_AGENT,
+    userAgents,
     acceptLanguage: readMetadata(instance, "acceptLanguage") ?? M2U_DEFAULT_ACCEPT_LANGUAGE,
     acceptEncoding: readMetadata(instance, "acceptEncoding") ?? M2U_DEFAULT_ACCEPT_ENCODING,
     preferredDomain: readMetadata(instance, "preferredDomain"),

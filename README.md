@@ -155,6 +155,19 @@ Routing sync flow. The routing host list lives in
 `cloudflareMail.routing.plan`; the script turns that into a temporary TOML plan
 file during deployment.
 
+For outbound sender-matrix testing, the same `cloudflareMail` section now also
+supports:
+
+- `cloudflareMail.worker.vars.RESEND_TOKEN`
+- `cloudflareMail.sending.domains`
+- `cloudflareMail.sending.preferredSenderDomain`
+- `cloudflareMail.sending.preferredSenderLocalPart`
+
+With those configured, deploy bootstrap will automatically provision or reuse
+the Resend sending domain, upsert the required DNS records in Cloudflare, and
+let EasyEmail reuse a stable sender mailbox such as
+`matrixsender@tx-mail.example.com`.
+
 ## Security Notes
 
 - Do not commit local deployment config, state, or generated userscript files.

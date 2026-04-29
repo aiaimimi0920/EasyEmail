@@ -107,6 +107,11 @@ def get_bootstrap_config(config: dict[str, Any]) -> dict[str, Any]:
     return as_dict(cloudflare.get("bootstrap"))
 
 
+def get_sending_config(config: dict[str, Any]) -> dict[str, Any]:
+    cloudflare = as_dict(config.get("cloudflareMail"))
+    return as_dict(cloudflare.get("sending"))
+
+
 def resolve_public_zone(config: dict[str, Any]) -> str | None:
     cloudflare = as_dict(config.get("cloudflareMail"))
     bootstrap = get_bootstrap_config(config)
@@ -158,6 +163,15 @@ def collect_desired_zones(config: dict[str, Any]) -> list[str]:
         candidates.append(public_zone)
 
     return normalize_zone_candidates(candidates)
+
+
+def collect_sending_domains(config: dict[str, Any]) -> list[str]:
+    sending = get_sending_config(config)
+    preferred_sender_domain = str(sending.get("preferredSenderDomain") or "").strip().lower().rstrip(".")
+    candidates = normalize_string_list(sending.get("domains"))
+    if preferred_sender_domain:
+        candidates.append(preferred_sender_domain)
+    return unique_preserve_order([candidate.strip().lower().rstrip(".") for candidate in candidates if candidate.strip()])
 
 
 def get_auth_config(config: dict[str, Any]) -> tuple[dict[str, str], dict[str, str]]:
@@ -276,6 +290,92 @@ def fetch_all_zones(headers: dict[str, str]) -> list[dict[str, Any]]:
 
 def build_zone_lookup(zones: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {str(zone.get("name") or "").strip().lower(): zone for zone in zones if zone.get("name")}
+
+
+def find_best_zone_for_host(host: str, zone_lookup: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    matches = [
+        zone
+        for zone_name, zone in zone_lookup.items()
+        if is_subdomain_of(host, zone_name)
+    ]
+    if not matches:
+        return None
+    matches.sort(key=lambda item: len(str(item.get("name") or "")), reverse=True)
+    return matches[0]
+
+
+def fetch_sending_subdomains_for_zone(zone_id: str, headers: dict[str, str]) -> list[dict[str, Any]]:
+    payload = cf_request("GET", f"zones/{zone_id}/email/sending/subdomains", headers)
+    return [item for item in payload.get("result", []) if isinstance(item, dict)]
+
+
+def ensure_sending_subdomains(
+    config: dict[str, Any],
+    headers: dict[str, str],
+    zone_lookup: dict[str, dict[str, Any]],
+    *,
+    dry_run: bool,
+) -> dict[str, Any]:
+    desired_domains = collect_sending_domains(config)
+    if not desired_domains:
+        return {
+            "desired": [],
+            "existing": [],
+            "created": [],
+            "wouldCreate": [],
+            "unresolved": [],
+        }
+
+    per_zone_cache: dict[str, set[str]] = {}
+    existing: list[str] = []
+    created: list[str] = []
+    would_create: list[str] = []
+    unresolved: list[str] = []
+
+    for domain in desired_domains:
+        zone = find_best_zone_for_host(domain, zone_lookup)
+        if zone is None:
+            unresolved.append(domain)
+            continue
+
+        zone_id = str(zone.get("id") or "").strip()
+        if not zone_id:
+            unresolved.append(domain)
+            continue
+
+        known_domains = per_zone_cache.get(zone_id)
+        if known_domains is None:
+            known_domains = {
+                str(item.get("name") or "").strip().lower()
+                for item in fetch_sending_subdomains_for_zone(zone_id, headers)
+                if item.get("name")
+            }
+            per_zone_cache[zone_id] = known_domains
+
+        if domain in known_domains:
+            existing.append(domain)
+            continue
+
+        if dry_run:
+            would_create.append(domain)
+            continue
+
+        cf_request(
+            "POST",
+            f"zones/{zone_id}/email/sending/subdomains",
+            headers,
+            json_body={"name": domain},
+        )
+        known_domains.add(domain)
+        created.append(domain)
+
+    return {
+        "desired": desired_domains,
+        "existing": existing,
+        "created": created,
+        "wouldCreate": would_create,
+        "unresolved": unresolved,
+    }
 
 
 def ensure_zones(
@@ -503,6 +603,21 @@ def main() -> int:
             + "; ".join(pending_descriptions)
         )
 
+    zones = fetch_all_zones(headers)
+    zone_lookup = build_zone_lookup(zones)
+    sending_result = ensure_sending_subdomains(
+        config,
+        headers,
+        zone_lookup,
+        dry_run=args.dry_run,
+    )
+
+    if sending_result["unresolved"]:
+        raise SystemExit(
+            "Failed to resolve Cloudflare zones for sending subdomains: "
+            + ", ".join(sending_result["unresolved"])
+        )
+
     d1_result = ensure_d1_database(config, wrangler_command, worker_dir, env, dry_run=args.dry_run)
 
     effective_config_path = config_path
@@ -515,6 +630,7 @@ def main() -> int:
         "publicZone": resolve_public_zone(config),
         "configPath": str(effective_config_path),
         "zone": zone_result,
+        "sending": sending_result,
         "d1": d1_result,
     }
     print(json.dumps(summary, ensure_ascii=False))

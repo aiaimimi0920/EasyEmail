@@ -8,7 +8,6 @@ import mailtmDefault from "./mailtm-default.json" with { type: "json" };
 import m2uDefault from "./m2u-default.json" with { type: "json" };
 import moemailDefault from "./moemail-default.json" with { type: "json" };
 import tempmailLolDefault from "./tempmail-lol-default.json" with { type: "json" };
-import tmailorDefault from "./tmailor-default.json" with { type: "json" };
 import type { ProviderInstance } from "../../domain/models.js";
 import { toProviderInstance } from "../validation.js";
 
@@ -37,6 +36,5 @@ export function createDefaultProviderInstances(now: Date): ProviderInstance[] {
     hydrateInstance(toProviderInstance(m2uDefault, "provider_instances.m2u-default"), now),
     hydrateInstance(toProviderInstance(moemailDefault, "provider_instances.moemail-default"), now),
     hydrateInstance(toProviderInstance(tempmailLolDefault, "provider_instances.tempmail-lol-default"), now),
-    hydrateInstance(toProviderInstance(tmailorDefault, "provider_instances.tmailor-default"), now),
   ];
 }

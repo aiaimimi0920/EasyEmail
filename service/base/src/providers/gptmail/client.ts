@@ -106,8 +106,11 @@ function asSummaryList(value: unknown): GptMailEmailSummary[] {
 function classifyEnvelopeFailure(status: number, errorText: string): GptMailClientError {
   const message = (errorText || `GPTMail request failed with status ${status}`).trim();
   const normalized = message.toLowerCase();
-  if (status === 401 || status === 403 || normalized.includes("invalid api key")) {
+  if (status === 401 || normalized.includes("invalid api key")) {
     return new GptMailClientError(message, "invalid", status);
+  }
+  if (status === 403 && (normalized.includes("access denied") || normalized.includes("error 1010") || normalized.includes("cloudflare"))) {
+    return new GptMailClientError(message, "network", status);
   }
   if (status === 429 || normalized.includes("quota")) {
     return new GptMailClientError(message, "rate-limited", status);
@@ -134,6 +137,9 @@ function classifyThrownError(error: unknown): GptMailClientError {
     || normalized.includes("timeout")
     || normalized.includes("econnrefused")
     || normalized.includes("enotfound")
+    || normalized.includes("access denied")
+    || normalized.includes("error 1010")
+    || normalized.includes("cloudflare")
   ) {
     return new GptMailClientError(message, "network");
   }

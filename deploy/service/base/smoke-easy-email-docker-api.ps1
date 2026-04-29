@@ -52,15 +52,29 @@ if ($Pull -and $Image) {
   }
 }
 
-$networkName = 'Easy'
-docker network inspect $networkName *> $null
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "Creating docker network: $networkName"
-  docker network create $networkName | Out-Host
+function Ensure-DockerNetwork {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Name
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Name)) {
+    return
+  }
+
+  docker network inspect $Name *> $null
+  if ($LASTEXITCODE -eq 0) {
+    return
+  }
+
+  Write-Host "Creating docker network: $Name"
+  docker network create $Name | Out-Host
   if ($LASTEXITCODE -ne 0) {
-    throw "Failed to create docker network $networkName"
+    throw "Failed to create docker network $Name"
   }
 }
+
+Ensure-DockerNetwork -Name 'EasyAiMi'
 
 $composeArgs = @("compose", "-f", $composeFile, "up", "-d")
 if ($Rebuild) {

@@ -81,6 +81,68 @@ function extractOtp(values: { subject?: string; textBody?: string; htmlBody?: st
   return extractOtpFromContent(values);
 }
 
+function decodeQuotedPrintableLike(value: string | undefined): string | undefined {
+  const normalized = readStringLike(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const input = normalized.replace(/=\r?\n/g, "");
+  let output = "";
+  for (let index = 0; index < input.length; index += 1) {
+    const current = input[index];
+    const hex = input.slice(index + 1, index + 3);
+    if (current === "=" && /^[0-9a-fA-F]{2}$/.test(hex)) {
+      output += String.fromCharCode(Number.parseInt(hex, 16));
+      index += 2;
+      continue;
+    }
+    output += current;
+  }
+
+  return output.trim() || undefined;
+}
+
+function stripHtmlLikeMarkup(value: string | undefined): string | undefined {
+  const normalized = readStringLike(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const text = normalized
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text || undefined;
+}
+
+function hydrateTempmailLolBodies(
+  textBodyInput: string | undefined,
+  htmlBodyInput: string | undefined,
+): { textBody?: string; htmlBody?: string } {
+  let textBody = readStringLike(textBodyInput);
+  let htmlBody = readStringLike(htmlBodyInput);
+
+  if (!htmlBody && textBody && (/=3D|=\r?\n/i.test(textBody) || /<html|<body|<div|<span|<p|<table/i.test(textBody))) {
+    const decoded = decodeQuotedPrintableLike(textBody);
+    if (decoded) {
+      if (/<\/?[a-z][^>]*>/i.test(decoded)) {
+        htmlBody = decoded;
+        textBody = stripHtmlLikeMarkup(decoded) ?? decoded;
+      } else {
+        textBody = decoded;
+      }
+    }
+  }
+
+  if (!textBody && htmlBody) {
+    textBody = stripHtmlLikeMarkup(htmlBody);
+  }
+
+  return { textBody, htmlBody };
+}
+
 function encodeQuery(params: Record<string, string | number | undefined>): string {
   const entries = Object.entries(params)
     .filter(([, value]) => value !== undefined)
@@ -258,7 +320,22 @@ export class TempmailLolClient {
     fromContains?: string,
   ): Promise<ObservedMessage | undefined> {
     const inbox = await this.getInbox(mailbox.token);
-    const emails = asRecordList(inbox.emails ?? inbox.messages);
+    const emails = asRecordList(inbox.emails ?? inbox.messages)
+      .sort((left, right) => {
+        const leftTime = Date.parse(readStringLike(left.createdAt ?? left.date) ?? "") || 0;
+        const rightTime = Date.parse(readStringLike(right.createdAt ?? right.date) ?? "") || 0;
+        if (rightTime !== leftTime) {
+          return rightTime - leftTime;
+        }
+
+        const leftId = Number.parseInt(readStringLike(left.id) ?? "0", 10);
+        const rightId = Number.parseInt(readStringLike(right.id) ?? "0", 10);
+        if (Number.isFinite(leftId) && Number.isFinite(rightId) && rightId !== leftId) {
+          return rightId - leftId;
+        }
+
+        return 0;
+      });
 
     for (const item of emails) {
       const sender = readStringLike(item.from ?? item.sender);
@@ -267,8 +344,12 @@ export class TempmailLolClient {
       }
 
       const subject = readStringLike(item.subject);
-      const textBody = readStringLike(item.body ?? item.text);
-      const htmlBody = readStringLike(item.html);
+      const bodies = hydrateTempmailLolBodies(
+        readStringLike(item.body ?? item.text),
+        readStringLike(item.html),
+      );
+      const textBody = bodies.textBody;
+      const htmlBody = bodies.htmlBody;
       const extractedOtp = extractOtp({
         subject,
         textBody,

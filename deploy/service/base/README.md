@@ -54,6 +54,10 @@ Default host port:
 
 - `http://127.0.0.1:18081`
 
+Default Docker network:
+
+- `EasyAiMi`
+
 ## Notes
 
 - the public repository keeps only templates and empty-state placeholders
@@ -179,3 +183,42 @@ two hours. If the remote config changed, the container pulls the updated
 artifacts and restarts itself automatically. Clear or replace the import code
 at the next launch by updating the bootstrap file or rerunning
 `deploy-service-base.ps1 -ImportCode ...`.
+
+## Cloudflare Sender Matrix
+
+`service/base` now supports a stable `cloudflare_temp_email` sender mailbox for
+cross-provider receive and OTP validation.
+
+Relevant root-config fields:
+
+- `cloudflareMail.worker.vars.RESEND_TOKEN`
+- `cloudflareMail.sending.domains`
+- `cloudflareMail.sending.preferredSenderDomain`
+- `cloudflareMail.sending.preferredSenderLocalPart`
+
+Recommended example:
+
+```yaml
+cloudflareMail:
+  sending:
+    domains:
+      - tx-mail.example.com
+    preferredSenderDomain: tx-mail.example.com
+    preferredSenderLocalPart: matrixsender
+```
+
+When `RESEND_TOKEN` is present, the Cloudflare deploy scripts bootstrap the
+Resend sending domain, verify its DNS records through Cloudflare, and let
+`service/base` recover the same sender mailbox across runs instead of creating
+a fresh sender address every time.
+
+The real sender-matrix script is:
+
+- [test-easyemail-cloudflare-sender-matrix.ps1](C:\Users\Public\nas_home\AI\GameEditor\EasyEmail\scripts\test-easyemail-cloudflare-sender-matrix.ps1)
+
+Current defaults:
+
+- recipient verification is skipped automatically when a Resend token is
+  configured
+- add `-ForceRecipientVerification` if you intentionally want to test the older
+  Cloudflare recipient-verification flow

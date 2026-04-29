@@ -59,6 +59,46 @@ validation rules live in [validate-release-tag.py](../scripts/validate-release-t
 If you need the exact GitHub secret names for hosted deployment, see
 [github-actions-secrets.md](./github-actions-secrets.md).
 
+## Static Sender + Resend Release Path
+
+The Cloudflare side of the release workflow now supports a formal outbound-mail
+path for EasyEmail sender-matrix testing:
+
+- configure `cloudflareMail.worker.vars.RESEND_TOKEN`
+- configure `cloudflareMail.sending.domains`
+- optionally configure:
+  - `cloudflareMail.sending.preferredSenderDomain`
+  - `cloudflareMail.sending.preferredSenderLocalPart`
+
+When those fields are present, the Cloudflare deploy step now performs extra
+bootstrap work before the worker deploy:
+
+1. create or reuse the Resend sending domain
+2. upsert the required DNS records into the owning Cloudflare zone
+3. wait for the Resend domain to become `verified`
+4. deploy the worker with the active `RESEND_TOKEN`
+
+That means the root release flow can now publish `service/base`, deploy the
+Cloudflare runtime, and then run sender-matrix validation against a stable
+sender mailbox such as `matrixsender@tx-mail.example.com`.
+
+The static sender mailbox is also recoverable across runs. If the preferred
+sender already exists, EasyEmail restores the existing mailbox session through
+the worker admin API instead of failing on `Address already exists`.
+
+The Cloudflare deploy workflow now includes a slim post-deploy sender-matrix
+acceptance step by default. It validates these providers through a locally
+started `service/base` verifier:
+
+- `cloudflare_temp_email`
+- `mailtm`
+- `m2u`
+- `gptmail`
+- `mail2925`
+
+Manual runs can disable that acceptance step with the workflow input
+`run_sender_matrix=false`.
+
 ## Useful Flags
 
 Skip the Cloudflare deploy and publish only the service image:

@@ -18,7 +18,6 @@ export type MailProviderTypeKey =
   | "guerrillamail"
   | "tempmail-lol"
   | "etempmail"
-  | "tmailor"
   | typeof CLOUDFLARE_TEMP_EMAIL_PROVIDER_KEY;
 export type MailProviderGroupKey = MailProviderTypeKey;
 export type MailBusinessStrategyId =
@@ -263,6 +262,12 @@ export interface MailboxSendResult {
   detail?: string;
 }
 
+export interface MailboxSessionUpdateRequest {
+  sessionId: string;
+  fromContains?: string;
+  metadata?: Record<string, string>;
+}
+
 export interface AuthenticationLinkResult {
   sessionId: string;
   providerInstanceId: string;
@@ -471,7 +476,6 @@ export function normalizeMailProviderTypeKey(value: string | undefined): MailPro
     || normalized === "guerrillamail"
     || normalized === "tempmail-lol"
     || normalized === "etempmail"
-    || normalized === "tmailor"
   ) {
     return normalized as MailProviderTypeKey;
   }

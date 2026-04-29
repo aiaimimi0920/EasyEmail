@@ -84,4 +84,43 @@ describe("tempmail-lol provider", () => {
       }),
     );
   });
+
+  it("prefers the newest matching message when older inbox entries appear first", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        emails: [
+          {
+            id: "1",
+            from: "noreply@example.com",
+            subject: "Welcome",
+            body: "Hello there.",
+            createdAt: "2026-04-29T01:00:00.000Z",
+          },
+          {
+            id: "2",
+            from: "noreply@example.com",
+            subject: "Numeric html verification sample",
+            body: "<html><body><div style=3D\"font-family:Arial\"><p>Ignore order <strong>998877</strong>.</p><p>Your login code is <span style=3D\"font-weight:700\">246810</span>.</p></div></body></html>",
+            createdAt: "2026-04-29T02:00:00.000Z",
+          },
+        ],
+      }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new TempmailLolClient({
+      apiBase: "https://api.tempmail.lol/v2",
+    });
+
+    const result = await client.tryReadLatestCode(
+      "session-1",
+      { email: "demo@tempmail.lol", token: "token-123" },
+      "inst-1",
+      "example.com",
+    );
+
+    expect(result).toBeDefined();
+    expect(result!.id).toBe("tempmail-lol:2");
+    expect(result!.extractedCode).toBe("246810");
+  });
 });

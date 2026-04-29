@@ -345,19 +345,6 @@ export class GuerrillaMailClient {
         subject,
         textBody: excerpt,
       });
-      if (summaryOtp) {
-        return {
-          id: `guerrillamail:${messageId}`,
-          sessionId,
-          providerInstanceId,
-          observedAt: toIsoTimestamp(item.mail_timestamp),
-          sender,
-          subject,
-          textBody: excerpt,
-          extractedCode: summaryOtp.code,
-          codeSource: summaryOtp.source,
-        };
-      }
 
       const detail = await this.fetchEmail(mailbox.sidToken, messageId);
       const detailSender = readString(detail.mail_from) ?? sender;
@@ -373,7 +360,8 @@ export class GuerrillaMailClient {
         textBody,
         htmlBody,
       });
-      if (!detailOtp) {
+      const selectedOtp = detailOtp ?? summaryOtp;
+      if (!selectedOtp) {
         continue;
       }
       return {
@@ -385,8 +373,8 @@ export class GuerrillaMailClient {
         subject: detailSubject,
         textBody,
         htmlBody,
-        extractedCode: detailOtp.code,
-        codeSource: detailOtp.source,
+        extractedCode: selectedOtp.code,
+        codeSource: selectedOtp.source,
       };
     }
 

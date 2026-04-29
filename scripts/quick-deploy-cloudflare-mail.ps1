@@ -195,6 +195,33 @@ function Invoke-CloudflareBootstrap {
     return Invoke-PythonJsonTool -Executable 'python' -Arguments $args -WorkingDirectory $script:EasyEmailRepoRoot
 }
 
+function Invoke-ResendSendingDomainBootstrap {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ConfigPathValue,
+        [switch]$DryRunMode
+    )
+
+    $bootstrapScript = Resolve-EasyEmailPath -Path 'scripts/bootstrap-resend-sending-domain.py'
+    if (-not (Test-Path -LiteralPath $bootstrapScript)) {
+        throw "Missing Resend bootstrap script: $bootstrapScript"
+    }
+
+    Assert-PythonModule -ModuleName 'requests'
+    Assert-PythonModule -ModuleName 'yaml'
+
+    $args = @(
+        $bootstrapScript,
+        '--config', $ConfigPathValue
+    )
+    if ($DryRunMode) {
+        $args += '--dry-run'
+    }
+
+    Write-Host "Bootstrapping Resend sending domains..." -ForegroundColor Cyan
+    return Invoke-PythonJsonTool -Executable 'python' -Arguments $args -WorkingDirectory $script:EasyEmailRepoRoot
+}
+
 function Wait-CloudflareRuntimeHealthy {
     param(
         [Parameter(Mandatory = $true)]
@@ -318,6 +345,33 @@ function Remove-EasyEmailPlaceholderDomains {
     return @($items | Where-Object { $script:placeholderDomains -notcontains $_.Trim().ToLowerInvariant() })
 }
 
+function Initialize-CloudflareWranglerAuthEnvironment {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$RoutingConfig
+    )
+
+    $configuredApiToken = [string](Get-EasyEmailConfigValue -Object $RoutingConfig -Name 'apiToken' -Default '')
+    if (-not [string]::IsNullOrWhiteSpace($configuredApiToken) -and [string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN)) {
+        $env:CLOUDFLARE_API_TOKEN = $configuredApiToken
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN)) {
+        return
+    }
+
+    $globalAuth = Get-EasyEmailSection -Config $RoutingConfig -Name 'cloudflareGlobalAuth'
+    $authEmail = [string](Get-EasyEmailConfigValue -Object $globalAuth -Name 'authEmail' -Default '')
+    $globalApiKey = [string](Get-EasyEmailConfigValue -Object $globalAuth -Name 'globalApiKey' -Default '')
+
+    if (-not [string]::IsNullOrWhiteSpace($authEmail) -and [string]::IsNullOrWhiteSpace($env:CLOUDFLARE_EMAIL)) {
+        $env:CLOUDFLARE_EMAIL = $authEmail
+    }
+    if (-not [string]::IsNullOrWhiteSpace($globalApiKey) -and [string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_KEY)) {
+        $env:CLOUDFLARE_API_KEY = $globalApiKey
+    }
+}
+
 function Write-CloudflareRoutingPlanFile {
     param(
         [Parameter(Mandatory = $true)]
@@ -368,11 +422,17 @@ $bootstrapCreateZones = if ($bootstrapEnabled) {
 } else {
     $false
 }
+$sending = Get-EasyEmailSection -Config $cloudflare -Name 'sending'
+$sendingDomains = @(Convert-ToEasyEmailStringArray -Value (Get-EasyEmailConfigValue -Object $sending -Name 'domains' -Default @()))
+$preferredSenderDomain = [string](Get-EasyEmailConfigValue -Object $sending -Name 'preferredSenderDomain' -Default '')
+$shouldBootstrapSendingDomains = $sendingDomains.Count -gt 0 -or -not [string]::IsNullOrWhiteSpace($preferredSenderDomain)
 
 $projectRoot = Resolve-EasyEmailPath -Path (Get-EasyEmailConfigValue -Object $cloudflare -Name 'projectRoot' -Default 'upstreams/cloudflare_temp_email')
 $workerDir = Resolve-EasyEmailPath -Path (Join-Path $projectRoot (Get-EasyEmailConfigValue -Object $cloudflare -Name 'workerDir' -Default 'worker'))
 $frontendDir = Resolve-EasyEmailPath -Path (Join-Path $projectRoot (Get-EasyEmailConfigValue -Object $cloudflare -Name 'frontendDir' -Default 'frontend'))
 $workerConfig = Get-EasyEmailSection -Config $cloudflare -Name 'worker'
+$workerVars = Get-EasyEmailSection -Config $workerConfig -Name 'vars'
+$resendTokenConfigured = -not [string]::IsNullOrWhiteSpace([string](Get-EasyEmailConfigValue -Object $workerVars -Name 'RESEND_TOKEN' -Default ''))
 $d1Entries = @(Get-EasyEmailConfigValue -Object $workerConfig -Name 'd1_databases' -Default @())
 $firstD1Entry = if ($d1Entries.Count -gt 0) { $d1Entries[0] } else { $null }
 $configuredDatabaseId = [string](Get-EasyEmailConfigValue -Object $firstD1Entry -Name 'database_id' -Default '')
@@ -381,7 +441,7 @@ if (-not $bootstrapEnabled -and (Test-IsPlaceholderD1DatabaseId -Value $configur
     throw 'cloudflareMail.worker.d1_databases[0].database_id is empty or placeholder. Enable bootstrap mode with -BootstrapMissingResources, or provide an existing D1 database id before deploying.'
 }
 
-if ($bootstrapEnabled) {
+if ($bootstrapEnabled -or $shouldBootstrapSendingDomains) {
     $bootstrapSummary = Invoke-CloudflareBootstrap `
         -ConfigPathValue $resolvedConfigPath `
         -WorkerDirectory $workerDir `
@@ -394,6 +454,10 @@ if ($bootstrapEnabled) {
         $config = Read-EasyEmailConfig -ConfigPath $resolvedConfigPath
         $cloudflare = Get-EasyEmailSection -Config $config -Name 'cloudflareMail'
     }
+}
+
+if ($shouldBootstrapSendingDomains -and $resendTokenConfigured) {
+    $null = Invoke-ResendSendingDomainBootstrap -ConfigPathValue $resolvedConfigPath -DryRunMode:$DryRun
 }
 
 $projectRoot = Resolve-EasyEmailPath -Path (Get-EasyEmailConfigValue -Object $cloudflare -Name 'projectRoot' -Default 'upstreams/cloudflare_temp_email')
@@ -413,6 +477,8 @@ $effectiveSyncMode = if ($PSBoundParameters.ContainsKey('SyncMode')) {
 } else {
     [string](Get-EasyEmailConfigValue -Object $routing -Name 'mode' -Default 'wildcard')
 }
+
+Initialize-CloudflareWranglerAuthEnvironment -RoutingConfig $routing
 
 if (-not (Test-Path -LiteralPath $workerDir)) {
     throw "Worker directory not found: $workerDir"

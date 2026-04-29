@@ -633,7 +633,8 @@ export class Im215Client {
       if (response.status !== 200) {
         throw buildIm215StatusError("getMessage", response.status, response.body);
       }
-      return asRecord(response.body);
+      const body = asRecord(response.body);
+      return asRecord(body.data ?? body.result ?? body);
     });
   }
 

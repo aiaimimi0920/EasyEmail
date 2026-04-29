@@ -83,7 +83,6 @@ EasyEmail ecosystem, including:
 - `guerrillamail`
 - `tempmail-lol`
 - `etempmail`
-- `tmailor`
 - `moemail`
 - `m2u`
 - `gptmail`

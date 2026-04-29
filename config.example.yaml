@@ -14,18 +14,23 @@ userscript:
     moemail_apiKey: ""
     gptmail_apiKey: ""
     im215_apiKey: ""
+    mail2925_account: ""
+    mail2925_jwtToken: ""
+    mail2925_deviceUid: ""
+    mail2925_cookieHeader: ""
 
 serviceBase:
   context: .
   dockerfile: deploy/service/base/Dockerfile
   image: easyemail/easy-email-service:local
   containerEnvironment:
-    EASY_PROXY_BASE_URL: http://easy-proxy-service:9888
+    EASY_PROXY_BASE_URL: http://host.docker.internal:29888
     EASY_PROXY_API_KEY: ""
-    EASY_PROXY_RUNTIME_HOST: easy-proxy-service
+    EASY_PROXY_RUNTIME_HOST: host.docker.internal
     EASY_PROXY_HOST_ID: easyemail-service-base
+    M2U_UPSTREAM_PROXY_URL: http://host.docker.internal:22323
     M2U_USE_EASY_PROXY_ON_CAPACITY: "true"
-    M2U_EASY_PROXY_REQUIRE_DEDICATED_NODE: "true"
+    M2U_EASY_PROXY_REQUIRE_DEDICATED_NODE: "false"
     M2U_EASY_PROXY_MAX_ATTEMPTS: "10"
   runtime:
     server:
@@ -65,6 +70,15 @@ serviceBase:
       gptmail:
         baseUrl: https://mail.chatgpt.org.uk
         apiKey: ""
+        keysText: ""
+      tempmailLol:
+        baseUrl: https://api.tempmail.lol/v2
+      m2u:
+        baseUrl: https://api.m2u.io
+        preferredDomain: edu.kg
+        useEasyProxyOnCapacity: true
+        easyProxyRequireDedicatedNode: true
+        easyProxyMaxAttempts: 10
 
 cloudflareMail:
   publicBaseUrl: https://mail.example.com
@@ -88,15 +102,40 @@ cloudflareMail:
     d1Jurisdiction: ""
     zoneType: full
     jumpStart: false
+  sending:
+    # Optional: Cloudflare Email Service sender domains for EasyEmail-opened
+    # cloudflare_temp_email mailboxes. Bootstrap/deploy will ensure these
+    # subdomains exist under their matching Cloudflare zones.
+    domains:
+      - tx-mail.example.com
+    preferredSenderDomain: tx-mail.example.com
+    preferredSenderLocalPart: matrixsender
   worker:
     send_email:
       - name: SEND_MAIL
+        remote: true
     vars:
       PASSWORDS:
         - change-me
       ADMIN_PASSWORDS:
         - admin-change-me
       JWT_SECRET: change-me
+      # Optional: configure an outbound sender that does not require
+      # Cloudflare verified-recipient flow for every target mailbox.
+      RESEND_TOKEN: ""
+      # Optional: restrict SEND_MAIL binding usage to these managed domains.
+      SEND_MAIL_DOMAINS:
+        - mail.example.com
+      # Optional: YAML object keyed by sender domain. Example:
+      # SMTP_CONFIG:
+      #   mail.example.com:
+      #     host: smtp.example.com
+      #     port: 587
+      #     secure: false
+      #     auth:
+      #       user: smtp-user
+      #       pass: smtp-password
+      SMTP_CONFIG: {}
     d1_databases:
       - binding: DB
         database_name: cloudflare-temp-email

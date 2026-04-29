@@ -40,7 +40,12 @@ export class CloudflareTempEmailConnectorAdapter implements MailProviderAdapter 
     { request, instance, now }: Parameters<MailProviderAdapter["createMailboxSession"]>[0],
   ): Promise<MailboxSession> {
     const sessionId = createId("mailbox", now);
-    const localPart = createLocalPart(request.hostId, sessionId);
+    const requestedLocalPart = request.requestedLocalPart?.trim()
+      || request.metadata?.requestedLocalPart?.trim()
+      || request.metadata?.customLocalPart?.trim()
+      || request.metadata?.mailcreateLocalPart?.trim()
+      || undefined;
+    const localPart = requestedLocalPart || createLocalPart(request.hostId, sessionId);
     const requestedDomain = request.requestedDomain?.trim()
       || request.metadata?.requestedDomain?.trim()
       || request.metadata?.mailcreateDomain?.trim()
@@ -143,6 +148,38 @@ export class CloudflareTempEmailConnectorAdapter implements MailProviderAdapter 
       sentAt: now.toISOString(),
       deliveryMode: sendResult.deliveryMode,
       detail: sendResult.detail,
+    };
+  }
+
+  public async recoverMailboxSession(
+    { emailAddress, hostId, instance, now, session }: Parameters<NonNullable<MailProviderAdapter["recoverMailboxSession"]>>[0],
+  ) {
+    const client = CloudflareTempEmailCreateClient.fromInstance(instance);
+    if (!client) {
+      return undefined;
+    }
+
+    const mailbox = await client.recoverMailboxByEmail(emailAddress);
+    if (!mailbox) {
+      return undefined;
+    }
+
+    const sessionId = session?.id ?? createId("mailbox", now);
+    return {
+      strategy: "session_restore" as const,
+      detail: "admin_jwt_recovery",
+      session: {
+        id: sessionId,
+        hostId: hostId?.trim() || session?.hostId || `recovery:${this.typeKey}`,
+        providerTypeKey: this.typeKey,
+        providerInstanceId: instance.id,
+        emailAddress: mailbox.address,
+        mailboxRef: encodeCloudflareTempMailboxRef(instance.id, mailbox),
+        status: "open" as const,
+        createdAt: session?.createdAt ?? now.toISOString(),
+        expiresAt: session?.expiresAt,
+        metadata: { ...(session?.metadata ?? {}) },
+      },
     };
   }
 

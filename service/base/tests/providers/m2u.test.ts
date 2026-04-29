@@ -209,6 +209,65 @@ describe("m2u provider", () => {
     );
   });
 
+  it("retries with alternate browser-like user agents when the first direct createMailbox attempt is capacity-limited", async () => {
+    vi.spyOn(Math, "random")
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.999);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        error: "daily_limit_exceeded",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        mailbox: {
+          id: "mailbox-alt-ua-1",
+          token: "token-alt-123",
+          view_token: "view-alt-456",
+          local_part: "altua",
+          domain: "shaole.me",
+          expires_at: "2026-05-01T00:00:00.000Z",
+        },
+      }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new M2uClient({
+      apiBase: "https://api.m2u.io",
+      userAgent: "EasyEmailM2U/1.0",
+      userAgents: [
+        "EasyEmailM2U/1.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+      ],
+      acceptLanguage: "zh-CN,zh;q=0.9",
+      acceptEncoding: "identity",
+    });
+
+    await expect(client.createMailbox()).resolves.toEqual({
+      email: "altua@shaole.me",
+      token: "token-alt-123",
+      viewToken: "view-alt-456",
+      mailboxId: "mailbox-alt-ua-1",
+      expiresAt: "2026-05-01T00:00:00.000Z",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.m2u.io/v1/mailboxes/auto",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "User-Agent": "EasyEmailM2U/1.0",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.m2u.io/v1/mailboxes/auto",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+        }),
+      }),
+    );
+  });
+
   it("falls back to easy-proxy when direct createMailbox is capacity-limited", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({
@@ -616,6 +675,16 @@ describe("m2u provider", () => {
         new Response(JSON.stringify({
           error: "daily_limit_exceeded",
         }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          error: "daily_limit_exceeded",
+        }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          error: "daily_limit_exceeded",
+        }), { status: 200 }),
       );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -644,8 +713,7 @@ describe("m2u provider", () => {
     expect(probe.ok).toBe(false);
     expect(probe.detail).toContain("daily_limit_exceeded");
     expect(probe.metadata?.errorClass).toBe("capacity");
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
+    expect(fetchMock).toHaveBeenCalledWith(
       "https://api.m2u.io/v1/mailboxes/auto",
       expect.objectContaining({
         method: "POST",

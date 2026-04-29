@@ -69,6 +69,10 @@ $secretMap = @{
     moemail_apiKey        = Get-SecretText -Secrets $secrets -Name 'moemail_apiKey'
     gptmail_apiKey        = Get-SecretText -Secrets $secrets -Name 'gptmail_apiKey'
     im215_apiKey          = Get-SecretText -Secrets $secrets -Name 'im215_apiKey'
+    mail2925_account      = Get-SecretText -Secrets $secrets -Name 'mail2925_account'
+    mail2925_jwtToken     = Get-SecretText -Secrets $secrets -Name 'mail2925_jwtToken'
+    mail2925_deviceUid    = Get-SecretText -Secrets $secrets -Name 'mail2925_deviceUid'
+    mail2925_cookieHeader = Get-SecretText -Secrets $secrets -Name 'mail2925_cookieHeader'
 }
 
 $tokenMap = @{
@@ -76,6 +80,10 @@ $tokenMap = @{
     '__LOCAL_SECRET_CLOUDFLARE_ADMIN_AUTH__'  = $secretMap.cloudflare_adminAuth
     '__LOCAL_SECRET_MOEMAIL_API_KEY__'        = $secretMap.moemail_apiKey
     '__LOCAL_SECRET_IM215_API_KEY__'          = $secretMap.im215_apiKey
+    '__LOCAL_SECRET_MAIL2925_ACCOUNT__'       = $secretMap.mail2925_account
+    '__LOCAL_SECRET_MAIL2925_JWT_TOKEN__'     = $secretMap.mail2925_jwtToken
+    '__LOCAL_SECRET_MAIL2925_DEVICE_UID__'    = $secretMap.mail2925_deviceUid
+    '__LOCAL_SECRET_MAIL2925_COOKIE_HEADER__' = $secretMap.mail2925_cookieHeader
 }
 
 $escapedGptmailApiKey = $secretMap.gptmail_apiKey.Replace('\', '\\').Replace("'", "\'")

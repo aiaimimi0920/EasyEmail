@@ -20,7 +20,6 @@ export * from "./providers/cloudflare_temp_email/connector/index.js";
 export * from "./providers/cloudflare_temp_email/control/index.js";
 export * from "./providers/cloudflare_temp_email/provisioning/index.js";
 export * from "./providers/tempmail_lol/index.js";
-export * from "./providers/tmailor/index.js";
 export * from "./runtime/index.js";
 export * from "./service/index.js";
 export * from "./shared/index.js";

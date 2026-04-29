@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.7
-
 FROM node:20-alpine AS builder
 WORKDIR /workspace
 
@@ -19,8 +17,6 @@ ENV NODE_ENV=production \
 
 COPY --from=builder /workspace/service/base/package.json ./package.json
 COPY --from=builder /workspace/service/base/package-lock.json ./package-lock.json
-COPY --from=builder /workspace/service/base/node_modules ./node_modules
-COPY --from=builder /workspace/service/base/dist ./dist
 
 COPY deploy/service/base/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY deploy/service/base/bootstrap-service-config.py /usr/local/bin/bootstrap-service-config.py
@@ -38,6 +34,9 @@ RUN apt-get -o Acquire::Retries=5 update \
     && chmod +x /usr/local/bin/easyemail-import-code.py \
     && mkdir -p /etc/easy-email /var/lib/easy-email/state \
     && chown -R easy:easy /etc/easy-email /var/lib/easy-email
+
+COPY --from=builder /workspace/service/base/node_modules ./node_modules
+COPY --from=builder /workspace/service/base/dist ./dist
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

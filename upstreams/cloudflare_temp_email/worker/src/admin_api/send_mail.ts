@@ -9,9 +9,13 @@ const getAdminSendMailErrorMessage = (
     error: unknown
 ): string => {
     const message = error instanceof Error ? error.message : "";
-    return Object.values(msgs).includes(message)
-        ? message
-        : msgs.OperationFailedMsg;
+    if (Object.values(msgs).includes(message)) {
+        return message;
+    }
+    if (message && message.trim()) {
+        return `${msgs.OperationFailedMsg}: ${message.trim()}`;
+    }
+    return msgs.OperationFailedMsg;
 }
 
 export const sendMailbyAdmin = async (c: Context<HonoCustomType>) => {

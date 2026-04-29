@@ -83,10 +83,16 @@ Use one authentication mode:
 | `EASYEMAIL_CF_PREFIX` | Worker address prefix | from current config/template | Single line |
 | `EASYEMAIL_CF_DEFAULT_DOMAINS` | Default domain list for the worker | falls back to `EASYEMAIL_CF_DOMAINS` | Multi-line list |
 | `EASYEMAIL_CF_RANDOM_SUBDOMAIN_DOMAINS` | Domains allowed for random subdomain creation | falls back to `EASYEMAIL_CF_DOMAINS` | Multi-line list |
+| `EASYEMAIL_CF_SENDING_DOMAINS` | Optional Cloudflare Email Service sender subdomains that bootstrap should create and add to the worker domain pool | disabled if omitted | Multi-line list |
+| `EASYEMAIL_CF_PREFERRED_SENDER_DOMAIN` | Preferred sender domain for EasyEmail-driven Cloudflare mailbox send tests | first sending domain if omitted | Single line |
+| `EASYEMAIL_CF_PREFERRED_SENDER_LOCAL_PART` | Preferred static local-part for the reusable sender mailbox, for example `matrixsender` | random sender local-part | Single line |
 | `EASYEMAIL_CF_ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH` | Enable subdomain label matching | current config/template | `true` / `false` |
 | `EASYEMAIL_CF_RANDOM_SUBDOMAIN_LENGTH` | Generated random subdomain length | current config/template | Integer |
 | `EASYEMAIL_CF_ENABLE_USER_CREATE_EMAIL` | Allow users to create addresses | current config/template | `true` / `false` |
 | `EASYEMAIL_CF_ENABLE_USER_DELETE_EMAIL` | Allow users to delete addresses | current config/template | `true` / `false` |
+| `EASYEMAIL_CF_RESEND_TOKEN` | Optional global Resend token used for outbound mail before falling back to `SEND_MAIL` | disabled if omitted | Single line |
+| `EASYEMAIL_CF_SMTP_CONFIG` | Optional YAML/JSON SMTP config object keyed by sender domain | disabled if omitted | Multi-line YAML/JSON |
+| `EASYEMAIL_CF_SEND_MAIL_DOMAINS` | Optional allow-list for `SEND_MAIL` binding sender domains | all managed domains | Multi-line list |
 | `EASYEMAIL_CF_D1_DATABASE_NAME` | D1 database name override. Use this when mode 1 should auto-create the database. | `cloudflare-temp-email` | Single line |
 | `EASYEMAIL_CF_D1_DATABASE_BINDING` | D1 binding override | `DB` | Single line |
 | `EASYEMAIL_CF_SYNC_ROUTING` | Enable routing sync during deploy | current config/template | `true` / `false` |
@@ -129,6 +135,24 @@ Recommended secrets for mode 1:
 If the routing plan does not already make the owning zone obvious, also set
 either `EASYEMAIL_CF_PUBLIC_ZONE` or `EASYEMAIL_CF_BOOTSTRAP_ZONES`.
 
+If you want `cloudflare_temp_email` sender mailboxes opened through EasyEmail
+to send directly to fresh external mailboxes, configure Cloudflare Email
+Service sender subdomains:
+
+- `EASYEMAIL_CF_SENDING_DOMAINS`
+- optionally `EASYEMAIL_CF_PREFERRED_SENDER_DOMAIN`
+- optionally `EASYEMAIL_CF_PREFERRED_SENDER_LOCAL_PART`
+
+If you instead provide `EASYEMAIL_CF_RESEND_TOKEN`, deploy bootstrap will
+create or reuse the Resend sending domain, upsert the required DNS records into
+Cloudflare, verify that sending domain, and then let EasyEmail reuse the same
+static sender mailbox for sender-matrix runs.
+
+If you prefer a third-party outbound provider instead, you can still use:
+
+- `EASYEMAIL_CF_RESEND_TOKEN`
+- `EASYEMAIL_CF_SMTP_CONFIG`
+
 ## GHCR Publish Secrets
 
 `.github/workflows/publish-service-base-ghcr.yml` uses these secrets:
@@ -146,6 +170,27 @@ either `EASYEMAIL_CF_PUBLIC_ZONE` or `EASYEMAIL_CF_BOOTSTRAP_ZONES`.
 | `EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT` | `service/base` 2925 account | Single line |
 | `EASYEMAIL_PROVIDER_MAIL2925_PASSWORD` | `service/base` 2925 password | Single line |
 | `EASYEMAIL_PROVIDER_GPTMAIL_API_KEY` | `service/base` GPTMail provider key | Single line |
+| `EASYEMAIL_PROVIDER_GPTMAIL_KEYS_TEXT` | Optional multi-key GPTMail key pool | Multi-line list |
+| `EASYEMAIL_PROVIDER_TEMPMAIL_LOL_BASE_URL` | Optional Tempmail.lol base URL override | Single line |
+| `EASYEMAIL_PROVIDER_M2U_BASE_URL` | Optional MailToYou base URL override | Single line |
+| `EASYEMAIL_PROVIDER_M2U_PREFERRED_DOMAIN` | Optional MailToYou preferred domain | Single line |
+| `EASYEMAIL_PROVIDER_M2U_UPSTREAM_PROXY_URL` | Optional dedicated upstream proxy URL for MailToYou fallback | Single line |
+| `EASYEMAIL_PROVIDER_M2U_USE_EASY_PROXY_ON_CAPACITY` | Enable MailToYou easy-proxy fallback | `true` / `false` |
+
+If you want the published userscript import bundle to carry the same provider
+credentials, also add these repository secrets:
+
+| Secret name | Purpose | Format |
+| --- | --- | --- |
+| `EASYEMAIL_USERSCRIPT_CLOUDFLARE_CUSTOM_AUTH` | userscript Cloudflare custom auth | Single line |
+| `EASYEMAIL_USERSCRIPT_CLOUDFLARE_ADMIN_AUTH` | userscript Cloudflare admin auth | Single line |
+| `EASYEMAIL_USERSCRIPT_MOEMAIL_API_KEY` | userscript MoEmail API key | Single line |
+| `EASYEMAIL_USERSCRIPT_GPTMAIL_API_KEY` | userscript GPTMail API key | Single line |
+| `EASYEMAIL_USERSCRIPT_IM215_API_KEY` | userscript IM215 API key | Single line |
+| `EASYEMAIL_USERSCRIPT_MAIL2925_ACCOUNT` | userscript 2925 account email | Single line |
+| `EASYEMAIL_USERSCRIPT_MAIL2925_JWT_TOKEN` | userscript 2925 browser JWT token | Single line |
+| `EASYEMAIL_USERSCRIPT_MAIL2925_DEVICE_UID` | userscript 2925 browser `deviceUid` | Single line |
+| `EASYEMAIL_USERSCRIPT_MAIL2925_COOKIE_HEADER` | userscript 2925 browser cookie header | Single line |
 
 ### Private R2 Runtime Config Distribution
 
@@ -210,3 +255,32 @@ of operator secrets for:
 - `publishing.*`
 
 Keep that file local and do not commit it.
+
+## Slim Sender-Matrix Acceptance
+
+`.github/workflows/deploy-cloudflare-email.yml` now has an optional
+post-deploy sender-matrix acceptance step.
+
+It runs by default for tag-triggered deploys and for manual runs unless
+`run_sender_matrix=false`.
+
+Besides the `EASYEMAIL_CF_*` deploy secrets, that acceptance step also needs
+the `service/base` provider secrets because it starts a local verifier
+container and opens real recipient mailboxes. In practice that means the
+workflow needs:
+
+- `EASYEMAIL_SERVICE_RUNTIME_API_KEY`
+- `EASYEMAIL_PROVIDER_CLOUDFLARE_API_KEY`
+- `EASYEMAIL_PROVIDER_MOEMAIL_API_KEY`
+- `EASYEMAIL_PROVIDER_MOEMAIL_WEB_SESSION_TOKEN`
+- `EASYEMAIL_PROVIDER_MOEMAIL_WEB_CSRF_TOKEN`
+- `EASYEMAIL_PROVIDER_IM215_API_KEY`
+- `EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT`
+- `EASYEMAIL_PROVIDER_MAIL2925_PASSWORD`
+- `EASYEMAIL_PROVIDER_GPTMAIL_API_KEY`
+- `EASYEMAIL_PROVIDER_GPTMAIL_KEYS_TEXT`
+- `EASYEMAIL_PROVIDER_TEMPMAIL_LOL_BASE_URL`
+- `EASYEMAIL_PROVIDER_M2U_BASE_URL`
+- `EASYEMAIL_PROVIDER_M2U_PREFERRED_DOMAIN`
+- `EASYEMAIL_PROVIDER_M2U_UPSTREAM_PROXY_URL`
+- `EASYEMAIL_PROVIDER_M2U_USE_EASY_PROXY_ON_CAPACITY`

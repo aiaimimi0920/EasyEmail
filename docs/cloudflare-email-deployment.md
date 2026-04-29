@@ -47,11 +47,93 @@ documented in [github-actions-secrets.md](./github-actions-secrets.md). That
 mode lets the operator fill one secret per field instead of pasting a multi-line
 YAML document.
 
+The hosted workflow can also run a slim post-deploy sender matrix. That path
+starts a local `service/base` verifier inside the GitHub runner and sends
+through the deployed Cloudflare runtime. For that acceptance step, the workflow
+also needs the `service/base` provider secrets documented under the GHCR publish
+section of [github-actions-secrets.md](./github-actions-secrets.md).
+
 For manual dry-run validation, the workflow can fall back to
 `config.example.yaml` when no `EASYEMAIL_CF_*` secrets are present.
 
 The full secret inventory is documented in
 [github-actions-secrets.md](./github-actions-secrets.md).
+
+## Outbound Mail Paths
+
+`cloudflare_temp_email` can send outbound mail through three transports:
+
+1. Cloudflare `SEND_MAIL`
+2. `RESEND_TOKEN`
+3. `SMTP_CONFIG`
+
+For EasyEmail's cross-provider sender matrix, the recommended production path is:
+
+- configure `cloudflareMail.worker.vars.RESEND_TOKEN`
+- configure at least one sending domain under `cloudflareMail.sending.domains`
+- optionally set `cloudflareMail.sending.preferredSenderDomain`
+- optionally set `cloudflareMail.sending.preferredSenderLocalPart`
+
+When `RESEND_TOKEN` and sending domains are present, the deploy flow now:
+
+- creates or reuses the Resend sending domain
+- writes the required DKIM / SPF / MX records into the owning Cloudflare zone
+- waits for the Resend domain to reach `verified`
+- deploys the worker with the verified `RESEND_TOKEN`
+
+This removes the need to keep the sender matrix on Cloudflare's recipient
+verification path for every fresh external mailbox.
+
+## Static Sender Mailbox
+
+EasyEmail now supports a fixed `cloudflare_temp_email` sender mailbox instead of
+creating a new sender address every run.
+
+The relevant root-config fields are:
+
+- `cloudflareMail.sending.domains`
+- `cloudflareMail.sending.preferredSenderDomain`
+- `cloudflareMail.sending.preferredSenderLocalPart`
+
+Example:
+
+```yaml
+cloudflareMail:
+  sending:
+    domains:
+      - tx-mail.example.com
+    preferredSenderDomain: tx-mail.example.com
+    preferredSenderLocalPart: matrixsender
+```
+
+With that config, EasyEmail opens or recovers the same sender mailbox, for
+example `matrixsender@tx-mail.example.com`, instead of rotating sender
+addresses. The recovery path uses the worker admin API to restore a JWT for the
+existing mailbox if it already exists.
+
+## Sender Matrix Defaults
+
+The sender matrix script is:
+
+- [scripts/test-easyemail-cloudflare-sender-matrix.ps1](../scripts/test-easyemail-cloudflare-sender-matrix.ps1)
+
+Current behavior:
+
+- if `RESEND_TOKEN` is configured, the script automatically skips recipient
+  verification and sends directly through Resend-backed worker delivery
+- `mail2925` uses template-isolated recipient sessions by default to avoid
+  cross-template code freshness races
+- if you need to exercise the old Cloudflare recipient-verification path
+  explicitly, add `-ForceRecipientVerification`
+
+The GitHub Actions deploy workflow now uses a slim default provider set for
+post-deploy acceptance:
+
+- `cloudflare_temp_email`
+- `mailtm`
+- `m2u`
+- `gptmail`
+- `mail2925`
 
 ## Supported Deployment Modes
 

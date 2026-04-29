@@ -25,11 +25,23 @@ const ALPHANUMERIC_CODE_RE = /(?<![A-Za-z0-9])([A-Za-z0-9]{5,18})(?![A-Za-z0-9])
 const GROUPED_CODE_RE = /(?<![A-Za-z0-9])([A-Za-z0-9]{2,8}(?:-[A-Za-z0-9]{2,8}){1,3})(?![A-Za-z0-9])/g;
 const CONTEXT_RE = /(?:verification\s*code|verify\s*code|security\s*code|one[-\s]*time\s*(?:pass)?code|login\s*code|sign[\s-]*in\s*code|confirmation\s*code|email\s*code|otp|passcode|验证码|校验码|动态码|动态密码|口令|代码为|代码是|code\s*(?:is|:))/i;
 const VALIDITY_HINT_RE = /(?:expire|expired|expires|valid|validity|minute|minutes|min|mins|second|seconds|sec|secs|分钟|秒|有效期)/i;
-const NEGATIVE_RE = /(?:order|invoice|tracking|parcel|shipment|ticket|reference|ref\b|phone|mobile|zip|postal|amount|price|total|订单|金额|价格|快递|包裹|物流|手机号|电话|邮编|尾号|参考号)/i;
+const NEGATIVE_RE = /(?:backup|ignore|secondary|order|invoice|tracking|parcel|shipment|ticket|reference|ref\b|phone|mobile|zip|postal|amount|price|total|订单|金额|价格|快递|包裹|物流|手机号|电话|邮编|尾号|参考号)/i;
 const COLOR_STYLE_HINT_RE = /(?:color|background|border|fill|stroke|font-face|stylesheet|style=|rgba?\(|hsla?\(|#[0-9a-f]{3,8})/i;
 const HTML_TAG_RE = /<[^>]+>/g;
 const EMAIL_AROUND_CANDIDATE_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const CONTEXTUAL_NUMERIC_OTP_RE = /(?:verification\s*code|verify\s*code|security\s*code|one[-\s]*time\s*(?:pass)?code|login\s*code|sign[\s-]*in\s*code|confirmation\s*code|email\s*code|otp|passcode|验证码|校验码|动态码|动态密码|口令|代码为|代码是|enter\s+this\s+temporary\s+verification\s+code)[^0-9]{0,80}(\d{6})(?!\d)/i;
+const CONTEXTUAL_SHORT_OTP_PATTERNS = [
+  /primary\s*code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+  /verification\s*code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+  /verify\s*code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+  /security\s*code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+  /login\s*code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+  /confirmation\s*code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+  /email\s*code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+  /(?:code\s*(?:is|:)|代码为|代码是)[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+  /use\s+(?:the\s+)?code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+  /enter\s+(?:the\s+)?code[^A-Za-z0-9]{0,12}([A-Za-z0-9][A-Za-z0-9-]{3,23})(?![A-Za-z0-9])/i,
+] as const;
 const LETTER_ONLY_STOPWORDS = new Set([
   "CODE",
   "IS",
@@ -140,6 +152,44 @@ function compactCandidateCode(code: string): string {
   return normalizeCandidateCode(code).replace(/-/g, "");
 }
 
+function trimFusedMixedCodeSuffix(code: string): string {
+  const rawCode = code.trim();
+  if (!/[A-Z]/.test(rawCode) || !/\d/.test(rawCode) || !/[a-z]/.test(rawCode)) {
+    return rawCode;
+  }
+
+  for (let length = 5; length <= Math.min(12, rawCode.length - 2); length += 1) {
+    const prefix = rawCode.slice(0, length);
+    const suffix = rawCode.slice(length);
+    if (!/[A-Z]/.test(prefix) || !/\d/.test(prefix)) {
+      continue;
+    }
+    if (!/^[A-Za-z]{2,}$/.test(suffix) || !/[a-z]/.test(suffix)) {
+      continue;
+    }
+    return prefix;
+  }
+
+  return rawCode;
+}
+
+function buildFusedCoreCandidates(code: string): string[] {
+  const rawCode = code.trim();
+  const candidates = new Set<string>();
+
+  const fusedNumericMatch = rawCode.match(/^(?:[A-Za-z]{2,})?(\d{4,10})(?:[A-Za-z]{2,})?$/);
+  if (fusedNumericMatch?.[1] && fusedNumericMatch[1] !== rawCode) {
+    candidates.add(fusedNumericMatch[1]);
+  }
+
+  const trimmedMixedCode = trimFusedMixedCodeSuffix(rawCode);
+  if (trimmedMixedCode !== rawCode) {
+    candidates.add(trimmedMixedCode);
+  }
+
+  return [...candidates];
+}
+
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -242,15 +292,13 @@ function extractCandidates(
         score: scoreCandidate(source, code, context, occurrencesByCode, uniqueCodeCount),
       });
 
-      const fusedNumericMatch = code.trim().match(/^(?:[A-Za-z]{2,})?(\d{4,10})(?:[A-Za-z]{2,})?$/);
-      if (fusedNumericMatch && fusedNumericMatch[1] !== code.trim()) {
-        const numericCore = fusedNumericMatch[1];
-        const numericCanonical = normalizeCandidateCode(numericCore);
+      for (const fusedCore of buildFusedCoreCandidates(code)) {
+        const numericCanonical = normalizeCandidateCode(fusedCore);
         candidates.push({
-          code: numericCore,
+          code: fusedCore,
           canonicalCode: numericCanonical,
           source,
-          score: scoreCandidate(source, numericCore, context, occurrencesByCode, uniqueCodeCount) + 6,
+          score: scoreCandidate(source, fusedCore, context, occurrencesByCode, uniqueCodeCount) + 6,
         });
       }
     }
@@ -328,10 +376,50 @@ function extractContextualNumericOtp(input: ExtractOtpContentInput): ExtractedOt
   };
 }
 
+function extractContextualShortOtp(input: ExtractOtpContentInput): ExtractedOtp | undefined {
+  const orderedValues: Array<{ value: string | undefined; source: CodeSource }> = [
+    { value: input.subject, source: "subject" },
+    { value: input.textBody, source: "text" },
+    { value: input.htmlBody, source: "html" },
+  ];
+
+  for (const entry of orderedValues) {
+    const normalized = normalizeContent(entry.value, entry.source);
+    if (!normalized) {
+      continue;
+    }
+
+    for (const pattern of CONTEXTUAL_SHORT_OTP_PATTERNS) {
+      const match = normalized.match(pattern);
+      const rawCode = String(match?.[1] ?? "").trim();
+      if (rawCode) {
+        const fusedNumericMatch = rawCode.match(/^(?:[A-Za-z]{2,})?(\d{4,10})(?:[A-Za-z]{2,})?$/);
+        const trimmedMixedCode = trimFusedMixedCodeSuffix(rawCode);
+        const code = fusedNumericMatch?.[1] && fusedNumericMatch[1] !== rawCode
+          ? fusedNumericMatch[1]
+          : trimmedMixedCode;
+        if (/[A-Za-z0-9]/.test(code)) {
+          return {
+            code,
+            source: entry.source,
+          };
+        }
+      }
+    }
+  }
+
+  return undefined;
+}
+
 export function extractOtpFromContent(input: ExtractOtpContentInput): ExtractedOtp | undefined {
   const contextualNumericOtp = extractContextualNumericOtp(input);
   if (contextualNumericOtp) {
     return contextualNumericOtp;
+  }
+
+  const contextualShortOtp = extractContextualShortOtp(input);
+  if (contextualShortOtp) {
+    return contextualShortOtp;
   }
 
   const occurrencesByCode = collectOccurrences(input);
@@ -363,8 +451,10 @@ export function extractOtpFromContent(input: ExtractOtpContentInput): ExtractedO
     return sourcePriority[right.source] - sourcePriority[left.source];
   });
 
+  const topCandidate = candidates[0]!;
   const sixDigitNumericCandidates = candidates.filter((candidate) => /^\d{6}$/.test(compactCandidateCode(candidate.code)));
-  const best = sixDigitNumericCandidates.length > 0 ? sixDigitNumericCandidates[0] : candidates[0];
+  const preferredSixDigitNumericCandidate = sixDigitNumericCandidates.find((candidate) => candidate.score >= topCandidate.score - 4);
+  const best = preferredSixDigitNumericCandidate ?? topCandidate;
   const uniqueCandidates = [...new Set(candidates.map((candidate) => candidate.code))].slice(0, 8);
   return best.score >= 15
     ? {

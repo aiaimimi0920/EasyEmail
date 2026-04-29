@@ -62,6 +62,19 @@ Use the single operator entrypoint:
 pwsh .\scripts\deploy-cloudflare-email.ps1
 ```
 
+If you also want outbound sender-matrix testing through a stable
+`cloudflare_temp_email` sender mailbox, add these root-config fields before the
+deploy:
+
+- `cloudflareMail.worker.vars.RESEND_TOKEN`
+- `cloudflareMail.sending.domains`
+- `cloudflareMail.sending.preferredSenderDomain`
+- `cloudflareMail.sending.preferredSenderLocalPart`
+
+With those configured, deploy bootstrap will create or reuse the Resend sending
+domain, write the required DNS records into Cloudflare, verify the domain, and
+let EasyEmail reuse a sender such as `matrixsender@tx-mail.example.com`.
+
 With the current large explicit subdomain pool, the deploy scripts now default
 to the config's DNS sync mode, and the recommended default is `wildcard`.
 Ordinary updates should not force `exact` unless you intentionally want

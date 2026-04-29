@@ -351,19 +351,6 @@ export class MailTmClient {
         subject: item.subject,
         textBody: item.intro,
       });
-      if (summaryOtp) {
-        return {
-          id: `mailtm:${messageId}`,
-          sessionId,
-          providerInstanceId,
-          observedAt: item.createdAt ?? "",
-          sender,
-          subject: item.subject,
-          textBody: item.intro,
-          extractedCode: summaryOtp.code,
-          codeSource: summaryOtp.source,
-        };
-      }
 
       const detail = await this.getMessage(mailbox.token, messageId);
       const detailSender = resolveSender(detail.from) ?? sender;
@@ -382,6 +369,7 @@ export class MailTmClient {
         textBody: textBody ?? detail.intro,
         htmlBody,
       });
+      const selectedOtp = detailOtp ?? summaryOtp;
       return {
         id: `mailtm:${messageId}`,
         sessionId,
@@ -391,8 +379,8 @@ export class MailTmClient {
         subject: detailSubject,
         textBody,
         htmlBody,
-        extractedCode: detailOtp?.code,
-        codeSource: detailOtp?.source,
+        extractedCode: selectedOtp?.code,
+        codeSource: selectedOtp?.source,
       };
     }
 

@@ -13,6 +13,8 @@ import type {
   OpenMailboxHttpResponse,
   SendMailboxMessageHttpRequest,
   SendMailboxMessageHttpResponse,
+  UpdateMailboxSessionHttpRequest,
+  UpdateMailboxSessionHttpResponse,
   RecoverMailboxByEmailHttpRequest,
   RecoverMailboxByEmailHttpResponse,
   ReleaseMailboxHttpRequest,
@@ -154,6 +156,14 @@ export class EasyEmailHttpHandler {
     request: SendMailboxMessageHttpRequest,
   ): Promise<SendMailboxMessageHttpResponse> {
     return { result: await this.service.sendMailboxMessage(request) };
+  }
+
+  public updateMailboxSession(
+    request: UpdateMailboxSessionHttpRequest,
+  ): UpdateMailboxSessionHttpResponse {
+    return {
+      session: this.service.updateMailboxSession(request),
+    };
   }
 
   public async releaseMailbox(request: ReleaseMailboxHttpRequest): Promise<ReleaseMailboxHttpResponse> {

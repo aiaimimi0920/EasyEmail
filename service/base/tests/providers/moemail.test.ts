@@ -255,6 +255,79 @@ describe("moemail mailboxRef", () => {
     expect(classified.kind).toBe("provider");
   });
 
+  it("extracts mixed verification codes from html-only message bodies", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createFetchResponse(200, {
+        messages: [
+          {
+            id: "message-123",
+            from_address: "sender@example.com",
+            subject: "Mixed verification sample",
+            content: "",
+            html: '<html><body><div style="background:#0f172a;color:#e2e8f0;padding:16px"><p>Order #20260428</p><p>Primary code: <span style="color:#22c55e;font-size:20px;font-weight:700">A1B2C3</span></p><p>Ignore backup id 998877.</p></div></body></html>',
+            sent_at: 1777336031225,
+            received_at: 1777336031225,
+          },
+        ],
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const mailbox = {
+      emailId: "mailbox-123",
+      email: "demo@moemail.app",
+      localPart: "demo",
+      domain: "moemail.app",
+    };
+
+    const observed = await createClient().tryReadLatestCode(
+      "session-123",
+      mailbox,
+      "moemail-default",
+    );
+
+    expect(observed).toMatchObject({
+      extractedCode: "A1B2C3",
+      codeSource: "text",
+    });
+  });
+
+  it("matches sender filters against snake_case sender fields from list responses", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createFetchResponse(200, {
+        messages: [
+          {
+            id: "message-123",
+            from_address: "SRS0=test=example.com=sender@example.com",
+            subject: "Numeric verification sample",
+            content: "Your verification code is 246810.",
+            html: "",
+            sent_at: 1777336031225,
+            received_at: 1777336031225,
+          },
+        ],
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const mailbox = {
+      emailId: "mailbox-123",
+      email: "demo@moemail.app",
+      localPart: "demo",
+      domain: "moemail.app",
+    };
+
+    const observed = await createClient().tryReadLatestCode(
+      "session-123",
+      mailbox,
+      "moemail-default",
+      "example.com",
+    );
+
+    expect(observed).toMatchObject({
+      sender: "SRS0=test=example.com=sender@example.com",
+      extractedCode: "246810",
+    });
+  });
+
   it("maps MoEmail capacity failures to stable EasyEmail error codes", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(createFetchResponse(500, { message: "已达到最大邮箱数量限制" }));

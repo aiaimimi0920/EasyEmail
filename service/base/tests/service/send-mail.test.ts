@@ -103,4 +103,30 @@ describe("EasyEmailService mailbox sending", () => {
       deliveryMode: "admin_delegate",
     });
   });
+
+  it("updates mailbox session filters without reopening the mailbox", async () => {
+    const service = createBootstrappedEasyEmailService({
+      providerTypes: [providerType],
+      providerInstances: [providerInstance],
+      adapters: [adapter],
+    }, new Date("2026-04-01T00:00:00.000Z"));
+
+    const opened = await service.openMailbox({
+      hostId: "demo-host",
+      providerTypeKey: "cloudflare_temp_email",
+      provisionMode: "reuse-only",
+      bindingMode: "shared-instance",
+      metadata: {
+        fromContains: "cloudflare",
+      },
+    }, new Date("2026-04-01T00:00:00.000Z"));
+
+    const updatedSession = service.updateMailboxSession({
+      sessionId: opened.session.id,
+      fromContains: "example.com",
+    });
+
+    expect(updatedSession.metadata.fromContains).toBe("example.com");
+    expect(updatedSession.emailAddress).toBe(opened.session.emailAddress);
+  });
 });

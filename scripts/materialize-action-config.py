@@ -108,6 +108,13 @@ def parse_int_secret(name: str) -> int | None:
         raise SystemExit(f"Secret {name} must be an integer value.") from exc
 
 
+def parse_yaml_secret(name: str) -> Any:
+    raw = get_secret_text(name)
+    if not raw:
+        return None
+    return load_yaml_value(raw, name)
+
+
 def set_if_present(mapping: dict[str, Any], key: str, value: Any) -> None:
     if value is None:
         return
@@ -133,6 +140,12 @@ def build_granular_cloudflare_overlay(base_config: dict[str, Any]) -> dict[str, 
         "EASYEMAIL_CF_DEFAULT_DOMAINS",
         "EASYEMAIL_CF_RANDOM_SUBDOMAIN_DOMAINS",
         "EASYEMAIL_CF_SUBDOMAIN_LABEL_POOL",
+        "EASYEMAIL_CF_SEND_MAIL_DOMAINS",
+        "EASYEMAIL_CF_RESEND_TOKEN",
+        "EASYEMAIL_CF_SMTP_CONFIG",
+        "EASYEMAIL_CF_SENDING_DOMAINS",
+        "EASYEMAIL_CF_PREFERRED_SENDER_DOMAIN",
+        "EASYEMAIL_CF_PREFERRED_SENDER_LOCAL_PART",
         "EASYEMAIL_CF_ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH",
         "EASYEMAIL_CF_RANDOM_SUBDOMAIN_LENGTH",
         "EASYEMAIL_CF_ENABLE_USER_CREATE_EMAIL",
@@ -179,12 +192,16 @@ def build_granular_cloudflare_overlay(base_config: dict[str, Any]) -> dict[str, 
     routing_plan: dict[str, Any] = {}
     global_auth: dict[str, Any] = {}
     bootstrap: dict[str, Any] = {}
+    sending: dict[str, Any] = {}
 
     set_if_present(cloudflare_mail, "publicBaseUrl", get_secret_text("EASYEMAIL_CF_PUBLIC_BASE_URL"))
     set_if_present(cloudflare_mail, "publicDomain", get_secret_text("EASYEMAIL_CF_PUBLIC_DOMAIN"))
     set_if_present(cloudflare_mail, "publicZone", get_secret_text("EASYEMAIL_CF_PUBLIC_ZONE"))
     set_if_present(cloudflare_mail, "workerName", get_secret_text("EASYEMAIL_CF_WORKER_NAME"))
     set_if_present(cloudflare_mail, "workerEnv", get_secret_text("EASYEMAIL_CF_WORKER_ENV"))
+    set_if_present(sending, "domains", parse_list_secret("EASYEMAIL_CF_SENDING_DOMAINS"))
+    set_if_present(sending, "preferredSenderDomain", get_secret_text("EASYEMAIL_CF_PREFERRED_SENDER_DOMAIN"))
+    set_if_present(sending, "preferredSenderLocalPart", get_secret_text("EASYEMAIL_CF_PREFERRED_SENDER_LOCAL_PART"))
 
     set_if_present(worker_vars, "PASSWORDS", parse_list_secret("EASYEMAIL_CF_PASSWORDS"))
     set_if_present(worker_vars, "ADMIN_PASSWORDS", parse_list_secret("EASYEMAIL_CF_ADMIN_PASSWORDS"))
@@ -194,6 +211,9 @@ def build_granular_cloudflare_overlay(base_config: dict[str, Any]) -> dict[str, 
     set_if_present(worker_vars, "DEFAULT_DOMAINS", default_domains)
     set_if_present(worker_vars, "RANDOM_SUBDOMAIN_DOMAINS", random_domains)
     set_if_present(worker_vars, "SUBDOMAIN_LABEL_POOL", subdomain_label_pool)
+    set_if_present(worker_vars, "SEND_MAIL_DOMAINS", parse_list_secret("EASYEMAIL_CF_SEND_MAIL_DOMAINS"))
+    set_if_present(worker_vars, "RESEND_TOKEN", get_secret_text("EASYEMAIL_CF_RESEND_TOKEN"))
+    set_if_present(worker_vars, "SMTP_CONFIG", parse_yaml_secret("EASYEMAIL_CF_SMTP_CONFIG"))
     set_if_present(
         worker_vars,
         "ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH",
@@ -244,6 +264,8 @@ def build_granular_cloudflare_overlay(base_config: dict[str, Any]) -> dict[str, 
         cloudflare_mail["routing"] = routing
     if bootstrap:
         cloudflare_mail["bootstrap"] = bootstrap
+    if sending:
+        cloudflare_mail["sending"] = sending
 
     return overlay if cloudflare_mail else None
 
@@ -260,6 +282,12 @@ def build_granular_service_overlay(base_config: dict[str, Any]) -> dict[str, Any
         "EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT",
         "EASYEMAIL_PROVIDER_MAIL2925_PASSWORD",
         "EASYEMAIL_PROVIDER_GPTMAIL_API_KEY",
+        "EASYEMAIL_PROVIDER_GPTMAIL_KEYS_TEXT",
+        "EASYEMAIL_PROVIDER_TEMPMAIL_LOL_BASE_URL",
+        "EASYEMAIL_PROVIDER_M2U_BASE_URL",
+        "EASYEMAIL_PROVIDER_M2U_PREFERRED_DOMAIN",
+        "EASYEMAIL_PROVIDER_M2U_UPSTREAM_PROXY_URL",
+        "EASYEMAIL_PROVIDER_M2U_USE_EASY_PROXY_ON_CAPACITY",
     ]
     if not any(has_secret_value(name) for name in names):
         return None
@@ -318,8 +346,22 @@ def build_granular_service_overlay(base_config: dict[str, Any]) -> dict[str, Any
 
     gptmail: dict[str, Any] = {}
     set_if_present(gptmail, "apiKey", get_secret_text("EASYEMAIL_PROVIDER_GPTMAIL_API_KEY"))
+    set_if_present(gptmail, "keysText", get_secret_text("EASYEMAIL_PROVIDER_GPTMAIL_KEYS_TEXT"))
     if gptmail:
         providers["gptmail"] = gptmail
+
+    tempmail_lol: dict[str, Any] = {}
+    set_if_present(tempmail_lol, "baseUrl", get_secret_text("EASYEMAIL_PROVIDER_TEMPMAIL_LOL_BASE_URL"))
+    if tempmail_lol:
+        providers["tempmailLol"] = tempmail_lol
+
+    m2u: dict[str, Any] = {}
+    set_if_present(m2u, "baseUrl", get_secret_text("EASYEMAIL_PROVIDER_M2U_BASE_URL"))
+    set_if_present(m2u, "preferredDomain", get_secret_text("EASYEMAIL_PROVIDER_M2U_PREFERRED_DOMAIN"))
+    set_if_present(m2u, "upstreamProxyUrl", get_secret_text("EASYEMAIL_PROVIDER_M2U_UPSTREAM_PROXY_URL"))
+    set_if_present(m2u, "useEasyProxyOnCapacity", parse_bool_secret("EASYEMAIL_PROVIDER_M2U_USE_EASY_PROXY_ON_CAPACITY"))
+    if m2u:
+        providers["m2u"] = m2u
 
     if providers:
         runtime["providers"] = providers
@@ -335,6 +377,10 @@ def build_granular_userscript_overlay(base_config: dict[str, Any]) -> dict[str, 
         "EASYEMAIL_USERSCRIPT_MOEMAIL_API_KEY",
         "EASYEMAIL_USERSCRIPT_GPTMAIL_API_KEY",
         "EASYEMAIL_USERSCRIPT_IM215_API_KEY",
+        "EASYEMAIL_USERSCRIPT_MAIL2925_ACCOUNT",
+        "EASYEMAIL_USERSCRIPT_MAIL2925_JWT_TOKEN",
+        "EASYEMAIL_USERSCRIPT_MAIL2925_DEVICE_UID",
+        "EASYEMAIL_USERSCRIPT_MAIL2925_COOKIE_HEADER",
     ]
     if not any(has_secret_value(name) for name in names):
         return None
@@ -345,6 +391,27 @@ def build_granular_userscript_overlay(base_config: dict[str, Any]) -> dict[str, 
     set_if_present(secrets, "moemail_apiKey", get_secret_text("EASYEMAIL_USERSCRIPT_MOEMAIL_API_KEY"))
     set_if_present(secrets, "gptmail_apiKey", get_secret_text("EASYEMAIL_USERSCRIPT_GPTMAIL_API_KEY"))
     set_if_present(secrets, "im215_apiKey", get_secret_text("EASYEMAIL_USERSCRIPT_IM215_API_KEY"))
+    set_if_present(
+        secrets,
+        "mail2925_account",
+        get_secret_text("EASYEMAIL_USERSCRIPT_MAIL2925_ACCOUNT")
+        or get_secret_text("EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT"),
+    )
+    set_if_present(
+        secrets,
+        "mail2925_jwtToken",
+        get_secret_text("EASYEMAIL_USERSCRIPT_MAIL2925_JWT_TOKEN"),
+    )
+    set_if_present(
+        secrets,
+        "mail2925_deviceUid",
+        get_secret_text("EASYEMAIL_USERSCRIPT_MAIL2925_DEVICE_UID"),
+    )
+    set_if_present(
+        secrets,
+        "mail2925_cookieHeader",
+        get_secret_text("EASYEMAIL_USERSCRIPT_MAIL2925_COOKIE_HEADER"),
+    )
     if not secrets:
         return None
 

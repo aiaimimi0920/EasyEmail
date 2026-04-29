@@ -91,6 +91,36 @@ def normalize_string_list(value: Any) -> list[str]:
     return items
 
 
+def normalize_domain_list(value: Any) -> list[str]:
+    return [item.strip().lower().rstrip(".") for item in normalize_string_list(value)]
+
+
+def merge_unique_lists(*values: list[str]) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        for item in value:
+            if item in seen:
+                continue
+            seen.add(item)
+            merged.append(item)
+    return merged
+
+
+def get_sending_config(root: dict[str, Any]) -> dict[str, Any]:
+    cloudflare = as_dict(root.get("cloudflareMail"))
+    return as_dict(cloudflare.get("sending"))
+
+
+def get_sending_domains(root: dict[str, Any]) -> list[str]:
+    sending = get_sending_config(root)
+    preferred_sender_domain = str(sending.get("preferredSenderDomain") or "").strip().lower().rstrip(".")
+    return merge_unique_lists(
+        normalize_domain_list(sending.get("domains")),
+        [preferred_sender_domain] if preferred_sender_domain else [],
+    )
+
+
 def rebase_relative_path(path_text: Any, source_dir: Path, output_dir: Path) -> Any:
     if not isinstance(path_text, str):
         return path_text
@@ -195,6 +225,8 @@ def render_service_config(root: dict[str, Any], output: Path) -> None:
     plan = as_dict(routing.get("plan"))
     worker = as_dict(cloudflare.get("worker"))
     worker_vars = as_dict(worker.get("vars"))
+    sending = get_sending_config(root)
+    sending_domains = get_sending_domains(root)
     runtime_providers_overlay = as_dict(runtime_overlay.get("providers"))
     cloudflare_provider_overlay = as_dict(runtime_providers_overlay.get("cloudflareTempEmail"))
     providers = ensure_nested(config, "providers")
@@ -234,15 +266,23 @@ def render_service_config(root: dict[str, Any], output: Path) -> None:
     if not has_meaningful_value(cloudflare_provider_overlay.get("domain")) and derived_domain:
         cloudflare_provider["domain"] = derived_domain
 
-    if not has_meaningful_value(cloudflare_provider_overlay.get("domains")):
-        domains = normalize_string_list(first_non_empty(plan.get("domains"), cloudflare_provider.get("domains")))
-        if domains:
-            cloudflare_provider["domains"] = domains
+    domains = merge_unique_lists(
+        normalize_domain_list(first_non_empty(plan.get("domains"), cloudflare_provider.get("domains"))),
+        normalize_domain_list(cloudflare_provider.get("domains")),
+        sending_domains,
+    )
+    if domains:
+        cloudflare_provider["domains"] = domains
 
     if not has_meaningful_value(cloudflare_provider_overlay.get("randomSubdomainDomains")):
-        random_domains = normalize_string_list(first_non_empty(plan.get("randomSubdomainDomains"), plan.get("domains")))
+        random_domains = normalize_domain_list(first_non_empty(plan.get("randomSubdomainDomains"), plan.get("domains")))
         if random_domains:
             cloudflare_provider["randomSubdomainDomains"] = random_domains
+
+    if not has_meaningful_value(cloudflare_provider_overlay.get("preferredSenderDomain")):
+        preferred_sender_domain = str(sending.get("preferredSenderDomain") or "").strip().lower().rstrip(".")
+        if preferred_sender_domain:
+            cloudflare_provider["preferredSenderDomain"] = preferred_sender_domain
 
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
@@ -284,19 +324,44 @@ def render_worker_config(root: dict[str, Any], output: Path) -> None:
     plan = as_dict(routing.get("plan"))
     worker_overlay = as_dict(cloudflare.get("worker"))
     overlay_vars = as_dict(worker_overlay.get("vars"))
+    sending_domains = get_sending_domains(root)
     merged = deep_merge(template, worker_overlay)
 
     vars_section = ensure_nested(merged, "vars")
-    derived_domains = normalize_string_list(plan.get("domains"))
+    derived_domains = normalize_domain_list(plan.get("domains"))
+    derived_default_domains = merge_unique_lists(
+        normalize_domain_list(first_non_empty(plan.get("defaultDomains"), plan.get("domains"))),
+        sending_domains,
+    )
+    derived_random_domains = normalize_domain_list(first_non_empty(plan.get("randomSubdomainDomains"), plan.get("domains")))
     derived_labels = normalize_string_list(plan.get("subdomainLabelPool"))
+    managed_domains = merge_unique_lists(derived_domains, sending_domains)
     if derived_labels and not has_meaningful_value(overlay_vars.get("SUBDOMAIN_LABEL_POOL")):
         vars_section["SUBDOMAIN_LABEL_POOL"] = derived_labels
-    if derived_domains and not has_meaningful_value(overlay_vars.get("DEFAULT_DOMAINS")):
-        vars_section["DEFAULT_DOMAINS"] = derived_domains
-    if derived_domains and not has_meaningful_value(overlay_vars.get("DOMAINS")):
-        vars_section["DOMAINS"] = derived_domains
-    if derived_domains and not has_meaningful_value(overlay_vars.get("RANDOM_SUBDOMAIN_DOMAINS")):
-        vars_section["RANDOM_SUBDOMAIN_DOMAINS"] = derived_domains
+    existing_default_domains = normalize_domain_list(vars_section.get("DEFAULT_DOMAINS"))
+    if derived_default_domains or existing_default_domains:
+        vars_section["DEFAULT_DOMAINS"] = merge_unique_lists(existing_default_domains, derived_default_domains)
+    existing_domains = normalize_domain_list(vars_section.get("DOMAINS"))
+    if managed_domains or existing_domains:
+        vars_section["DOMAINS"] = merge_unique_lists(existing_domains, managed_domains)
+    if derived_random_domains and not has_meaningful_value(overlay_vars.get("RANDOM_SUBDOMAIN_DOMAINS")):
+        vars_section["RANDOM_SUBDOMAIN_DOMAINS"] = derived_random_domains
+    if sending_domains:
+        existing_send_mail_domains = normalize_domain_list(vars_section.get("SEND_MAIL_DOMAINS"))
+        vars_section["SEND_MAIL_DOMAINS"] = merge_unique_lists(existing_send_mail_domains, sending_domains)
+
+        send_email_entries = merged.get("send_email")
+        if isinstance(send_email_entries, list) and send_email_entries:
+            normalized_entries: list[dict[str, Any]] = []
+            for entry in send_email_entries:
+                if isinstance(entry, dict):
+                    updated_entry = dict(entry)
+                    updated_entry["remote"] = True
+                    normalized_entries.append(updated_entry)
+            if normalized_entries:
+                merged["send_email"] = normalized_entries
+        else:
+            merged["send_email"] = [{"name": "SEND_MAIL", "remote": True}]
 
     if "PASSWORDS" in vars_section:
         vars_section["PASSWORDS"] = normalize_string_list(vars_section.get("PASSWORDS"))

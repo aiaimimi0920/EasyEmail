@@ -85,6 +85,17 @@ describe("extractOtpFromContent", () => {
     });
   });
 
+  it("does not truncate longer grouped tokens in contextual code phrases", () => {
+    const extracted = extractOtpFromContent({
+      textBody: "Account 220044 requires confirmation. Verification code: ZX-41Q8-PLM7. Ignore ticket 771199.",
+    });
+
+    expect(extracted).toEqual({
+      code: "ZX-41Q8-PLM7",
+      source: "text",
+    });
+  });
+
   it("keeps six digit numeric companions available when a longer token also appears", () => {
     const extracted = extractOtpFromContent({
       textBody: "Verification code: PByiiEBh0KJ2FbhUKD. Backup login code: 654321.",
@@ -105,6 +116,29 @@ describe("extractOtpFromContent", () => {
 
     expect(extracted).toMatchObject({
       code: "445566",
+      source: "text",
+    });
+  });
+
+  it("prefers compact mixed verification codes over backup numeric ids", () => {
+    const extracted = extractOtpFromContent({
+      htmlBody: "<div>Primary code: <strong>A1B2C3</strong>. Ignore backup id 998877.</div>",
+      textBody: "Primary code: A1B2C3. Ignore backup id 998877.",
+    });
+
+    expect(extracted).toMatchObject({
+      code: "A1B2C3",
+      source: "text",
+    });
+  });
+
+  it("trims fused mixed verification codes when html stripping glues a trailing word", () => {
+    const extracted = extractOtpFromContent({
+      textBody: "Order #20260428Primary code: A1B2C3Ignore backup id 998877.",
+    });
+
+    expect(extracted).toMatchObject({
+      code: "A1B2C3",
       source: "text",
     });
   });

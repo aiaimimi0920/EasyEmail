@@ -51,6 +51,24 @@ export interface ApiKeyProviderRuntimeConfig {
   domain?: string;
 }
 
+export interface TempmailLolRuntimeConfig {
+  baseUrl?: string;
+}
+
+export interface M2uRuntimeConfig {
+  baseUrl?: string;
+  preferredDomain?: string;
+  upstreamProxyUrl?: string;
+  useEasyProxyOnCapacity?: boolean;
+  easyProxyBaseUrl?: string;
+  easyProxyApiKey?: string;
+  easyProxyRuntimeHost?: string;
+  easyProxyHostId?: string;
+  easyProxyRequireDedicatedNode?: boolean;
+  easyProxyMaxAttempts?: number;
+  pythonCommand?: string;
+}
+
 export interface BasicAuthProviderRuntimeConfig {
   baseUrl?: string;
   account?: string;
@@ -79,6 +97,9 @@ export interface Mail2925RuntimeConfig extends BasicAuthProviderRuntimeConfig {
   aliasSeparator?: string;
   aliasSuffixLength?: number;
   timeoutSeconds?: number;
+  jwtToken?: string;
+  deviceUid?: string;
+  cookieHeader?: string;
 }
 
 export interface CloudflareTempEmailRuntimeConfig {
@@ -141,6 +162,8 @@ export interface EasyEmailServiceRuntimeConfig {
     intervalMs: number;
   };
   gptmail: GptMailRuntimeConfig;
+  tempmailLol: TempmailLolRuntimeConfig;
+  m2u: M2uRuntimeConfig;
   moemail: MoemailRuntimeConfig;
   im215: Im215RuntimeConfig;
   mail2925: Mail2925RuntimeConfig;
@@ -203,6 +226,22 @@ export interface EasyEmailServiceConfigDocument {
       prefix?: unknown;
       domain?: unknown;
     };
+    tempmailLol?: {
+      baseUrl?: unknown;
+    };
+    m2u?: {
+      baseUrl?: unknown;
+      preferredDomain?: unknown;
+      upstreamProxyUrl?: unknown;
+      useEasyProxyOnCapacity?: unknown;
+      easyProxyBaseUrl?: unknown;
+      easyProxyApiKey?: unknown;
+      easyProxyRuntimeHost?: unknown;
+      easyProxyHostId?: unknown;
+      easyProxyRequireDedicatedNode?: unknown;
+      easyProxyMaxAttempts?: unknown;
+      pythonCommand?: unknown;
+    };
     moemail?: {
       baseUrl?: unknown;
       apiKey?: unknown;
@@ -238,6 +277,9 @@ export interface EasyEmailServiceConfigDocument {
       aliasSeparator?: unknown;
       aliasSuffixLength?: unknown;
       timeoutSeconds?: unknown;
+      jwtToken?: unknown;
+      deviceUid?: unknown;
+      cookieHeader?: unknown;
     };
     cloudflare_temp_email?: {
       baseUrl?: unknown;
@@ -547,6 +589,10 @@ export function parseEasyEmailServiceRuntimeConfig(
   const strategy = asObject(document.strategy);
   const providers = asObject(document.providers);
   const gptmail = asObject(providers.gptmail);
+  const tempmailLol = asObject(
+    (providers as Record<string, unknown>).tempmailLol ?? (providers as Record<string, unknown>)["tempmail-lol"],
+  );
+  const m2u = asObject(providers.m2u);
   const moemail = asObject(providers.moemail);
   const im215 = asObject(providers.im215);
   const mail2925 = asObject(providers.mail2925);
@@ -623,6 +669,22 @@ export function parseEasyEmailServiceRuntimeConfig(
       prefix: asNonEmptyString(gptmail.prefix),
       domain: asNonEmptyString(gptmail.domain),
     },
+    tempmailLol: {
+      baseUrl: asNonEmptyString(tempmailLol.baseUrl),
+    },
+    m2u: {
+      baseUrl: asNonEmptyString(m2u.baseUrl),
+      preferredDomain: asNonEmptyString(m2u.preferredDomain),
+      upstreamProxyUrl: asNonEmptyString(m2u.upstreamProxyUrl),
+      useEasyProxyOnCapacity: parseOptionalBoolean(m2u.useEasyProxyOnCapacity),
+      easyProxyBaseUrl: asNonEmptyString(m2u.easyProxyBaseUrl),
+      easyProxyApiKey: asNonEmptyString(m2u.easyProxyApiKey),
+      easyProxyRuntimeHost: asNonEmptyString(m2u.easyProxyRuntimeHost),
+      easyProxyHostId: asNonEmptyString(m2u.easyProxyHostId),
+      easyProxyRequireDedicatedNode: parseOptionalBoolean(m2u.easyProxyRequireDedicatedNode),
+      easyProxyMaxAttempts: parseOptionalPositiveInteger(m2u.easyProxyMaxAttempts, "providers.m2u.easyProxyMaxAttempts"),
+      pythonCommand: asNonEmptyString(m2u.pythonCommand),
+    },
     moemail: {
       baseUrl: asNonEmptyString(moemail.baseUrl),
       apiKey: asNonEmptyString(moemail.apiKey),
@@ -658,6 +720,9 @@ export function parseEasyEmailServiceRuntimeConfig(
       aliasSeparator: asNonEmptyString(mail2925.aliasSeparator),
       aliasSuffixLength: parseOptionalPositiveInteger(mail2925.aliasSuffixLength, "providers.mail2925.aliasSuffixLength"),
       timeoutSeconds: parseOptionalPositiveInteger(mail2925.timeoutSeconds, "providers.mail2925.timeoutSeconds"),
+      jwtToken: asNonEmptyString(mail2925.jwtToken),
+      deviceUid: asNonEmptyString(mail2925.deviceUid),
+      cookieHeader: asNonEmptyString(mail2925.cookieHeader),
     },
     cloudflareTempEmail: {
       baseUrl: asNonEmptyString(cloudflareTempEmail.baseUrl),

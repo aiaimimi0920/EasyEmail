@@ -41,6 +41,7 @@ import type {
   AuthenticationLinkResult,
   MailboxSendRequest,
   MailboxSendResult,
+  MailboxSessionUpdateRequest,
   HostBinding,
   MailAliasOutcome,
   MailAliasPlan,
@@ -964,6 +965,34 @@ export class EasyEmailService {
     });
     this.syncOperationalState(now);
     return result;
+  }
+
+  public updateMailboxSession(request: MailboxSessionUpdateRequest): MailboxSession {
+    const session = this.registry.findSessionById(request.sessionId);
+    if (!session) {
+      throw new EasyEmailError("MAILBOX_SESSION_NOT_FOUND", `Unknown mailbox session: ${request.sessionId}.`);
+    }
+
+    const nextMetadata: Record<string, string> = {
+      ...session.metadata,
+      ...(request.metadata ?? {}),
+    };
+
+    if (typeof request.fromContains === "string") {
+      const normalized = request.fromContains.trim();
+      if (normalized) {
+        nextMetadata.fromContains = normalized;
+      } else {
+        delete nextMetadata.fromContains;
+      }
+    }
+
+    const updatedSession: MailboxSession = {
+      ...session,
+      metadata: nextMetadata,
+    };
+    this.registry.saveSession(updatedSession);
+    return updatedSession;
   }
 
   public async syncObservedMessages(sessionId: string): Promise<ObservedMessage[]> {

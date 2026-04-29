@@ -8,7 +8,7 @@ param(
     [string]$InstanceName = '',
     [string]$ContainerName = '',
     [int]$HostPort = 0,
-    [string]$NetworkName = 'Easy',
+    [string]$NetworkName = 'EasyAiMi',
     [string]$ComposeProjectName = ''
 )
 
@@ -33,6 +33,28 @@ function Get-DefaultInstanceValue {
     }
 
     return $DerivedValue
+}
+
+function Ensure-DockerNetwork {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return
+    }
+
+    & docker network inspect $Name *> $null
+    if ($LASTEXITCODE -eq 0) {
+        return
+    }
+
+    Write-Host "Creating docker network: $Name" -ForegroundColor Cyan
+    & docker network create $Name
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to create docker network $Name"
+    }
 }
 
 $composeFile = Join-Path $PSScriptRoot '../deploy/service/base/docker-compose.yaml'
@@ -140,14 +162,7 @@ $env:EASY_EMAIL_SERVICE_CONFIG_DIR = $configMountPath
 $env:EASY_EMAIL_SERVICE_DATA_DIR = $dataMountPath
 $env:EASY_EMAIL_SERVICE_NETWORK = $NetworkName
 
-& docker network inspect $networkName *> $null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Creating docker network: $networkName" -ForegroundColor Cyan
-    & docker network create $networkName
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to create docker network $networkName"
-    }
-}
+Ensure-DockerNetwork -Name $NetworkName
 
 $args = @('compose', '-p', $resolvedComposeProjectName, '-f', $composeFile, 'up', '-d')
 if (-not $NoBuild) {
