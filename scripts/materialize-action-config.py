@@ -283,6 +283,10 @@ def build_granular_service_overlay(base_config: dict[str, Any]) -> dict[str, Any
         "EASYEMAIL_PROVIDER_MAIL2925_PASSWORD",
         "EASYEMAIL_PROVIDER_GPTMAIL_API_KEY",
         "EASYEMAIL_PROVIDER_GPTMAIL_KEYS_TEXT",
+        "EASYEMAIL_PROVIDER_GPTMAIL_FREE_API_KEY",
+        "EASYEMAIL_PROVIDER_GPTMAIL_FREE_KEYS_TEXT",
+        "EASYEMAIL_PROVIDER_GPTMAIL_PAID_API_KEY",
+        "EASYEMAIL_PROVIDER_GPTMAIL_PAID_KEYS_TEXT",
         "EASYEMAIL_PROVIDER_TEMPMAIL_LOL_BASE_URL",
         "EASYEMAIL_PROVIDER_M2U_BASE_URL",
         "EASYEMAIL_PROVIDER_M2U_PREFERRED_DOMAIN",
@@ -345,8 +349,20 @@ def build_granular_service_overlay(base_config: dict[str, Any]) -> dict[str, Any
         providers["mail2925"] = mail2925
 
     gptmail: dict[str, Any] = {}
-    set_if_present(gptmail, "apiKey", get_secret_text("EASYEMAIL_PROVIDER_GPTMAIL_API_KEY"))
-    set_if_present(gptmail, "keysText", get_secret_text("EASYEMAIL_PROVIDER_GPTMAIL_KEYS_TEXT"))
+    set_if_present(gptmail, "freeApiKey", get_secret_text("EASYEMAIL_PROVIDER_GPTMAIL_FREE_API_KEY") or "gpt-test")
+    set_if_present(gptmail, "freeKeysText", get_secret_text("EASYEMAIL_PROVIDER_GPTMAIL_FREE_KEYS_TEXT"))
+    set_if_present(
+        gptmail,
+        "paidApiKey",
+        get_secret_text("EASYEMAIL_PROVIDER_GPTMAIL_PAID_API_KEY")
+        or get_secret_text("EASYEMAIL_PROVIDER_GPTMAIL_API_KEY"),
+    )
+    set_if_present(
+        gptmail,
+        "paidKeysText",
+        get_secret_text("EASYEMAIL_PROVIDER_GPTMAIL_PAID_KEYS_TEXT")
+        or get_secret_text("EASYEMAIL_PROVIDER_GPTMAIL_KEYS_TEXT"),
+    )
     if gptmail:
         providers["gptmail"] = gptmail
 

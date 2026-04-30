@@ -169,8 +169,12 @@ If you prefer a third-party outbound provider instead, you can still use:
 | `EASYEMAIL_PROVIDER_IM215_API_KEY` | `service/base` IM215 provider key | Single line |
 | `EASYEMAIL_PROVIDER_MAIL2925_ACCOUNT` | `service/base` 2925 account | Single line |
 | `EASYEMAIL_PROVIDER_MAIL2925_PASSWORD` | `service/base` 2925 password | Single line |
-| `EASYEMAIL_PROVIDER_GPTMAIL_API_KEY` | `service/base` GPTMail provider key | Single line |
-| `EASYEMAIL_PROVIDER_GPTMAIL_KEYS_TEXT` | Optional multi-key GPTMail key pool | Multi-line list |
+| `EASYEMAIL_PROVIDER_GPTMAIL_API_KEY` | Backward-compatible single GPTMail private key. Treated as a paid key. | Single line |
+| `EASYEMAIL_PROVIDER_GPTMAIL_KEYS_TEXT` | Backward-compatible GPTMail private key pool. Treated as paid keys. | Multi-line list |
+| `EASYEMAIL_PROVIDER_GPTMAIL_FREE_API_KEY` | Optional GPTMail free/shared key. Defaults to `gpt-test` when omitted. | Single line |
+| `EASYEMAIL_PROVIDER_GPTMAIL_FREE_KEYS_TEXT` | Optional GPTMail free/shared key pool | Multi-line list |
+| `EASYEMAIL_PROVIDER_GPTMAIL_PAID_API_KEY` | Preferred GPTMail private paid key | Single line |
+| `EASYEMAIL_PROVIDER_GPTMAIL_PAID_KEYS_TEXT` | Preferred GPTMail private paid key pool | Multi-line list |
 | `EASYEMAIL_PROVIDER_TEMPMAIL_LOL_BASE_URL` | Optional Tempmail.lol base URL override | Single line |
 | `EASYEMAIL_PROVIDER_M2U_BASE_URL` | Optional MailToYou base URL override | Single line |
 | `EASYEMAIL_PROVIDER_M2U_PREFERRED_DOMAIN` | Optional MailToYou preferred domain | Single line |

@@ -69,8 +69,12 @@ serviceBase:
         timeoutSeconds: 60
       gptmail:
         baseUrl: https://mail.chatgpt.org.uk
-        apiKey: ""
-        keysText: ""
+        # Shared public free key. It refreshes daily on the upstream side.
+        freeApiKey: gpt-test
+        freeKeysText: ""
+        # Private keys/pools. These are exhausted permanently once spent.
+        paidApiKey: ""
+        paidKeysText: ""
       tempmailLol:
         baseUrl: https://api.tempmail.lol/v2
       m2u:
