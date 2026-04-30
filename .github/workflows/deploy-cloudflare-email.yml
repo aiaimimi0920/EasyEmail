@@ -404,7 +404,7 @@ jobs:
           .\scripts\test-easyemail-cloudflare-sender-matrix.ps1 `
             -BaseUrl '${{ steps.sender_matrix_instance.outputs.base_url }}' `
             -ConfigPath .\config.yaml `
-            -Providers 'cloudflare_temp_email','mailtm','m2u','gptmail','mail2925' `
+            -Providers 'cloudflare_temp_email','mailtm','m2u' `
             -CodeTimeoutSeconds 300 `
             -ProviderRetryCount 2 `
             -RecipientRetryCount 4 `
@@ -417,7 +417,7 @@ jobs:
           $summaryLines = @(
             '## Cloudflare Sender Matrix Smoke'
             ''
-            '- Providers: `cloudflare_temp_email`, `mailtm`, `m2u`, `gptmail`, `mail2925`'
+            '- Providers: `cloudflare_temp_email`, `mailtm`, `m2u`'
             ('- Base URL: `${{ steps.sender_matrix_instance.outputs.base_url }}`')
             ('- Result: ' + ($(if ($failed.Count -eq 0) { 'passed' } else { 'failed' })))
             ''

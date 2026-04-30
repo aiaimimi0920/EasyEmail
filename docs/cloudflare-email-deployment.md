@@ -132,8 +132,6 @@ post-deploy acceptance:
 - `cloudflare_temp_email`
 - `mailtm`
 - `m2u`
-- `gptmail`
-- `mail2925`
 
 That hosted sender-matrix step also runs with a more conservative timeout and
 retry budget than the local default so the GitHub runner has extra room for

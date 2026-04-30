@@ -93,8 +93,6 @@ started `service/base` verifier:
 - `cloudflare_temp_email`
 - `mailtm`
 - `m2u`
-- `gptmail`
-- `mail2925`
 
 Manual runs can disable that acceptance step with the workflow input
 `run_sender_matrix=false`.
