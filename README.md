@@ -13,6 +13,12 @@ It contains:
 This repository intentionally avoids submodules. External contributors only need
 to fork one repository and open pull requests here.
 
+## Development Workflow
+
+See `docs/development-workflow.md` for the shared cross-repository development
+rules used for local-first iteration, temporary test assets, and final
+GHCR-based validation.
+
 ## Toolchain
 
 - Node.js `20.19+` is the minimum supported version across the repo.
