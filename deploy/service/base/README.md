@@ -58,6 +58,10 @@ Default Docker network:
 
 - `EasyAiMi`
 
+Default in-network service alias:
+
+- `easy-email-service`
+
 ## Notes
 
 - the public repository keeps only templates and empty-state placeholders
@@ -114,6 +118,28 @@ pwsh .\scripts\test-service-base-instance.ps1 `
   -ConfigPath .\config.yaml `
   -BaseUrl http://127.0.0.1:18082 `
   -RequestRandomSubdomain
+```
+
+If you keep more than one `service/base` instance on the same `EasyAiMi`
+network, give non-primary instances a different alias so they do not compete
+for the stable production hostname:
+
+```powershell
+pwsh .\scripts\deploy-service-base.ps1 `
+  -ConfigPath .\config.yaml `
+  -NoBuild `
+  -Pull `
+  -Image ghcr.io/<owner>/easy-email-service:<tag> `
+  -InstanceName ghcr-smoke `
+  -NetworkAlias easy-email-service-ghcr-smoke `
+  -HostPort 18082
+```
+
+Other containers on the `EasyAiMi` network should call the primary EasyEmail
+instance through:
+
+```text
+http://easy-email-service:8080
 ```
 
 ## Start From R2 Bootstrap Instead Of Local Config

@@ -9,6 +9,7 @@ param(
     [string]$ContainerName = '',
     [int]$HostPort = 0,
     [string]$NetworkName = 'EasyAiMi',
+    [string]$NetworkAlias = 'easy-email-service',
     [string]$ComposeProjectName = ''
 )
 
@@ -161,6 +162,7 @@ $env:EASY_EMAIL_SERVICE_ENV_FILE = $envFilePath
 $env:EASY_EMAIL_SERVICE_CONFIG_DIR = $configMountPath
 $env:EASY_EMAIL_SERVICE_DATA_DIR = $dataMountPath
 $env:EASY_EMAIL_SERVICE_NETWORK = $NetworkName
+$env:EASY_EMAIL_SERVICE_NETWORK_ALIAS = $NetworkAlias
 
 Ensure-DockerNetwork -Name $NetworkName
 
@@ -178,3 +180,4 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host 'Service/base deployment finished.'
 Write-Host ("Container name: " + $resolvedContainerName)
 Write-Host ("Base URL: http://127.0.0.1:{0}" -f $resolvedHostPort)
+Write-Host ("Network alias: " + $NetworkAlias)

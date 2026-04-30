@@ -391,6 +391,7 @@ jobs:
             -InstanceName gha-sender-matrix `
             -ContainerName easyemail-service-base-gha-sender-matrix `
             -HostPort 18131 `
+            -NetworkAlias easy-email-service-gha-sender-matrix `
             -ComposeProjectName easyemail-gha-sender-matrix
 
           "base_url=http://127.0.0.1:18131" >> $env:GITHUB_OUTPUT

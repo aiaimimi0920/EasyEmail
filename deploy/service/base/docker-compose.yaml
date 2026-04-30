@@ -22,7 +22,9 @@ services:
       - ${EASY_EMAIL_SERVICE_CONFIG_DIR:-./config}:/etc/easy-email
       - ${EASY_EMAIL_SERVICE_DATA_DIR:-./data}:/var/lib/easy-email
     networks:
-      - easyemail_service_network
+      easyemail_service_network:
+        aliases:
+          - ${EASY_EMAIL_SERVICE_NETWORK_ALIAS:-easy-email-service}
 
 networks:
   easyemail_service_network:

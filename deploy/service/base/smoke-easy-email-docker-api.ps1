@@ -43,6 +43,7 @@ if (-not $ApiKey -and (Test-Path -LiteralPath $ConfigPath)) {
 if ($Image) {
   $env:EASY_EMAIL_SERVICE_IMAGE = $Image
 }
+$env:EASY_EMAIL_SERVICE_NETWORK_ALIAS = 'easy-email-service-smoke'
 
 if ($Pull -and $Image) {
   Write-Host "Pulling service image: $Image"
