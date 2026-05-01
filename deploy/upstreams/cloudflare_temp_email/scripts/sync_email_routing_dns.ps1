@@ -90,7 +90,7 @@ function Get-PlanConfig {
 
 function Invoke-CfApi {
     param(
-        [ValidateSet('GET', 'POST')]
+        [ValidateSet('GET', 'POST', 'DELETE')]
         [string]$Method,
         [string]$Path,
         [object]$Body = $null,
@@ -214,6 +214,18 @@ function Get-RecordIdentity {
     return ('{0}|{1}|{2}' -f $type, $name, $content)
 }
 
+function Test-IsSpfRecord {
+    param([object]$Record)
+
+    $type = if ($null -ne $Record.Type) { $Record.Type } else { $Record.type }
+    if ($type -ne 'TXT') {
+        return $false
+    }
+
+    $content = if ($null -ne $Record.Content) { $Record.Content } else { $Record.content }
+    return $content.Trim('"').ToLowerInvariant().StartsWith('v=spf1')
+}
+
 function Get-ZoneDnsRecords {
     param(
         [object]$Zone,
@@ -302,6 +314,27 @@ function Invoke-ImportDnsRecords {
     }
 }
 
+function Remove-DnsRecords {
+    param(
+        [object]$Zone,
+        [object[]]$Records,
+        [string]$Token
+    )
+
+    $recordList = @($Records)
+    if ($recordList.Count -eq 0) {
+        return 0
+    }
+
+    $deleted = 0
+    foreach ($record in $recordList) {
+        Invoke-CfApi -Method DELETE -Path ("zones/{0}/dns_records/{1}" -f $Zone.id, $record.id) -Token $Token | Out-Null
+        $deleted += 1
+    }
+
+    return $deleted
+}
+
 function Test-RecordMatch {
     param(
         [object]$ExistingRecord,
@@ -377,19 +410,20 @@ function New-DesiredRecordSet {
 Assert-ApiToken -Token $ApiToken
 
 $plan = Get-PlanConfig -Path $PlanPath
-$targets = Get-TargetHosts -Plan $plan -SelectedMode $Mode
+$targets = @(Get-TargetHosts -Plan $plan -SelectedMode $Mode)
 
 Write-Step 'Load Cloudflare zones'
-$zones = Get-ZoneCatalog -Token $ApiToken
-Write-Host ("Loaded {0} active zones from Cloudflare." -f $zones.Count) -ForegroundColor Green
+$zones = @(Get-ZoneCatalog -Token $ApiToken)
+Write-Host ("Loaded {0} active zones from Cloudflare." -f @($zones).Count) -ForegroundColor Green
 
 $created = 0
 $exists = 0
 $dryRunCount = 0
+$deleted = 0
 
 Write-Step ("Prepare DNS sync ({0})" -f $Mode)
-Write-Host ("Target hosts: {0}" -f $targets.Count) -ForegroundColor Yellow
-Write-Host ("Planned records: {0}" -f ($targets.Count * $MailMxTemplates.Count)) -ForegroundColor Yellow
+Write-Host ("Target hosts: {0}" -f @($targets).Count) -ForegroundColor Yellow
+Write-Host ("Planned records: {0}" -f (@($targets).Count * $MailMxTemplates.Count)) -ForegroundColor Yellow
 
 $targetsByZone = New-Object System.Collections.Specialized.OrderedDictionary
 foreach ($target in $targets) {
@@ -425,15 +459,18 @@ foreach ($zoneEntry in $targetsByZone.Values) {
         }
     }
 
-    $existingRecords = Get-ZoneDnsRecords -Zone $zone -Token $ApiToken
+    $existingRecords = @(Get-ZoneDnsRecords -Zone $zone -Token $ApiToken)
     $existingIndex = New-Object System.Collections.Generic.HashSet[string]
     foreach ($existingRecord in $existingRecords) {
         $null = $existingIndex.Add((Get-RecordIdentity -Record $existingRecord))
     }
 
     $missingRecords = New-Object System.Collections.Generic.List[object]
+    $staleRecords = New-Object System.Collections.Generic.List[object]
+    $desiredIdentitySet = New-Object System.Collections.Generic.HashSet[string]
     foreach ($desiredRecord in $desiredRecords) {
         $identity = Get-RecordIdentity -Record $desiredRecord
+        $null = $desiredIdentitySet.Add($identity)
         if ($existingIndex.Contains($identity)) {
             $exists += 1
             continue
@@ -441,9 +478,32 @@ foreach ($zoneEntry in $targetsByZone.Values) {
         $missingRecords.Add($desiredRecord) | Out-Null
     }
 
+    foreach ($existingRecord in $existingRecords) {
+        $existingName = if ($null -ne $existingRecord.Name) { $existingRecord.Name } else { $existingRecord.name }
+        if (-not $hosts.Contains($existingName)) {
+            continue
+        }
+
+        $existingType = if ($null -ne $existingRecord.Type) { $existingRecord.Type } else { $existingRecord.type }
+        $shouldPrune = $existingType -eq 'MX' -or (Test-IsSpfRecord -Record $existingRecord)
+        if (-not $shouldPrune) {
+            continue
+        }
+
+        $identity = Get-RecordIdentity -Record $existingRecord
+        if ($desiredIdentitySet.Contains($identity)) {
+            continue
+        }
+        $staleRecords.Add($existingRecord) | Out-Null
+    }
+
     if ($DryRun) {
-        $dryRunCount += $missingRecords.Count
+        $dryRunCount += $missingRecords.Count + $staleRecords.Count
         continue
+    }
+
+    if ($staleRecords.Count -gt 0) {
+        $deleted += Remove-DnsRecords -Zone $zone -Records $staleRecords.ToArray() -Token $ApiToken
     }
 
     if ($missingRecords.Count -gt 0) {
@@ -455,4 +515,5 @@ Write-Step 'Summary'
 Write-Host ("Mode: {0}" -f $Mode) -ForegroundColor Green
 Write-Host ("Created: {0}" -f $created) -ForegroundColor Green
 Write-Host ("Already exists: {0}" -f $exists) -ForegroundColor Green
+Write-Host ("Deleted stale: {0}" -f $deleted) -ForegroundColor Green
 Write-Host ("Dry-run planned: {0}" -f $dryRunCount) -ForegroundColor Green

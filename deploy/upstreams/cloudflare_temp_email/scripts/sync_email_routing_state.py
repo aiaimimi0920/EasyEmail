@@ -34,7 +34,7 @@ def read_toml_array(text: str, key: str) -> list[str]:
 
 
 def load_plan(plan_path: Path) -> dict:
-    text = plan_path.read_text(encoding="utf-8")
+    text = plan_path.read_text(encoding="utf-8-sig")
     labels = read_toml_array(text, "SUBDOMAIN_LABEL_POOL")
     domains = read_toml_array(text, "DOMAINS")
 
@@ -67,7 +67,7 @@ def load_plan(plan_path: Path) -> dict:
 
 
 def load_global_auth(secret_file: Path) -> GlobalCloudflareAuth:
-    payload = json.loads(secret_file.read_text(encoding="utf-8"))
+    payload = json.loads(secret_file.read_text(encoding="utf-8-sig"))
     cf = payload.get("deployment_platform_auth", {}).get("cloudflare", {})
     auth_email = str(cf.get("auth_email") or "").strip()
     global_api_key = str(cf.get("global_api_key") or "").strip()
@@ -116,12 +116,15 @@ def cf_request(
             backoff = min(60, 5 * (attempt + 1)) if response.status_code == 429 else min(20, 2 * (attempt + 1))
             time.sleep(backoff)
             continue
-        response.raise_for_status()
-        payload = response.json()
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            response.raise_for_status()
+            raise RuntimeError(f"Cloudflare API returned non-JSON response for {path}: {response.text[:300]}") from exc
         if payload.get("success"):
             return payload
         last_error = "; ".join(f"[{e.get('code')}] {e.get('message')}" for e in payload.get("errors", []))
-        if attempt < 9:
+        if attempt < 9 and retriable:
             time.sleep(min(20, 2 * (attempt + 1)))
             continue
     raise RuntimeError(f"Cloudflare API failed: {path} :: {last_error or 'unknown error'}")
@@ -141,6 +144,13 @@ def get_zones(auth: GlobalCloudflareAuth) -> list[dict]:
 
 def zone_map_by_name(zones: list[dict]) -> dict[str, dict]:
     return {zone["name"]: zone for zone in zones}
+
+
+def resolve_zone_for_host(host: str, zones: list[dict]) -> dict:
+    matches = [zone for zone in zones if host == zone["name"] or host.endswith(f".{zone['name']}")]
+    if not matches:
+        raise RuntimeError(f"No Cloudflare zone found for host: {host}")
+    return max(matches, key=lambda zone: len(zone["name"]))
 
 
 def normalize_record_identity(record: dict) -> str:
@@ -257,7 +267,13 @@ def ensure_zone_enabled(zone_id: str, auth: GlobalCloudflareAuth) -> str:
     settings = get_email_routing_settings(zone_id, auth)
     if settings.get("enabled") and settings.get("status") == "ready":
         return "already-enabled"
-    cf_request("POST", f"zones/{zone_id}/email/routing/enable", auth)
+    try:
+        cf_request("POST", f"zones/{zone_id}/email/routing/enable", auth)
+    except RuntimeError as exc:
+        message = str(exc)
+        if "Non-Cloudflare MX records exist" in message or "[2008]" in message:
+            return "blocked-by-foreign-mx"
+        raise
     return "enabled"
 
 
@@ -376,6 +392,9 @@ def main() -> None:
         root_state = ensure_zone_enabled(zone["id"], auth)
         if root_state == "enabled":
             local["roots_enabled"] += 1
+        if root_state == "blocked-by-foreign-mx":
+            print(f"[{root}] blocked_by_foreign_mx")
+            return local
         catch_all_state = ensure_catch_all_worker(zone["id"], auth, args.worker_name)
         if catch_all_state == "updated":
             local["catch_all_updated"] += 1
@@ -458,14 +477,17 @@ def main() -> None:
                 f"deleted={result['exact_records_deleted']}"
             )
 
-    print("==== Ensure Exact Special Subdomains ====")
-    for name in plan["exact_subdomains"]:
-        zone_name = ".".join(name.split(".")[1:])
-        zone = zone_by_name.get(zone_name)
-        if not zone:
-            raise RuntimeError(f"Zone not found for exact subdomain: {name}")
-        ensure_zone_enabled(zone["id"], auth)
+    print("==== Ensure Exact Domains ====")
+    for name in plan["exact_domains"]:
+        zone = resolve_zone_for_host(name, zones)
+        zone_state = ensure_zone_enabled(zone["id"], auth)
+        if zone_state == "blocked-by-foreign-mx":
+            print(f"  root={name} state=blocked-by-foreign-mx")
+            continue
         ensure_catch_all_worker(zone["id"], auth, args.worker_name)
+        if zone["name"] == name:
+            print(f"  root={name} state=ready")
+            continue
         result = ensure_exact_subdomain_registered(zone["id"], auth, name)
         if result == "created":
             counters["special_subdomains_created"] += 1

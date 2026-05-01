@@ -27,7 +27,7 @@ def read_toml_array(text: str, key: str) -> list[str]:
 
 
 def load_plan(plan_path: Path) -> dict:
-    text = plan_path.read_text(encoding="utf-8")
+    text = plan_path.read_text(encoding="utf-8-sig")
     labels = read_toml_array(text, "SUBDOMAIN_LABEL_POOL")
     domains = read_toml_array(text, "DOMAINS")
 
@@ -54,7 +54,7 @@ def load_plan(plan_path: Path) -> dict:
 
 
 def load_token(token_file: Path) -> str:
-    obj = json.loads(token_file.read_text(encoding="utf-8"))
+    obj = json.loads(token_file.read_text(encoding="utf-8-sig"))
     token = obj.get("token")
     if not token:
         raise RuntimeError(f"No token field found in {token_file}")
