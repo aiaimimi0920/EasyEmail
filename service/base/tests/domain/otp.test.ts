@@ -142,4 +142,29 @@ describe("extractOtpFromContent", () => {
       source: "text",
     });
   });
+
+  it("decodes quoted-printable html before extracting Chinese ChatGPT verification codes", () => {
+    const extracted = extractOtpFromContent({
+      htmlBody: `
+        <html>
+          <head>
+            <style type=3D"text/css">
+              @font-face {
+                font-family: "S=C3=B6hne";
+              }
+            </style>
+          </head>
+          <body>
+            <p>=E8=BE=93=E5=85=A5=E6=AD=A4=E4=B8=B4=E6=97=B6=E9=AA=8C=E8=AF=81=E7=A0=81=E4=BB=A5=E7=BB=A7=E7=BB=AD=EF=BC=9A</p>
+            <p>735296</p>
+          </body>
+        </html>
+      `,
+    });
+
+    expect(extracted).toEqual({
+      code: "735296",
+      source: "html",
+    });
+  });
 });

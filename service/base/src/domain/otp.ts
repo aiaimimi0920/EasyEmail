@@ -67,14 +67,46 @@ const LETTER_ONLY_STOPWORDS = new Set([
   "TEMPORARY",
 ]);
 
+function maybeDecodeQuotedPrintable(value: string): string {
+  const normalized = value.replace(/=\r?\n/g, "");
+  const bytes: number[] = [];
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const current = normalized[index]!;
+    const hex = normalized.slice(index + 1, index + 3);
+    if (current === "=" && /^[0-9A-Fa-f]{2}$/.test(hex)) {
+      bytes.push(Number.parseInt(hex, 16));
+      index += 2;
+      continue;
+    }
+    bytes.push(current.charCodeAt(0));
+  }
+
+  return Buffer.from(bytes).toString("utf8");
+}
+
+function decodeTransferEncodedContent(value: string): string {
+  const quotedPrintableMarkers = value.match(/=\r?\n|=[0-9A-Fa-f]{2}/g) ?? [];
+  if (quotedPrintableMarkers.length < 3) {
+    return value;
+  }
+
+  try {
+    return maybeDecodeQuotedPrintable(value);
+  } catch {
+    return value;
+  }
+}
+
 function normalizeContent(value: string | undefined, source: CodeSource): string | undefined {
   if (!value?.trim()) {
     return undefined;
   }
 
+  const decoded = decodeTransferEncodedContent(value);
   const text = source === "html"
-    ? value.replace(HTML_TAG_RE, " ")
-    : value;
+    ? decoded.replace(HTML_TAG_RE, " ")
+    : decoded;
 
   const normalized = text
     .replace(/\s+/g, " ")
