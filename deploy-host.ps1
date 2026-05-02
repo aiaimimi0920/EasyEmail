@@ -181,10 +181,16 @@ if ($ResolveRepoOnly) {
 
 $repoRoot = $repoInfo.RepoRoot
 $resolvedConfigPath = Resolve-AbsolutePath -Path $ConfigPath -BaseDir $launcherRoot
+$configExamplePath = Resolve-AbsolutePath -Path "config.example.yaml" -BaseDir $repoRoot
 $deployScript = Resolve-AbsolutePath -Path "scripts\deploy-service-base.ps1" -BaseDir $repoRoot
 
 if (-not (Test-Path -LiteralPath $deployScript)) {
     throw "Missing deploy script: $deployScript"
+}
+
+if (-not (Test-Path -LiteralPath $resolvedConfigPath) -and [string]::IsNullOrWhiteSpace($ImportCode) -and [string]::IsNullOrWhiteSpace($BootstrapFile)) {
+    Copy-Item -LiteralPath $configExamplePath -Destination $resolvedConfigPath
+    Write-Host "[deploy-host] created config file from template: $resolvedConfigPath" -ForegroundColor Yellow
 }
 
 $arguments = @(
