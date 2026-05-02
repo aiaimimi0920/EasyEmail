@@ -70,6 +70,26 @@ still maintained as a distinct upstream-tracked area.
 
 ### Local service runtime
 
+The repository root now includes a host-facing one-click deploy wrapper:
+
+```powershell
+pwsh .\deploy-host.ps1
+```
+
+That wrapper forwards into `scripts/deploy-service-base.ps1` and keeps the
+stable in-network alias contract:
+
+- `EasyAiMi`
+- `easy-email-service`
+
+If you need the lower-level entrypoint directly, it is still available:
+
+```powershell
+pwsh .\scripts\deploy-service-base.ps1
+```
+
+And if you only want the package-level service runtime checks:
+
 ```powershell
 Set-Location service/base
 npm install
@@ -116,6 +136,7 @@ GitHub Actions release automation lives under `.github/workflows/`:
 
 ## Operator Scripts
 
+- `deploy-host.ps1`
 - `scripts/init-config.ps1`
 - `scripts/render-derived-configs.ps1`
 - `scripts/compile-userscript.ps1`

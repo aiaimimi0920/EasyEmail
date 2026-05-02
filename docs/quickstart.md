@@ -27,7 +27,20 @@ All service, userscript, and Cloudflare deployment settings are derived from it.
 
 ## 4. Prepare The Local Service Runtime
 
-Render the service config from the root config and start the service:
+Render the service config from the root config and start the service through
+the repository-root host wrapper:
+
+```powershell
+pwsh .\deploy-host.ps1
+```
+
+That root entrypoint preserves the validated deployment contract:
+
+- it deploys the `service/base` runtime through the existing operator scripts
+- it keeps the stable Docker network alias `easy-email-service`
+- it defaults to the external Docker network `EasyAiMi`
+
+The lower-level entrypoint is still available when you need direct control:
 
 ```powershell
 pwsh .\scripts\deploy-service-base.ps1
