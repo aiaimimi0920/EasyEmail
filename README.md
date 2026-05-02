@@ -76,6 +76,10 @@ The repository root now includes a host-facing one-click deploy wrapper:
 pwsh .\deploy-host.ps1
 ```
 
+You can also download only `deploy-host.ps1` from GitHub and run it on a blank
+host. The script bootstraps a local repo cache automatically before invoking
+the canonical deployment path.
+
 That wrapper forwards into `scripts/deploy-service-base.ps1` and keeps the
 stable in-network alias contract:
 
@@ -126,6 +130,7 @@ corepack pnpm build
 - `docs/release-tagging.md`
 - `docs/github-actions-secrets.md`
 - `docs/cloudflare-email-deployment.md`
+- `docs/root-host-deploy-standard.md`
 - `docs/publish-control-center-release-catalog.md`
 - `CONTRIBUTING.md`
 
