@@ -9,7 +9,7 @@ param(
     [string]$ContainerName = '',
     [int]$HostPort = 0,
     [string]$NetworkName = 'EasyAiMi',
-    [string]$NetworkAlias = 'easy-email-service',
+    [string]$NetworkAlias = 'easy-email',
     [string]$ComposeProjectName = ''
 )
 
@@ -131,9 +131,9 @@ if ($Image -and $Pull) {
 }
 
 $derivedContainerName = if (-not [string]::IsNullOrWhiteSpace($InstanceName)) {
-    "easyemail-service-base-$InstanceName"
+    "easy-email-$InstanceName"
 } else {
-    'easyemail-service-base'
+    'easy-email'
 }
 $resolvedContainerName = Get-DefaultInstanceValue -ExplicitValue $ContainerName -DerivedValue $derivedContainerName
 
@@ -148,9 +148,9 @@ $resolvedHostPort = if ($HostPort -gt 0) {
 $resolvedComposeProjectName = if (-not [string]::IsNullOrWhiteSpace($ComposeProjectName)) {
     $ComposeProjectName
 } elseif (-not [string]::IsNullOrWhiteSpace($InstanceName)) {
-    "easyemail-$InstanceName"
+    "easy-email-$InstanceName"
 } else {
-    'easyemail-service-base'
+    'easy-email'
 }
 
 if (-not [string]::IsNullOrWhiteSpace($Image)) {

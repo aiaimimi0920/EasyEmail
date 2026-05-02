@@ -22,13 +22,13 @@ userscript:
 serviceBase:
   context: .
   dockerfile: deploy/service/base/Dockerfile
-  image: easyemail/easy-email-service:local
+  image: easy-email/easy-email:local
   containerEnvironment:
-    EASY_PROXY_BASE_URL: http://host.docker.internal:29888
+    EASY_PROXY_BASE_URL: http://easy-proxy:29888
     EASY_PROXY_API_KEY: ""
     EASY_PROXY_RUNTIME_HOST: host.docker.internal
-    EASY_PROXY_HOST_ID: easyemail-service-base
-    M2U_UPSTREAM_PROXY_URL: http://host.docker.internal:22323
+    EASY_PROXY_HOST_ID: easy-email
+    M2U_UPSTREAM_PROXY_URL: http://easy-proxy:22323
     M2U_USE_EASY_PROXY_ON_CAPACITY: "true"
     M2U_EASY_PROXY_REQUIRE_DEDICATED_NODE: "false"
     M2U_EASY_PROXY_MAX_ATTEMPTS: "10"

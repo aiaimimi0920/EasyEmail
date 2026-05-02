@@ -17,7 +17,7 @@ if ($null -eq $serviceBase) {
 
 $context = Resolve-EasyEmailPath -Path (Get-EasyEmailConfigValue -Object $serviceBase -Name 'context' -Default '.')
 $dockerfile = Resolve-EasyEmailPath -Path (Get-EasyEmailConfigValue -Object $serviceBase -Name 'dockerfile' -Default 'deploy/service/base/Dockerfile')
-$image = [string](Get-EasyEmailConfigValue -Object $serviceBase -Name 'image' -Default 'easyemail/easy-email-service:local')
+$image = [string](Get-EasyEmailConfigValue -Object $serviceBase -Name 'image' -Default 'easy-email/easy-email:local')
 
 if (-not (Test-Path -LiteralPath $dockerfile)) {
     throw "Dockerfile not found: $dockerfile"

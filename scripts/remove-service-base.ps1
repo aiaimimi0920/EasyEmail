@@ -23,7 +23,7 @@ function Get-ServiceBaseComposeProjectName {
     )
 
     if ([string]::IsNullOrWhiteSpace($Name)) {
-        return 'easyemail-service-base'
+    return 'easy-email'
     }
 
     return "easyemail-$Name"
@@ -35,10 +35,10 @@ function Get-ServiceBaseContainerName {
     )
 
     if ([string]::IsNullOrWhiteSpace($Name)) {
-        return 'easyemail-service-base'
+    return 'easy-email'
     }
 
-    return "easyemail-service-base-$Name"
+    return "easy-email-$Name"
 }
 
 function Get-TestInstanceNames {
@@ -49,7 +49,7 @@ function Get-TestInstanceNames {
     }
 
     foreach ($candidate in $containerNames) {
-        if ($candidate -match '^easyemail-service-base-(.+)$') {
+        if ($candidate -match '^easy-email-(.+)$') {
             $names += $Matches[1]
         }
     }
