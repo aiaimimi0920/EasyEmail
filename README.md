@@ -80,6 +80,19 @@ You can also download only `deploy-host.ps1` from GitHub and run it on a blank
 host. The script bootstraps a local repo cache automatically before invoking
 the canonical deployment path.
 
+The same root entrypoint also supports owner-only runtime bootstrap through
+either:
+
+- `-ImportCode <decrypted-import-code>`
+- `-BootstrapFile <r2-bootstrap.json>`
+
+If you keep the owner private key as a stable passphrase string instead of a
+raw base64 private key, derive the matching public key with:
+
+```powershell
+python .\scripts\easyemail-import-code.py derive-public-key --private-key-file .\owner-private-key.txt
+```
+
 That wrapper forwards into `scripts/deploy-service-base.ps1` and keeps the
 stable in-network alias contract:
 
