@@ -96,6 +96,47 @@ describe("cloudflare temp email connector", () => {
     });
   });
 
+  it("balances cloudflare temp email selection by root family instead of raw leaf-domain count", async () => {
+    const randomSpy = vi.spyOn(Math, "random")
+      .mockReturnValueOnce(0.7)
+      .mockReturnValueOnce(0.0);
+    const fetchMock = vi.fn(async () => {
+      return new Response('{"address":"demo@gamma.family2.example.com","jwt":"jwt-demo"}', { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new CloudflareTempEmailCreateClient({
+      baseUrl: "https://temp.example.test",
+      domains: [
+        "alpha.family1.example.com",
+        "beta.family1.example.com",
+        "delta.family1.example.com",
+        "epsilon.family1.example.com",
+        "gamma.family2.example.com",
+      ],
+      randomSubdomainDomains: [],
+      timeoutSeconds: 30,
+    });
+
+    const mailbox = await client.newAddress("demo");
+
+    expect(mailbox).toEqual({
+      address: "demo@gamma.family2.example.com",
+      jwt: "jwt-demo",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://temp.example.test/api/new_address",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          name: "demo",
+          domain: "gamma.family2.example.com",
+        }),
+      }),
+    );
+    expect(randomSpy).toHaveBeenCalledTimes(2);
+  });
+
   it("falls back to admin delegated sending when mailbox-token sending is blocked by balance", async () => {
     const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
       if (input.endsWith("/api/request_send_mail_access")) {

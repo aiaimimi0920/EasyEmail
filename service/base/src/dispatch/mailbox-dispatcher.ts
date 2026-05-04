@@ -623,7 +623,6 @@ export class MailboxDispatcher {
     request: VerificationMailboxRequest,
     routingProfile?: RoutingProfileLookup,
   ): MailStrategyModeResolution["providerSelections"] {
-    const groupOrderIndex = new Map(providerGroups.map((group, index) => [group, index]));
     const scores = new Map(providerGroups.map((group) => [
       group,
       this.computeProviderAvailabilityScore(
@@ -638,39 +637,56 @@ export class MailboxDispatcher {
           group,
           this.computeProviderAvailabilityScore(getMailProviderTypeForGroup(group), request),
         ]));
-    const ordered = [...providerGroups].sort((left, right) => {
-      const leftScore = effectiveScores.get(left) ?? Number.NEGATIVE_INFINITY;
-      const rightScore = effectiveScores.get(right) ?? Number.NEGATIVE_INFINITY;
-      if (rightScore !== leftScore) {
-        return rightScore - leftScore;
-      }
-      return (groupOrderIndex.get(left) ?? 0) - (groupOrderIndex.get(right) ?? 0);
-    });
+    return this.weightedShuffleProviderGroups(providerGroups, effectiveScores);
+  }
 
-    const rotated: MailStrategyModeResolution["providerSelections"] = [];
-    for (let index = 0; index < ordered.length;) {
-      const head = ordered[index]!;
-      const headScore = effectiveScores.get(head) ?? Number.NEGATIVE_INFINITY;
-      const cluster: MailStrategyModeResolution["providerSelections"] = [head];
-      index += 1;
-      while (index < ordered.length) {
-        const next = ordered[index]!;
-        const nextScore = effectiveScores.get(next) ?? Number.NEGATIVE_INFINITY;
-        if (Math.abs(headScore - nextScore) > 0.04) {
-          break;
-        }
-        cluster.push(next);
-        index += 1;
-      }
-
-      rotated.push(
-        ...(cluster.length > 1
-          ? this.rotateValues(cluster, `availability:${providerGroups.join("|")}:${Math.round(headScore * 100)}`)
-          : cluster),
-      );
+  private weightedShuffleProviderGroups(
+    providerGroups: MailStrategyModeResolution["providerSelections"],
+    scores: Map<MailStrategyModeResolution["providerSelections"][number], number>,
+  ): MailStrategyModeResolution["providerSelections"] {
+    const finiteEntries = providerGroups
+      .map((group) => ({
+        group,
+        score: scores.get(group) ?? Number.NEGATIVE_INFINITY,
+      }))
+      .filter((item) => Number.isFinite(item.score));
+    const unavailable = providerGroups.filter((group) => !finiteEntries.some((item) => item.group === group));
+    if (finiteEntries.length <= 1) {
+      return [
+        ...finiteEntries.map((item) => item.group),
+        ...unavailable,
+      ];
     }
 
-    return rotated;
+    const minScore = Math.min(...finiteEntries.map((item) => item.score));
+    const pool = finiteEntries.map((item) => ({
+      group: item.group,
+      weight: Math.max(0.05, item.score - minScore + 0.1),
+    }));
+    const ordered: MailStrategyModeResolution["providerSelections"] = [];
+
+    while (pool.length > 0) {
+      const totalWeight = pool.reduce((sum, item) => sum + item.weight, 0);
+      if (!(totalWeight > 0)) {
+        ordered.push(...pool.map((item) => item.group));
+        break;
+      }
+      let cursor = Math.random() * totalWeight;
+      let selectedIndex = pool.length - 1;
+      for (let index = 0; index < pool.length; index += 1) {
+        cursor -= pool[index]!.weight;
+        if (cursor <= 0) {
+          selectedIndex = index;
+          break;
+        }
+      }
+      const [selected] = pool.splice(selectedIndex, 1);
+      if (selected) {
+        ordered.push(selected.group);
+      }
+    }
+
+    return [...ordered, ...unavailable];
   }
 
   private computeProviderPerformanceScore(instance: ProviderInstance, nowMs: number): number {

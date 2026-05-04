@@ -196,6 +196,57 @@ function pickWeightedDomain(domains: string[], weights: Record<string, number>):
   return normalized[normalized.length - 1]?.domain;
 }
 
+function resolveDomainFamilyKey(domain: string): string {
+  const labels = domain.split(".").filter(Boolean);
+  if (labels.length >= 4) {
+    return labels.slice(1).join(".");
+  }
+  return domain;
+}
+
+function pickWeightedDomainFamily(domains: string[], weights: Record<string, number>): string | undefined {
+  if (domains.length === 0) {
+    return undefined;
+  }
+
+  const families = new Map<string, string[]>();
+  for (const domain of domains) {
+    const familyKey = resolveDomainFamilyKey(domain);
+    const familyDomains = families.get(familyKey) ?? [];
+    familyDomains.push(domain);
+    families.set(familyKey, familyDomains);
+  }
+
+  if (families.size <= 1) {
+    return pickWeightedDomain(domains, weights);
+  }
+
+  const familyEntries = [...families.entries()].map(([familyKey, familyDomains]) => {
+    const averageWeight = familyDomains.reduce((sum, item) => sum + Math.max(0.05, weights[item] ?? 0.5), 0) / familyDomains.length;
+    return {
+      familyKey,
+      domains: familyDomains,
+      weight: Math.max(0.05, averageWeight),
+    };
+  });
+  const totalWeight = familyEntries.reduce((sum, item) => sum + item.weight, 0);
+  if (!(totalWeight > 0)) {
+    return pickWeightedDomain(domains, weights);
+  }
+
+  let cursor = Math.random() * totalWeight;
+  let selectedFamily = familyEntries[familyEntries.length - 1];
+  for (const familyEntry of familyEntries) {
+    cursor -= familyEntry.weight;
+    if (cursor <= 0) {
+      selectedFamily = familyEntry;
+      break;
+    }
+  }
+
+  return pickWeightedDomain(selectedFamily?.domains ?? domains, weights);
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && Array.isArray(value) === false
     ? value as Record<string, unknown>
@@ -555,7 +606,7 @@ export class CloudflareTempEmailCreateClient {
       : (this.config.domains.length > 0
         ? this.config.domains
         : (this.config.domain?.trim() ? [this.config.domain.trim().toLowerCase()] : []));
-    return pickWeightedDomain(configuredDomains, this.domainWeights);
+    return pickWeightedDomainFamily(configuredDomains, this.domainWeights);
   }
 
   public async newAddress(

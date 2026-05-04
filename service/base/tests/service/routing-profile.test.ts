@@ -2,7 +2,7 @@ import { createBootstrappedEasyEmailService } from "../../src/service/bootstrap.
 import type { MailProviderAdapter } from "../../src/providers/contracts.js";
 import type { ProviderInstance, ProviderTypeDefinition } from "../../src/domain/models.js";
 import { encodeM2uMailboxRef } from "../../src/providers/m2u/client.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const now = new Date("2026-04-25T00:00:00.000Z");
 
@@ -46,6 +46,10 @@ function createInstance(
 }
 
 describe("mail routing profiles", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("applies the high-availability health gate before availability scoring", () => {
     const service = createBootstrappedEasyEmailService({
       providerTypes: [
@@ -84,6 +88,52 @@ describe("mail routing profiles", () => {
     }, now);
 
     expect(plan.instance.providerTypeKey).toBe("moemail");
+  });
+
+  it("lets available-first distribute first choice across healthy providers instead of locking the top score", () => {
+    vi.spyOn(Math, "random").mockReturnValueOnce(0.95);
+
+    const service = createBootstrappedEasyEmailService({
+      providerTypes: [
+        createProviderType("cloudflare_temp_email", "Cloudflare Temp Email"),
+        createProviderType("mailtm", "Mail.tm"),
+      ],
+      providerInstances: [
+        createInstance("cloudflare_temp_email", {
+          costTier: "paid",
+          healthScore: 0.9,
+          averageLatencyMs: 100,
+          runtimeKind: "cloudflare_temp_email-runtime",
+          connectorKind: "cloudflare_temp_email-connector",
+          metadata: {
+            baseUrl: "https://temp.example.test",
+          },
+          connectionRef: "https://temp.example.test",
+        }),
+        createInstance("mailtm", {
+          healthScore: 0.8,
+          averageLatencyMs: 120,
+        }),
+      ],
+      routingProfiles: [
+        {
+          id: "broad-coverage",
+          displayName: "Broad Coverage",
+          description: "Distribute across healthy providers.",
+          providerStrategyModeId: "available-first",
+          providerSelections: ["cloudflare_temp_email", "mailtm"],
+        },
+      ],
+    }, now);
+
+    const plan = service.planMailbox({
+      hostId: "demo-host",
+      provisionMode: "reuse-only",
+      bindingMode: "shared-instance",
+      providerRoutingProfileId: "broad-coverage",
+    }, now);
+
+    expect(plan.instance.providerTypeKey).toBe("mailtm");
   });
 
   it("can recover a persisted m2u session from the local email-address index", async () => {
