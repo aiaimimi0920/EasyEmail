@@ -135,7 +135,7 @@ describe("mail2925 provider", () => {
     });
 
     expect(mailbox).toMatchObject({
-      aliasAddress: "good@2925.com",
+      aliasAddress: "good_matrixmail@2925.com",
       accountEmail: "good@2925.com",
       folderName: "Inbox",
     });
@@ -198,7 +198,7 @@ describe("mail2925 provider", () => {
     });
 
     const mailbox: Mail2925MailboxRefPayload = {
-      aliasAddress: "good@2925.com",
+      aliasAddress: "good_matrixmail@2925.com",
       accountEmail: "good@2925.com",
       folderName: "Inbox",
       credentialSetId: "test-set",
@@ -291,7 +291,7 @@ describe("mail2925 provider", () => {
     });
 
     const mailbox: Mail2925MailboxRefPayload = {
-      aliasAddress: "good@2925.com",
+      aliasAddress: "good_matrixmail@2925.com",
       accountEmail: "good@2925.com",
       folderName: "Inbox",
       credentialSetId: "test-set",
@@ -380,7 +380,7 @@ describe("mail2925 provider", () => {
     });
 
     const mailbox: Mail2925MailboxRefPayload = {
-      aliasAddress: "good@2925.com",
+      aliasAddress: "good_matrixmail@2925.com",
       accountEmail: "good@2925.com",
       folderName: "Inbox",
       credentialSetId: "test-set",
@@ -466,7 +466,7 @@ describe("mail2925 provider", () => {
     });
 
     const mailbox: Mail2925MailboxRefPayload = {
-      aliasAddress: "good@2925.com",
+      aliasAddress: "good_matrixmail@2925.com",
       accountEmail: "good@2925.com",
       folderName: "Inbox",
       credentialSetId: "test-set",

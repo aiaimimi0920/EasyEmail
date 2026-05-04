@@ -1059,12 +1059,15 @@ export class Mail2925Client {
   }): Promise<Mail2925MailboxRefPayload> {
     return this.withCredential("generate", options.sessionHint, async (account) => {
       await this.login(account);
-      // 2925's public webmail API can authenticate the backing account, but it does
-      // not expose alias provisioning. Returning a synthetic alias address produces
-      // non-deliverable mailboxes. Bind sessions to the verified account inbox so the
-      // provider remains usable for real receive/OTP flows.
+      const aliasAddress = buildAliasAddress(
+        account,
+        options.sessionHint,
+        this.config.aliasSeparator,
+        this.config.aliasSuffixLength,
+        options.requestedDomain,
+      );
       return {
-        aliasAddress: account.accountEmail,
+        aliasAddress,
         accountEmail: account.accountEmail,
         folderName: this.config.folderName,
         credentialSetId: account.selection.set.id,
