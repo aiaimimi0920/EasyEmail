@@ -2,7 +2,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$minimumNodeVersion = [Version]'20.19.0'
+$minimumNodeVersion = [Version]'22.0.0'
 
 . (Join-Path $PSScriptRoot 'lib/easyemail-config.ps1')
 

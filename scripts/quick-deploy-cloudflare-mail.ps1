@@ -14,7 +14,7 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot 'lib/easyemail-config.ps1')
 
 $resolvedConfigPath = Resolve-EasyEmailPath -Path $ConfigPath
-$minimumNodeVersion = [Version]'20.19.0'
+$minimumNodeVersion = [Version]'22.0.0'
 $powerShellCommand = Get-EasyEmailPowerShellCommand
 $placeholderDatabaseId = '00000000-0000-0000-0000-000000000000'
 $placeholderDomains = @('example.com', 'mail.example.com', '*.example.com')
