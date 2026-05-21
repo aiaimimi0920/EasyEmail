@@ -504,8 +504,19 @@ def ensure_d1_database(
 
     configured_id = str(entry.get("database_id") or "").strip()
     bootstrap = get_bootstrap_config(config)
+    bootstrap_enabled = bool(bootstrap.get("enabled") or False)
     location = str(bootstrap.get("d1LocationHint") or "").strip()
     jurisdiction = str(bootstrap.get("d1Jurisdiction") or "").strip()
+
+    if not bootstrap_enabled and not is_placeholder_database_id(configured_id):
+        return {
+            "databaseName": database_name,
+            "binding": binding,
+            "databaseId": configured_id,
+            "created": False,
+            "wouldCreate": False,
+            "changed": False,
+        }
 
     databases = run_wrangler_json(wrangler_command, worker_dir, env, ["d1", "list", "--json"])
     match = next((item for item in databases if str(item.get("name") or "") == database_name), None)

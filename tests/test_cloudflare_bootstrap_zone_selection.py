@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -62,6 +63,41 @@ class CloudflareZoneSelectionTests(unittest.TestCase):
 
     def test_teardown_collect_desired_zones_prefers_real_root_zones(self) -> None:
         self.assert_zone_selection(TEARDOWN)
+
+    def test_bootstrap_ensure_d1_database_skips_wrangler_when_real_id_already_exists(self) -> None:
+        config = {
+            "cloudflareMail": {
+                "bootstrap": {
+                    "enabled": False,
+                },
+                "worker": {
+                    "d1_databases": [
+                        {
+                            "binding": "DB",
+                            "database_name": "cloudflare-temp-email",
+                            "database_id": "6208adc3-5b07-4a60-9efa-613d3ca1580d",
+                        }
+                    ]
+                },
+            }
+        }
+
+        with mock.patch.object(
+            BOOTSTRAP,
+            "run_wrangler_json",
+            side_effect=AssertionError("run_wrangler_json should not be called"),
+        ):
+            result = BOOTSTRAP.ensure_d1_database(
+                config,
+                wrangler_command="wrangler",
+                worker_dir=REPO_ROOT,
+                env={},
+                dry_run=False,
+            )
+
+        self.assertEqual(result["databaseId"], "6208adc3-5b07-4a60-9efa-613d3ca1580d")
+        self.assertFalse(result["changed"])
+        self.assertFalse(result["created"])
 
 
 if __name__ == "__main__":
