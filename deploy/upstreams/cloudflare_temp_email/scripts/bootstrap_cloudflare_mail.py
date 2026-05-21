@@ -155,7 +155,7 @@ def collect_desired_zones(config: dict[str, Any]) -> list[str]:
     plan_domains = filter_placeholder_domains(normalize_string_list(plan.get("domains")))
     wildcard_roots = [domain[2:] for domain in plan_domains if domain.startswith("*.")]
     exact_domains = [domain for domain in plan_domains if not domain.startswith("*.")]
-    manual_zones = normalize_string_list(bootstrap.get("zones"))
+    manual_zones = filter_placeholder_domains(normalize_string_list(bootstrap.get("zones")))
     public_zone = resolve_public_zone(config)
 
     candidates = manual_zones + wildcard_roots + exact_domains
