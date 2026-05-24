@@ -5,6 +5,7 @@ param(
     [switch]$Pull,
     [string]$ImportCode = '',
     [string]$BootstrapFile = '',
+    [string]$RuntimeRoot = '',
     [string]$InstanceName = '',
     [string]$ContainerName = '',
     [int]$HostPort = 0,
@@ -65,22 +66,40 @@ if (-not (Test-Path -LiteralPath $composeFile)) {
 
 $resolvedConfigPath = Resolve-EasyEmailPath -Path $ConfigPath
 $composeDir = Split-Path -Parent $composeFile
+$resolvedRuntimeRoot = ''
+if (-not [string]::IsNullOrWhiteSpace($RuntimeRoot)) {
+    $resolvedRuntimeRoot = Resolve-EasyEmailPath -Path $RuntimeRoot
+}
+$useExternalRuntimeRoot = -not [string]::IsNullOrWhiteSpace($resolvedRuntimeRoot)
+$runtimeBaseRoot = if ($useExternalRuntimeRoot) { $resolvedRuntimeRoot } else { $composeDir }
 $instanceRoot = $null
 $configMountPath = './config'
 $dataMountPath = './data'
 $envFilePath = './config/runtime.env'
-$hostConfigRoot = Resolve-EasyEmailPath -Path (Join-Path $composeDir 'config')
-$hostDataRoot = Resolve-EasyEmailPath -Path (Join-Path $composeDir 'data')
+$hostConfigRoot = Resolve-EasyEmailPath -Path (Join-Path $runtimeBaseRoot 'config')
+$hostDataRoot = Resolve-EasyEmailPath -Path (Join-Path $runtimeBaseRoot 'data')
+
+if ($useExternalRuntimeRoot) {
+    $configMountPath = $hostConfigRoot
+    $dataMountPath = $hostDataRoot
+    $envFilePath = Join-Path $hostConfigRoot 'runtime.env'
+}
 
 if (-not [string]::IsNullOrWhiteSpace($InstanceName)) {
-    $instanceRoot = Join-Path $composeDir ("instances/{0}" -f $InstanceName)
+    $instanceRoot = Join-Path $runtimeBaseRoot ("instances/{0}" -f $InstanceName)
     $instanceConfigRoot = Join-Path $instanceRoot 'config'
     $instanceDataRoot = Join-Path $instanceRoot 'data'
     $hostConfigRoot = Resolve-EasyEmailPath -Path $instanceConfigRoot
     $hostDataRoot = Resolve-EasyEmailPath -Path $instanceDataRoot
-    $configMountPath = "./instances/$InstanceName/config"
-    $dataMountPath = "./instances/$InstanceName/data"
-    $envFilePath = "./instances/$InstanceName/config/runtime.env"
+    if ($useExternalRuntimeRoot) {
+        $configMountPath = $hostConfigRoot
+        $dataMountPath = $hostDataRoot
+        $envFilePath = Join-Path $hostConfigRoot 'runtime.env'
+    } else {
+        $configMountPath = "./instances/$InstanceName/config"
+        $dataMountPath = "./instances/$InstanceName/data"
+        $envFilePath = "./instances/$InstanceName/config/runtime.env"
+    }
 }
 
 New-Item -ItemType Directory -Force -Path $hostConfigRoot | Out-Null

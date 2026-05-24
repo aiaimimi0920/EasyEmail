@@ -5,6 +5,7 @@ param(
     [switch]$Pull,
     [string]$ImportCode = "",
     [string]$BootstrapFile = "",
+    [string]$RuntimeRoot = "",
     [string]$InstanceName = "",
     [string]$ContainerName = "",
     [int]$HostPort = 0,
@@ -183,6 +184,10 @@ $repoRoot = $repoInfo.RepoRoot
 $resolvedConfigPath = Resolve-AbsolutePath -Path $ConfigPath -BaseDir $launcherRoot
 $configExamplePath = Resolve-AbsolutePath -Path "config.example.yaml" -BaseDir $repoRoot
 $deployScript = Resolve-AbsolutePath -Path "scripts\deploy-service-base.ps1" -BaseDir $repoRoot
+$effectiveRuntimeRoot = $RuntimeRoot
+if ([string]::IsNullOrWhiteSpace($effectiveRuntimeRoot) -and $repoInfo.Source -eq "bootstrapped") {
+    $effectiveRuntimeRoot = Join-Path $launcherRoot "runtime\service-base"
+}
 
 if (-not (Test-Path -LiteralPath $deployScript)) {
     throw "Missing deploy script: $deployScript"
@@ -215,6 +220,9 @@ if (-not [string]::IsNullOrWhiteSpace($ImportCode)) {
 }
 if (-not [string]::IsNullOrWhiteSpace($BootstrapFile)) {
     $arguments += @("-BootstrapFile", (Resolve-AbsolutePath -Path $BootstrapFile -BaseDir $launcherRoot))
+}
+if (-not [string]::IsNullOrWhiteSpace($effectiveRuntimeRoot)) {
+    $arguments += @("-RuntimeRoot", (Resolve-AbsolutePath -Path $effectiveRuntimeRoot -BaseDir $launcherRoot))
 }
 if (-not [string]::IsNullOrWhiteSpace($InstanceName)) {
     $arguments += @("-InstanceName", $InstanceName)
