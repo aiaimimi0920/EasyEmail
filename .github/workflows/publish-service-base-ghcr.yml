@@ -12,6 +12,10 @@ on:
         description: "Optional image version tag override"
         required: false
         type: string
+      release_tag:
+        description: "Standard release tag override; takes precedence over version"
+        required: false
+        type: string
       platform:
         description: "Docker build platform list"
         required: false
@@ -136,6 +140,9 @@ jobs:
 
       - name: Resolve Release Metadata
         id: release_meta
+        env:
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
+          VERSION_INPUT: ${{ inputs.version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -150,7 +157,7 @@ jobs:
             platform="linux/amd64"
             force_publish="false"
           else
-            version="${{ inputs.version }}"
+            version="${RELEASE_TAG_INPUT:-${VERSION_INPUT:-}}"
             if [[ -z "${version}" ]]; then
               version="release-$(date -u +%Y%m%d)-$(printf '%03d' "${GITHUB_RUN_NUMBER}")"
             fi
@@ -166,6 +173,7 @@ jobs:
           {
             echo "owner=${owner}"
             echo "version=${version}"
+            echo "release_tag=${version}"
             echo "short_sha=${short_sha}"
             echo "platform=${platform}"
             echo "image_ref=${image_ref}"

@@ -219,3 +219,7 @@ let EasyEmail reuse a stable sender mailbox such as
 - Do not commit live API tokens, auth headers, or database identifiers.
 - Internal templates may stay in the repository, but user-edited runtime values
   must live only in the root `config.yaml`.
+
+## Release Contract
+
+This repository follows the EasyAiMi release contract v1 for GitHub Actions, GHCR publication, R2 config distribution, encrypted import-code artifacts, and blank-host local deployment. See [docs/release-contract.md](docs/release-contract.md) for the exact contract and project-specific exceptions.
