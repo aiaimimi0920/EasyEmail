@@ -52,6 +52,7 @@ interface Im215RequestOptions {
 const AUTH_ERROR_RE = /(status 401|status 403|unauthorized|forbidden|invalid api key|invalid token|missing api key|bearer|permission)/i;
 const CAPACITY_ERROR_RE = /(status 429|too many requests|rate limit|quota|capacity|insufficient balance)/i;
 const TRANSIENT_ERROR_RE = /(fetch failed|timeout|timed out|econnreset|socket hang up|network|status 5\d{2}|temporarily unavailable|gateway)/i;
+const DOMAIN_ROTATION_OFFSETS = new Map<string, number>();
 
 function readMetadata(instance: ProviderInstance, key: string): string | undefined {
   const value = instance.metadata[key];
@@ -140,6 +141,42 @@ function encodeQuery(params: Record<string, string | number | undefined>): strin
 
 function createRandomSuffix(length: number): string {
   return randomBytes(Math.max(length * 2, 12)).toString("base64url").replace(/[^a-z0-9]/gi, "").slice(0, length).toLowerCase();
+}
+
+function normalizeDomain(value: string | undefined): string | undefined {
+  const normalized = value?.trim().toLowerCase();
+  return normalized || undefined;
+}
+
+function isDisabledFlag(value: unknown): boolean {
+  return value === false
+    || (typeof value === "string" && ["disabled", "inactive", "offline", "false", "unavailable"].includes(value.trim().toLowerCase()));
+}
+
+function isIm215DomainUsable(item: Record<string, unknown>): boolean {
+  if (isDisabledFlag(item.active)
+    || isDisabledFlag(item.enabled)
+    || isDisabledFlag(item.isActive)
+    || isDisabledFlag(item.available)
+    || isDisabledFlag(item.status)
+    || item.isPublic === false
+    || item.isVerified === false
+    || item.isMxValid === false) {
+    return false;
+  }
+
+  const dnsRecords = asRecord(item.dnsRecords);
+  return dnsRecords.receivingReady !== false && dnsRecords.mxValid !== false;
+}
+
+function nextDomainRotationOffset(namespace: string, domainCount: number): number {
+  if (domainCount <= 1) {
+    return 0;
+  }
+
+  const current = DOMAIN_ROTATION_OFFSETS.get(namespace) ?? 0;
+  DOMAIN_ROTATION_OFFSETS.set(namespace, (current + 1) % domainCount);
+  return current % domainCount;
 }
 
 function sanitizeLocalPart(value: string | undefined): string {
@@ -317,25 +354,19 @@ function extractDomainCandidates(body: unknown): string[] {
       : asRecordList(source);
     for (const item of items) {
       if (typeof item === "string") {
-        const domain = item.trim().toLowerCase();
+        const domain = normalizeDomain(item);
         if (domain) {
           seen.add(domain);
         }
         continue;
       }
-      const domain = readString((item as Record<string, unknown>).domain)
-        ?? readString((item as Record<string, unknown>).name)
-        ?? readString((item as Record<string, unknown>).value)
-        ?? readString((item as Record<string, unknown>).domainName);
-      const active = (item as Record<string, unknown>).active
-        ?? (item as Record<string, unknown>).enabled
-        ?? (item as Record<string, unknown>).isActive
-        ?? (item as Record<string, unknown>).available
-        ?? (item as Record<string, unknown>).status;
-      const isInactive = active === false
-        || (typeof active === "string" && ["disabled", "inactive", "offline"].includes(active.trim().toLowerCase()));
-      if (domain && !isInactive) {
-        seen.add(domain.trim().toLowerCase());
+      const itemRecord = item as Record<string, unknown>;
+      const domain = normalizeDomain(readString(itemRecord.domain)
+        ?? readString(itemRecord.name)
+        ?? readString(itemRecord.value)
+        ?? readString(itemRecord.domainName));
+      if (domain && isIm215DomainUsable(itemRecord)) {
+        seen.add(domain);
       }
     }
   }
@@ -550,8 +581,9 @@ export class Im215Client {
       }
 
       const domains = extractDomainCandidates(response.body);
-      return this.config.preferredDomain && domains.includes(this.config.preferredDomain)
-        ? [this.config.preferredDomain, ...domains.filter((item) => item !== this.config.preferredDomain)]
+      const preferredDomain = normalizeDomain(this.config.preferredDomain);
+      return preferredDomain && domains.includes(preferredDomain)
+        ? [preferredDomain, ...domains.filter((item) => item !== preferredDomain)]
         : domains;
     });
   }
@@ -564,13 +596,15 @@ export class Im215Client {
 
     const maxRetries = options.maxRetries ?? 5;
     const baseLocalPart = sanitizeLocalPart(options.suggestedLocalPart);
+    const requestedPreferredDomain = normalizeDomain(options.preferredDomain) ?? normalizeDomain(this.config.preferredDomain);
+    const pinnedDomain = requestedPreferredDomain && domains.includes(requestedPreferredDomain)
+      ? requestedPreferredDomain
+      : undefined;
+    const rotationOffset = pinnedDomain ? 0 : nextDomainRotationOffset(this.config.namespace, domains.length);
 
     return this.withCredential("generate", baseLocalPart, async (_selection, apiKey) => {
       for (let attempt = 0; attempt < maxRetries; attempt += 1) {
-        const preferredDomain = options.preferredDomain?.trim() || this.config.preferredDomain;
-        const domain = preferredDomain && domains.includes(preferredDomain)
-          ? preferredDomain
-          : domains[attempt % domains.length]!;
+        const domain = pinnedDomain ?? domains[(rotationOffset + attempt) % domains.length]!;
         const localPart = `${baseLocalPart}-${createRandomSuffix(4)}`.slice(0, 60);
         const address = `${localPart}@${domain}`;
         const payloads: Record<string, unknown>[] = [

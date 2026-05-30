@@ -1070,12 +1070,21 @@
     setCachedProviderDomains('im215', domains);
     return domains;
   }
+  let im215DomainCursor = 0;
+  function takeIm215DomainOffset(domainCount) {
+    if (domainCount <= 1) return 0;
+    const current = im215DomainCursor % domainCount;
+    im215DomainCursor = (im215DomainCursor + 1) % domainCount;
+    return current;
+  }
   async function im215OpenMailbox(cfg) {
     const domains = await im215GetDomains(cfg);
     const preferred = String(cfg.preferredDomain || '').trim().toLowerCase();
-    const domain = preferred && domains.includes(preferred) ? preferred : domains[0];
-    if (!domain) throw new Error('215.im has no available domains.');
+    const pinnedDomain = preferred && domains.includes(preferred) ? preferred : '';
+    const rotationOffset = pinnedDomain ? 0 : takeIm215DomainOffset(domains.length);
     for (let attempt = 0; attempt < 6; attempt += 1) {
+      const domain = pinnedDomain || domains[(rotationOffset + attempt) % domains.length];
+      if (!domain) throw new Error('215.im has no available domains.');
       const localPart = `${createLocalPart('i215')}-${randomString(4)}`.slice(0, 48);
       const address = `${localPart}@${domain}`;
       for (const payload of [{ prefix: localPart, domain }, { address }]) {
@@ -2120,7 +2129,7 @@
     moemail: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.moemail_baseUrl) && String(s.moemail_apiKey || '').trim()), getConfig: (s) => ({ baseUrl: normalizeUrl(s.moemail_baseUrl), apiKey: String(s.moemail_apiKey || '').trim(), expiryTimeMs: String(s.moemail_expiryTimeMs || '3600000').trim() }), openMailbox: moemailOpenMailbox, listMessages: moemailListMessages },
     m2u: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.m2u_baseUrl)), getConfig: (s) => ({ baseUrl: normalizeUrl(s.m2u_baseUrl), preferredDomain: String(s.m2u_preferredDomain || '').trim() }), openMailbox: m2uOpenMailbox, listMessages: m2uListMessages },
     gptmail: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.gptmail_baseUrl) && splitConfiguredKeys(s.gptmail_apiKey).length), getConfig: (s) => ({ baseUrl: normalizeUrl(s.gptmail_baseUrl), apiKeys: splitConfiguredKeys(s.gptmail_apiKey), prefix: String(s.gptmail_prefix || '').trim() }), openMailbox: gptmailOpenMailbox, listMessages: gptmailListMessages },
-    im215: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.im215_baseUrl) && String(s.im215_apiKey || '').trim()), getConfig: (s) => ({ baseUrl: normalizeUrl(s.im215_baseUrl), apiKey: String(s.im215_apiKey || '').trim() }), openMailbox: im215OpenMailbox, listMessages: im215ListMessages },
+    im215: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.im215_baseUrl) && String(s.im215_apiKey || '').trim()), getConfig: (s) => ({ baseUrl: normalizeUrl(s.im215_baseUrl), apiKey: String(s.im215_apiKey || '').trim(), preferredDomain: String(s.im215_preferredDomain || '').trim() }), openMailbox: im215OpenMailbox, listMessages: im215ListMessages },
     mail2925: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.mail2925_baseUrl) && String(s.mail2925_account || '').trim() && String(s.mail2925_jwtToken || '').trim()), getConfig: (s) => ({ baseUrl: normalizeUrl(s.mail2925_baseUrl), account: String(s.mail2925_account || '').trim(), jwtToken: String(s.mail2925_jwtToken || '').trim(), deviceUid: String(s.mail2925_deviceUid || '').trim(), cookieHeader: String(s.mail2925_cookieHeader || '').trim(), folderName: String(s.mail2925_folderName || 'Inbox').trim() || 'Inbox', domain: String(s.mail2925_account || '').trim().split('@')[1] || '2925.com' }), openMailbox: mail2925OpenMailbox, listMessages: mail2925ListMessages },
   };
 
@@ -2392,7 +2401,7 @@
       return `<div class="${cardClass}"><div class="eep-provider-card-head"><h4>${escapeHtml(providerLabel(providerKey))}</h4><span class="eep-provider-pill">${hint}</span></div><div class="eep-provider-status-note">${detail}</div><div class="eep-provider-card-fields"><label class="eep-field"><span>${escapeHtml(t('url'))}</span><input data-setting="gptmail_baseUrl" value="${escapeHtml(settings.gptmail_baseUrl)}" /></label><label class="eep-field"><span>${escapeHtml(t('apiKeys'))}</span><input type="password" data-setting="gptmail_apiKey" value="${escapeHtml(settings.gptmail_apiKey)}" /></label><label class="eep-field"><span>${escapeHtml(t('prefix'))}</span><input data-setting="gptmail_prefix" value="${escapeHtml(settings.gptmail_prefix)}" /></label></div></div>`;
     }
     if (providerKey === 'im215') {
-      return `<div class="${cardClass}"><div class="eep-provider-card-head"><h4>${escapeHtml(providerLabel(providerKey))}</h4><span class="eep-provider-pill">${hint}</span></div><div class="eep-provider-status-note">${detail}</div><div class="eep-provider-card-fields"><label class="eep-field"><span>${escapeHtml(t('url'))}</span><input data-setting="im215_baseUrl" value="${escapeHtml(settings.im215_baseUrl)}" /></label><label class="eep-field"><span>${escapeHtml(t('apiKey'))}</span><input type="password" data-setting="im215_apiKey" value="${escapeHtml(settings.im215_apiKey)}" /></label></div></div>`;
+      return `<div class="${cardClass}"><div class="eep-provider-card-head"><h4>${escapeHtml(providerLabel(providerKey))}</h4><span class="eep-provider-pill">${hint}</span></div><div class="eep-provider-status-note">${detail}</div><div class="eep-provider-card-fields"><label class="eep-field"><span>${escapeHtml(t('url'))}</span><input data-setting="im215_baseUrl" value="${escapeHtml(settings.im215_baseUrl)}" /></label><label class="eep-field"><span>${escapeHtml(t('apiKey'))}</span><input type="password" data-setting="im215_apiKey" value="${escapeHtml(settings.im215_apiKey)}" /></label><label class="eep-field"><span>${escapeHtml(t('domain'))}</span><input data-setting="im215_preferredDomain" value="${escapeHtml(settings.im215_preferredDomain || '')}" placeholder="007.hzeg.eu.org / example.com" /></label></div></div>`;
     }
     if (providerKey === 'mail2925') {
       return `<div class="${cardClass}"><div class="eep-provider-card-head"><h4>${escapeHtml(providerLabel(providerKey))}</h4><span class="eep-provider-pill">${hint}</span></div><div class="eep-provider-status-note">${detail}</div><div class="eep-provider-card-fields"><label class="eep-field"><span>${escapeHtml(t('url'))}</span><input data-setting="mail2925_baseUrl" value="${escapeHtml(settings.mail2925_baseUrl)}" /></label><label class="eep-field"><span>Account</span><input data-setting="mail2925_account" value="${escapeHtml(settings.mail2925_account || '')}" /></label><label class="eep-field"><span>JWT Token</span><input type="password" data-setting="mail2925_jwtToken" value="${escapeHtml(settings.mail2925_jwtToken || '')}" /></label><label class="eep-field"><span>deviceUid</span><input data-setting="mail2925_deviceUid" value="${escapeHtml(settings.mail2925_deviceUid || '')}" /></label><label class="eep-field"><span>Cookie</span><input data-setting="mail2925_cookieHeader" value="${escapeHtml(settings.mail2925_cookieHeader || '')}" /></label><label class="eep-field"><span>Folder</span><input data-setting="mail2925_folderName" value="${escapeHtml(settings.mail2925_folderName || 'Inbox')}" /></label></div></div>`;

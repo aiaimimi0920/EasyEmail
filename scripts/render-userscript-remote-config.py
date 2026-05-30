@@ -76,6 +76,7 @@ def build_settings(config: dict[str, Any]) -> dict[str, str]:
         get_in(config, "serviceBase", "runtime", "providers", "im215", "baseUrl"),
         default="https://maliapi.215.im/v1",
     )
+    im215_preferred_domain = str_value(get_in(config, "serviceBase", "runtime", "providers", "im215", "domain"))
     mail2925_base_url = str_value(
         get_in(config, "serviceBase", "runtime", "providers", "mail2925", "baseUrl"),
         default="https://mail.2925.com",
@@ -116,6 +117,7 @@ def build_settings(config: dict[str, Any]) -> dict[str, str]:
         "im215_enabled": bool_string(bool(im215_api_key), default=False),
         "im215_baseUrl": im215_base_url,
         "im215_apiKey": im215_api_key,
+        "im215_preferredDomain": im215_preferred_domain,
         "mail2925_enabled": bool_string(bool(mail2925_account and mail2925_jwt_token), default=False),
         "mail2925_baseUrl": mail2925_base_url,
         "mail2925_account": mail2925_account,
