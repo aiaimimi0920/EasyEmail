@@ -388,4 +388,27 @@ describe("moemail mailboxRef", () => {
       code: "MOEMAIL_CAPACITY_EXHAUSTED",
     } satisfies Partial<EasyEmailError>);
   });
+
+  it("maps exhausted generate credential selection to capacity instead of provider error", async () => {
+    const adapter = new MoemailProviderAdapter();
+    const credentialSet = createProviderCredentialSet();
+
+    await expect(adapter.createMailboxSession({
+      request: createMailboxRequest(),
+      instance: createProviderInstance(),
+      credentialSets: [
+        {
+          ...credentialSet,
+          items: credentialSet.items.map((item) => ({
+            ...item,
+            status: "disabled",
+          })),
+        },
+      ],
+      now: new Date("2026-04-24T12:00:00.000Z"),
+    })).rejects.toMatchObject({
+      name: "EasyEmailError",
+      code: "MOEMAIL_CAPACITY_EXHAUSTED",
+    } satisfies Partial<EasyEmailError>);
+  });
 });

@@ -979,7 +979,10 @@ export class MoemailClient {
       }
     }
 
-    throw lastError ?? new Error(`No available MoEmail credentials for ${useCase}.`);
+    throw lastError ?? new MoemailClientError(
+      `No available MoEmail credentials for ${useCase}.`,
+      useCase === "generate" ? "capacity" : "transient",
+    );
   }
 
   public async getConfig(): Promise<Record<string, unknown>> {
