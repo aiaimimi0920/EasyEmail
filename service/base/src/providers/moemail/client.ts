@@ -166,6 +166,19 @@ function createLocalPartSeed(value: string | undefined): string {
   return normalized || `m${Math.random().toString(36).slice(2, 10)}`;
 }
 
+const CONFIG_DOMAIN_ROTATION_OFFSETS = new Map<string, number>();
+
+function nextConfigDomainRotationOffset(scope: string, domains: string[]): number {
+  if (domains.length <= 1) {
+    return 0;
+  }
+
+  const key = `${scope}:${domains.join(",")}`;
+  const offset = CONFIG_DOMAIN_ROTATION_OFFSETS.get(key) ?? 0;
+  CONFIG_DOMAIN_ROTATION_OFFSETS.set(key, (offset + 1) % domains.length);
+  return offset;
+}
+
 function normalizeEmailAddress(value: string | undefined): string | undefined {
   const normalized = value?.trim().toLowerCase();
   if (!normalized || !normalized.includes("@")) {
@@ -993,7 +1006,11 @@ export class MoemailClient {
         if (configResponse.status === 200) {
           const configDomains = extractDomainsFromConfig(asRecord(configResponse.body));
           if (configDomains.length > 0) {
-            domain = configDomains[0];
+            const rotationOffset = nextConfigDomainRotationOffset(
+              `${this.config.instanceId}:${this.config.apiBase.trim().toLowerCase()}`,
+              configDomains,
+            );
+            domain = configDomains[rotationOffset];
           }
         }
       }

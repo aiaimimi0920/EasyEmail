@@ -248,6 +248,49 @@ describe("moemail mailboxRef", () => {
     });
   });
 
+  it("rotates config domains across direct mailbox creations when no domain is pinned", async () => {
+    const generatedDomains: string[] = [];
+    const fetchMock = vi.fn(async (input: string, init?: { body?: string }) => {
+      if (input.endsWith("/api/config")) {
+        return createFetchResponse(200, {
+          emailDomains: "sall.cc,cnmlgb.de,zhooo.org",
+        });
+      }
+
+      if (input.endsWith("/api/emails/generate")) {
+        const payload = JSON.parse(init?.body ?? "{}") as Record<string, unknown>;
+        const localPart = String(payload.name ?? "mailbox");
+        const domain = String(payload.domain ?? "");
+        generatedDomains.push(domain);
+        return createFetchResponse(201, {
+          id: `email-${generatedDomains.length}`,
+          address: `${localPart}@${domain}`,
+        });
+      }
+
+      throw new Error(`Unexpected request: ${input}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new MoemailClient({
+      instanceId: "moemail-inst-rotate",
+      namespace: "test:moemail:rotate-domains",
+      apiBase: "https://moemail-rotate.example",
+      credentialSets: [createCredentialSet()],
+      expiryTimeMs: 3_600_000,
+    });
+
+    await client.createMailbox({ name: "first" });
+    await client.createMailbox({ name: "second" });
+    await client.createMailbox({ name: "third" });
+
+    expect(generatedDomains).toEqual([
+      "sall.cc",
+      "cnmlgb.de",
+      "zhooo.org",
+    ]);
+  });
+
   it("classifies mailbox conflicts separately from capacity failures", () => {
     const classified = classifyMoemailFailure(new Error("MoEmail generateMailbox failed with status 409. 该邮箱地址已被使用"));
 

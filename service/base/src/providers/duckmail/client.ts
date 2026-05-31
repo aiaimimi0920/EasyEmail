@@ -135,6 +135,24 @@ function sanitizeLocalPart(value: string | undefined): string {
   return (base || `d${createAlphaNumeric(6).toLowerCase()}`).slice(0, 48);
 }
 
+const DOMAIN_ROTATION_OFFSETS = new Map<string, number>();
+
+function normalizeDomain(value: string | undefined): string | undefined {
+  const normalized = value?.trim().toLowerCase();
+  return normalized || undefined;
+}
+
+function nextDomainRotationOffset(scope: string, domains: string[]): number {
+  if (domains.length <= 1) {
+    return 0;
+  }
+
+  const key = `${scope}:${domains.join(",")}`;
+  const offset = DOMAIN_ROTATION_OFFSETS.get(key) ?? 0;
+  DOMAIN_ROTATION_OFFSETS.set(key, (offset + 1) % domains.length);
+  return offset;
+}
+
 function encodeQuery(params: Record<string, string | number | undefined>): string {
   const entries = Object.entries(params)
     .filter(([, value]) => value !== undefined)
@@ -348,7 +366,7 @@ export class DuckMailClient {
   }
 
   public async createMailbox(options: { suggestedLocalPart?: string; maxRetries?: number } = {}): Promise<DuckMailMailboxCredentials> {
-    const preferredDomain = this.config.preferredDomain?.trim();
+    const preferredDomain = normalizeDomain(this.config.preferredDomain);
     const domains = await this.getDomains();
     const eligibleDomains = preferredDomain
       ? [preferredDomain, ...domains.filter((item) => item !== preferredDomain)]
@@ -359,10 +377,13 @@ export class DuckMailClient {
 
     const baseLocalPart = sanitizeLocalPart(options.suggestedLocalPart);
     const maxRetries = options.maxRetries ?? 5;
+    const rotationOffset = preferredDomain
+      ? 0
+      : nextDomainRotationOffset(this.config.apiBase.trim().toLowerCase(), eligibleDomains);
 
     for (let attempt = 0; attempt < maxRetries; attempt += 1) {
       const localPart = `${baseLocalPart}-${createAlphaNumeric(4).toLowerCase()}`.slice(0, 60);
-      const domain = eligibleDomains[attempt % eligibleDomains.length]!;
+      const domain = eligibleDomains[(rotationOffset + attempt) % eligibleDomains.length]!;
       const email = `${localPart}@${domain}`;
       const password = createPassword(this.config.passwordLength);
 

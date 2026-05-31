@@ -512,6 +512,16 @@
   function normalizeDomainEntries(entries) {
     return [...new Set((entries || []).map((item) => String(item || '').trim().toLowerCase()).filter(Boolean))];
   }
+  const providerDomainCursors = new Map();
+  function nextProviderDomain(providerKey, domains) {
+    const normalizedDomains = normalizeDomainEntries(domains);
+    if (!normalizedDomains.length) return '';
+    if (normalizedDomains.length === 1) return normalizedDomains[0];
+    const key = `${providerKey}:${normalizedDomains.join(',')}`;
+    const cursor = providerDomainCursors.get(key) || 0;
+    providerDomainCursors.set(key, (cursor + 1) % normalizedDomains.length);
+    return normalizedDomains[cursor % normalizedDomains.length] || normalizedDomains[0];
+  }
   function splitDomainEntries(entries) {
     const exactDomains = [];
     const rootDomains = [];
@@ -1070,18 +1080,12 @@
     setCachedProviderDomains('im215', domains);
     return domains;
   }
-  let im215DomainCursor = 0;
-  function takeIm215DomainOffset(domainCount) {
-    if (domainCount <= 1) return 0;
-    const current = im215DomainCursor % domainCount;
-    im215DomainCursor = (im215DomainCursor + 1) % domainCount;
-    return current;
-  }
   async function im215OpenMailbox(cfg) {
     const domains = await im215GetDomains(cfg);
     const preferred = String(cfg.preferredDomain || '').trim().toLowerCase();
     const pinnedDomain = preferred && domains.includes(preferred) ? preferred : '';
-    const rotationOffset = pinnedDomain ? 0 : takeIm215DomainOffset(domains.length);
+    const firstDomain = pinnedDomain || nextProviderDomain('im215', domains);
+    const rotationOffset = Math.max(0, domains.indexOf(firstDomain));
     for (let attempt = 0; attempt < 6; attempt += 1) {
       const domain = pinnedDomain || domains[(rotationOffset + attempt) % domains.length];
       if (!domain) throw new Error('215.im has no available domains.');
@@ -1591,9 +1595,12 @@
   async function duckmailOpenMailbox(cfg) {
     const domains = await duckmailGetDomains(cfg);
     const preferred = String(cfg.preferredDomain || '').trim().toLowerCase();
-    const domain = preferred && domains.includes(preferred) ? preferred : domains[0];
-    if (!domain) throw new Error('DuckMail has no available domains.');
+    const pinnedDomain = preferred && domains.includes(preferred) ? preferred : '';
+    const firstDomain = pinnedDomain || nextProviderDomain('duckmail', domains);
+    const rotationOffset = Math.max(0, domains.indexOf(firstDomain));
     for (let attempt = 0; attempt < 6; attempt += 1) {
+      const domain = pinnedDomain || domains[(rotationOffset + attempt) % domains.length];
+      if (!domain) throw new Error('DuckMail has no available domains.');
       const email = `${createLocalPart('duck')}-${randomString(4)}@${domain}`.slice(0, 60 + domain.length + 1);
       const password = randomString(16);
       const created = await duckmailRequest(cfg.baseUrl, 'POST', '/accounts', { body: { address: email, password } });
@@ -1903,7 +1910,7 @@
     setCachedProviderDomains('moemail', domains);
     return payload;
   }
-  async function moemailOpenMailbox(cfg) { const configPayload = await moemailGetConfig(cfg); let domain = cfg.preferredDomain || ''; if (!domain) { const domains = extractDomainsFromBody(configPayload); if (domains.length) domain = domains[0]; } const result = await moemailRequest(cfg.baseUrl, cfg.apiKey, 'POST', '/api/emails/generate', { name: createLocalPart('mo'), expiryTime: Number.parseInt(cfg.expiryTimeMs || '3600000', 10) || 3600000, ...(domain ? { domain } : {}) }); if (![200, 201].includes(result.status)) throw new Error(`MoEmail open failed: HTTP ${result.status}${result.data && result.data.error ? `. ${result.data.error}` : ''}`); const payload = typeof result.data === 'string' ? {} : result.data; const candidates = [payload, payload.data || {}, payload.email || {}, payload.mailbox || {}]; let emailId = ''; let email = ''; for (const item of candidates) { emailId = emailId || String(item.emailId || item.id || item._id || item.mailboxId || '').trim(); email = email || String(item.emailAddress || item.address || item.email || item.mailbox || '').trim().toLowerCase(); } if (!emailId || !email || !email.includes('@')) throw new Error('MoEmail open returned incomplete mailbox payload.'); return { email, mailboxData: { emailId, email }, metadata: { selectedDomain: email.split('@')[1] || domain || '' } }; }
+  async function moemailOpenMailbox(cfg) { const configPayload = await moemailGetConfig(cfg); let domain = String(cfg.preferredDomain || '').trim().toLowerCase(); if (!domain) { const domains = extractDomainsFromBody(configPayload); domain = nextProviderDomain('moemail', domains); } const result = await moemailRequest(cfg.baseUrl, cfg.apiKey, 'POST', '/api/emails/generate', { name: createLocalPart('mo'), expiryTime: Number.parseInt(cfg.expiryTimeMs || '3600000', 10) || 3600000, ...(domain ? { domain } : {}) }); if (![200, 201].includes(result.status)) throw new Error(`MoEmail open failed: HTTP ${result.status}${result.data && result.data.error ? `. ${result.data.error}` : ''}`); const payload = typeof result.data === 'string' ? {} : result.data; const candidates = [payload, payload.data || {}, payload.email || {}, payload.mailbox || {}]; let emailId = ''; let email = ''; for (const item of candidates) { emailId = emailId || String(item.emailId || item.id || item._id || item.mailboxId || '').trim(); email = email || String(item.emailAddress || item.address || item.email || item.mailbox || '').trim().toLowerCase(); } if (!emailId || !email || !email.includes('@')) throw new Error('MoEmail open returned incomplete mailbox payload.'); return { email, mailboxData: { emailId, email }, metadata: { selectedDomain: email.split('@')[1] || domain || '' } }; }
   async function moemailResolveMailboxByEmail(cfg, email) {
     const normalized = normalizeEmailAddress(email);
     if (!normalized) throw new Error('Invalid MoEmail address.');
