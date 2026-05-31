@@ -8,6 +8,8 @@ import { EasyEmailError } from "../../src/domain/errors.js";
 import { MailRegistry } from "../../src/domain/registry.js";
 import { EasyEmailService } from "../../src/service/easy-email-service.js";
 import { clearCredentialRuntimeState } from "../../src/shared/index.js";
+import { encodeMoemailMailboxRef } from "../../src/providers/moemail/client.js";
+import { MoemailProviderAdapter } from "../../src/providers/moemail/index.js";
 
 function createFetchResponse(status: number, body: unknown) {
   return {
@@ -185,5 +187,61 @@ describe("EasyEmailService.cleanupMoemailMailboxes", () => {
     expect(result.providerInstanceId).toBe("moemail-b");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("https://moemail-b.example/api/emails");
+  });
+
+  it("expires local MoEmail sessions when upstream web delete is unauthorized", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(createFetchResponse(401, { message: "未授权" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const session = {
+      id: "mailbox_20260424120000_0001",
+      hostId: "python-register-orchestration",
+      providerTypeKey: "moemail" as const,
+      providerInstanceId: "moemail-default",
+      emailAddress: "demo@sall.cc",
+      mailboxRef: encodeMoemailMailboxRef("moemail-default", {
+        emailId: "email-unauthorized",
+        email: "demo@sall.cc",
+        localPart: "demo",
+        domain: "sall.cc",
+      }),
+      status: "open" as const,
+      createdAt: "2026-04-24T12:00:00.000Z",
+      expiresAt: "2026-04-24T12:30:00.000Z",
+      metadata: {
+        source: "unit-test",
+      },
+    };
+    const seededService = new EasyEmailService(
+      new MailRegistry({
+        instances: [createProviderInstance({
+          metadata: {
+            apiBase: "https://sall.cc",
+            webSessionToken: "expired-web-session",
+            expiryTimeMs: "1800000",
+          },
+        })],
+        credentialSets: [createCredentialSet("cred-set-1")],
+        credentialBindings: [createCredentialBinding("moemail-default", "cred-set-1")],
+        sessions: [session],
+      }),
+      undefined,
+      [new MoemailProviderAdapter()],
+    );
+
+    const result = await seededService.releaseMailbox(
+      session.id,
+      "dst_flow_cleanup",
+      new Date("2026-04-24T12:05:00.000Z"),
+    );
+
+    expect(result).toMatchObject({
+      released: false,
+      detail: "upstream_delete_unauthorized",
+    });
+    expect(result.session.status).toBe("expired");
+    expect(result.session.metadata.releaseStatus).toBe("skipped");
+    expect(result.session.metadata.releaseDetail).toBe("upstream_delete_unauthorized");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

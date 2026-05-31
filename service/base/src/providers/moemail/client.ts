@@ -1141,6 +1141,12 @@ export class MoemailClient {
         detail: "already_missing",
       };
     }
+    if (response.status === 401 || response.status === 403) {
+      return {
+        released: false,
+        detail: "upstream_delete_unauthorized",
+      };
+    }
     if (response.status !== 200 && response.status !== 204) {
       throw buildStatusError("deleteMailboxWeb", response.status, body);
     }
