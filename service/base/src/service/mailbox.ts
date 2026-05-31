@@ -23,6 +23,7 @@ function isTransientMailboxSyncError(error: unknown): boolean {
     || normalized.includes("econnreset")
     || normalized.includes("socket hang up")
     || normalized.includes("network")
+    || normalized.includes("no available moemail credentials for poll")
     || normalized.includes("cloudflare temp email listmails failed with status 500")
     || normalized.includes("cloudflare temp email getmail failed with status 500")
   );

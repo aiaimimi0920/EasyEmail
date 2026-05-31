@@ -115,3 +115,28 @@ describe("mailbox sync freshness tolerance", () => {
     expect(result).toBeUndefined();
   });
 });
+
+describe("mailbox sync transient provider credential availability", () => {
+  it("treats temporarily unavailable MoEmail poll credentials as no code instead of a hard failure", async () => {
+    const adapter: MailProviderAdapter = {
+      ...createAdapter("2026-04-01T00:00:30.000Z"),
+      async syncMailboxCode() {
+        throw new Error("No available MoEmail credentials for poll.");
+      },
+    };
+    const service = createBootstrappedEasyEmailService({
+      providerTypes: [providerType],
+      providerInstances: [providerInstance],
+      adapters: [adapter],
+    }, new Date("2026-04-01T00:00:00.000Z"));
+
+    const opened = await service.openMailbox({
+      hostId: "demo-host",
+      providerTypeKey: "mailtm",
+      provisionMode: "reuse-only",
+      bindingMode: "shared-instance",
+    }, new Date("2026-04-01T00:01:00.000Z"));
+
+    await expect(service.readVerificationCode(opened.session.id)).resolves.toBeUndefined();
+  });
+});
