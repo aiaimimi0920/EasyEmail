@@ -280,7 +280,7 @@ export class MoemailProviderAdapter implements MailProviderAdapter {
     const maintenanceClient = new MoemailClient(resolveMoemailConfig(instance, credentialSets, {
       namespace: `mail:moemail:maintenance:${instance.id}`,
     }));
-    return await maintenanceClient.deleteMailbox(mailbox.emailId, "poll", {
+    return await maintenanceClient.deleteMailbox(mailbox, "poll", {
       fallbackToApiKeyAfterWebUnauthorized: true,
     });
   }

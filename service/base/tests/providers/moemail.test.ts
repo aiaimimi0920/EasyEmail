@@ -176,7 +176,7 @@ describe("moemail mailboxRef", () => {
       }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(createClient().createMailbox({ name: "demo@moemail.app" })).resolves.toEqual({
+    await expect(createClient().createMailbox({ name: "demo@moemail.app" })).resolves.toMatchObject({
       emailId: "email-456",
       email: "demo@moemail.app",
       localPart: "demo",
@@ -208,7 +208,7 @@ describe("moemail mailboxRef", () => {
       }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(createClient().recoverMailboxByEmailAddress("demo@moemail.app")).resolves.toEqual({
+    await expect(createClient().recoverMailboxByEmailAddress("demo@moemail.app")).resolves.toMatchObject({
       mailbox: {
         emailId: "email-123",
         email: "demo@moemail.app",
@@ -237,7 +237,7 @@ describe("moemail mailboxRef", () => {
       }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(createClient().recoverMailboxByEmailAddress("demo@moemail.app")).resolves.toEqual({
+    await expect(createClient().recoverMailboxByEmailAddress("demo@moemail.app")).resolves.toMatchObject({
       mailbox: {
         emailId: "email-456",
         email: "demo@moemail.app",
@@ -331,6 +331,100 @@ describe("moemail mailboxRef", () => {
     expect(observed).toMatchObject({
       extractedCode: "A1B2C3",
       codeSource: "text",
+    });
+  });
+
+  it("polls a generated mailbox with the same credential that created it", async () => {
+    const credentialSets: CredentialSetDefinition[] = [
+      {
+        id: "moemail-multi-key-set",
+        displayName: "MoEmail Multi Key Set",
+        useCases: ["generate", "poll"],
+        strategy: "round-robin",
+        priority: 100,
+        items: [
+          {
+            id: "key-a",
+            label: "Key A",
+            value: "api-key-a",
+            metadata: {},
+          },
+          {
+            id: "key-b",
+            label: "Key B",
+            value: "api-key-b",
+            metadata: {},
+          },
+        ],
+        metadata: {},
+      },
+    ];
+    const client = new MoemailClient({
+      instanceId: "moemail-inst-1",
+      namespace: "test:moemail-binding",
+      apiBase: "https://moemail.app",
+      credentialSets,
+      preferredDomain: "moemail.app",
+      expiryTimeMs: 3_600_000,
+    });
+    const fetchMock = vi.fn(async (input: string, init?: { method?: string; headers?: Record<string, string> }) => {
+      const apiKey = init?.headers?.["X-API-Key"];
+      if (String(input).endsWith("/api/emails/generate")) {
+        expect(apiKey).toBe("api-key-a");
+        return createFetchResponse(201, {
+          id: "mailbox-123",
+          address: "demo@moemail.app",
+        });
+      }
+
+      if (String(input).includes("/api/emails/mailbox-123")) {
+        if (apiKey !== "api-key-a") {
+          return createFetchResponse(403, { error: "无权限查看" });
+        }
+        return createFetchResponse(200, {
+          messages: [
+            {
+              id: "message-123",
+              from_address: "no-reply@openai.com",
+              subject: "OpenAI verification code",
+              content: "Your verification code is 246810.",
+              html: "",
+              sent_at: 1777336031225,
+              received_at: 1777336031225,
+            },
+          ],
+        });
+      }
+
+      return createFetchResponse(404, { error: "unexpected request" });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const mailbox = await client.createMailbox({ name: "demo@moemail.app" });
+
+    expect(mailbox).toMatchObject({
+      emailId: "mailbox-123",
+      email: "demo@moemail.app",
+      credentialSetId: "moemail-multi-key-set",
+      credentialItemId: "key-a",
+    });
+    const decoded = decodeMoemailMailboxRef(
+      encodeMoemailMailboxRef("moemail-inst-1", mailbox),
+      "moemail-inst-1",
+    );
+    expect(decoded).toMatchObject({
+      credentialSetId: "moemail-multi-key-set",
+      credentialItemId: "key-a",
+    });
+
+    const observed = await client.tryReadLatestCode(
+      "session-123",
+      decoded!,
+      "moemail-inst-1",
+    );
+
+    expect(observed).toMatchObject({
+      extractedCode: "246810",
     });
   });
 

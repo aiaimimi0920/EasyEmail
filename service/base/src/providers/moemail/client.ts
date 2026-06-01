@@ -42,6 +42,8 @@ export interface MoemailMailboxCredentials {
   email: string;
   localPart?: string;
   domain?: string;
+  credentialSetId?: string;
+  credentialItemId?: string;
 }
 
 export interface MoemailMailboxListingEntry {
@@ -600,6 +602,35 @@ function summarizeMessage(record: Record<string, unknown>): MoemailMessageSummar
 export class MoemailClient {
   public constructor(private readonly config: MoemailConfig) {}
 
+  private bindMailboxToCredential(
+    mailbox: MoemailMailboxCredentials,
+    selection: CredentialSelection,
+  ): MoemailMailboxCredentials {
+    return {
+      ...mailbox,
+      credentialSetId: selection.set.id,
+      credentialItemId: selection.item.id,
+    };
+  }
+
+  private resolveBoundCredential(
+    mailbox: MoemailMailboxCredentials,
+    useCase: "generate" | "poll",
+  ): CredentialSelection | undefined {
+    const credentialSetId = mailbox.credentialSetId?.trim();
+    const credentialItemId = mailbox.credentialItemId?.trim();
+    if (!credentialSetId || !credentialItemId) {
+      return undefined;
+    }
+
+    const set = this.config.credentialSets.find((candidate) => (
+      candidate.id === credentialSetId
+      && candidate.useCases.includes(useCase)
+    ));
+    const item = set?.items.find((candidate) => candidate.id === credentialItemId);
+    return set && item ? { set, item } : undefined;
+  }
+
   private async listEmailsWithApiKey(
     apiKey: string,
     cursor?: string,
@@ -769,6 +800,7 @@ export class MoemailClient {
   }
 
   private async recoverRequestedMailboxConflict(
+    selection: CredentialSelection,
     apiKey: string,
     error: unknown,
     options: {
@@ -790,7 +822,7 @@ export class MoemailClient {
 
     const mailboxAccess = await this.inspectMailboxAccessWithApiKey(apiKey, existing);
     if (mailboxAccess.status === "accessible") {
-      return existing;
+      return this.bindMailboxToCredential(existing, selection);
     }
 
     if (mailboxAccess.status !== "missing") {
@@ -804,11 +836,12 @@ export class MoemailClient {
         await new Promise((resolve) => setTimeout(resolve, 500 * attemptIndex));
       }
       try {
-        return await this.generateMailboxWithApiKey(apiKey, {
+        const mailbox = await this.generateMailboxWithApiKey(apiKey, {
           localPart: options.localPart,
           expiryTime: options.expiryTime,
           domain: options.domain,
         });
+        return this.bindMailboxToCredential(mailbox, selection);
       } catch (retryError) {
         if (!isMailboxAlreadyUsedError(retryError) || attemptIndex >= 2) {
           throw retryError;
@@ -827,7 +860,7 @@ export class MoemailClient {
       return undefined;
     }
 
-    return this.withCredential("generate", requestedEmail, async (_selection, apiKey) => {
+    return this.withCredential("generate", requestedEmail, async (selection, apiKey) => {
       const requestedIdentity = splitEmailAddress(requestedEmail);
       if (!requestedIdentity) {
         return undefined;
@@ -838,7 +871,7 @@ export class MoemailClient {
         const mailboxAccess = await this.inspectMailboxAccessWithApiKey(apiKey, existing);
         if (mailboxAccess.status === "accessible") {
           return {
-            mailbox: existing,
+            mailbox: this.bindMailboxToCredential(existing, selection),
             strategy: "account_restore" as const,
           };
         }
@@ -855,11 +888,11 @@ export class MoemailClient {
           domain: requestedIdentity.domain,
         });
         return {
-          mailbox,
+          mailbox: this.bindMailboxToCredential(mailbox, selection),
           strategy: "recreate_same_address" as const,
         };
       } catch (error) {
-        const recovered = await this.recoverRequestedMailboxConflict(apiKey, error, {
+        const recovered = await this.recoverRequestedMailboxConflict(selection, apiKey, error, {
           requestedEmail,
           localPart: requestedIdentity.localPart,
           expiryTime: this.config.expiryTimeMs,
@@ -951,15 +984,18 @@ export class MoemailClient {
     useCase: "generate" | "poll",
     stickyKey: string | undefined,
     callback: (selection: CredentialSelection, apiKey: string) => Promise<T>,
+    options: {
+      preferredSelection?: CredentialSelection;
+    } = {},
   ): Promise<T> {
     const attempts = Math.max(1, this.countCandidateItems(useCase));
     let lastError: Error | undefined;
+    const attempted = new Set<string>();
 
-    for (let index = 0; index < attempts; index += 1) {
-      const selection = this.select(useCase, stickyKey);
-      if (!selection) {
-        break;
-      }
+    const attemptSelection = async (selection: CredentialSelection): Promise<
+      { ok: true; value: T } | { ok: false }
+    > => {
+      attempted.add(`${selection.set.id}:${selection.item.id}`);
 
       const apiKey = selection.item.value?.trim();
       if (!apiKey) {
@@ -967,15 +1003,38 @@ export class MoemailClient {
           selection,
           new MoemailClientError("Selected MoEmail credential is missing key value.", "auth"),
         );
-        continue;
+        return { ok: false };
       }
 
       try {
         const result = await callback(selection, apiKey);
         markCredentialSuccess(this.config.namespace, selection.set, selection.item);
-        return result;
+        return { ok: true, value: result };
       } catch (error) {
         lastError = this.handleCredentialFailure(selection, error);
+        return { ok: false };
+      }
+    };
+
+    if (options.preferredSelection) {
+      const preferredResult = await attemptSelection(options.preferredSelection);
+      if (preferredResult.ok) {
+        return preferredResult.value;
+      }
+    }
+
+    for (let index = 0; index < attempts; index += 1) {
+      const selection = this.select(useCase, stickyKey);
+      if (!selection) {
+        break;
+      }
+      if (attempted.has(`${selection.set.id}:${selection.item.id}`)) {
+        continue;
+      }
+
+      const result = await attemptSelection(selection);
+      if (result.ok) {
+        return result.value;
       }
     }
 
@@ -1000,7 +1059,7 @@ export class MoemailClient {
     expiryTime?: number;
     domain?: string;
   } = {}): Promise<MoemailMailboxCredentials> {
-    return this.withCredential("generate", options.name, async (_selection, apiKey) => {
+    return this.withCredential("generate", options.name, async (selection, apiKey) => {
       const requestedIdentity = splitEmailAddress(options.name);
       const localPart = requestedIdentity?.localPart || createLocalPartSeed(options.name);
       let domain = requestedIdentity?.domain || options.domain?.trim() || this.config.preferredDomain;
@@ -1018,13 +1077,14 @@ export class MoemailClient {
         }
       }
       try {
-        return await this.generateMailboxWithApiKey(apiKey, {
+        const mailbox = await this.generateMailboxWithApiKey(apiKey, {
           localPart,
           expiryTime: options.expiryTime,
           domain,
         });
+        return this.bindMailboxToCredential(mailbox, selection);
       } catch (error) {
-        const recovered = await this.recoverRequestedMailboxConflict(apiKey, error, {
+        const recovered = await this.recoverRequestedMailboxConflict(selection, apiKey, error, {
           requestedEmail: requestedIdentity?.email,
           localPart,
           expiryTime: options.expiryTime,
@@ -1050,26 +1110,27 @@ export class MoemailClient {
   }
 
   public async listMailboxMessages(
-    emailId: string,
+    mailbox: MoemailMailboxCredentials,
     cursor: string | undefined,
   ): Promise<{ items: MoemailMessageSummary[]; nextCursor?: string }> {
     return this.withCredential(
       "poll",
-      emailId,
-      async (_selection, apiKey) => this.listMailboxMessagesWithApiKey(apiKey, emailId, cursor),
+      mailbox.emailId,
+      async (_selection, apiKey) => this.listMailboxMessagesWithApiKey(apiKey, mailbox.emailId, cursor),
+      { preferredSelection: this.resolveBoundCredential(mailbox, "poll") },
     );
   }
 
   public async getMailboxMessage(
-    emailId: string,
+    mailbox: MoemailMailboxCredentials,
     messageId: string,
   ): Promise<Record<string, unknown>> {
-    return this.withCredential("poll", `${emailId}:${messageId}`, async (_selection, apiKey) => {
+    return this.withCredential("poll", `${mailbox.emailId}:${messageId}`, async (_selection, apiKey) => {
       const response = await requestJson(
         this.config,
         apiKey,
         "GET",
-        `/api/emails/${encodeURIComponent(emailId)}/${encodeURIComponent(messageId)}`,
+        `/api/emails/${encodeURIComponent(mailbox.emailId)}/${encodeURIComponent(messageId)}`,
       );
 
       if (response.status === 404) {
@@ -1080,14 +1141,18 @@ export class MoemailClient {
       }
 
       return asRecord(response.body);
-    });
+    }, { preferredSelection: this.resolveBoundCredential(mailbox, "poll") });
   }
 
   public async deleteMailbox(
-    emailId: string,
+    mailboxOrEmailId: string | MoemailMailboxCredentials,
     useCase: "generate" | "poll" = "poll",
     options: { fallbackToApiKeyAfterWebUnauthorized?: boolean } = {},
   ): Promise<{ released: boolean; detail: string }> {
+    const mailbox = typeof mailboxOrEmailId === "string" ? undefined : mailboxOrEmailId;
+    const emailId = typeof mailboxOrEmailId === "string" ? mailboxOrEmailId : mailboxOrEmailId.emailId;
+    const preferredSelection = mailbox ? this.resolveBoundCredential(mailbox, useCase) : undefined;
+
     if (this.config.webSessionToken?.trim()) {
       const webResult = await this.deleteMailboxViaWebSession(emailId);
       if (
@@ -1098,9 +1163,12 @@ export class MoemailClient {
         return webResult;
       }
 
-      const apiKeyResult = await this.withCredential(useCase, emailId, async (_selection, apiKey) => {
-        return this.deleteMailboxWithApiKey(apiKey, emailId, useCase);
-      });
+      const apiKeyResult = await this.withCredential(
+        useCase,
+        emailId,
+        async (_selection, apiKey) => this.deleteMailboxWithApiKey(apiKey, emailId, useCase),
+        { preferredSelection },
+      );
       if (apiKeyResult.released && apiKeyResult.detail === "deleted") {
         return {
           released: true,
@@ -1113,9 +1181,12 @@ export class MoemailClient {
       };
     }
 
-    return this.withCredential(useCase, emailId, async (_selection, apiKey) => {
-      return this.deleteMailboxWithApiKey(apiKey, emailId, useCase);
-    });
+    return this.withCredential(
+      useCase,
+      emailId,
+      async (_selection, apiKey) => this.deleteMailboxWithApiKey(apiKey, emailId, useCase),
+      { preferredSelection },
+    );
   }
 
   private async deleteMailboxViaWebSession(
@@ -1191,7 +1262,7 @@ export class MoemailClient {
     let cursor: string | undefined;
 
     for (let page = 0; page < 3; page += 1) {
-      const batch = await this.listMailboxMessages(mailbox.emailId, cursor);
+      const batch = await this.listMailboxMessages(mailbox, cursor);
       for (const item of batch.items) {
         if (!matchesSenderFilter(item.sender, fromContains)) {
           continue;
@@ -1217,7 +1288,7 @@ export class MoemailClient {
           };
         }
 
-        const detail = await this.getMailboxMessage(mailbox.emailId, item.messageId);
+        const detail = await this.getMailboxMessage(mailbox, item.messageId);
         const sender = readMessageSender(detail) ?? item.sender;
         if (!matchesSenderFilter(sender, fromContains)) {
           continue;
@@ -1289,6 +1360,8 @@ export function decodeMoemailMailboxRef(
       email,
       localPart: readString(payload.localPart),
       domain: readString(payload.domain),
+      credentialSetId: readString(payload.credentialSetId),
+      credentialItemId: readString(payload.credentialItemId),
     };
   } catch {
     return undefined;
