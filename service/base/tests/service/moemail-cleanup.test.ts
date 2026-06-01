@@ -244,4 +244,52 @@ describe("EasyEmailService.cleanupMoemailMailboxes", () => {
     expect(result.session.metadata.releaseDetail).toBe("upstream_delete_unauthorized");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("falls back to API-key deletion during cleanup when MoEmail web-session delete is unauthorized", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createFetchResponse(200, {
+        emails: [
+          {
+            id: "email-web-expired",
+            address: "stale@sall.cc",
+            expiresAt: "2026-04-24T12:01:00.000Z",
+          },
+        ],
+      }))
+      .mockResolvedValueOnce(createFetchResponse(401, { message: "未授权" }))
+      .mockResolvedValueOnce(createFetchResponse(204, ""));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const service = createService([
+      createProviderInstance({
+        metadata: {
+          apiBase: "https://sall.cc",
+          expiryTimeMs: "1800000",
+          webSessionToken: "expired-web-session",
+        },
+      }),
+    ]);
+
+    const result = await service.cleanupMoemailMailboxes(
+      300,
+      10,
+      true,
+      undefined,
+      new Date("2026-04-24T12:00:00.000Z"),
+    );
+
+    expect(result.deletedCount).toBe(1);
+    expect(result.skippedCount).toBe(0);
+    expect(result.deleted).toContainEqual({
+      emailId: "email-web-expired",
+      email: "stale@sall.cc",
+      detail: "deleted_api_key_after_web_unauthorized",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "DELETE" });
+    expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: "DELETE" });
+    expect(fetchMock.mock.calls[2]?.[1]?.headers).toMatchObject({
+      "X-API-Key": "test-api-key",
+    });
+  });
 });

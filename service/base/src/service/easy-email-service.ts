@@ -815,7 +815,9 @@ export class EasyEmailService {
         }
 
         try {
-          const result = await client.deleteMailbox(entry.emailId, "poll");
+          const result = await client.deleteMailbox(entry.emailId, "poll", {
+            fallbackToApiKeyAfterWebUnauthorized: true,
+          });
           if (result.released) {
             deletedCount += 1;
             if (deleted.length < 50) {

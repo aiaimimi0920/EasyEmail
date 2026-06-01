@@ -1086,9 +1086,31 @@ export class MoemailClient {
   public async deleteMailbox(
     emailId: string,
     useCase: "generate" | "poll" = "poll",
+    options: { fallbackToApiKeyAfterWebUnauthorized?: boolean } = {},
   ): Promise<{ released: boolean; detail: string }> {
     if (this.config.webSessionToken?.trim()) {
-      return this.deleteMailboxViaWebSession(emailId);
+      const webResult = await this.deleteMailboxViaWebSession(emailId);
+      if (
+        webResult.released
+        || webResult.detail !== "upstream_delete_unauthorized"
+        || !options.fallbackToApiKeyAfterWebUnauthorized
+      ) {
+        return webResult;
+      }
+
+      const apiKeyResult = await this.withCredential(useCase, emailId, async (_selection, apiKey) => {
+        return this.deleteMailboxWithApiKey(apiKey, emailId, useCase);
+      });
+      if (apiKeyResult.released && apiKeyResult.detail === "deleted") {
+        return {
+          released: true,
+          detail: "deleted_api_key_after_web_unauthorized",
+        };
+      }
+      return {
+        released: apiKeyResult.released,
+        detail: `api_key_after_web_unauthorized:${apiKeyResult.detail}`,
+      };
     }
 
     return this.withCredential(useCase, emailId, async (_selection, apiKey) => {
