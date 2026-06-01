@@ -189,8 +189,10 @@ describe("EasyEmailService.cleanupMoemailMailboxes", () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("https://moemail-b.example/api/emails");
   });
 
-  it("expires local MoEmail sessions when upstream web delete is unauthorized", async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(createFetchResponse(401, { message: "未授权" }));
+  it("falls back to API-key deletion when MoEmail release web-session delete is unauthorized", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(createFetchResponse(401, { message: "未授权" }))
+      .mockResolvedValueOnce(createFetchResponse(204, ""));
     vi.stubGlobal("fetch", fetchMock);
 
     const session = {
@@ -236,13 +238,17 @@ describe("EasyEmailService.cleanupMoemailMailboxes", () => {
     );
 
     expect(result).toMatchObject({
-      released: false,
-      detail: "upstream_delete_unauthorized",
+      released: true,
+      detail: "deleted_api_key_after_web_unauthorized",
     });
     expect(result.session.status).toBe("expired");
-    expect(result.session.metadata.releaseStatus).toBe("skipped");
-    expect(result.session.metadata.releaseDetail).toBe("upstream_delete_unauthorized");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.session.metadata.releaseStatus).toBe("released");
+    expect(result.session.metadata.releaseDetail).toBe("deleted_api_key_after_web_unauthorized");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "DELETE" });
+    expect(fetchMock.mock.calls[1]?.[1]?.headers).toMatchObject({
+      "X-API-Key": "test-api-key",
+    });
   });
 
   it("falls back to API-key deletion during cleanup when MoEmail web-session delete is unauthorized", async () => {
