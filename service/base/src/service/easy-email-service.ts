@@ -622,19 +622,20 @@ export class EasyEmailService {
     let lastError: unknown;
 
     for (const providerTypeKey of candidateProviderTypeKeys) {
-      const plan = providerTypeKey === initialPlan.providerType.key
-        ? initialPlan
-        : this.dispatcher.resolveMailboxPlan(
-          {
-            ...normalizedRequest,
-            providerTypeKey,
-            strategyProfileId: normalizedRequest.strategyProfileId ?? initialPlan.strategyMode?.strategyProfileId,
-          },
-          now,
-          true,
-        );
+      let plan: MailboxPlanResult | undefined;
 
       try {
+        plan = providerTypeKey === initialPlan.providerType.key
+          ? initialPlan
+          : this.dispatcher.resolveMailboxPlan(
+            {
+              ...normalizedRequest,
+              providerTypeKey,
+              strategyProfileId: normalizedRequest.strategyProfileId ?? initialPlan.strategyMode?.strategyProfileId,
+            },
+            now,
+            true,
+          );
         const opened = await openMailboxWithPlan({
           request: normalizedRequest,
           plan,
@@ -654,7 +655,9 @@ export class EasyEmailService {
         };
       } catch (error) {
         const normalizedError = normalizeMailboxOpenError(error);
-        recordMailboxOpenFailure(this.registry, plan.instance, normalizedError, now);
+        if (plan) {
+          recordMailboxOpenFailure(this.registry, plan.instance, normalizedError, now);
+        }
         this.syncOperationalState(now);
         lastError = normalizedError;
         if (!shouldFallbackMailboxOpen(request, initialPlan, providerTypeKey)) {

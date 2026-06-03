@@ -128,4 +128,35 @@ describe("mailbox excluded domains and addresses", () => {
     expect(opened.instance.providerTypeKey).toBe("m2u");
     expect(opened.session.emailAddress).toBe("good@safe.test");
   });
+
+  it("continues past an unavailable fallback provider when opening a mailbox", async () => {
+    const service = createBootstrappedEasyEmailService({
+      providerTypes: [
+        createProviderType("mailtm", "Mail.tm"),
+        createProviderType("gptmail", "GPT Mail"),
+        createProviderType("m2u", "MailToYou"),
+      ],
+      providerInstances: [
+        createInstance("mailtm"),
+        createInstance("m2u", { domain: "safe.test" }),
+      ],
+      adapters: [
+        createAdapter("mailtm", "bad@blocked.test"),
+        createAdapter("m2u", "good@safe.test"),
+      ],
+    }, now);
+
+    const opened = await service.openMailbox({
+      hostId: "demo-host",
+      provisionMode: "reuse-only",
+      bindingMode: "shared-instance",
+      providerStrategyModeId: "available-first",
+      providerGroupSelections: ["mailtm", "gptmail", "m2u"],
+      preferredInstanceId: "mailtm_shared_default",
+      excludedDomains: ["blocked.test"],
+    }, now);
+
+    expect(opened.instance.providerTypeKey).toBe("m2u");
+    expect(opened.session.emailAddress).toBe("good@safe.test");
+  });
 });
