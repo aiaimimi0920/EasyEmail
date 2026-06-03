@@ -83,6 +83,16 @@ function parseDomainList(value: string | undefined): string[] {
   return [...new Set(parsed)];
 }
 
+function resolveRequestExcludedDomains(request: VerificationMailboxRequest): Set<string> {
+  return new Set([
+    ...(request.excludedDomains ?? [])
+      .map((item) => normalizeDomain(item))
+      .filter((item): item is string => item !== undefined),
+    ...parseDomainList(request.metadata?.excludedDomains),
+    ...parseDomainList(request.metadata?.excludedDomain),
+  ]);
+}
+
 function resolveSupportedDomains(instance: ProviderInstance): string[] {
   const explicitDomains = [
     ...parseDomainList(instance.metadata.domainsCsv),
@@ -115,6 +125,20 @@ function instanceSupportsRequestedDomain(
   }
 
   return supportedDomains.includes(normalizedRequestedDomain);
+}
+
+function instanceCanAvoidExcludedDomains(
+  instance: ProviderInstance,
+  excludedDomains: Set<string>,
+): boolean {
+  if (excludedDomains.size === 0) {
+    return true;
+  }
+  const supportedDomains = resolveSupportedDomains(instance);
+  if (supportedDomains.length === 0) {
+    return true;
+  }
+  return supportedDomains.some((domain) => !excludedDomains.has(domain));
 }
 
 function isMailboxDeliveryFailureReason(reason: string | undefined): boolean {
@@ -471,13 +495,16 @@ export class MailboxDispatcher {
     providerType: ProviderTypeDefinition,
     request: VerificationMailboxRequest,
   ): ExternalSelection {
+    const excludedDomains = resolveRequestExcludedDomains(request);
     const candidates = this.registry.listActiveInstancesByType(providerType.key).filter((instance) => {
       if (request.groupKey && instance.groupKeys.length > 0) {
         return instance.groupKeys.includes(request.groupKey);
       }
 
       return true;
-    }).filter((instance) => instanceSupportsRequestedDomain(instance, this.resolveRequestedDomain(request)));
+    })
+      .filter((instance) => instanceSupportsRequestedDomain(instance, this.resolveRequestedDomain(request)))
+      .filter((instance) => instanceCanAvoidExcludedDomains(instance, excludedDomains));
 
     if (request.preferredInstanceId) {
       const preferred = candidates.find((instance) => instance.id === request.preferredInstanceId);
@@ -734,12 +761,15 @@ export class MailboxDispatcher {
     healthGate?: RoutingProfileLookup["healthGate"],
   ): number {
     const nowMs = Date.now();
+    const excludedDomains = resolveRequestExcludedDomains(request);
     const candidates = this.registry.listActiveInstancesByType(providerTypeKey).filter((instance) => {
       if (request.groupKey && instance.groupKeys.length > 0) {
         return instance.groupKeys.includes(request.groupKey);
       }
       return true;
-    }).filter((instance) => instanceSupportsRequestedDomain(instance, this.resolveRequestedDomain(request)));
+    })
+      .filter((instance) => instanceSupportsRequestedDomain(instance, this.resolveRequestedDomain(request)))
+      .filter((instance) => instanceCanAvoidExcludedDomains(instance, excludedDomains));
 
     if (candidates.length === 0) {
       return Number.NEGATIVE_INFINITY;

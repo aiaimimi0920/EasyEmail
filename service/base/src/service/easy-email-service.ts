@@ -201,6 +201,88 @@ function normalizeMailboxOpenError(error: unknown): unknown {
   return error;
 }
 
+function parseStringList(value: string | undefined): string[] {
+  const raw = value?.trim();
+  if (!raw) {
+    return [];
+  }
+  if (raw.startsWith("[") && raw.endsWith("]")) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((item): item is string => typeof item === "string")
+          .map((item) => item.trim())
+          .filter((item) => item.length > 0);
+      }
+    } catch {
+      // Fall back to comma-separated parsing below.
+    }
+  }
+  return raw
+    .replace(/[;\r\n|]/g, ",")
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function normalizeDomainValue(value: string | undefined): string | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized || normalized.includes("@")) {
+    return undefined;
+  }
+  return normalized;
+}
+
+function normalizeEmailAddressValue(value: string | undefined): string | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized || !normalized.includes("@")) {
+    return undefined;
+  }
+  const [localPart, domain, ...rest] = normalized.split("@");
+  if (!localPart || !domain || rest.length > 0) {
+    return undefined;
+  }
+  return `${localPart}@${domain}`;
+}
+
+function normalizeExcludedDomains(
+  values: string[] | undefined,
+  metadata: Record<string, string> | undefined,
+): string[] {
+  const normalized: string[] = [];
+  for (const item of [
+    ...(values ?? []),
+    ...parseStringList(metadata?.excludedDomains),
+    ...parseStringList(metadata?.excludedDomain),
+  ]) {
+    const domain = normalizeDomainValue(item);
+    if (domain && !normalized.includes(domain)) {
+      normalized.push(domain);
+    }
+  }
+  return normalized;
+}
+
+function normalizeExcludedEmailAddresses(
+  values: string[] | undefined,
+  metadata: Record<string, string> | undefined,
+): string[] {
+  const normalized: string[] = [];
+  for (const item of [
+    ...(values ?? []),
+    ...parseStringList(metadata?.excludedEmailAddresses),
+    ...parseStringList(metadata?.excludedEmails),
+    ...parseStringList(metadata?.excludedEmail),
+  ]) {
+    const emailAddress = normalizeEmailAddressValue(item);
+    if (emailAddress && !normalized.includes(emailAddress)) {
+      normalized.push(emailAddress);
+    }
+  }
+  return normalized;
+}
+
 function shouldCleanupMoemailMailboxEntry(
   entry: MoemailMailboxListingEntry,
   {
@@ -1071,6 +1153,8 @@ export class EasyEmailService {
       || request.metadata?.["cf-turnstile-response"]?.trim()
       || request.metadata?.turnstileResponse?.trim()
       || undefined;
+    const excludedDomains = normalizeExcludedDomains(request.excludedDomains, request.metadata);
+    const excludedEmailAddresses = normalizeExcludedEmailAddresses(request.excludedEmailAddresses, request.metadata);
     const metadata: Record<string, string> = {
       ...(request.metadata ?? {}),
     };
@@ -1087,6 +1171,18 @@ export class EasyEmailService {
       delete metadata.requestRandomSubdomain;
     }
 
+    if (excludedDomains.length > 0) {
+      metadata.excludedDomains = excludedDomains.join(",");
+    } else {
+      delete metadata.excludedDomains;
+    }
+
+    if (excludedEmailAddresses.length > 0) {
+      metadata.excludedEmailAddresses = excludedEmailAddresses.join(",");
+    } else {
+      delete metadata.excludedEmailAddresses;
+    }
+
     if (requestedLocalPart) {
       metadata.requestedLocalPart = requestedLocalPart;
     } else {
@@ -1101,6 +1197,9 @@ export class EasyEmailService {
     delete metadata.mailcreateLocalPart;
     delete metadata.localPart;
     delete metadata.prefix;
+    delete metadata.excludedDomain;
+    delete metadata.excludedEmails;
+    delete metadata.excludedEmail;
 
     return {
       ...request,
@@ -1116,6 +1215,8 @@ export class EasyEmailService {
       excludedProviderTypeKeys: request.excludedProviderTypeKeys
         ?.map((item) => normalizeMailProviderTypeKey(item))
         .filter((item): item is MailProviderTypeKey => item !== undefined),
+      excludedDomains,
+      excludedEmailAddresses,
       providerGroupSelections: (request.providerGroupSelections ?? routingProfile?.providerSelections)
         ?.map((item) => normalizeMailProviderTypeKey(item))
         .filter((item): item is MailProviderTypeKey => item !== undefined),

@@ -1,6 +1,7 @@
 import type { MailProviderAdapter } from "../providers/contracts.js";
 import { MailboxBindingService } from "../dispatch/index.js";
 import { extractAuthenticationLinksFromContent } from "../domain/auth-links.js";
+import { EasyEmailError } from "../domain/errors.js";
 import type {
   AuthenticationLinkResult,
   ObservedMessage,
@@ -12,6 +13,102 @@ import type {
 } from "../domain/models.js";
 import { MailRegistry } from "../domain/registry.js";
 import { extractEmailDomain } from "./outcomes.js";
+
+function parseStringList(value: string | undefined): string[] {
+  const raw = value?.trim();
+  if (!raw) {
+    return [];
+  }
+  if (raw.startsWith("[") && raw.endsWith("]")) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((item): item is string => typeof item === "string")
+          .map((item) => item.trim())
+          .filter((item) => item.length > 0);
+      }
+    } catch {
+      // Fall back to comma-separated parsing below.
+    }
+  }
+  return raw
+    .replace(/[;\r\n|]/g, ",")
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function normalizeDomainValue(value: string | undefined): string | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized || normalized.includes("@")) {
+    return undefined;
+  }
+  return normalized;
+}
+
+function normalizeEmailAddressValue(value: string | undefined): string | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized || !normalized.includes("@")) {
+    return undefined;
+  }
+  const [localPart, domain, ...rest] = normalized.split("@");
+  if (!localPart || !domain || rest.length > 0) {
+    return undefined;
+  }
+  return `${localPart}@${domain}`;
+}
+
+function resolveExcludedDomains(request: VerificationMailboxRequest): Set<string> {
+  return new Set([
+    ...(request.excludedDomains ?? [])
+      .map((item) => normalizeDomainValue(item))
+      .filter((item): item is string => item !== undefined),
+    ...parseStringList(request.metadata?.excludedDomains)
+      .map((item) => normalizeDomainValue(item))
+      .filter((item): item is string => item !== undefined),
+    ...parseStringList(request.metadata?.excludedDomain)
+      .map((item) => normalizeDomainValue(item))
+      .filter((item): item is string => item !== undefined),
+  ]);
+}
+
+function resolveExcludedEmailAddresses(request: VerificationMailboxRequest): Set<string> {
+  return new Set([
+    ...(request.excludedEmailAddresses ?? [])
+      .map((item) => normalizeEmailAddressValue(item))
+      .filter((item): item is string => item !== undefined),
+    ...parseStringList(request.metadata?.excludedEmailAddresses)
+      .map((item) => normalizeEmailAddressValue(item))
+      .filter((item): item is string => item !== undefined),
+    ...parseStringList(request.metadata?.excludedEmails)
+      .map((item) => normalizeEmailAddressValue(item))
+      .filter((item): item is string => item !== undefined),
+    ...parseStringList(request.metadata?.excludedEmail)
+      .map((item) => normalizeEmailAddressValue(item))
+      .filter((item): item is string => item !== undefined),
+  ]);
+}
+
+function assertMailboxSessionNotExcluded(
+  request: VerificationMailboxRequest,
+  emailAddress: string,
+): void {
+  const normalizedEmail = normalizeEmailAddressValue(emailAddress);
+  const selectedDomain = extractEmailDomain(emailAddress);
+  if (normalizedEmail && resolveExcludedEmailAddresses(request).has(normalizedEmail)) {
+    throw new EasyEmailError(
+      "MAILBOX_EMAIL_EXCLUDED",
+      `Mailbox address "${normalizedEmail}" was excluded by the request.`,
+    );
+  }
+  if (selectedDomain && resolveExcludedDomains(request).has(selectedDomain)) {
+    throw new EasyEmailError(
+      "MAILBOX_DOMAIN_EXCLUDED",
+      `Mailbox domain "${selectedDomain}" was excluded by the request.`,
+    );
+  }
+}
 
 function isTransientMailboxSyncError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
@@ -191,6 +288,7 @@ export async function openMailboxWithPlan(input: {
     credentialSets,
     now,
   }));
+  assertMailboxSessionNotExcluded(request, session.emailAddress);
 
   const bindingResolution = bindings.bind({
     hostId: request.hostId,

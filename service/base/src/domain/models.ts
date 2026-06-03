@@ -168,6 +168,8 @@ export interface VerificationMailboxRequest {
   providerTypeKey?: MailProviderTypeKey;
   providerRoutingProfileId?: string;
   excludedProviderTypeKeys?: MailProviderTypeKey[];
+  excludedDomains?: string[];
+  excludedEmailAddresses?: string[];
   provisionMode: ProvisionMode;
   bindingMode: BindingMode;
   requestedDomain?: string;
