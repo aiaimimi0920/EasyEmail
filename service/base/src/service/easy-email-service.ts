@@ -249,10 +249,12 @@ function normalizeEmailAddressValue(value: string | undefined): string | undefin
 function normalizeExcludedDomains(
   values: string[] | undefined,
   metadata: Record<string, string> | undefined,
+  avoidDomains: string[] | undefined = undefined,
 ): string[] {
   const normalized: string[] = [];
   for (const item of [
     ...(values ?? []),
+    ...(avoidDomains ?? []),
     ...parseStringList(metadata?.excludedDomains),
     ...parseStringList(metadata?.excludedDomain),
   ]) {
@@ -267,10 +269,12 @@ function normalizeExcludedDomains(
 function normalizeExcludedEmailAddresses(
   values: string[] | undefined,
   metadata: Record<string, string> | undefined,
+  avoidEmailAddresses: string[] | undefined = undefined,
 ): string[] {
   const normalized: string[] = [];
   for (const item of [
     ...(values ?? []),
+    ...(avoidEmailAddresses ?? []),
     ...parseStringList(metadata?.excludedEmailAddresses),
     ...parseStringList(metadata?.excludedEmails),
     ...parseStringList(metadata?.excludedEmail),
@@ -281,6 +285,23 @@ function normalizeExcludedEmailAddresses(
     }
   }
   return normalized;
+}
+
+function normalizeExcludedProviderTypeKeys(
+  values: MailProviderTypeKey[] | undefined,
+  avoidProviderTypeKeys: MailProviderTypeKey[] | undefined,
+): MailProviderTypeKey[] | undefined {
+  const normalized: MailProviderTypeKey[] = [];
+  for (const item of [
+    ...(values ?? []),
+    ...(avoidProviderTypeKeys ?? []),
+  ]) {
+    const providerTypeKey = normalizeMailProviderTypeKey(item);
+    if (providerTypeKey && !normalized.includes(providerTypeKey)) {
+      normalized.push(providerTypeKey);
+    }
+  }
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function shouldCleanupMoemailMailboxEntry(
@@ -1156,8 +1177,18 @@ export class EasyEmailService {
       || request.metadata?.["cf-turnstile-response"]?.trim()
       || request.metadata?.turnstileResponse?.trim()
       || undefined;
-    const excludedDomains = normalizeExcludedDomains(request.excludedDomains, request.metadata);
-    const excludedEmailAddresses = normalizeExcludedEmailAddresses(request.excludedEmailAddresses, request.metadata);
+    const excludedDomains = normalizeExcludedDomains(request.excludedDomains, request.metadata, request.avoid?.domains);
+    const excludedEmailAddresses = normalizeExcludedEmailAddresses(
+      request.excludedEmailAddresses,
+      request.metadata,
+      request.avoid?.emailAddresses,
+    );
+    const excludedProviderTypeKeys = normalizeExcludedProviderTypeKeys(
+      request.excludedProviderTypeKeys,
+      request.avoid?.providerTypeKeys,
+    );
+    const avoidReason = request.avoid?.reason?.trim();
+    const avoidScope = request.avoid?.scope === "attempt" ? "attempt" : undefined;
     const metadata: Record<string, string> = {
       ...(request.metadata ?? {}),
     };
@@ -1184,6 +1215,18 @@ export class EasyEmailService {
       metadata.excludedEmailAddresses = excludedEmailAddresses.join(",");
     } else {
       delete metadata.excludedEmailAddresses;
+    }
+
+    if (avoidReason) {
+      metadata.avoidReason = avoidReason;
+    } else {
+      delete metadata.avoidReason;
+    }
+
+    if (avoidScope) {
+      metadata.avoidScope = avoidScope;
+    } else {
+      delete metadata.avoidScope;
     }
 
     if (requestedLocalPart) {
@@ -1215,9 +1258,7 @@ export class EasyEmailService {
       providerStrategyModeId: normalizeMailBusinessStrategyId(
         request.providerStrategyModeId ?? routingProfile?.providerStrategyModeId,
       ),
-      excludedProviderTypeKeys: request.excludedProviderTypeKeys
-        ?.map((item) => normalizeMailProviderTypeKey(item))
-        .filter((item): item is MailProviderTypeKey => item !== undefined),
+      excludedProviderTypeKeys,
       excludedDomains,
       excludedEmailAddresses,
       providerGroupSelections: (request.providerGroupSelections ?? routingProfile?.providerSelections)

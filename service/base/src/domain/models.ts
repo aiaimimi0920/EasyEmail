@@ -170,6 +170,13 @@ export interface VerificationMailboxRequest {
   excludedProviderTypeKeys?: MailProviderTypeKey[];
   excludedDomains?: string[];
   excludedEmailAddresses?: string[];
+  avoid?: {
+    providerTypeKeys?: MailProviderTypeKey[];
+    domains?: string[];
+    emailAddresses?: string[];
+    reason?: string;
+    scope?: "attempt";
+  };
   provisionMode: ProvisionMode;
   bindingMode: BindingMode;
   requestedDomain?: string;
@@ -194,6 +201,20 @@ export interface MailboxOutcomeReport {
   observedAt?: string;
   registrationMode?: string;
   source?: string;
+  businessFlow?: string;
+  retryLayer?: "step" | "chain" | "attempt";
+  attribution?: {
+    strength?: "strong" | "weak" | "none";
+    kind?: "mailbox_domain_risk" | "provider_route" | "unknown";
+    providerTypeKey?: string;
+    domain?: string;
+    emailAddress?: string;
+  };
+  policy?: {
+    avoidInCurrentAttempt?: boolean;
+    globalBlacklist?: boolean;
+    cooldownSeconds?: number;
+  };
 }
 
 export interface MailboxOutcomeReportResult {

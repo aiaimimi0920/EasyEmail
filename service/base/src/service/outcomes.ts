@@ -84,6 +84,67 @@ export function parseProviderPerformanceStats(raw: string | undefined): Provider
   }
 }
 
+function trimMetadataValue(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized || undefined;
+}
+
+function normalizeDomainMetadataValue(value: string | undefined): string | undefined {
+  const normalized = trimMetadataValue(value)?.toLowerCase();
+  if (!normalized || normalized.includes("@")) {
+    return undefined;
+  }
+  return normalized;
+}
+
+function normalizeEmailMetadataValue(value: string | undefined): string | undefined {
+  const normalized = trimMetadataValue(value)?.toLowerCase();
+  if (!normalized || !normalized.includes("@")) {
+    return undefined;
+  }
+  const [localPart, domain, ...rest] = normalized.split("@");
+  if (!localPart || !domain || rest.length > 0) {
+    return undefined;
+  }
+  return `${localPart}@${domain}`;
+}
+
+function putOptionalMetadata(
+  metadata: Record<string, string>,
+  key: string,
+  value: string | undefined,
+): void {
+  if (value !== undefined) {
+    metadata[key] = value;
+  } else {
+    delete metadata[key];
+  }
+}
+
+function putOptionalBooleanMetadata(
+  metadata: Record<string, string>,
+  key: string,
+  value: boolean | undefined,
+): void {
+  if (value !== undefined) {
+    metadata[key] = value ? "true" : "false";
+  } else {
+    delete metadata[key];
+  }
+}
+
+function putOptionalNumberMetadata(
+  metadata: Record<string, string>,
+  key: string,
+  value: number | undefined,
+): void {
+  if (value !== undefined && Number.isFinite(value)) {
+    metadata[key] = String(value);
+  } else {
+    delete metadata[key];
+  }
+}
+
 function updateProviderPerformanceStats(
   current: ProviderPerformanceStats,
   input: {
@@ -304,6 +365,50 @@ export function reportMailboxOutcomeToRegistry(
   );
   const failureReason = report.failureReason?.trim();
   const failureClass = classifyMailboxFailure(failureReason);
+  const businessFlow = trimMetadataValue(report.businessFlow);
+  const retryLayer = trimMetadataValue(report.retryLayer);
+  const attributionStrength = trimMetadataValue(report.attribution?.strength);
+  const attributionKind = trimMetadataValue(report.attribution?.kind);
+  const attributionProviderTypeKey = trimMetadataValue(report.attribution?.providerTypeKey)?.toLowerCase();
+  const attributionDomain = normalizeDomainMetadataValue(report.attribution?.domain);
+  const attributionEmailAddress = normalizeEmailMetadataValue(report.attribution?.emailAddress);
+  const policyAvoidInCurrentAttempt = report.policy?.avoidInCurrentAttempt;
+  const policyGlobalBlacklist = report.policy?.globalBlacklist;
+  const policyCooldownSeconds = report.policy?.cooldownSeconds;
+  const nextInstanceMetadata: Record<string, string> = {
+    ...instance.metadata,
+    registrationStatsJson: JSON.stringify(stats),
+    lastRegistrationOutcome: report.success ? "success" : "failure",
+    lastRegistrationOutcomeAt: observedAt,
+    ...(failureReason
+      ? { lastRegistrationFailureReason: failureReason }
+      : {}),
+    ...(report.success
+      ? {
+          consecutiveFailureCount: "0",
+          cooldownUntil: "",
+          lastFailureClass: "",
+        }
+      : {
+          lastFailureClass: failureClass,
+          consecutiveFailureCount: String(parseConsecutiveFailureCount(instance.metadata.consecutiveFailureCount) + 1),
+          cooldownUntil: resolveFailureCooldownUntil(failureClass, now),
+        }),
+  };
+  putOptionalMetadata(nextInstanceMetadata, "lastRegistrationBusinessFlow", businessFlow);
+  putOptionalMetadata(nextInstanceMetadata, "lastRegistrationRetryLayer", retryLayer);
+  putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionStrength", attributionStrength);
+  putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionKind", attributionKind);
+  putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionProviderTypeKey", attributionProviderTypeKey);
+  putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionDomain", attributionDomain);
+  putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionEmailAddress", attributionEmailAddress);
+  putOptionalBooleanMetadata(
+    nextInstanceMetadata,
+    "lastRegistrationPolicyAvoidInCurrentAttempt",
+    policyAvoidInCurrentAttempt,
+  );
+  putOptionalBooleanMetadata(nextInstanceMetadata, "lastRegistrationPolicyGlobalBlacklist", policyGlobalBlacklist);
+  putOptionalNumberMetadata(nextInstanceMetadata, "lastRegistrationPolicyCooldownSeconds", policyCooldownSeconds);
 
   const nextInstance: ProviderInstance = {
     ...instance,
@@ -312,26 +417,7 @@ export function reportMailboxOutcomeToRegistry(
       : (instance.status === "offline" ? "offline" : "degraded"),
     healthScore: adjustOutcomeWeightedHealthScore(instance.healthScore, report.success),
     updatedAt: observedAt,
-    metadata: {
-      ...instance.metadata,
-      registrationStatsJson: JSON.stringify(stats),
-      lastRegistrationOutcome: report.success ? "success" : "failure",
-      lastRegistrationOutcomeAt: observedAt,
-      ...(failureReason
-        ? { lastRegistrationFailureReason: failureReason }
-        : {}),
-      ...(report.success
-        ? {
-            consecutiveFailureCount: "0",
-            cooldownUntil: "",
-            lastFailureClass: "",
-          }
-        : {
-            lastFailureClass: failureClass,
-            consecutiveFailureCount: String(parseConsecutiveFailureCount(instance.metadata.consecutiveFailureCount) + 1),
-            cooldownUntil: resolveFailureCooldownUntil(failureClass, now),
-          }),
-    },
+    metadata: nextInstanceMetadata,
   };
   const cooledInstance = report.success
     ? clearProviderInstanceCriticalFailures(nextInstance, now)
@@ -339,23 +425,39 @@ export function reportMailboxOutcomeToRegistry(
   registry.saveInstance(cooledInstance);
   synchronizeProviderOperationalState(registry, now);
 
+  const nextSessionMetadata: Record<string, string> = {
+    ...session.metadata,
+    registrationOutcome: report.success ? "success" : "failure",
+    registrationOutcomeAt: observedAt,
+    ...(selectedDomain ? { selectedDomain } : {}),
+    ...(report.failureReason?.trim()
+      ? { registrationFailureReason: report.failureReason.trim() }
+      : {}),
+    ...(report.registrationMode?.trim()
+      ? { registrationMode: report.registrationMode.trim() }
+      : {}),
+    ...(report.source?.trim()
+      ? { registrationOutcomeSource: report.source.trim() }
+      : {}),
+  };
+  putOptionalMetadata(nextSessionMetadata, "registrationBusinessFlow", businessFlow);
+  putOptionalMetadata(nextSessionMetadata, "registrationRetryLayer", retryLayer);
+  putOptionalMetadata(nextSessionMetadata, "registrationAttributionStrength", attributionStrength);
+  putOptionalMetadata(nextSessionMetadata, "registrationAttributionKind", attributionKind);
+  putOptionalMetadata(nextSessionMetadata, "registrationAttributionProviderTypeKey", attributionProviderTypeKey);
+  putOptionalMetadata(nextSessionMetadata, "registrationAttributionDomain", attributionDomain);
+  putOptionalMetadata(nextSessionMetadata, "registrationAttributionEmailAddress", attributionEmailAddress);
+  putOptionalBooleanMetadata(
+    nextSessionMetadata,
+    "registrationPolicyAvoidInCurrentAttempt",
+    policyAvoidInCurrentAttempt,
+  );
+  putOptionalBooleanMetadata(nextSessionMetadata, "registrationPolicyGlobalBlacklist", policyGlobalBlacklist);
+  putOptionalNumberMetadata(nextSessionMetadata, "registrationPolicyCooldownSeconds", policyCooldownSeconds);
+
   const nextSession: MailboxSession = {
     ...session,
-    metadata: {
-      ...session.metadata,
-      registrationOutcome: report.success ? "success" : "failure",
-      registrationOutcomeAt: observedAt,
-      ...(selectedDomain ? { selectedDomain } : {}),
-      ...(report.failureReason?.trim()
-        ? { registrationFailureReason: report.failureReason.trim() }
-        : {}),
-      ...(report.registrationMode?.trim()
-        ? { registrationMode: report.registrationMode.trim() }
-        : {}),
-      ...(report.source?.trim()
-        ? { registrationOutcomeSource: report.source.trim() }
-        : {}),
-    },
+    metadata: nextSessionMetadata,
   };
   registry.saveSession(nextSession);
 
