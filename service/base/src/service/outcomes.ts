@@ -189,6 +189,44 @@ function updateProviderPerformanceStats(
   return next;
 }
 
+function updateProviderDomainPerformanceStats(
+  current: ProviderPerformanceStats,
+  input: {
+    success: boolean;
+    observedAt: string;
+    domain?: string;
+  },
+): ProviderPerformanceStats {
+  if (!input.domain) {
+    return {
+      ...current,
+      domains: Object.fromEntries(
+        Object.entries(current.domains).map(([key, value]) => [key, { ...value }]),
+      ),
+    };
+  }
+
+  const next: ProviderPerformanceStats = {
+    ...current,
+    domains: Object.fromEntries(
+      Object.entries(current.domains).map(([key, value]) => [key, { ...value }]),
+    ),
+  };
+  const domainStats = next.domains[input.domain] ?? {
+    successCount: 0,
+    failureCount: 0,
+  };
+  if (input.success) {
+    domainStats.successCount += 1;
+    domainStats.lastSuccessAt = input.observedAt;
+  } else {
+    domainStats.failureCount += 1;
+    domainStats.lastFailureAt = input.observedAt;
+  }
+  next.domains[input.domain] = domainStats;
+  return next;
+}
+
 function adjustOutcomeWeightedHealthScore(currentScore: number, success: boolean): number {
   if (success) {
     return clamp(currentScore + (1 - currentScore) * 0.12, 0.1, 1);
@@ -355,7 +393,9 @@ export function reportMailboxOutcomeToRegistry(
 
   const observedAt = report.observedAt?.trim() || now.toISOString();
   const selectedDomain = session.metadata.selectedDomain || extractEmailDomain(session.emailAddress);
-  const stats = updateProviderPerformanceStats(
+  const attributionKind = trimMetadataValue(report.attribution?.kind);
+  const isMailboxDomainRisk = !report.success && attributionKind === "mailbox_domain_risk";
+  const stats = (isMailboxDomainRisk ? updateProviderDomainPerformanceStats : updateProviderPerformanceStats)(
     parseProviderPerformanceStats(instance.metadata.registrationStatsJson),
     {
       success: report.success,
@@ -368,58 +408,66 @@ export function reportMailboxOutcomeToRegistry(
   const businessFlow = trimMetadataValue(report.businessFlow);
   const retryLayer = trimMetadataValue(report.retryLayer);
   const attributionStrength = trimMetadataValue(report.attribution?.strength);
-  const attributionKind = trimMetadataValue(report.attribution?.kind);
   const attributionProviderTypeKey = trimMetadataValue(report.attribution?.providerTypeKey)?.toLowerCase();
   const attributionDomain = normalizeDomainMetadataValue(report.attribution?.domain);
   const attributionEmailAddress = normalizeEmailMetadataValue(report.attribution?.emailAddress);
   const policyAvoidInCurrentAttempt = report.policy?.avoidInCurrentAttempt;
   const policyGlobalBlacklist = report.policy?.globalBlacklist;
   const policyCooldownSeconds = report.policy?.cooldownSeconds;
+
   const nextInstanceMetadata: Record<string, string> = {
     ...instance.metadata,
     registrationStatsJson: JSON.stringify(stats),
-    lastRegistrationOutcome: report.success ? "success" : "failure",
-    lastRegistrationOutcomeAt: observedAt,
-    ...(failureReason
-      ? { lastRegistrationFailureReason: failureReason }
-      : {}),
-    ...(report.success
-      ? {
-          consecutiveFailureCount: "0",
-          cooldownUntil: "",
-          lastFailureClass: "",
-        }
-      : {
-          lastFailureClass: failureClass,
-          consecutiveFailureCount: String(parseConsecutiveFailureCount(instance.metadata.consecutiveFailureCount) + 1),
-          cooldownUntil: resolveFailureCooldownUntil(failureClass, now),
-        }),
   };
-  putOptionalMetadata(nextInstanceMetadata, "lastRegistrationBusinessFlow", businessFlow);
-  putOptionalMetadata(nextInstanceMetadata, "lastRegistrationRetryLayer", retryLayer);
-  putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionStrength", attributionStrength);
-  putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionKind", attributionKind);
-  putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionProviderTypeKey", attributionProviderTypeKey);
-  putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionDomain", attributionDomain);
-  putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionEmailAddress", attributionEmailAddress);
-  putOptionalBooleanMetadata(
-    nextInstanceMetadata,
-    "lastRegistrationPolicyAvoidInCurrentAttempt",
-    policyAvoidInCurrentAttempt,
-  );
-  putOptionalBooleanMetadata(nextInstanceMetadata, "lastRegistrationPolicyGlobalBlacklist", policyGlobalBlacklist);
-  putOptionalNumberMetadata(nextInstanceMetadata, "lastRegistrationPolicyCooldownSeconds", policyCooldownSeconds);
+  if (!isMailboxDomainRisk) {
+    nextInstanceMetadata.lastRegistrationOutcome = report.success ? "success" : "failure";
+    nextInstanceMetadata.lastRegistrationOutcomeAt = observedAt;
+    if (failureReason) {
+      nextInstanceMetadata.lastRegistrationFailureReason = failureReason;
+    }
+    if (report.success) {
+      nextInstanceMetadata.consecutiveFailureCount = "0";
+      nextInstanceMetadata.cooldownUntil = "";
+      nextInstanceMetadata.lastFailureClass = "";
+    } else {
+      nextInstanceMetadata.lastFailureClass = failureClass;
+      nextInstanceMetadata.consecutiveFailureCount = String(
+        parseConsecutiveFailureCount(instance.metadata.consecutiveFailureCount) + 1,
+      );
+      nextInstanceMetadata.cooldownUntil = resolveFailureCooldownUntil(failureClass, now);
+    }
+    putOptionalMetadata(nextInstanceMetadata, "lastRegistrationBusinessFlow", businessFlow);
+    putOptionalMetadata(nextInstanceMetadata, "lastRegistrationRetryLayer", retryLayer);
+    putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionStrength", attributionStrength);
+    putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionKind", attributionKind);
+    putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionProviderTypeKey", attributionProviderTypeKey);
+    putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionDomain", attributionDomain);
+    putOptionalMetadata(nextInstanceMetadata, "lastRegistrationAttributionEmailAddress", attributionEmailAddress);
+    putOptionalBooleanMetadata(
+      nextInstanceMetadata,
+      "lastRegistrationPolicyAvoidInCurrentAttempt",
+      policyAvoidInCurrentAttempt,
+    );
+    putOptionalBooleanMetadata(nextInstanceMetadata, "lastRegistrationPolicyGlobalBlacklist", policyGlobalBlacklist);
+    putOptionalNumberMetadata(nextInstanceMetadata, "lastRegistrationPolicyCooldownSeconds", policyCooldownSeconds);
+  }
 
   const nextInstance: ProviderInstance = {
     ...instance,
-    status: report.success
-      ? "active"
-      : (instance.status === "offline" ? "offline" : "degraded"),
-    healthScore: adjustOutcomeWeightedHealthScore(instance.healthScore, report.success),
+    status: isMailboxDomainRisk
+      ? instance.status
+      : report.success
+        ? "active"
+        : (instance.status === "offline" ? "offline" : "degraded"),
+    healthScore: isMailboxDomainRisk
+      ? instance.healthScore
+      : adjustOutcomeWeightedHealthScore(instance.healthScore, report.success),
     updatedAt: observedAt,
     metadata: nextInstanceMetadata,
   };
-  const cooledInstance = report.success
+  const cooledInstance = isMailboxDomainRisk
+    ? nextInstance
+    : report.success
     ? clearProviderInstanceCriticalFailures(nextInstance, now)
     : applyProviderCriticalFailureState(registry, nextInstance, failureClass, now);
   registry.saveInstance(cooledInstance);

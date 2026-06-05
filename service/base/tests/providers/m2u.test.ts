@@ -20,6 +20,7 @@ describe("m2u provider", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
     setM2uExecFileForTesting(undefined);
     for (const [key, value] of Object.entries(originalEnv)) {
       if (value === undefined) {
@@ -642,6 +643,57 @@ describe("m2u provider", () => {
       expect.objectContaining({
         method: "POST",
         body: "{}",
+      }),
+    );
+  });
+
+  it("keeps a cached successful probe after legacy mailbox-domain risk feedback", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-04T00:02:00.000Z"));
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response('{"domains":["cpu.edu.kg","tmail.bio"]}', { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const probe = await probeM2uInstance({
+      id: "m2u-default",
+      providerTypeKey: "m2u",
+      displayName: "MailToYou Default",
+      status: "active",
+      runtimeKind: "external",
+      connectorKind: "m2u-api",
+      shared: true,
+      costTier: "free",
+      healthScore: 1,
+      averageLatencyMs: 0,
+      connectionRef: "external://m2u/default",
+      hostBindings: [],
+      groupKeys: [],
+      metadata: {
+        apiBase: "https://api.m2u.io",
+        lastProbeCreateMailboxAt: "2026-06-04T00:00:00.000Z",
+        lastProbeCreateMailboxOk: "true",
+        lastProbeCreateMailboxEmail: "probe@safe.test",
+        lastProbeCreateMailboxDetail: "cached smoke ok",
+        probeMailboxSmokeIntervalSeconds: "900",
+        lastRegistrationOutcome: "failure",
+        lastRegistrationOutcomeAt: "2026-06-04T00:01:00.000Z",
+        lastRegistrationFailureReason: "unsupported_email",
+        lastRegistrationAttributionKind: "mailbox_domain_risk",
+        lastRegistrationAttributionStrength: "strong",
+      },
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    expect(probe.ok).toBe(true);
+    expect(probe.detail).toBe("cached smoke ok");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.m2u.io/v1/domains",
+      expect.objectContaining({
+        method: "GET",
       }),
     );
   });

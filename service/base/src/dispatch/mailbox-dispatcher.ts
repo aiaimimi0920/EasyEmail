@@ -151,31 +151,6 @@ function instanceCanAvoidExcludedDomains(
   return supportedDomains.some((domain) => !excludedDomains.has(domain));
 }
 
-function instanceMatchesStructuredMailboxAttribution(instance: ProviderInstance): boolean {
-  const attributedProviderTypeKey = normalizeMailProviderTypeKey(
-    instance.metadata.lastRegistrationAttributionProviderTypeKey,
-  );
-  if (attributedProviderTypeKey && attributedProviderTypeKey !== instance.providerTypeKey) {
-    return false;
-  }
-
-  const attributedEmailAddress = String(instance.metadata.lastRegistrationAttributionEmailAddress ?? "")
-    .trim()
-    .toLowerCase();
-  const attributedDomain = normalizeDomain(instance.metadata.lastRegistrationAttributionDomain)
-    ?? (attributedEmailAddress.includes("@") ? attributedEmailAddress.split("@", 2)[1] : undefined);
-  if (!attributedDomain) {
-    return true;
-  }
-
-  const supportedDomains = resolveSupportedDomains(instance);
-  if (supportedDomains.length === 0) {
-    return true;
-  }
-
-  return supportedDomains.includes(attributedDomain);
-}
-
 function shouldSkipForStructuredMailboxOutcome(instance: ProviderInstance, nowMs: number): boolean {
   const lastOutcome = instance.metadata.lastRegistrationOutcome?.trim().toLowerCase();
   if (lastOutcome !== "failure") {
@@ -183,11 +158,14 @@ function shouldSkipForStructuredMailboxOutcome(instance: ProviderInstance, nowMs
   }
 
   const attributionKind = instance.metadata.lastRegistrationAttributionKind?.trim().toLowerCase();
-  if (attributionKind !== "mailbox_domain_risk") {
+  if (attributionKind !== "provider_route") {
     return false;
   }
 
-  if (!instanceMatchesStructuredMailboxAttribution(instance)) {
+  const attributedProviderTypeKey = normalizeMailProviderTypeKey(
+    instance.metadata.lastRegistrationAttributionProviderTypeKey,
+  );
+  if (attributedProviderTypeKey && attributedProviderTypeKey !== instance.providerTypeKey) {
     return false;
   }
 
@@ -216,6 +194,14 @@ function shouldSkipForStructuredMailboxOutcome(instance: ProviderInstance, nowMs
   }
 
   return Math.max(0, nowMs - observedAtMs) < cooldownMs;
+}
+
+function isMailboxDomainRiskOutcome(instance: ProviderInstance): boolean {
+  const lastOutcome = instance.metadata.lastRegistrationOutcome?.trim().toLowerCase();
+  if (lastOutcome !== "failure") {
+    return false;
+  }
+  return instance.metadata.lastRegistrationAttributionKind?.trim().toLowerCase() === "mailbox_domain_risk";
 }
 
 function isMailboxDeliveryFailureReason(reason: string | undefined): boolean {
@@ -253,6 +239,10 @@ function isProviderCapacityFailureReason(reason: string | undefined): boolean {
 }
 
 function computeRecentMailboxFailurePenalty(instance: ProviderInstance, nowMs: number): number {
+  if (isMailboxDomainRiskOutcome(instance)) {
+    return 0;
+  }
+
   const reason = instance.metadata.lastRegistrationFailureReason;
   const isMailboxFailure = isMailboxDeliveryFailureReason(reason);
   const isCapacityFailure = isProviderCapacityFailureReason(reason);
@@ -818,6 +808,10 @@ export class MailboxDispatcher {
   }
 
   private computeProviderPerformanceScore(instance: ProviderInstance, nowMs: number): number {
+    if (isMailboxDomainRiskOutcome(instance)) {
+      return 0;
+    }
+
     const stats = parseProviderPerformanceStats(instance.metadata.registrationStatsJson);
     const total = stats.successCount + stats.failureCount;
     const successRatio = total > 0 ? stats.successCount / total : 0.5;
@@ -870,8 +864,14 @@ export class MailboxDispatcher {
     }
 
     return candidates.reduce((best, instance) => {
-      const consecutiveFailureCount = parseNonNegativeInteger(instance.metadata.consecutiveFailureCount);
-      if (healthGate?.minimumHealthScore !== undefined && instance.healthScore < healthGate.minimumHealthScore) {
+      const isDomainRiskOutcome = isMailboxDomainRiskOutcome(instance);
+      const consecutiveFailureCount = isDomainRiskOutcome
+        ? 0
+        : parseNonNegativeInteger(instance.metadata.consecutiveFailureCount);
+      const effectiveHealthScore = isDomainRiskOutcome && healthGate?.minimumHealthScore !== undefined
+        ? Math.max(instance.healthScore, healthGate.minimumHealthScore)
+        : instance.healthScore;
+      if (healthGate?.minimumHealthScore !== undefined && effectiveHealthScore < healthGate.minimumHealthScore) {
         return best;
       }
       if (healthGate?.maxConsecutiveFailures !== undefined && consecutiveFailureCount > healthGate.maxConsecutiveFailures) {
@@ -879,11 +879,17 @@ export class MailboxDispatcher {
       }
 
       const latencyPenalty = Math.min(Math.max(instance.averageLatencyMs, 0), 5_000) / 5_000 * 0.1;
-      const statusBonus = instance.status === "active" ? 0.03 : instance.status === "degraded" ? -0.03 : 0;
+      const statusBonus = isDomainRiskOutcome
+        ? 0.03
+        : instance.status === "active"
+          ? 0.03
+          : instance.status === "degraded"
+            ? -0.03
+            : 0;
       const recentFailurePenalty = computeRecentMailboxFailurePenalty(instance, nowMs);
       const performanceScore = this.computeProviderPerformanceScore(instance, nowMs);
       const gatePenalty = this.computeRecentFailureGatePenalty(instance, nowMs, healthGate);
-      const score = instance.healthScore + statusBonus + performanceScore - latencyPenalty - recentFailurePenalty - gatePenalty;
+      const score = effectiveHealthScore + statusBonus + performanceScore - latencyPenalty - recentFailurePenalty - gatePenalty;
       return Math.max(best, score);
     }, Number.NEGATIVE_INFINITY);
   }
@@ -923,6 +929,9 @@ export class MailboxDispatcher {
 
     const lastOutcome = instance.metadata.lastRegistrationOutcome?.trim().toLowerCase();
     if (lastOutcome !== "failure") {
+      return 0;
+    }
+    if (isMailboxDomainRiskOutcome(instance)) {
       return 0;
     }
 

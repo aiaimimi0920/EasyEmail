@@ -365,8 +365,15 @@ function resolveCachedProbeMailboxSmokeResult(
   }
 
   const lastRegistrationOutcome = readMetadata(instance, "lastRegistrationOutcome")?.toLowerCase();
+  const lastRegistrationAttributionKind = readMetadata(instance, "lastRegistrationAttributionKind")?.toLowerCase();
   const lastRegistrationOutcomeAtMs = parseTimestampMs(readMetadata(instance, "lastRegistrationOutcomeAt"));
-  if (cachedOk && lastRegistrationOutcome === "failure" && lastRegistrationOutcomeAtMs !== undefined && lastRegistrationOutcomeAtMs > probeAtMs) {
+  if (
+    cachedOk
+    && lastRegistrationOutcome === "failure"
+    && lastRegistrationAttributionKind !== "mailbox_domain_risk"
+    && lastRegistrationOutcomeAtMs !== undefined
+    && lastRegistrationOutcomeAtMs > probeAtMs
+  ) {
     return undefined;
   }
 
