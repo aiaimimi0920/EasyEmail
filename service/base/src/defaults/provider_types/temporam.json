@@ -1,0 +1,8 @@
+{
+  "key": "temporam",
+  "displayName": "Temporam",
+  "description": "Temporam anonymous web-flow temporary mailbox provider.",
+  "supportsDynamicProvisioning": false,
+  "defaultStrategyKey": "free-first",
+  "tags": ["external", "connector", "anonymous", "free", "web-flow"]
+}

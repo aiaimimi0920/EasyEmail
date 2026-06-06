@@ -17,6 +17,7 @@ export type MailProviderTypeKey =
   | "im215"
   | "guerrillamail"
   | "tempmail-lol"
+  | "temporam"
   | "etempmail"
   | typeof CLOUDFLARE_TEMP_EMAIL_PROVIDER_KEY;
 export type MailProviderGroupKey = MailProviderTypeKey;
@@ -498,6 +499,7 @@ export function normalizeMailProviderTypeKey(value: string | undefined): MailPro
     || normalized === "im215"
     || normalized === "guerrillamail"
     || normalized === "tempmail-lol"
+    || normalized === "temporam"
     || normalized === "etempmail"
   ) {
     return normalized as MailProviderTypeKey;

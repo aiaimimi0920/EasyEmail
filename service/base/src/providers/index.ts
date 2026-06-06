@@ -11,6 +11,7 @@ import { MailTmProviderAdapter } from "./mailtm/index.js";
 import { M2uProviderAdapter } from "./m2u/index.js";
 import { MoemailProviderAdapter } from "./moemail/index.js";
 import { TempmailLolProviderAdapter } from "./tempmail_lol/index.js";
+import { TemporamProviderAdapter } from "./temporam/index.js";
 
 export function createDefaultMailProviderAdapters(): MailProviderAdapter[] {
   return [
@@ -24,6 +25,7 @@ export function createDefaultMailProviderAdapters(): MailProviderAdapter[] {
     new MoemailProviderAdapter(),
     new Im215ProviderAdapter(),
     new TempmailLolProviderAdapter(),
+    new TemporamProviderAdapter(),
     new CloudflareTempEmailConnectorAdapter(),
   ];
 }
@@ -52,3 +54,4 @@ export * from "./cloudflare_temp_email/connector/index.js";
 export * from "./cloudflare_temp_email/control/index.js";
 export * from "./cloudflare_temp_email/provisioning/index.js";
 export * from "./tempmail_lol/index.js";
+export * from "./temporam/index.js";

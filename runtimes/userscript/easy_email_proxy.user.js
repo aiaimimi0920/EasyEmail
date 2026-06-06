@@ -31,6 +31,8 @@
     'cloudflare_adminAuth',
     'cloudflare_preferredDomain',
     'tempmailLol_baseUrl',
+    'temporam_baseUrl',
+    'temporam_preferredDomain',
     'm2u_baseUrl',
     'm2u_preferredDomain',
     'moemail_baseUrl',
@@ -53,7 +55,7 @@
     explicitProviderKey: 'cloudflare_temp_email',
     configProviderKey: 'cloudflare_temp_email',
     manualQueryEmail: '',
-    selectedProvidersCsv: 'cloudflare_temp_email,mailtm,duckmail,guerrillamail,tempmail-lol,etempmail,moemail,m2u,gptmail,im215,mail2925',
+    selectedProvidersCsv: 'cloudflare_temp_email,mailtm,duckmail,guerrillamail,tempmail-lol,temporam,etempmail,moemail,m2u,gptmail,im215,mail2925',
     pollSeconds: '3',
     timeoutSeconds: '180',
     fromContains: '',
@@ -75,6 +77,9 @@
     duckmail_preferredDomain: '',
     tempmailLol_enabled: 'true',
     tempmailLol_baseUrl: 'https://api.tempmail.lol/v2',
+    temporam_enabled: 'true',
+    temporam_baseUrl: 'https://www.temporam.com',
+    temporam_preferredDomain: '',
     etempmail_enabled: 'true',
     etempmail_baseUrl: 'https://etempmail.com',
     etempmail_preferredDomain: '',
@@ -112,6 +117,7 @@
     duckmail: { zh: 'DuckMail', en: 'DuckMail' },
     guerrillamail: { zh: 'GuerrillaMail', en: 'GuerrillaMail' },
     'tempmail-lol': { zh: 'Tempmail.lol', en: 'Tempmail.lol' },
+    temporam: { zh: 'Temporam', en: 'Temporam' },
     etempmail: { zh: 'eTempMail', en: 'eTempMail' },
     moemail: { zh: 'MoEmail', en: 'MoEmail' },
     m2u: { zh: 'MailToYou', en: 'MailToYou' },
@@ -244,7 +250,10 @@
   function saveScopedValue(key, value) { GM_setValue(sk(key), value); }
   function isLocalSecretPlaceholder(value) { return String(value || '').startsWith(LOCAL_SECRET_PREFIX) && String(value || '').endsWith('__'); }
   function seedMissingSettings() {
-    const legacyDefaultProviderPool = 'cloudflare_temp_email,mailtm,duckmail,guerrillamail,tempmail-lol,etempmail,moemail,gptmail,im215';
+    const legacyDefaultProviderPools = [
+      'cloudflare_temp_email,mailtm,duckmail,guerrillamail,tempmail-lol,etempmail,moemail,gptmail,im215',
+      'cloudflare_temp_email,mailtm,duckmail,guerrillamail,tempmail-lol,etempmail,moemail,m2u,gptmail,im215,mail2925',
+    ];
   const secretKeys = ['cloudflare_customAuth', 'cloudflare_adminAuth', 'moemail_apiKey', 'gptmail_apiKey', 'im215_apiKey', 'mail2925_account', 'mail2925_jwtToken', 'mail2925_deviceUid', 'mail2925_cookieHeader'];
     secretKeys.forEach((key) => {
       const seeded = String(DEFAULTS[key] || '').trim();
@@ -253,7 +262,7 @@
       if (current !== seeded) saveSetting(key, seeded);
     });
     const selectedProviders = String(loadSetting('selectedProvidersCsv') || '').trim();
-    if (!selectedProviders || selectedProviders === legacyDefaultProviderPool) {
+    if (!selectedProviders || legacyDefaultProviderPools.includes(selectedProviders)) {
       saveSetting('selectedProvidersCsv', DEFAULTS.selectedProvidersCsv);
     }
   }
@@ -381,7 +390,7 @@
     const root = document.getElementById('eep-provider-settings');
     if (root) root.innerHTML = renderProviderConfigForm(currentConfigProviderKey(settings), settings);
   }
-  function isKeylessProvider(providerKey) { return ['cloudflare_temp_email', 'mailtm', 'duckmail', 'guerrillamail', 'tempmail-lol', 'etempmail', 'm2u'].includes(String(providerKey || '')); }
+  function isKeylessProvider(providerKey) { return ['cloudflare_temp_email', 'mailtm', 'duckmail', 'guerrillamail', 'tempmail-lol', 'temporam', 'etempmail', 'm2u'].includes(String(providerKey || '')); }
   function nextUtcResetAt(nowMs = Date.now()) {
     const now = new Date(nowMs);
     const next = new Date(nowMs);
@@ -1710,6 +1719,139 @@
       });
     }).filter(Boolean);
   }
+  function temporamRequest(cfg, method, path, options = {}) {
+    const headers = {
+      Accept: 'application/json',
+      'Accept-Language': currentLocale() === 'zh-CN' ? 'zh-CN,zh;q=0.9' : 'en-US,en;q=0.9',
+      'User-Agent': 'EasyEmailBrowserRuntime/1.5.2',
+      Referer: `${normalizeUrl(cfg.baseUrl)}/`,
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    };
+    return requestJsonAbsolute(method, `${normalizeUrl(cfg.baseUrl)}${path}`, headers, options.body);
+  }
+  function temporamBodyHasError(body) {
+    const record = readValueRecord(body);
+    if (record.error === true) return true;
+    const code = Number.parseInt(readValueString(record.code) || '0', 10);
+    return Number.isFinite(code) && code >= 400;
+  }
+  function temporamBodyErrorDetail(body) {
+    const record = readValueRecord(body);
+    return readValueString(record.message) || readValueString(record.error) || readValueString(record.reason) || '';
+  }
+  async function temporamGetDomains(cfg) {
+    const result = await temporamRequest(cfg, 'GET', '/api/domains');
+    if (result.status !== 200 || temporamBodyHasError(result.data)) {
+      throw new Error(`Temporam domains failed: HTTP ${result.status}${temporamBodyErrorDetail(result.data) ? `. ${temporamBodyErrorDetail(result.data)}` : ''}`);
+    }
+    const domains = readValueRecordList(readValueRecord(result.data).data)
+      .map((item) => readValueString(item.domain))
+      .filter(Boolean)
+      .map((item) => String(item).trim().toLowerCase())
+      .filter((item) => /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(item));
+    setCachedProviderDomains('temporam', domains);
+    return [...new Set(domains)];
+  }
+  function temporamDomainMatchesPreference(domain, preferredDomain) {
+    const normalizedDomain = String(domain || '').trim().toLowerCase();
+    const normalizedPreferredDomain = String(preferredDomain || '').trim().toLowerCase();
+    if (!normalizedDomain || !normalizedPreferredDomain) return false;
+    return normalizedDomain === normalizedPreferredDomain || normalizedDomain.endsWith(`.${normalizedPreferredDomain}`);
+  }
+  function temporamSelectDomain(domains, preferredDomain) {
+    const normalizedPreferredDomain = String(preferredDomain || '').trim().toLowerCase();
+    if (normalizedPreferredDomain) {
+      const matched = [...new Set((domains || []).filter((domain) => temporamDomainMatchesPreference(domain, normalizedPreferredDomain)))];
+      if (!matched.length) throw new Error(`Temporam has no available domain matching "${normalizedPreferredDomain}".`);
+      return matched[Math.floor(Math.random() * matched.length)] || matched[0];
+    }
+    if (!domains.length) throw new Error('Temporam has no public domain.');
+    return domains[Math.floor(Math.random() * domains.length)] || domains[0];
+  }
+  function temporamSinceIso(mailbox) {
+    const openedAt = readValueString(mailbox && mailbox.mailboxData && mailbox.mailboxData.openedAt) || readValueString(mailbox && mailbox.openedAt);
+    const baseMs = parseDateValue(openedAt) || Date.now();
+    return new Date(baseMs - 10 * 60 * 1000).toISOString();
+  }
+  function temporamNormalizeMessage(row, fallbackId) {
+    const record = readValueRecord(row);
+    const id = readValueString(record.id || record.emailId || record._id) || fallbackId || randomHex(6);
+    const content = readValueString(record.content || record.body || record.message) || '';
+    const contentLooksHtml = content && htmlLooksLikeMarkup(content);
+    const htmlBody = readValueString(record.html || record.htmlBody || record.html_body) || (contentLooksHtml ? content : '');
+    const textBody = readValueString(record.text || record.textBody || record.text_body || record.plainText || record.plain)
+      || (contentLooksHtml ? normalizeReadableText(htmlToText(content)) : content);
+    return normalizeObservedMessage({
+      id: `temporam:${id}`,
+      sender: readValueString(record.fromEmail || record.from_email || record.senderEmail || record.sender || record.from) || '',
+      subject: readValueString(record.subject || record.title) || '',
+      textBody,
+      htmlBody,
+      observedAt: chooseObservedAt(record.createdAt, record.created_at, record.receivedAt, record.received_at, record.date),
+    });
+  }
+  async function temporamOpenMailbox(cfg) {
+    const domains = await temporamGetDomains(cfg);
+    const domain = temporamSelectDomain(domains, cfg.preferredDomain);
+    const localPart = randomString(8);
+    const email = `${localPart}@${domain}`.toLowerCase();
+    const openedAt = new Date().toISOString();
+    return {
+      email,
+      mailboxData: { email, localPart, domain, openedAt },
+      metadata: { selectedDomain: domain, anonymousWebFlow: true },
+    };
+  }
+  async function temporamResolveMailboxByEmail(cfg, email) {
+    const normalized = normalizeEmailAddress(email);
+    if (!normalized) throw new Error('邮箱地址格式不正确。');
+    const domain = getEmailDomain(normalized);
+    const domains = await temporamGetDomains(cfg);
+    if (!domains.includes(domain)) throw new Error(`Temporam does not list domain ${domain}.`);
+    const localPart = normalized.split('@')[0] || '';
+    return {
+      email: normalized,
+      mailboxData: { email: normalized, localPart, domain, openedAt: new Date(Date.now() - 10 * 60 * 1000).toISOString() },
+      metadata: { manualLookup: true, selectedDomain: domain, anonymousWebFlow: true },
+    };
+  }
+  async function temporamListMessages(cfg, mailbox) {
+    const email = normalizeEmailAddress(readValueString(mailbox && mailbox.mailboxData && mailbox.mailboxData.email) || readValueString(mailbox && mailbox.email));
+    if (!email) throw new Error('Temporam mailbox email is missing.');
+    const query = `email=${encodeURIComponent(email)}&since=${encodeURIComponent(temporamSinceIso(mailbox))}&limit=50`;
+    const listResult = await temporamRequest(cfg, 'GET', `/api/emails?${query}`);
+    if (listResult.status !== 200 || temporamBodyHasError(listResult.data)) {
+      throw new Error(`Temporam list failed: HTTP ${listResult.status}${temporamBodyErrorDetail(listResult.data) ? `. ${temporamBodyErrorDetail(listResult.data)}` : ''}`);
+    }
+    const rows = readValueRecordList(readValueRecord(listResult.data).data).sort((left, right) => {
+      const leftTime = parseDateValue(readValueString(left.createdAt || left.created_at || left.receivedAt || left.received_at || left.date) || '');
+      const rightTime = parseDateValue(readValueString(right.createdAt || right.created_at || right.receivedAt || right.received_at || right.date) || '');
+      return rightTime - leftTime;
+    });
+    const messages = [];
+    for (const row of rows) {
+      const summary = temporamNormalizeMessage(row, '');
+      if (summary && summary.extractedCode) {
+        messages.push(summary);
+        continue;
+      }
+      const id = readValueString(row.id || row.emailId || row._id);
+      if (!id) {
+        if (summary) messages.push(summary);
+        continue;
+      }
+      let detailRow = row;
+      try {
+        const detailResult = await temporamRequest(cfg, 'GET', `/api/emails/${encodeURIComponent(id)}`);
+        if (detailResult.status === 200 && !temporamBodyHasError(detailResult.data)) {
+          detailRow = { ...row, ...readValueRecord(readValueRecord(detailResult.data).data) };
+        }
+      } catch {}
+      const detail = temporamNormalizeMessage(detailRow, id);
+      if (detail) messages.push(detail);
+    }
+    return messages.filter(Boolean);
+  }
   function etempmailRequest(baseUrl, method, path, options = {}) {
     const headers = {
       Accept: options.accept || 'application/json, text/plain, */*',
@@ -2132,6 +2274,7 @@
     duckmail: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.duckmail_baseUrl)), getConfig: (s) => ({ baseUrl: normalizeUrl(s.duckmail_baseUrl), preferredDomain: String(s.duckmail_preferredDomain || '').trim() }), openMailbox: duckmailOpenMailbox, listMessages: duckmailListMessages },
     guerrillamail: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.guerrillamail_apiBase)), getConfig: (s) => ({ apiBase: normalizeUrl(s.guerrillamail_apiBase) }), openMailbox: guerrillaOpenMailbox, listMessages: guerrillaListMessages },
     'tempmail-lol': { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.tempmailLol_baseUrl)), getConfig: (s) => ({ baseUrl: normalizeUrl(s.tempmailLol_baseUrl) }), openMailbox: tempmailLolOpenMailbox, listMessages: tempmailLolListMessages },
+    temporam: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.temporam_baseUrl)), getConfig: (s) => ({ baseUrl: normalizeUrl(s.temporam_baseUrl), preferredDomain: String(s.temporam_preferredDomain || '').trim() }), openMailbox: temporamOpenMailbox, listMessages: temporamListMessages, resolveMailboxByEmail: temporamResolveMailboxByEmail },
     etempmail: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.etempmail_baseUrl)), getConfig: (s) => ({ baseUrl: normalizeUrl(s.etempmail_baseUrl), preferredDomain: String(s.etempmail_preferredDomain || '').trim() }), openMailbox: etempmailOpenMailbox, listMessages: etempmailListMessages },
     moemail: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.moemail_baseUrl) && String(s.moemail_apiKey || '').trim()), getConfig: (s) => ({ baseUrl: normalizeUrl(s.moemail_baseUrl), apiKey: String(s.moemail_apiKey || '').trim(), expiryTimeMs: String(s.moemail_expiryTimeMs || '3600000').trim() }), openMailbox: moemailOpenMailbox, listMessages: moemailListMessages },
     m2u: { isEnabled: () => true, isConfigured: (s) => Boolean(normalizeUrl(s.m2u_baseUrl)), getConfig: (s) => ({ baseUrl: normalizeUrl(s.m2u_baseUrl), preferredDomain: String(s.m2u_preferredDomain || '').trim() }), openMailbox: m2uOpenMailbox, listMessages: m2uListMessages },
@@ -2251,6 +2394,12 @@
     const domains = await m2uGetDomains(cfg);
     return domains.includes(domain);
   }
+  async function detectTemporamDomainMatch(domain, cfg) {
+    const cached = getCachedProviderDomains('temporam');
+    if (cached.length) return cached.includes(domain);
+    const domains = await temporamGetDomains(cfg);
+    return domains.includes(domain);
+  }
   async function guessMailboxProvider(email, settings) {
     const normalized = normalizeEmailAddress(email);
     if (!normalized) return null;
@@ -2264,6 +2413,7 @@
     if (PROVIDERS.cloudflare_temp_email.isConfigured(settings)) checks.push(async () => (await detectCloudflareDomainMatch(domain, PROVIDERS.cloudflare_temp_email.getConfig(settings))) ? ({ providerKey: 'cloudflare_temp_email', supported: true }) : null);
     if (GUERRILLA_DOMAINS.includes(domain)) checks.push(async () => ({ providerKey: 'guerrillamail', supported: true }));
     if (PROVIDERS.moemail.isConfigured(settings)) checks.push(async () => (await detectMoemailDomainMatch(domain, PROVIDERS.moemail.getConfig(settings))) ? ({ providerKey: 'moemail', supported: true }) : null);
+    if (PROVIDERS.temporam.isConfigured(settings)) checks.push(async () => (await detectTemporamDomainMatch(domain, PROVIDERS.temporam.getConfig(settings))) ? ({ providerKey: 'temporam', supported: true }) : null);
     if (PROVIDERS.m2u.isConfigured(settings)) checks.push(async () => (await detectM2uDomainMatch(domain, PROVIDERS.m2u.getConfig(settings))) ? ({ providerKey: 'm2u', supported: false, reason: 'history-only' }) : null);
     if (PROVIDERS.im215.isConfigured(settings)) checks.push(async () => (await detectIm215DomainMatch(domain, PROVIDERS.im215.getConfig(settings))) ? ({ providerKey: 'im215', supported: true }) : null);
     if (PROVIDERS.duckmail.isConfigured(settings)) checks.push(async () => (await detectDuckmailDomainMatch(domain, PROVIDERS.duckmail.getConfig(settings))) ? ({ providerKey: 'duckmail', supported: false, reason: 'history-only' }) : null);
@@ -2316,6 +2466,11 @@
     if (providerKey === 'moemail') {
       const cfg = PROVIDERS.moemail.getConfig(settings);
       const resolved = await moemailResolveMailboxByEmail(cfg, normalized);
+      return { providerKey, ...resolved };
+    }
+    if (providerKey === 'temporam') {
+      const cfg = PROVIDERS.temporam.getConfig(settings);
+      const resolved = await temporamResolveMailboxByEmail(cfg, normalized);
       return { providerKey, ...resolved };
     }
     if (providerKey === 'gptmail') {
@@ -2393,6 +2548,9 @@
     }
     if (providerKey === 'tempmail-lol') {
       return `<div class="${cardClass}"><div class="eep-provider-card-head"><h4>${escapeHtml(providerLabel(providerKey))}</h4><span class="eep-provider-pill">${hint}</span></div><div class="eep-provider-status-note">${detail}</div><div class="eep-provider-card-fields"><label class="eep-field"><span>${escapeHtml(t('url'))}</span><input data-setting="tempmailLol_baseUrl" value="${escapeHtml(settings.tempmailLol_baseUrl)}" /></label></div></div>`;
+    }
+    if (providerKey === 'temporam') {
+      return `<div class="${cardClass}"><div class="eep-provider-card-head"><h4>${escapeHtml(providerLabel(providerKey))}</h4><span class="eep-provider-pill">${hint}</span></div><div class="eep-provider-status-note">${detail}</div><div class="eep-provider-card-fields"><label class="eep-field"><span>${escapeHtml(t('url'))}</span><input data-setting="temporam_baseUrl" value="${escapeHtml(settings.temporam_baseUrl)}" /></label><label class="eep-field"><span>${escapeHtml(t('domain'))}</span><input data-setting="temporam_preferredDomain" value="${escapeHtml(settings.temporam_preferredDomain || '')}" placeholder="v2proxy.com" /></label></div></div>`;
     }
     if (providerKey === 'etempmail') {
       const currentRecoverKey = (() => { const mb = currentMailbox(); return mb && mb.providerKey === 'etempmail' && mb.mailboxData && mb.mailboxData.recoverKey ? mb.mailboxData.recoverKey : ''; })();

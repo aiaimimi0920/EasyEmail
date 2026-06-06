@@ -60,6 +60,13 @@ def build_settings(config: dict[str, Any]) -> dict[str, str]:
         get_in(config, "serviceBase", "runtime", "providers", "tempmailLol", "baseUrl"),
         default="https://api.tempmail.lol/v2",
     )
+    temporam_base_url = str_value(
+        get_in(config, "serviceBase", "runtime", "providers", "temporam", "baseUrl"),
+        default="https://www.temporam.com",
+    )
+    temporam_preferred_domain = str_value(
+        get_in(config, "serviceBase", "runtime", "providers", "temporam", "preferredDomain"),
+    )
     m2u_base_url = str_value(
         get_in(config, "serviceBase", "runtime", "providers", "m2u", "baseUrl"),
         default="https://api.m2u.io",
@@ -104,6 +111,9 @@ def build_settings(config: dict[str, Any]) -> dict[str, str]:
         "cloudflare_preferredDomain": cloudflare_public_domain,
         "tempmailLol_enabled": "true",
         "tempmailLol_baseUrl": tempmail_lol_base_url,
+        "temporam_enabled": "true",
+        "temporam_baseUrl": temporam_base_url,
+        "temporam_preferredDomain": temporam_preferred_domain,
         "m2u_enabled": "true",
         "m2u_baseUrl": m2u_base_url,
         "m2u_preferredDomain": m2u_preferred_domain,

@@ -146,6 +146,10 @@ const M2U_CAPACITY_RECOVERY_MARKERS = [
   "m2u_capacity_failure",
   "m2u_transient_failure",
 ] as const;
+const TEMPORAM_CAPACITY_RECOVERY_MARKERS = [
+  "temporam_capacity_failure",
+  "temporam_transient_failure",
+] as const;
 
 function inferMailboxCapacityRecoveryProviderType(input: {
   providerTypeKey?: string;
@@ -175,6 +179,9 @@ function inferMailboxCapacityRecoveryProviderType(input: {
   if (M2U_CAPACITY_RECOVERY_MARKERS.some((marker) => combined.includes(marker))) {
     return "m2u";
   }
+  if (TEMPORAM_CAPACITY_RECOVERY_MARKERS.some((marker) => combined.includes(marker))) {
+    return "temporam";
+  }
 
   return undefined;
 }
@@ -196,6 +203,12 @@ function normalizeMailboxOpenError(error: unknown): unknown {
     return new EasyEmailError("MAILBOX_CAPACITY_UNAVAILABLE", message);
   }
   if (normalized.includes("m2u_transient_failure")) {
+    return new EasyEmailError("MAILBOX_UPSTREAM_TRANSIENT", message);
+  }
+  if (normalized.includes("temporam_capacity_failure")) {
+    return new EasyEmailError("MAILBOX_CAPACITY_UNAVAILABLE", message);
+  }
+  if (normalized.includes("temporam_transient_failure")) {
     return new EasyEmailError("MAILBOX_UPSTREAM_TRANSIENT", message);
   }
   return error;

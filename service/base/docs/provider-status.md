@@ -21,6 +21,7 @@ canonical repo：
 | `cloudflare_temp_email` | operator-managed / 自有站点 | **可用** | `probe/open/read-empty` 通过 | 依赖站点侧 `x-custom-auth` 与动态域名池 |
 | `mailtm` | free / anonymous | **可用** | `probe/open/read-empty` 通过 | 公开 API |
 | `m2u` | free / anonymous | **可用** | `probe/open/read-empty` 通过 (2026-04-24) | `https://api.m2u.io`，无需 API key，读信需 `token + view_token`；恢复主要依赖本地 session/token，不支持仅凭邮箱地址向上游恢复原 mailbox |
+| `temporam` | free / anonymous web-flow | **可用** | 单元测试覆盖 `domains/open/list/detail/probe` (2026-06-06) | `https://www.temporam.com`，按公开视频站点同源端点 `/api/domains`、`/api/emails`、`/api/emails/{id}` 接入；不使用官方 API key |
 | `guerrillamail` | free / anonymous | **可用** | `probe/open/read-code` 通过 (2026-04-07) | 修复 mail_id 数字类型导致消息跳过、textBody/htmlBody 重复赋值、OTP 未找到时提前 return |
 | `duckmail` | free / anonymous | **可用** | `probe/open/read-empty` 通过 | 公开 API |
 | `tempmail-lol` | free / anonymous | **可用** | `probe/open/read-empty` 通过 | 本轮修正了探活方式与请求重试 |
@@ -43,6 +44,7 @@ canonical repo：
 - `cloudflare_temp_email`
 - `mailtm`
 - `m2u`
+- `temporam`
 - `guerrillamail`
 - `duckmail`
 - `tempmail-lol`
@@ -68,6 +70,7 @@ canonical repo：
 - `cloudflare_temp_email`
 - `mailtm`
 - `m2u`
+- `temporam`
 - `guerrillamail`
 - `duckmail`
 - `tempmail-lol`

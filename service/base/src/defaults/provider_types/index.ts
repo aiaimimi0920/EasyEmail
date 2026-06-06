@@ -9,6 +9,7 @@ import m2u from "./m2u.json" with { type: "json" };
 import moemail from "./moemail.json" with { type: "json" };
 import cloudflareTempEmail from "./cloudflare_temp_email.json" with { type: "json" };
 import tempmailLol from "./tempmail-lol.json" with { type: "json" };
+import temporam from "./temporam.json" with { type: "json" };
 import type { ProviderTypeDefinition } from "../../domain/models.js";
 import { toProviderTypeDefinition } from "../validation.js";
 
@@ -23,5 +24,6 @@ export const MAIL_PROVIDER_TYPES: ProviderTypeDefinition[] = [
   toProviderTypeDefinition(m2u, "provider_types.m2u"),
   toProviderTypeDefinition(moemail, "provider_types.moemail"),
   toProviderTypeDefinition(tempmailLol, "provider_types.tempmail-lol"),
+  toProviderTypeDefinition(temporam, "provider_types.temporam"),
   toProviderTypeDefinition(cloudflareTempEmail, "provider_types.cloudflare_temp_email"),
 ];

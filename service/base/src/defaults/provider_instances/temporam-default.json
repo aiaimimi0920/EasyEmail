@@ -1,0 +1,24 @@
+{
+  "id": "temporam_shared_default",
+  "providerTypeKey": "temporam",
+  "displayName": "Temporam Default",
+  "status": "active",
+  "runtimeKind": "external",
+  "connectorKind": "temporam-web",
+  "shared": true,
+  "costTier": "free",
+  "healthScore": 0.74,
+  "averageLatencyMs": 520,
+  "connectionRef": "external://temporam/default",
+  "hostBindings": [],
+  "groupKeys": [],
+  "metadata": {
+    "tier": "default",
+    "apiBase": "https://www.temporam.com",
+    "acceptLanguage": "zh-CN,zh;q=0.9",
+    "acceptEncoding": "identity",
+    "flow": "anonymous-web"
+  },
+  "createdAt": "",
+  "updatedAt": ""
+}

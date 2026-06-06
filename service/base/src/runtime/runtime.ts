@@ -189,6 +189,7 @@ export async function startEasyEmailServiceRuntime(
   configureProviderAvailability(service, config);
   configureGptMailProviderInstance(service, config);
   configureTempmailLolProviderInstance(service, config);
+  configureTemporamProviderInstance(service, config);
   configureM2uProviderInstance(service, config);
   configureMoemailProviderInstance(service, config);
   configureIm215ProviderInstance(service, config);
@@ -757,6 +758,24 @@ function configureTempmailLolProviderInstance(
     isExternalProviderEnabled(config, "tempmail-lol"),
     {
       baseUrl: config.tempmailLol.baseUrl,
+    },
+  );
+}
+
+function configureTemporamProviderInstance(
+  service: EasyEmailService,
+  config: EasyEmailServiceRuntimeConfig,
+): void {
+  configureMetadataOnlyExternalProviderInstance(
+    service,
+    "temporam_shared_default",
+    "temporam",
+    isExternalProviderEnabled(config, "temporam"),
+    {
+      baseUrl: config.temporam.baseUrl,
+      extraMetadata: {
+        preferredDomain: config.temporam.preferredDomain,
+      },
     },
   );
 }

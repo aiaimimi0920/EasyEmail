@@ -77,6 +77,9 @@ serviceBase:
         paidKeysText: ""
       tempmailLol:
         baseUrl: https://api.tempmail.lol/v2
+      temporam:
+        baseUrl: https://www.temporam.com
+        preferredDomain: ""
       m2u:
         baseUrl: https://api.m2u.io
         preferredDomain: edu.kg

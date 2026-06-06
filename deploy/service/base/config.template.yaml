@@ -45,6 +45,7 @@ providers:
     - cloudflare_temp_email
     - mailtm
     - m2u
+    - temporam
     - mail2925
     - guerrillamail
     - moemail
@@ -107,3 +108,16 @@ providers:
     # freeKeysText: |
     #   key1
     #   key2
+
+  tempmailLol:
+    # baseUrl: https://api.tempmail.lol/v2
+
+  temporam:
+    # baseUrl: https://www.temporam.com
+    # preferredDomain: v2proxy.com
+
+  m2u:
+    # baseUrl: https://api.m2u.io
+    # preferredDomain: edu.kg
+    # upstreamProxyUrl: ""
+    # useEasyProxyOnCapacity: false

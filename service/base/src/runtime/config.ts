@@ -55,6 +55,11 @@ export interface TempmailLolRuntimeConfig {
   baseUrl?: string;
 }
 
+export interface TemporamRuntimeConfig {
+  baseUrl?: string;
+  preferredDomain?: string;
+}
+
 export interface M2uRuntimeConfig {
   baseUrl?: string;
   preferredDomain?: string;
@@ -163,6 +168,7 @@ export interface EasyEmailServiceRuntimeConfig {
   };
   gptmail: GptMailRuntimeConfig;
   tempmailLol: TempmailLolRuntimeConfig;
+  temporam: TemporamRuntimeConfig;
   m2u: M2uRuntimeConfig;
   moemail: MoemailRuntimeConfig;
   im215: Im215RuntimeConfig;
@@ -228,6 +234,10 @@ export interface EasyEmailServiceConfigDocument {
     };
     tempmailLol?: {
       baseUrl?: unknown;
+    };
+    temporam?: {
+      baseUrl?: unknown;
+      preferredDomain?: unknown;
     };
     m2u?: {
       baseUrl?: unknown;
@@ -592,6 +602,7 @@ export function parseEasyEmailServiceRuntimeConfig(
   const tempmailLol = asObject(
     (providers as Record<string, unknown>).tempmailLol ?? (providers as Record<string, unknown>)["tempmail-lol"],
   );
+  const temporam = asObject(providers.temporam);
   const m2u = asObject(providers.m2u);
   const moemail = asObject(providers.moemail);
   const im215 = asObject(providers.im215);
@@ -671,6 +682,10 @@ export function parseEasyEmailServiceRuntimeConfig(
     },
     tempmailLol: {
       baseUrl: asNonEmptyString(tempmailLol.baseUrl),
+    },
+    temporam: {
+      baseUrl: asNonEmptyString(temporam.baseUrl),
+      preferredDomain: asNonEmptyString(temporam.preferredDomain),
     },
     m2u: {
       baseUrl: asNonEmptyString(m2u.baseUrl),
@@ -789,7 +804,7 @@ function deriveMailSelectionsFromServiceMode(value: string | undefined): string[
   }
 
   if (normalized === "external-api") {
-    return ["mailtm", "m2u", "mail2925", "guerrillamail", "moemail", "im215", "duckmail", "tempmail-lol", "etempmail", "gptmail"];
+    return ["mailtm", "m2u", "temporam", "mail2925", "guerrillamail", "moemail", "im215", "duckmail", "tempmail-lol", "etempmail", "gptmail"];
   }
 
   return undefined;
