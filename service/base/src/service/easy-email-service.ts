@@ -214,6 +214,10 @@ function normalizeMailboxOpenError(error: unknown): unknown {
   return error;
 }
 
+function isUnresolvedProviderPlanError(error: unknown): boolean {
+  return error instanceof EasyEmailError && error.code === "PROVIDER_INSTANCE_UNAVAILABLE";
+}
+
 function parseStringList(value: string | undefined): string[] {
   const raw = value?.trim();
   if (!raw) {
@@ -693,6 +697,14 @@ export class EasyEmailService {
           recordMailboxOpenFailure(this.registry, plan.instance, normalizedError, now);
         }
         this.syncOperationalState(now);
+        if (
+          !plan
+          && lastError !== undefined
+          && !normalizedRequest.providerTypeKey
+          && isUnresolvedProviderPlanError(normalizedError)
+        ) {
+          continue;
+        }
         lastError = normalizedError;
         if (!shouldFallbackMailboxOpen(request, initialPlan, providerTypeKey)) {
           throw normalizedError;

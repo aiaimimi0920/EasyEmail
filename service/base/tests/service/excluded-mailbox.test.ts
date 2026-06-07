@@ -196,6 +196,33 @@ describe("mailbox excluded domains and addresses", () => {
     expect(opened.session.emailAddress).toBe("good@safe.test");
   });
 
+  it("does not let an unavailable final fallback provider mask the last real open failure", async () => {
+    const service = createBootstrappedEasyEmailService({
+      providerTypes: [
+        createProviderType("mailtm", "Mail.tm"),
+        createProviderType("gptmail", "GPT Mail"),
+      ],
+      providerInstances: [
+        createInstance("mailtm"),
+      ],
+      adapters: [
+        createAdapter("mailtm", "bad@blocked.test"),
+      ],
+    }, now);
+
+    await expect(service.openMailbox({
+      hostId: "demo-host",
+      provisionMode: "reuse-only",
+      bindingMode: "shared-instance",
+      providerStrategyModeId: "gptmail-first",
+      providerGroupSelections: ["mailtm", "gptmail"],
+      preferredInstanceId: "mailtm_shared_default",
+      excludedDomains: ["blocked.test"],
+    }, now)).rejects.toMatchObject({
+      code: "MAILBOX_DOMAIN_EXCLUDED",
+    });
+  });
+
   it("maps request-scoped avoid hints into provider/domain/address exclusions", async () => {
     const service = createBootstrappedEasyEmailService({
       providerTypes: [
