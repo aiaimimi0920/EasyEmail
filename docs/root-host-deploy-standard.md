@@ -56,5 +56,8 @@ default for:
 
 - Docker Compose project name
 - default container name
-- default network alias
 - default local image name `easy-email/easy-email:local`
+
+The default in-network service discovery alias must remain
+`easy-email-service`. This keeps the human-facing runtime named `easy-email`
+while giving other EasyAiMi services a stable service hostname.

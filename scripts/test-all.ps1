@@ -51,6 +51,9 @@ function Assert-MinimumNodeVersion {
 
 Assert-MinimumNodeVersion -MinimumVersion $minimumNodeVersion
 
+Write-Host "Validating repository Python tests..."
+Invoke-InDirectory $repoRoot { & python -m unittest discover -s tests -p "test_*.py" -v }
+
 Write-Host "Validating userscript runtime..."
 Invoke-InDirectory $repoRoot { & $powerShellCommand -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts/validate-userscript.ps1') }
 

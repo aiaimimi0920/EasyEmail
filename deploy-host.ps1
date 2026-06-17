@@ -10,7 +10,7 @@ param(
     [string]$ContainerName = "",
     [int]$HostPort = 0,
     [string]$NetworkName = "EasyAiMi",
-    [string]$NetworkAlias = "easy-email",
+    [string]$NetworkAlias = "easy-email-service",
     [string]$ComposeProjectName = "",
     [string]$RepoOwner = "aiaimimi0920",
     [string]$RepoName = "EasyEmail",
