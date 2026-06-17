@@ -13,6 +13,7 @@ import type {
 } from "../domain/models.js";
 import { MailRegistry } from "../domain/registry.js";
 import { extractEmailDomain } from "./outcomes.js";
+import { createMailboxAccessDescriptor } from "./mailbox-access-descriptor.js";
 
 function parseStringList(value: string | undefined): string[] {
   const raw = value?.trim();
@@ -329,10 +330,13 @@ export async function openMailboxWithPlan(input: {
 
   registry.saveSession(persistedSession);
 
+  const accessDescriptor = createMailboxAccessDescriptor(persistedSession, boundInstance, now);
+
   return {
     session: persistedSession,
     instance: boundInstance,
     binding: bindingResolution.binding,
+    ...accessDescriptor,
     runtimePlan: plan.runtimePlan,
     strategyMode: plan.strategyMode,
   };

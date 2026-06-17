@@ -15,6 +15,11 @@ import {
   shouldFallbackMailboxOpen,
 } from "./mailbox.js";
 import {
+  createMailboxAccessDescriptor,
+  createProviderRecoverabilityProfile,
+} from "./mailbox-access-descriptor.js";
+import { createMailboxSessionFromRecoveryFields } from "./mailbox-field-recovery.js";
+import {
   recordMailboxOpenFailure,
   reportMailboxOutcomeToRegistry,
 } from "./outcomes.js";
@@ -48,6 +53,8 @@ import type {
   MailboxOutcomeReport,
   MailboxOutcomeReportResult,
   MailBusinessStrategyId,
+  MailboxAccessDescriptor,
+  MailboxRecoverabilityLevel,
   MailProviderTypeKey,
   MailRoutingProfileDescriptor,
   MailStrategyModeResolution,
@@ -321,6 +328,22 @@ function normalizeExcludedProviderTypeKeys(
   return normalized.length > 0 ? normalized : undefined;
 }
 
+function normalizeRecoverabilityLevels(
+  values: MailboxRecoverabilityLevel[] | undefined,
+): MailboxRecoverabilityLevel[] | undefined {
+  const normalized: MailboxRecoverabilityLevel[] = [];
+  for (const value of values ?? []) {
+    const item = String(value ?? "").trim().toLowerCase();
+    if (
+      (item === "unrecoverable" || item === "key_recoverable" || item === "recoverable")
+      && !normalized.includes(item)
+    ) {
+      normalized.push(item);
+    }
+  }
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 function shouldCleanupMoemailMailboxEntry(
   entry: MoemailMailboxListingEntry,
   {
@@ -407,10 +430,14 @@ export class EasyEmailService {
 
   public getCatalog(): EasyEmailCatalog {
     this.syncOperationalState();
+    const now = new Date();
     return {
       providerTypes: this.registry.listProviderTypes(),
       runtimeTemplates: this.registry.listRuntimeTemplates(),
       strategyProfiles: this.registry.listStrategies(),
+      providerRecoverabilityProfiles: this.registry
+        .listInstances()
+        .map((instance) => createProviderRecoverabilityProfile(instance, now)),
       providerGroups: MAIL_PROVIDER_GROUPS,
       businessStrategies: MAIL_BUSINESS_STRATEGIES,
       routingProfiles: this.routingProfiles.map((item) => ({
@@ -1290,6 +1317,8 @@ export class EasyEmailService {
         ?.map((item) => normalizeMailProviderTypeKey(item))
         .filter((item): item is MailProviderTypeKey => item !== undefined),
       strategyProfileId: request.strategyProfileId ?? routingProfile?.strategyProfileId,
+      recoverabilityLevels: normalizeRecoverabilityLevels(request.recoverabilityLevels),
+      includeUndeterminedRecoverability: request.includeUndeterminedRecoverability === true,
       metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
     };
   }
@@ -1328,9 +1357,12 @@ export class EasyEmailService {
 
   public async recoverMailboxSessionByEmailAddress(
     input: {
-      emailAddress: string;
+      emailAddress?: string;
       providerTypeKey?: MailProviderTypeKey;
+      providerInstanceId?: string;
       hostId?: string;
+      recoveryDataCredential?: Record<string, string>;
+      recoveryFields?: Record<string, string>;
     },
     now: Date = new Date(),
   ): Promise<{
@@ -1340,11 +1372,60 @@ export class EasyEmailService {
     providerInstanceId?: string;
     session?: MailboxSession;
     detail?: string;
-  }> {
+  } & Partial<MailboxAccessDescriptor>> {
     this.syncOperationalState(now);
-    const normalizedEmail = input.emailAddress.trim().toLowerCase();
-    const normalizedProviderTypeKey = normalizeMailProviderTypeKey(input.providerTypeKey);
-    const session = this.findMailboxSessionByEmailAddress(normalizedEmail, normalizedProviderTypeKey);
+    const recoveryDataCredential = input.recoveryDataCredential;
+    const effectiveRecoveryFields = input.recoveryFields ?? recoveryDataCredential;
+    const normalizedEmail = (input.emailAddress ?? recoveryDataCredential?.emailAddress)?.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return {
+        recovered: false,
+        strategy: "not_supported",
+        detail: "email_address_required_for_recovery",
+      };
+    }
+
+    const requestedProviderInstanceId = input.providerInstanceId?.trim()
+      || recoveryDataCredential?.providerInstanceId?.trim();
+    const effectiveHostId = input.hostId?.trim()
+      || recoveryDataCredential?.hostId?.trim();
+    const requestedInstance = requestedProviderInstanceId
+      ? this.registry.findInstanceById(requestedProviderInstanceId)
+      : undefined;
+    const normalizedProviderTypeKey = normalizeMailProviderTypeKey(input.providerTypeKey)
+      ?? normalizeMailProviderTypeKey(recoveryDataCredential?.providerTypeKey)
+      ?? requestedInstance?.providerTypeKey;
+
+    if (requestedProviderInstanceId && !requestedInstance) {
+      return {
+        recovered: false,
+        strategy: "not_supported",
+        providerTypeKey: normalizedProviderTypeKey,
+        providerInstanceId: requestedProviderInstanceId,
+        detail: "provider_instance_not_found",
+      };
+    }
+
+    if (
+      requestedInstance
+      && input.providerTypeKey
+      && normalizedProviderTypeKey
+      && requestedInstance.providerTypeKey !== normalizedProviderTypeKey
+    ) {
+      return {
+        recovered: false,
+        strategy: "not_supported",
+        providerTypeKey: normalizedProviderTypeKey,
+        providerInstanceId: requestedInstance.id,
+        detail: "provider_instance_type_mismatch",
+      };
+    }
+
+    const session = this.registry.listSessions()
+      .filter((item) => item.emailAddress.trim().toLowerCase() === normalizedEmail)
+      .filter((item) => !normalizedProviderTypeKey || item.providerTypeKey === normalizedProviderTypeKey)
+      .filter((item) => !requestedProviderInstanceId || item.providerInstanceId === requestedProviderInstanceId)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
 
     if (session) {
       const instance = this.registry.findInstanceById(session.providerInstanceId);
@@ -1355,14 +1436,16 @@ export class EasyEmailService {
           : [];
         const recovered = await adapter.recoverMailboxSession({
           emailAddress: normalizedEmail,
-          hostId: input.hostId?.trim() || session.hostId,
+          hostId: effectiveHostId || session.hostId,
           instance,
           credentialSets,
           now,
           session,
+          recoveryFields: effectiveRecoveryFields,
         });
         if (recovered) {
           this.registry.saveSession(recovered.session);
+          const descriptor = createMailboxAccessDescriptor(recovered.session, instance, now);
           return {
             recovered: true,
             strategy: recovered.strategy,
@@ -1370,10 +1453,14 @@ export class EasyEmailService {
             providerInstanceId: recovered.session.providerInstanceId,
             session: recovered.session,
             detail: recovered.detail,
+            ...descriptor,
           };
         }
       }
 
+      const descriptor = instance
+        ? createMailboxAccessDescriptor(session, instance, now)
+        : undefined;
       return {
         recovered: true,
         strategy: "session_restore",
@@ -1381,6 +1468,7 @@ export class EasyEmailService {
         providerInstanceId: session.providerInstanceId,
         session,
         detail: "recovered_from_persisted_state",
+        ...(descriptor ?? {}),
       };
     }
 
@@ -1392,13 +1480,44 @@ export class EasyEmailService {
       };
     }
 
-    const candidates = this.registry.listActiveInstancesByType(normalizedProviderTypeKey);
+    const candidates = requestedProviderInstanceId
+      ? this.registry.listActiveInstancesByType(normalizedProviderTypeKey)
+        .filter((instance) => instance.id === requestedProviderInstanceId)
+      : this.registry.listActiveInstancesByType(normalizedProviderTypeKey);
     const adapter = this.adapterMap.get(normalizedProviderTypeKey);
     if (!adapter?.recoverMailboxSession || candidates.length === 0) {
+      if (effectiveRecoveryFields && candidates.length > 0) {
+        for (const instance of candidates) {
+          const recoveredFromFields = createMailboxSessionFromRecoveryFields({
+            emailAddress: normalizedEmail,
+            hostId: effectiveHostId,
+            providerTypeKey: normalizedProviderTypeKey,
+            instance,
+            recoveryFields: effectiveRecoveryFields,
+            now,
+          });
+          if (!recoveredFromFields) {
+            continue;
+          }
+
+          this.registry.saveSession(recoveredFromFields.session);
+          const descriptor = createMailboxAccessDescriptor(recoveredFromFields.session, instance, now);
+          return {
+            recovered: true,
+            strategy: recoveredFromFields.strategy,
+            providerTypeKey: recoveredFromFields.session.providerTypeKey,
+            providerInstanceId: recoveredFromFields.session.providerInstanceId,
+            session: recoveredFromFields.session,
+            detail: recoveredFromFields.detail,
+            ...descriptor,
+          };
+        }
+      }
       return {
         recovered: false,
         strategy: "not_supported",
         providerTypeKey: normalizedProviderTypeKey,
+        providerInstanceId: requestedProviderInstanceId,
         detail: "provider_recovery_not_supported",
       };
     }
@@ -1407,10 +1526,11 @@ export class EasyEmailService {
       const credentialSets = this.registry.resolveCredentialSetsForInstance(instance.id, "generate");
       const recovered = await adapter.recoverMailboxSession({
         emailAddress: normalizedEmail,
-        hostId: input.hostId?.trim() || `recovery:${normalizedProviderTypeKey}`,
+        hostId: effectiveHostId || `recovery:${normalizedProviderTypeKey}`,
         instance,
         credentialSets,
         now,
+        recoveryFields: effectiveRecoveryFields,
       });
 
       if (!recovered) {
@@ -1418,6 +1538,7 @@ export class EasyEmailService {
       }
 
       this.registry.saveSession(recovered.session);
+      const descriptor = createMailboxAccessDescriptor(recovered.session, instance, now);
       return {
         recovered: true,
         strategy: recovered.strategy,
@@ -1425,13 +1546,43 @@ export class EasyEmailService {
         providerInstanceId: recovered.session.providerInstanceId,
         session: recovered.session,
         detail: recovered.detail,
+        ...descriptor,
       };
+    }
+
+    if (effectiveRecoveryFields) {
+      for (const instance of candidates) {
+        const recoveredFromFields = createMailboxSessionFromRecoveryFields({
+          emailAddress: normalizedEmail,
+          hostId: effectiveHostId,
+          providerTypeKey: normalizedProviderTypeKey,
+          instance,
+          recoveryFields: effectiveRecoveryFields,
+          now,
+        });
+        if (!recoveredFromFields) {
+          continue;
+        }
+
+        this.registry.saveSession(recoveredFromFields.session);
+        const descriptor = createMailboxAccessDescriptor(recoveredFromFields.session, instance, now);
+        return {
+          recovered: true,
+          strategy: recoveredFromFields.strategy,
+          providerTypeKey: recoveredFromFields.session.providerTypeKey,
+          providerInstanceId: recoveredFromFields.session.providerInstanceId,
+          session: recoveredFromFields.session,
+          detail: recoveredFromFields.detail,
+          ...descriptor,
+        };
+      }
     }
 
     return {
       recovered: false,
       strategy: "not_supported",
       providerTypeKey: normalizedProviderTypeKey,
+      providerInstanceId: requestedProviderInstanceId,
       detail: "provider_recovery_not_supported",
     };
   }

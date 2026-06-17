@@ -176,7 +176,10 @@ export class EasyEmailHttpHandler {
     return this.service.recoverMailboxSessionByEmailAddress({
       emailAddress: request.emailAddress,
       providerTypeKey: request.providerTypeKey,
+      providerInstanceId: request.providerInstanceId,
       hostId: request.hostId,
+      recoveryDataCredential: request.recoveryDataCredential,
+      recoveryFields: request.recoveryFields,
     }).then((result) => ({
       result,
     }));

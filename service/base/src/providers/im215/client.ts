@@ -189,6 +189,20 @@ function sanitizeLocalPart(value: string | undefined): string {
   return base.slice(0, 48);
 }
 
+function parseExactEmailAddress(value: string): { address: string; localPart: string; domain: string } {
+  const address = value.trim().toLowerCase();
+  const atIndex = address.lastIndexOf("@");
+  if (atIndex <= 0 || atIndex === address.length - 1) {
+    throw new Im215ClientError(`Invalid 215.im email address for same-address recreation: ${value}`, "provider");
+  }
+
+  return {
+    address,
+    localPart: address.slice(0, atIndex),
+    domain: address.slice(atIndex + 1),
+  };
+}
+
 function classifyIm215Error(message: string): "auth" | "capacity" | "transient" | "provider" {
   const normalized = message.trim().toLowerCase();
   if (AUTH_ERROR_RE.test(normalized)) {
@@ -609,7 +623,7 @@ export class Im215Client {
         const address = `${localPart}@${domain}`;
         const payloads: Record<string, unknown>[] = [
           {
-            prefix: localPart,
+            localPart,
             ...(domain ? { domain } : {}),
             ...(this.config.autoDomainStrategy ? { autoDomainStrategy: this.config.autoDomainStrategy } : {}),
           },
@@ -640,6 +654,46 @@ export class Im215Client {
       }
 
       throw new Im215ClientError("215.im mailbox creation exhausted retries.", "capacity");
+    });
+  }
+
+  public async recreateMailboxByEmailAddress(emailAddress: string): Promise<Im215MailboxRefPayload> {
+    const { address, localPart, domain } = parseExactEmailAddress(emailAddress);
+
+    return this.withCredential("generate", address, async (_selection, apiKey) => {
+      const payload = {
+        localPart,
+        domain,
+        ...(this.config.autoDomainStrategy ? { autoDomainStrategy: this.config.autoDomainStrategy } : {}),
+      };
+      const response = await requestJson(this.config, apiKey, "POST", "/accounts", {
+        jsonBody: payload,
+      });
+
+      if (response.status === 200 || response.status === 201) {
+        const mailbox = extractMailboxPayload(response.body);
+        if (!mailbox) {
+          return { address, domain };
+        }
+        if (mailbox.address !== address) {
+          throw new Im215ClientError(
+            `215.im same-address recreation returned ${mailbox.address} instead of ${address}.`,
+            "provider",
+            response.status,
+          );
+        }
+        return mailbox;
+      }
+
+      if (response.status === 409) {
+        const mailbox = extractMailboxPayload(response.body);
+        if (mailbox?.address === address) {
+          return mailbox;
+        }
+        return { address, domain };
+      }
+
+      throw buildIm215StatusError("recreateMailboxByEmailAddress", response.status, response.body);
     });
   }
 

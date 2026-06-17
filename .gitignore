@@ -14,6 +14,8 @@
 logs/
 .tmp/
 .playwright-cli/
+.playwright-mcp/
+.release-artifacts/
 
 # Environment and local secrets
 config.yaml

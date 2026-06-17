@@ -407,17 +407,7 @@ export class DuckMailClient {
       const resolvedEmail = readStringLike(account.address) ?? email;
       const accountId = readStringLike(account.id ?? account.account_id) ?? "";
 
-      const tokenResponse = await requestJson(this.config, "POST", "/token", {
-        jsonBody: {
-          address: resolvedEmail,
-          password,
-        },
-      });
-      if (tokenResponse.status !== 200) {
-        throw buildDuckMailStatusError("getToken", tokenResponse.status, tokenResponse.body);
-      }
-
-      const token = readStringLike(asRecord(tokenResponse.body).token) ?? "";
+      const token = await this.getToken(resolvedEmail, password);
       if (!token || !accountId) {
         throw new Error("DuckMail createMailbox returned an incomplete account payload.");
       }
@@ -431,6 +421,24 @@ export class DuckMailClient {
     }
 
     throw new Error("DuckMail createMailbox exhausted retries.");
+  }
+
+  public async getToken(email: string, password: string): Promise<string> {
+    const tokenResponse = await requestJson(this.config, "POST", "/token", {
+      jsonBody: {
+        address: email.trim().toLowerCase(),
+        password,
+      },
+    });
+    if (tokenResponse.status !== 200) {
+      throw buildDuckMailStatusError("getToken", tokenResponse.status, tokenResponse.body);
+    }
+
+    const token = readStringLike(asRecord(tokenResponse.body).token) ?? "";
+    if (!token) {
+      throw new Error("DuckMail getToken returned an empty token.");
+    }
+    return token;
   }
 
   public async listMessages(token: string): Promise<Record<string, unknown>[]> {

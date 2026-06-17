@@ -38,6 +38,8 @@ export type MailboxSessionStatus = "open" | "resolved" | "expired";
 export type MessageContentSource = "subject" | "html" | "text";
 export type CodeSource = MessageContentSource;
 export type ActionLinkSource = MessageContentSource;
+export type MailboxRecoverabilityLevel = "unrecoverable" | "key_recoverable" | "recoverable";
+export type MailboxRecoverabilityEvidenceStatus = "undetermined" | "verified";
 
 export interface ActionLinkCandidate {
   url: string;
@@ -52,6 +54,44 @@ export interface ProviderTypeDefinition {
   supportsDynamicProvisioning: boolean;
   defaultStrategyKey: StrategyKey;
   tags: string[];
+}
+
+export interface MailboxTemporaryAuthCredential {
+  credentialType: string;
+  fields: Record<string, string>;
+  serverManaged: boolean;
+  expiresAt?: string;
+}
+
+export interface MailboxRecoveryRequiredFields {
+  evidenceStatus: MailboxRecoverabilityEvidenceStatus;
+  minimumHorizonDays: number;
+  reason: string;
+  fields: Record<string, string>;
+  serverSidePrerequisites: string[];
+}
+
+export interface MailboxCreatedByProvider {
+  providerTypeKey: MailProviderTypeKey;
+  providerInstanceId: string;
+  displayName: string;
+}
+
+export interface MailboxAccessDescriptor {
+  temporaryAuthCredential: MailboxTemporaryAuthCredential;
+  recoveryDataCredential: Record<string, string>;
+  recoverabilityLevel: MailboxRecoverabilityLevel;
+  recoveryRequiredFields: MailboxRecoveryRequiredFields;
+  createdByProvider: MailboxCreatedByProvider;
+}
+
+export interface MailProviderRecoverabilityProfile {
+  providerTypeKey: MailProviderTypeKey;
+  providerInstanceId: string;
+  recoverabilityLevel: MailboxRecoverabilityLevel;
+  evidenceStatus: MailboxRecoverabilityEvidenceStatus;
+  minimumHorizonDays: number;
+  reason: string;
 }
 
 export interface RuntimeTemplate {
@@ -192,6 +232,8 @@ export interface VerificationMailboxRequest {
   runtimeTemplateId?: string;
   groupKey?: string;
   ttlMinutes?: number;
+  recoverabilityLevels?: MailboxRecoverabilityLevel[];
+  includeUndeterminedRecoverability?: boolean;
   metadata?: Record<string, string>;
 }
 
@@ -342,6 +384,11 @@ export interface VerificationMailboxOpenResult {
   session: MailboxSession;
   instance: ProviderInstance;
   binding: HostBinding;
+  temporaryAuthCredential: MailboxTemporaryAuthCredential;
+  recoveryDataCredential: Record<string, string>;
+  recoverabilityLevel: MailboxRecoverabilityLevel;
+  recoveryRequiredFields: MailboxRecoveryRequiredFields;
+  createdByProvider: MailboxCreatedByProvider;
   runtimePlan?: CloudflareTempEmailRuntimePlan;
   strategyMode?: MailStrategyModeResolution;
   aliasOutcome?: MailAliasOutcome;
@@ -373,6 +420,7 @@ export interface EasyEmailCatalog {
   providerTypes: ProviderTypeDefinition[];
   runtimeTemplates: RuntimeTemplate[];
   strategyProfiles: StrategyProfile[];
+  providerRecoverabilityProfiles: MailProviderRecoverabilityProfile[];
   providerGroups: MailProviderGroupDescriptor[];
   businessStrategies: MailBusinessStrategyDescriptor[];
   routingProfiles: MailRoutingProfileDescriptor[];
@@ -392,6 +440,7 @@ export interface MailboxPlanResult {
   runtimePlan?: CloudflareTempEmailRuntimePlan;
   strategyMode?: MailStrategyModeResolution;
   aliasPlan?: MailAliasPlan;
+  recoverabilityProfile: MailProviderRecoverabilityProfile;
 }
 
 export interface BindingResolution {

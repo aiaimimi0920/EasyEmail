@@ -38,8 +38,8 @@
 | `GET` | `/mail/catalog` | 获取 catalog：provider types、instances、runtime templates、strategy profiles 等 |
 | `GET` | `/mail/snapshot` | 获取当前完整运行时快照 |
 | `POST` | `/mail/mailboxes/plan` | 只做 plan，不真正打开邮箱；可同时返回 alias 规划结果 |
-| `POST` | `/mail/mailboxes/open` | 打开邮箱 session，返回 session / instance / binding；可附带 alias 结果 |
-| `POST` | `/mail/mailboxes/recover-by-email` | 按邮箱地址从 EasyEmail 本地持久化 state 中恢复已有 mailbox session |
+| `POST` | `/mail/mailboxes/open` | 打开邮箱 session，返回 session / instance / binding，以及临时认证凭证、可恢复等级、恢复所需字段、实际 provider；可附带 alias 结果 |
+| `POST` | `/mail/mailboxes/recover-by-email` | 按邮箱地址、本地 state、provider 恢复能力和调用方提交的 `recoveryDataCredential` 恢复 mailbox session |
 | `POST` | `/mail/mailboxes/report-outcome` | 回报 mailbox outcome，用于 provider 健康度 / cooldown / 失败反馈 |
 | `POST` | `/mail/messages/observe` | 手动写入一条 observed message 到系统 |
 | `GET` | `/mail/mailboxes/{sessionId}/code` | 从指定 session 读取验证码结果 |
@@ -63,15 +63,67 @@
   - 如果 alias 创建失败，也不会影响主匿名邮箱 open 成功
 - `recover-by-email`
   - 这是 **统一恢复入口**，内部会按 provider 能力选择策略
-  - 请求里可额外传 `providerTypeKey` 和 `hostId`
+  - 请求里可额外传 `providerTypeKey`、`providerInstanceId`、`hostId`、`recoveryDataCredential` 和 `recoveryFields`
+  - 推荐用法：调用方在 `open` 返回中保存 `recoveryDataCredential` 这个字典，后续恢复时原样放入 `recover-by-email.recoveryDataCredential`；调用方不需要理解字典里的任何字段含义
+  - 如果创建邮箱时保存了 `createdByProvider.providerInstanceId`，恢复时应优先传回 `providerInstanceId`，服务端会只把恢复请求转发给该实例；未传时会按 `providerTypeKey` 遍历该类型可用实例
+  - `recoveryDataCredential` 是新的对外不透明恢复数据凭证；服务端会从中推断 `emailAddress`、`providerTypeKey`、`providerInstanceId`、`hostId` 和 provider 必要恢复字段
+  - `recoveryFields` 是兼容旧调用方的底层字段入口；新调用方应优先使用 `recoveryDataCredential`
+  - 无本地 session 时，服务端会优先调用具体 provider 的 `recoverMailboxSession`，把恢复数据凭证字典作为恢复字段转发给 provider；provider 无法恢复时，再尝试通用 `mailboxRef` 重建 fallback
   - 可能的 `strategy` 包括：
     - `session_restore`
     - `account_restore`
     - `recreate_same_address`
     - `not_supported`
-  - `m2u` 这类匿名 token 型 provider 主要依赖 `token + view_token`，通常只能做 `session_restore`
+  - `m2u` 当前代码侧主要依赖 `token + view_token` 做 `session_restore`，但已验证可通过同邮箱名手动恢复未来收信，因此可恢复等级按 `recoverable` 处理
   - `moemail` 这类账号型 provider 可以直接走账户 API，必要时也可以尝试同名重建
   - 如果服务端既没有本地 state，也没有 provider 侧可恢复能力，则会返回 `not_supported`
+- `recoverabilityLevels`
+  - `open` 请求可传 `recoverabilityLevels: ["recoverable"]`、`["key_recoverable"]` 或 `["unrecoverable"]` 做 provider 筛选
+  - 未验证 provider 默认不会进入 `recoverable` / `key_recoverable` 筛选结果
+  - 如调用方明确接受待验证 provider，可传 `includeUndeterminedRecoverability: true`
+- 服务商级标签发现
+  - `GET /mail/catalog` 返回 `catalog.providerRecoverabilityProfiles`
+  - `POST /mail/mailboxes/plan` 返回 `plan.recoverabilityProfile`
+  - 这两个字段用于调用方在真正创建邮箱前查看 provider / instance 的当前可恢复等级标签与证据状态
+
+### 邮箱可恢复等级字段
+
+`POST /mail/mailboxes/open` 和恢复成功的 `POST /mail/mailboxes/recover-by-email` 都会返回以下新增字段：
+
+- `recoveryDataCredential`
+  - 恢复数据凭证；类型固定为字典：`Record<string, string>`
+  - 这是给外部调用方保存和回传的唯一推荐字段
+  - 调用方不需要解析、不需要理解、不需要改写这个字典；未来调用 `recover-by-email` 时把它完整传回 `recoveryDataCredential` 即可
+  - 字典内部会包含服务端恢复路由和 provider 恢复所需的必要数据；具体 key 对不同 provider 可以不同
+- `temporaryAuthCredential`
+  - 当前 session 后续读信所需的临时认证材料
+  - 只返回 mailbox 级 token / recover key / view token / mailbox id 等；不返回 operator API key、全局账号密码、admin secret
+- `recoverabilityLevel`
+  - 对外只允许三档：
+    - `unrecoverable`
+    - `key_recoverable`
+    - `recoverable`
+  - `key_recoverable` 要求调用方保存的关键密钥能在至少 90 天后恢复同地址未来收信
+  - `recoverable` 合并账号恢复与同名重建；外部调用方无需关心底层机制
+- `recoveryRequiredFields`
+  - `fields`：调用方需要保存并在未来恢复时提交的字段
+  - `evidenceStatus`：内部证据状态，当前为 `undetermined` 或 `verified`
+  - `minimumHorizonDays`：固定为 `90`
+  - `reason`：为什么给出当前等级
+  - `serverSidePrerequisites`：服务端必须持有的 provider 侧配置，例如 API key 或 admin auth；这些 secret 不会返回给调用方
+- `createdByProvider`
+  - 实际创建该邮箱的 provider 信息
+  - 当请求走 fallback / strategy selection 时，以最终成功 provider 为准
+- `providerRecoverabilityProfiles` / `recoverabilityProfile`
+  - provider / instance 级可恢复标签，用于 catalog 展示和 plan 预览
+  - 字段包含 `providerTypeKey`、`providerInstanceId`、`recoverabilityLevel`、`evidenceStatus`、`minimumHorizonDays`、`reason`
+  - 该标签不包含具体 mailbox token；具体临时认证凭证只在真正 open / recover 成功后返回
+
+默认策略仍然是 fail-closed：未完成 provider-specific 证据验证前，对外 `recoverabilityLevel` 返回 `unrecoverable`，同时 `recoveryRequiredFields.evidenceStatus` 返回 `undetermined`，`reason` 返回 `recoverability_not_verified`。
+
+当前已按实测或项目侧控制权标记为 `recoverable` 的 provider 包括：`cloudflare_temp_email`、`im215`、`mail2925`、`gptmail`、`moemail`、`m2u`、`temporam`、`guerrillamail`。其中 `m2u` 的自动代码恢复仍以本地 session/token 为主，`recoveryRequiredFields.serverSidePrerequisites` 会标记 `m2u_manual_same_address_recreation`。
+
+当前已按 live probe 标记为 `key_recoverable` 的 provider 包括：`mailtm`（`emailAddress + password` 重登录换取 token）、`duckmail`（`emailAddress + password` 重登录换取 token）。`tempmail-lol` 对 5 个 2026-05 下旬 historical token 发信后均未收到新验证码，因此当前标记为 `verified + unrecoverable`；`etempmail` 已完成 live probe，但 recoverKey 立即恢复失败，因此当前也标记为 `verified + unrecoverable`。
 
 ---
 

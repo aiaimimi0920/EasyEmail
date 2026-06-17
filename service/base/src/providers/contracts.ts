@@ -64,6 +64,7 @@ export interface RecoverMailboxSessionInput {
   credentialSets: ProviderCredentialSet[];
   now: Date;
   session?: MailboxSession;
+  recoveryFields?: Record<string, string>;
 }
 
 export interface RecoverMailboxSessionResult {

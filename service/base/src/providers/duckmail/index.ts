@@ -60,6 +60,45 @@ export class DuckMailProviderAdapter implements MailProviderAdapter {
     );
   }
 
+  public async recoverMailboxSession(
+    { emailAddress, hostId, instance, now, recoveryFields }: Parameters<NonNullable<MailProviderAdapter["recoverMailboxSession"]>>[0],
+  ) {
+    const normalizedEmail = emailAddress.trim().toLowerCase();
+    const password = recoveryFields?.password?.trim();
+    if (!normalizedEmail || !password) {
+      return undefined;
+    }
+
+    const client = DuckMailClient.fromInstance(instance);
+    const token = await client.getToken(normalizedEmail, password);
+    const mailbox = {
+      email: normalizedEmail,
+      token,
+      password,
+      accountId: recoveryFields?.accountId?.trim() || "unknown",
+    };
+
+    return {
+      strategy: "account_restore" as const,
+      session: {
+        id: createId("mailbox", now),
+        hostId: hostId?.trim() || `recovery:${this.typeKey}`,
+        providerTypeKey: this.typeKey,
+        providerInstanceId: instance.id,
+        emailAddress: mailbox.email,
+        mailboxRef: encodeDuckMailMailboxRef(instance.id, mailbox),
+        status: "open" as const,
+        createdAt: now.toISOString(),
+        metadata: {
+          recoveredFromEmailAddress: mailbox.email,
+          recoveryStrategy: "account_restore",
+          recoverySource: "provider_password_relogin",
+        },
+      },
+      detail: "password_relogin",
+    };
+  }
+
   public async probeInstance(
     { instance }: Parameters<MailProviderAdapter["probeInstance"]>[0],
   ): Promise<ProviderProbeResult> {

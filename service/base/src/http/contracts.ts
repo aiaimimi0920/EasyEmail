@@ -13,6 +13,7 @@ import type {
   MailboxOutcomeReportResult,
   MailboxPlanResult,
   MailboxSession,
+  MailboxAccessDescriptor,
   MailboxSessionQueryFilters,
   MailProviderTypeKey,
   ObserveMessageInput,
@@ -164,9 +165,12 @@ export interface ReleaseMailboxHttpResponse {
 }
 
 export interface RecoverMailboxByEmailHttpRequest {
-  emailAddress: string;
+  emailAddress?: string;
   providerTypeKey?: MailProviderTypeKey;
+  providerInstanceId?: string;
   hostId?: string;
+  recoveryDataCredential?: Record<string, string>;
+  recoveryFields?: Record<string, string>;
 }
 
 export interface RecoverMailboxByEmailHttpResponse {
@@ -177,7 +181,7 @@ export interface RecoverMailboxByEmailHttpResponse {
     providerTypeKey?: MailProviderTypeKey;
     providerInstanceId?: string;
     detail?: string;
-  };
+  } & Partial<MailboxAccessDescriptor>;
 }
 
 export interface RecoverMailboxCapacityHttpRequest {

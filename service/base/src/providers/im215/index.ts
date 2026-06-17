@@ -2,7 +2,7 @@ import { createId } from "../../shared/index.js";
 import { EasyEmailError } from "../../domain/errors.js";
 import { createMailboxLocalPart } from "../local-part.js";
 import type { MailboxSession, ProviderInstance } from "../../domain/models.js";
-import type { MailProviderAdapter, ProviderProbeResult } from "../contracts.js";
+import type { MailProviderAdapter, ProviderProbeResult, RecoverMailboxSessionInput, RecoverMailboxSessionResult } from "../contracts.js";
 import {
   Im215Client,
   decodeIm215MailboxRef,
@@ -80,6 +80,41 @@ export class Im215ProviderAdapter implements MailProviderAdapter {
       instance.id,
       session.metadata.fromContains,
     );
+  }
+
+  public async recoverMailboxSession(
+    { emailAddress, hostId, instance, credentialSets, now }: RecoverMailboxSessionInput,
+  ): Promise<RecoverMailboxSessionResult | undefined> {
+    const client = Im215Client.fromInstance(instance, credentialSets);
+    if (!client) {
+      throw new EasyEmailError(
+        "IM215_CONFIGURATION_MISSING",
+        `215.im instance ${instance.id} is missing credentialSets/apiKey/keysFile configuration.`,
+      );
+    }
+
+    const mailbox = await client.recreateMailboxByEmailAddress(emailAddress);
+    const session: MailboxSession = {
+      id: createId("mailbox", now),
+      hostId: hostId?.trim() || `recovery:${this.typeKey}`,
+      providerTypeKey: this.typeKey,
+      providerInstanceId: instance.id,
+      emailAddress: mailbox.address,
+      mailboxRef: encodeIm215MailboxRef(instance.id, mailbox),
+      status: "open",
+      createdAt: now.toISOString(),
+      metadata: {
+        recoveredFromEmailAddress: mailbox.address,
+        recoveryStrategy: "recreate_same_address",
+        recoverySource: "same_address_recreation",
+      },
+    };
+
+    return {
+      strategy: "recreate_same_address",
+      detail: "215.im same-address mailbox recreation completed.",
+      session,
+    };
   }
 
   public async probeInstance(

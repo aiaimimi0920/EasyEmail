@@ -20,6 +20,10 @@ import { CloudflareTempEmailProvisioner } from "../providers/cloudflare_temp_ema
 import { getMailProviderTypeForGroup, resolveMailStrategyMode } from "../domain/strategy-mode.js";
 import { synchronizeProviderOperationalState } from "../service/provider-operational-state.js";
 import { parseProviderPerformanceStats } from "../service/outcomes.js";
+import {
+  createProviderRecoverabilityProfile,
+  isProviderRecoverabilityEligible,
+} from "../service/mailbox-access-descriptor.js";
 
 interface ExternalSelection {
   instance: ProviderInstance;
@@ -364,6 +368,15 @@ export class MailboxDispatcher {
         `Provider ${normalizedRequest.providerTypeKey} was explicitly excluded by the request.`,
       );
     }
+    if (
+      normalizedRequest.providerTypeKey
+      && !this.providerTypeMatchesRecoverabilityFilter(normalizedRequest.providerTypeKey, normalizedRequest, now)
+    ) {
+      throw new EasyEmailError(
+        "PROVIDER_RECOVERABILITY_NOT_ELIGIBLE",
+        `Provider ${normalizedRequest.providerTypeKey} does not match the requested recoverability filter.`,
+      );
+    }
     const requestRandomSubdomain = normalizedRequest.requestRandomSubdomain === true;
 
     if (!normalizedRequest.providerTypeKey) {
@@ -456,6 +469,7 @@ export class MailboxDispatcher {
       requiresProvisioning,
       runtimePlan,
       strategyMode,
+      recoverabilityProfile: createProviderRecoverabilityProfile(instance, now),
     };
   }
 
@@ -584,7 +598,7 @@ export class MailboxDispatcher {
     applyStructuredMailboxAvoidance = false,
   ): ExternalSelection {
     const nowMs = now.getTime();
-    const candidates = this.listExternalInstanceCandidates(providerType.key, request)
+    const candidates = this.listExternalInstanceCandidates(providerType.key, request, now)
       .filter((instance) => !applyStructuredMailboxAvoidance || !shouldSkipForStructuredMailboxOutcome(instance, nowMs));
 
     if (request.preferredInstanceId) {
@@ -695,6 +709,7 @@ export class MailboxDispatcher {
     const providerTypes = groups
       .map((group) => getMailProviderTypeForGroup(group))
       .filter((providerTypeKey) => !excludedProviderTypeKeys.has(providerTypeKey))
+      .filter((providerTypeKey) => this.providerTypeMatchesRecoverabilityFilter(providerTypeKey, request, now))
       .filter((providerTypeKey) => !this.shouldSkipProviderTypeForStructuredMailboxOutcome(
         providerTypeKey,
         request,
@@ -856,7 +871,7 @@ export class MailboxDispatcher {
     nowMs: number,
     healthGate?: RoutingProfileLookup["healthGate"],
   ): number {
-    const candidates = this.listExternalInstanceCandidates(providerTypeKey, request)
+    const candidates = this.listExternalInstanceCandidates(providerTypeKey, request, new Date(nowMs))
       .filter((instance) => !shouldSkipForStructuredMailboxOutcome(instance, nowMs));
 
     if (candidates.length === 0) {
@@ -897,6 +912,7 @@ export class MailboxDispatcher {
   private listExternalInstanceCandidates(
     providerTypeKey: MailProviderTypeKey,
     request: VerificationMailboxRequest,
+    now: Date = new Date(),
   ): ProviderInstance[] {
     const excludedDomains = resolveRequestExcludedDomains(request);
     return this.registry.listActiveInstancesByType(providerTypeKey).filter((instance) => {
@@ -906,7 +922,13 @@ export class MailboxDispatcher {
       return true;
     })
       .filter((instance) => instanceSupportsRequestedDomain(instance, this.resolveRequestedDomain(request)))
-      .filter((instance) => instanceCanAvoidExcludedDomains(instance, excludedDomains));
+      .filter((instance) => instanceCanAvoidExcludedDomains(instance, excludedDomains))
+      .filter((instance) => isProviderRecoverabilityEligible(
+        instance,
+        request.recoverabilityLevels,
+        request.includeUndeterminedRecoverability,
+        now,
+      ));
   }
 
   private shouldSkipProviderTypeForStructuredMailboxOutcome(
@@ -914,8 +936,35 @@ export class MailboxDispatcher {
     request: VerificationMailboxRequest,
     nowMs: number,
   ): boolean {
-    const candidates = this.listExternalInstanceCandidates(providerTypeKey, request);
+    const candidates = this.listExternalInstanceCandidates(providerTypeKey, request, new Date(nowMs));
     return candidates.length > 0 && candidates.every((instance) => shouldSkipForStructuredMailboxOutcome(instance, nowMs));
+  }
+
+  private providerTypeMatchesRecoverabilityFilter(
+    providerTypeKey: MailProviderTypeKey,
+    request: VerificationMailboxRequest,
+    now: Date,
+  ): boolean {
+    if (!request.recoverabilityLevels || request.recoverabilityLevels.length === 0) {
+      return true;
+    }
+
+    const candidates = this.registry.listActiveInstancesByType(providerTypeKey).filter((instance) => {
+      if (request.groupKey && instance.groupKeys.length > 0) {
+        return instance.groupKeys.includes(request.groupKey);
+      }
+      return true;
+    });
+    if (candidates.length === 0) {
+      return request.includeUndeterminedRecoverability === true;
+    }
+
+    return candidates.some((instance) => isProviderRecoverabilityEligible(
+      instance,
+      request.recoverabilityLevels,
+      request.includeUndeterminedRecoverability,
+      now,
+    ));
   }
 
   private computeRecentFailureGatePenalty(
