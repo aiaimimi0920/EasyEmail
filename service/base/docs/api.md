@@ -178,6 +178,34 @@ curl -X POST http://127.0.0.1:8080/mail/mailboxes/open \
   }'
 ```
 
+### 3.1 恢复已有邮箱 session
+
+已知邮箱地址或从 `open` 返回中保存过 `recoveryDataCredential` 时，应使用恢复入口，不要再调用 `open` 重新创建同名邮箱。
+
+```bash
+curl -X POST http://127.0.0.1:8080/mail/mailboxes/recover-by-email \
+  -H "Authorization: Bearer YOUR_EASY_EMAIL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "emailAddress": "seed@example.com",
+    "providerTypeKey": "cloudflare_temp_email",
+    "hostId": "python-register-orchestration"
+  }'
+```
+
+推荐调用方保存 `open` 返回的完整恢复字典，并在恢复时原样传回：
+
+```json
+{
+  "recoveryDataCredential": {
+    "emailAddress": "seed@example.com",
+    "providerTypeKey": "cloudflare_temp_email",
+    "providerInstanceId": "cloudflare_temp_email_shared_default",
+    "hostId": "python-register-orchestration"
+  }
+}
+```
+
 ### 4. 读取验证码
 
 ```bash
@@ -288,6 +316,8 @@ curl -X POST http://127.0.0.1:8080/mail/messages/observe \
 - `POST /mail/mailboxes/plan`
   - `{ "plan": ... }`
 - `POST /mail/mailboxes/open`
+  - `{ "result": ... }`
+- `POST /mail/mailboxes/recover-by-email`
   - `{ "result": ... }`
 - `POST /mail/mailboxes/report-outcome`
   - `{ "result": ... }`

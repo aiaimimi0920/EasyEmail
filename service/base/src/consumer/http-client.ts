@@ -5,6 +5,8 @@ import {
   type PlanMailboxHttpResponse,
   type ReadAuthenticationLinkHttpResponse,
   type ReadVerificationCodeHttpResponse,
+  type RecoverMailboxByEmailHttpRequest,
+  type RecoverMailboxByEmailHttpResponse,
   type SendMailboxMessageHttpResponse,
   type ReportMailboxOutcomeHttpResponse,
 } from "../http/contracts.js";
@@ -35,6 +37,9 @@ export interface VerificationInboxClient {
   getCatalog(): Promise<EasyEmailCatalog>;
   planMailbox(request: VerificationMailboxRequest): Promise<PlanMailboxHttpResponse["plan"]>;
   openMailbox(request: VerificationMailboxRequest): Promise<VerificationMailboxOpenResult>;
+  recoverMailboxByEmail(
+    request: RecoverMailboxByEmailHttpRequest,
+  ): Promise<RecoverMailboxByEmailHttpResponse["result"]>;
   sendMailboxMessage(request: MailboxSendRequest): Promise<MailboxSendResult>;
   readVerificationCode(sessionId: string): Promise<VerificationCodeResult | undefined>;
   readAuthenticationLink(sessionId: string): Promise<AuthenticationLinkResult | undefined>;
@@ -156,6 +161,16 @@ export class HttpVerificationInboxClient implements VerificationInboxClient {
   public async openMailbox(request: VerificationMailboxRequest): Promise<VerificationMailboxOpenResult> {
     const response = await this.httpClient.post<VerificationMailboxRequest, OpenMailboxHttpResponse>(
       EASY_EMAIL_HTTP_ROUTES.openMailbox,
+      request,
+    );
+    return response.result;
+  }
+
+  public async recoverMailboxByEmail(
+    request: RecoverMailboxByEmailHttpRequest,
+  ): Promise<RecoverMailboxByEmailHttpResponse["result"]> {
+    const response = await this.httpClient.post<RecoverMailboxByEmailHttpRequest, RecoverMailboxByEmailHttpResponse>(
+      EASY_EMAIL_HTTP_ROUTES.recoverMailboxByEmail,
       request,
     );
     return response.result;
