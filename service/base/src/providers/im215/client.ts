@@ -52,6 +52,7 @@ interface Im215RequestOptions {
 const AUTH_ERROR_RE = /(status 401|status 403|unauthorized|forbidden|invalid api key|invalid token|missing api key|bearer|permission)/i;
 const CAPACITY_ERROR_RE = /(status 429|too many requests|rate limit|quota|capacity|insufficient balance)/i;
 const TRANSIENT_ERROR_RE = /(fetch failed|timeout|timed out|econnreset|socket hang up|network|status 5\d{2}|temporarily unavailable|gateway)/i;
+const SHARED_DOMAIN_RESTRICTION_RE = /(shared domain.*restricted|not accepting new public addresses)/i;
 const DOMAIN_ROTATION_OFFSETS = new Map<string, number>();
 
 function readMetadata(instance: ProviderInstance, key: string): string | undefined {
@@ -215,6 +216,10 @@ function classifyIm215Error(message: string): "auth" | "capacity" | "transient" 
     return "transient";
   }
   return "provider";
+}
+
+function isSharedDomainRestrictionMessage(message: string): boolean {
+  return SHARED_DOMAIN_RESTRICTION_RE.test(message);
 }
 
 class Im215ClientError extends Error {
@@ -520,6 +525,16 @@ export class Im215Client {
   }
 
   private handleCredentialFailure(selection: CredentialSelection, error: unknown): Im215ClientError {
+    return this.handleCredentialFailureWithOptions(selection, error, {});
+  }
+
+  private handleCredentialFailureWithOptions(
+    selection: CredentialSelection,
+    error: unknown,
+    options: {
+      suppressTransientCooldown?: boolean;
+    },
+  ): Im215ClientError {
     const classified = classifyThrownError(error);
     if (classified.kind === "auth") {
       markCredentialCriticalFailure(this.config.namespace, selection.set, selection.item, {
@@ -544,11 +559,13 @@ export class Im215Client {
       return classified;
     }
 
-    markCredentialFailure(this.config.namespace, selection.set, selection.item, {
-      status: "cooling",
-      cooldownMs: classified.kind === "transient" ? 30_000 : 60_000,
-      error: classified.message,
-    });
+    if (!(classified.kind === "transient" && options.suppressTransientCooldown)) {
+      markCredentialFailure(this.config.namespace, selection.set, selection.item, {
+        status: "cooling",
+        cooldownMs: classified.kind === "transient" ? 30_000 : 60_000,
+        error: classified.message,
+      });
+    }
     return classified;
   }
 
@@ -556,6 +573,9 @@ export class Im215Client {
     useCase: "generate" | "poll",
     stickyKey: string | undefined,
     callback: (selection: CredentialSelection, apiKey: string) => Promise<T>,
+    options: {
+      suppressTransientCooldown?: boolean;
+    } = {},
   ): Promise<T> {
     const attempts = Math.max(1, this.countCandidateItems(useCase));
     let lastError: Error | undefined;
@@ -580,7 +600,7 @@ export class Im215Client {
         markCredentialSuccess(this.config.namespace, selection.set, selection.item);
         return result;
       } catch (error) {
-        lastError = this.handleCredentialFailure(selection, error);
+        lastError = this.handleCredentialFailureWithOptions(selection, error, options);
       }
     }
 
@@ -599,6 +619,8 @@ export class Im215Client {
       return preferredDomain && domains.includes(preferredDomain)
         ? [preferredDomain, ...domains.filter((item) => item !== preferredDomain)]
         : domains;
+    }, {
+      suppressTransientCooldown: true,
     });
   }
 
@@ -617,6 +639,8 @@ export class Im215Client {
     const rotationOffset = pinnedDomain ? 0 : nextDomainRotationOffset(this.config.namespace, domains.length);
 
     return this.withCredential("generate", baseLocalPart, async (_selection, apiKey) => {
+      let lastRestrictedDomainError: Im215ClientError | undefined;
+
       for (let attempt = 0; attempt < maxRetries; attempt += 1) {
         const domain = pinnedDomain ?? domains[(rotationOffset + attempt) % domains.length]!;
         const localPart = `${baseLocalPart}-${createRandomSuffix(4)}`.slice(0, 60);
@@ -633,6 +657,7 @@ export class Im215Client {
           },
         ];
 
+        let retryWithNextDomain = false;
         for (const payload of payloads) {
           const response = await requestJson(this.config, apiKey, "POST", "/accounts", {
             jsonBody: payload,
@@ -649,8 +674,23 @@ export class Im215Client {
             continue;
           }
 
-          throw buildIm215StatusError("createMailbox", response.status, response.body);
+          const error = buildIm215StatusError("createMailbox", response.status, response.body);
+          if (response.status === 403 && isSharedDomainRestrictionMessage(error.message)) {
+            lastRestrictedDomainError = error;
+            retryWithNextDomain = true;
+            break;
+          }
+
+          throw error;
         }
+
+        if (retryWithNextDomain) {
+          continue;
+        }
+      }
+
+      if (lastRestrictedDomainError) {
+        throw lastRestrictedDomainError;
       }
 
       throw new Im215ClientError("215.im mailbox creation exhausted retries.", "capacity");

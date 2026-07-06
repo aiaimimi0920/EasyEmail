@@ -149,6 +149,161 @@ describe("im215 mailboxRef", () => {
     }
   });
 
+  it("retries another domain when 215.im rejects a restricted shared domain", async () => {
+    const attemptedDomains: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string, init?: { body?: string }) => {
+      if (input.endsWith("/domains")) {
+        return new Response(JSON.stringify({
+          success: true,
+          data: [
+            { domain: "blocked.example", isPublic: true, isVerified: true, isMxValid: true, dnsRecords: { receivingReady: true } },
+            { domain: "fallback.example", isPublic: true, isVerified: true, isMxValid: true, dnsRecords: { receivingReady: true } },
+          ],
+        }), { status: 200 });
+      }
+
+      if (input.endsWith("/accounts")) {
+        const payload = JSON.parse(init?.body ?? "{}") as Record<string, unknown>;
+        const domain = typeof payload.domain === "string" ? payload.domain : "missing.example";
+        attemptedDomains.push(domain);
+        if (domain === "blocked.example") {
+          return new Response(JSON.stringify({
+            success: false,
+            error: "This shared domain is currently restricted and not accepting new public addresses",
+          }), { status: 403 });
+        }
+        const localPart = typeof payload.localPart === "string" ? payload.localPart : "mailbox";
+        return new Response(JSON.stringify({
+          success: true,
+          data: {
+            address: `${localPart}@${domain}`,
+            domain,
+          },
+        }), { status: 201 });
+      }
+
+      throw new Error(`Unexpected request: ${input}`);
+    }));
+
+    const client = new Im215Client({
+      instanceId: "im215-default",
+      namespace: "test:im215:shared-domain-retry",
+      apiBase: "https://maliapi.215.im/v1",
+      credentialSets: [{
+        id: "set-1",
+        displayName: "Inline 215.im API Key",
+        useCases: ["generate", "poll"],
+        strategy: "round-robin",
+        priority: 100,
+        items: [{ id: "item-1", label: "primary", value: "api-key-1", metadata: {} }],
+        metadata: {},
+      }],
+      timeoutSeconds: 20,
+    });
+
+    const mailbox = await client.createMailbox({
+      suggestedLocalPart: "retry-domain",
+      maxRetries: 2,
+    });
+
+    expect(mailbox).toEqual(expect.objectContaining({
+      domain: "fallback.example",
+    }));
+    expect(attemptedDomains).toEqual([
+      "blocked.example",
+      "fallback.example",
+    ]);
+  });
+
+  it("keeps the im215 credential selectable after repeated shared-domain restrictions", async () => {
+    let accountAttempts = 0;
+    vi.stubGlobal("fetch", vi.fn(async (input: string) => {
+      if (input.endsWith("/domains")) {
+        return new Response(JSON.stringify({
+          success: true,
+          data: [
+            { domain: "blocked.example", isPublic: true, isVerified: true, isMxValid: true, dnsRecords: { receivingReady: true } },
+          ],
+        }), { status: 200 });
+      }
+
+      if (input.endsWith("/accounts")) {
+        accountAttempts += 1;
+        return new Response(JSON.stringify({
+          success: false,
+          error: "This shared domain is currently restricted and not accepting new public addresses",
+        }), { status: 403 });
+      }
+
+      throw new Error(`Unexpected request: ${input}`);
+    }));
+
+    const client = new Im215Client({
+      instanceId: "im215-default",
+      namespace: "test:im215:shared-domain-no-cooldown",
+      apiBase: "https://maliapi.215.im/v1",
+      credentialSets: [{
+        id: "set-1",
+        displayName: "Inline 215.im API Key",
+        useCases: ["generate", "poll"],
+        strategy: "round-robin",
+        priority: 100,
+        items: [{ id: "item-1", label: "primary", value: "api-key-1", metadata: {} }],
+        metadata: {},
+      }],
+      timeoutSeconds: 20,
+    });
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await expect(client.createMailbox({
+        suggestedLocalPart: `restricted-${attempt}`,
+        maxRetries: 1,
+      })).rejects.toThrow("not accepting new public addresses");
+    }
+
+    expect(accountAttempts).toBe(4);
+  });
+
+  it("does not let a transient domains probe failure starve the next poll attempt", async () => {
+    let domainCalls = 0;
+    vi.stubGlobal("fetch", vi.fn(async (input: string) => {
+      if (input.endsWith("/domains")) {
+        domainCalls += 1;
+        if (domainCalls === 1) {
+          throw new Error("fetch failed");
+        }
+        return new Response(JSON.stringify({
+          success: true,
+          data: [
+            { domain: "recovered.example", isPublic: true, isVerified: true, isMxValid: true, dnsRecords: { receivingReady: true } },
+          ],
+        }), { status: 200 });
+      }
+
+      throw new Error(`Unexpected request: ${input}`);
+    }));
+
+    const client = new Im215Client({
+      instanceId: "im215-default",
+      namespace: "test:im215:probe-transient-retry",
+      apiBase: "https://maliapi.215.im/v1",
+      credentialSets: [{
+        id: "set-1",
+        displayName: "Inline 215.im API Key",
+        useCases: ["generate", "poll"],
+        strategy: "round-robin",
+        priority: 100,
+        items: [{ id: "item-1", label: "primary", value: "api-key-1", metadata: {} }],
+        metadata: {},
+      }],
+      timeoutSeconds: 20,
+    });
+
+    await expect(client.getDomains()).rejects.toThrow("fetch failed");
+    await expect(client.getDomains()).resolves.toEqual(["recovered.example"]);
+    expect(domainCalls).toBe(2);
+  });
+
   it("recreates an exact same-address mailbox with localPart and domain fields", async () => {
     const accountPayloads: Record<string, unknown>[] = [];
     vi.stubGlobal("fetch", vi.fn(async (input: string, init?: { body?: string }) => {
