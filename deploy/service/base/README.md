@@ -75,6 +75,12 @@ Default in-network service alias:
 pwsh .\deploy\service\base\smoke-easy-email-docker-api.ps1 -Rebuild -ApiKey "<server.apiKey>"
 ```
 
+The smoke helper now creates a unique Compose project, container, free host
+port, runtime root, and Docker network by default. It never reuses the primary
+`easy-email` container or `18081` state directory. Use `-KeepRunning` only when
+you intentionally want to inspect the isolated stack after validation; the
+summary prints its project and runtime-root identifiers.
+
 ## GHCR Publish
 
 ```powershell

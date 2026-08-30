@@ -53,13 +53,33 @@ on the corresponding protected environment.
 1. Confirm the target commit is the intended release commit and the worktree
    contains no generated credentials.
 2. Run `pwsh ./scripts/test-all.ps1` from the repository root.
+   This includes the `service/base` restart regression that writes a runtime
+   template, flushes file-backed state, restarts the server, and reads the
+   template back through `GET /mail/snapshot`.
 3. Build and independently verify a distribution candidate with
    `scripts/build-distribution.py`.
-4. For Cloudflare changes, run the direct Cloudflare workflow with `dry_run`
-   before selecting a production target.
-5. Confirm environment approvals, GHCR package access, Cloudflare configuration,
+4. Build a uniquely tagged `service/base` candidate and run the isolated Docker
+   smoke gate. The helper allocates a free host port plus dedicated Compose,
+   container, network, config, and data scopes, and removes only those resources:
+
+   ```powershell
+   docker build --file ./deploy/service/base/Dockerfile `
+     --tag easy-email/easy-email:smoke-CANDIDATE .
+   pwsh ./deploy/service/base/smoke-easy-email-docker-api.ps1 `
+     -ConfigPath ./config.example.yaml `
+     -Image easy-email/easy-email:smoke-CANDIDATE `
+     -SkipMailboxOpen
+   ```
+
+5. For Cloudflare changes, run the direct Cloudflare workflow with `dry_run`
+   before selecting a production target. Dry-run intentionally disables email
+   routing and DNS synchronization so it cannot mutate Cloudflare routing state.
+   Its temporary Wrangler file also replaces every Worker var with a
+   type-compatible redaction marker before Wrangler can print a binding summary;
+   production deployment continues to render the real values.
+6. Confirm environment approvals, GHCR package access, Cloudflare configuration,
    R2 configuration, and import-code encryption keys are present.
-6. Push a public tag, or manually run `Release EasyEmail` with an explicit tag
+7. Push a public tag, or manually run `Release EasyEmail` with an explicit tag
    and target.
 
 Do not run multiple component workflows against the same GitHub Release while a

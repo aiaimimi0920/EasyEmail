@@ -23,7 +23,6 @@ export function createBootstrappedEasyEmailService(
   now: Date = new Date(),
 ): EasyEmailService {
   const mergedSeed = mergeEasyEmailRegistrySeeds(
-    options.registrySeed,
     createEasyEmailRegistryFromCatalog({
       providerTypes: options.providerTypes,
       runtimeTemplates: options.runtimeTemplates,
@@ -32,6 +31,7 @@ export function createBootstrappedEasyEmailService(
       credentialSets: options.credentialSets,
       credentialBindings: options.credentialBindings,
     }, now).snapshot(),
+    options.registrySeed,
   );
 
   const registry = new MailRegistry(mergedSeed);

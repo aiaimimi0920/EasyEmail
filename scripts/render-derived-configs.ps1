@@ -2,6 +2,7 @@ param(
     [string]$ConfigPath = 'config.yaml',
     [switch]$ServiceBase,
     [switch]$CloudflareMail,
+    [switch]$RedactWorkerVars,
     [string]$ServiceOutput = 'deploy/service/base/config/config.yaml',
     [string]$ServiceEnvOutput = 'deploy/service/base/config/runtime.env',
     [string]$WorkerOutput = '.tmp/cloudflare_temp_email.wrangler.toml'
@@ -32,6 +33,9 @@ if ($ServiceBase) {
 }
 if ($CloudflareMail) {
     $args += @('--worker-output', (Resolve-EasyEmailPath -Path $WorkerOutput))
+    if ($RedactWorkerVars) {
+        $args += '--redact-worker-vars'
+    }
 }
 
 & python @args

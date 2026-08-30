@@ -37,6 +37,16 @@ function Get-DefaultInstanceValue {
     return $DerivedValue
 }
 
+function Assert-ServiceBaseInstanceName {
+    param(
+        [string]$Name
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($Name) -and $Name -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {
+        throw "Invalid service/base instance name '$Name'. Use letters, digits, dots, underscores, or hyphens."
+    }
+}
+
 function Ensure-DockerNetwork {
     param(
         [Parameter(Mandatory = $true)]
@@ -47,8 +57,11 @@ function Ensure-DockerNetwork {
         return
     }
 
-    & docker network inspect $Name *> $null
-    if ($LASTEXITCODE -eq 0) {
+    $existingNetworks = @(& docker network ls --filter "name=$Name" --format "{{.Name}}")
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to inspect docker networks before creating $Name"
+    }
+    if ($existingNetworks -contains $Name) {
         return
     }
 
@@ -63,6 +76,8 @@ $composeFile = Join-Path $PSScriptRoot '../deploy/service/base/docker-compose.ya
 if (-not (Test-Path -LiteralPath $composeFile)) {
     throw "Missing docker compose file: $composeFile"
 }
+
+Assert-ServiceBaseInstanceName -Name $InstanceName
 
 $resolvedConfigPath = Resolve-EasyEmailPath -Path $ConfigPath
 $composeDir = Split-Path -Parent $composeFile

@@ -25,15 +25,20 @@ if (!existsSync(rootConfig)) {
   fail(`Missing root config: ${rootConfig}`);
 }
 
+const rendererArgs = [
+  renderer,
+  '--root-config',
+  rootConfig,
+  '--worker-output',
+  tempWrangler,
+];
+if (mode === 'build') {
+  rendererArgs.push('--redact-worker-vars');
+}
+
 const renderResult = spawnSync(
   process.platform === 'win32' ? 'python' : 'python3',
-  [
-    renderer,
-    '--root-config',
-    rootConfig,
-    '--worker-output',
-    tempWrangler,
-  ],
+  rendererArgs,
   {
     cwd: projectRoot,
     stdio: 'inherit',

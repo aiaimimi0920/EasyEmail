@@ -317,7 +317,23 @@ def render_service_env(root: dict[str, Any], output: Path) -> None:
     output.write_text("\n".join(lines).rstrip() + ("\n" if lines else ""), encoding="utf-8")
 
 
-def render_worker_config(root: dict[str, Any], output: Path) -> None:
+def redact_worker_var(value: Any) -> Any:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return 0
+    if isinstance(value, float):
+        return 0.0
+    if isinstance(value, str):
+        return "[REDACTED_SECRET]"
+    if isinstance(value, list):
+        return [redact_worker_var(item) for item in value]
+    if isinstance(value, dict):
+        return {key: redact_worker_var(nested) for key, nested in value.items()}
+    return None
+
+
+def render_worker_config(root: dict[str, Any], output: Path, *, redact_vars: bool = False) -> None:
     template = tomllib.loads(WORKER_TEMPLATE_PATH.read_text(encoding="utf-8"))
     cloudflare = as_dict(root.get("cloudflareMail"))
     routing = as_dict(cloudflare.get("routing"))
@@ -376,6 +392,10 @@ def render_worker_config(root: dict[str, Any], output: Path) -> None:
     if "SUBDOMAIN_LABEL_POOL" in vars_section:
         vars_section["SUBDOMAIN_LABEL_POOL"] = normalize_string_list(vars_section.get("SUBDOMAIN_LABEL_POOL"))
 
+    if redact_vars:
+        for key, value in list(vars_section.items()):
+            vars_section[key] = redact_worker_var(value)
+
     if "compatibility_flags" in merged and isinstance(merged["compatibility_flags"], list):
         merged["compatibility_flags"] = [str(item) for item in merged["compatibility_flags"] if str(item).strip()]
 
@@ -397,6 +417,11 @@ def main() -> int:
     parser.add_argument("--service-output", default="")
     parser.add_argument("--service-env-output", default="")
     parser.add_argument("--worker-output", default="")
+    parser.add_argument(
+        "--redact-worker-vars",
+        action="store_true",
+        help="Replace every Worker var value with a type-compatible placeholder for log-safe dry-runs.",
+    )
     args = parser.parse_args()
 
     root_config_path = Path(args.root_config)
@@ -414,7 +439,7 @@ def main() -> int:
         print(f"Rendered service env -> {args.service_env_output}")
 
     if args.worker_output:
-        render_worker_config(root, Path(args.worker_output))
+        render_worker_config(root, Path(args.worker_output), redact_vars=args.redact_worker_vars)
         print(f"Rendered worker config -> {args.worker_output}")
 
     if not args.service_output and not args.service_env_output and not args.worker_output:

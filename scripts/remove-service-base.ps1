@@ -12,9 +12,20 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $composeFile = Join-Path $repoRoot 'deploy/service/base/docker-compose.yaml'
 $composeDir = Split-Path -Parent $composeFile
+$instancesRoot = [System.IO.Path]::GetFullPath((Join-Path $composeDir 'instances'))
 
 if (-not (Test-Path -LiteralPath $composeFile)) {
     throw "Missing docker compose file: $composeFile"
+}
+
+function Assert-ServiceBaseInstanceName {
+    param(
+        [string]$Name
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($Name) -and $Name -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {
+        throw "Invalid service/base instance name '$Name'. Use letters, digits, dots, underscores, or hyphens."
+    }
 }
 
 function Get-ServiceBaseComposeProjectName {
@@ -26,7 +37,7 @@ function Get-ServiceBaseComposeProjectName {
     return 'easy-email'
     }
 
-    return "easyemail-$Name"
+    return "easy-email-$Name"
 }
 
 function Get-ServiceBaseContainerName {
@@ -76,6 +87,8 @@ function Remove-ServiceBaseComposeProject {
         [string]$Name
     )
 
+    Assert-ServiceBaseInstanceName -Name $Name
+
     $projectName = Get-ServiceBaseComposeProjectName -Name $Name
     Write-Host ("Removing service/base compose project: {0}" -f $projectName) -ForegroundColor Cyan
     & docker compose -p $projectName -f $composeFile down --remove-orphans
@@ -89,7 +102,14 @@ function Remove-ServiceBaseComposeProject {
     }
 
     if ($RemoveInstanceData -and -not [string]::IsNullOrWhiteSpace($Name)) {
-        $instanceRoot = Join-Path $composeDir ("instances/{0}" -f $Name)
+        $instanceRoot = [System.IO.Path]::GetFullPath((Join-Path $instancesRoot $Name))
+        $instancesPrefix = $instancesRoot.TrimEnd(
+            [System.IO.Path]::DirectorySeparatorChar,
+            [System.IO.Path]::AltDirectorySeparatorChar
+        ) + [System.IO.Path]::DirectorySeparatorChar
+        if (-not $instanceRoot.StartsWith($instancesPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to remove instance data outside $instancesRoot"
+        }
         if (Test-Path -LiteralPath $instanceRoot) {
             Write-Host ("Removing instance directory: {0}" -f $instanceRoot) -ForegroundColor Cyan
             Remove-Item -LiteralPath $instanceRoot -Recurse -Force
@@ -102,6 +122,7 @@ $targetContainerNames = New-Object System.Collections.Generic.List[string]
 
 foreach ($name in $InstanceName) {
     if (-not [string]::IsNullOrWhiteSpace($name)) {
+        Assert-ServiceBaseInstanceName -Name $name
         $targetInstances.Add($name)
     }
 }

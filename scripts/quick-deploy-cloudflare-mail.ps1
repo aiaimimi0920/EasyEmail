@@ -19,6 +19,10 @@ $powerShellCommand = Get-EasyEmailPowerShellCommand
 $placeholderDatabaseId = '00000000-0000-0000-0000-000000000000'
 $placeholderDomains = @('example.com', 'mail.example.com', '*.example.com')
 
+if ($DryRun -and -not $NoRoutingSync) {
+    Write-Warning 'Dry-run mode disables Email Routing and DNS synchronization to guarantee that no routing state is mutated.'
+}
+
 if (-not [string]::IsNullOrWhiteSpace($SyncMode) -and @('exact', 'wildcard') -notcontains $SyncMode) {
     throw "Unsupported sync mode '$SyncMode'. Use 'exact' or 'wildcard'."
 }
@@ -469,7 +473,7 @@ $renderScript = Join-Path $PSScriptRoot 'render-derived-configs.ps1'
 $renderedWorkerWrangler = Resolve-EasyEmailPath -Path '.tmp/cloudflare_temp_email.wrangler.toml'
 $buildFrontend = [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'buildFrontend' -Default $true)
 $deployWorker = [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'deployWorker' -Default $true)
-$syncRouting = -not $NoRoutingSync -and [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'syncRouting' -Default $false)
+$syncRouting = -not $NoRoutingSync -and -not $DryRun -and [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'syncRouting' -Default $false)
 $workerEnv = [string](Get-EasyEmailConfigValue -Object $cloudflare -Name 'workerEnv' -Default 'production')
 $routingStateSyncPolicy = [string](Get-EasyEmailConfigValue -Object $routing -Name 'stateSyncPolicy' -Default 'bootstrap-or-forced')
 $effectiveSyncMode = if ($PSBoundParameters.ContainsKey('SyncMode')) {
@@ -489,7 +493,15 @@ if ($bootstrapEnabled -and -not $deployWorker) {
 
 Assert-MinimumNodeVersion -MinimumVersion $minimumNodeVersion
 
-& $renderScript -ConfigPath $resolvedConfigPath -CloudflareMail -WorkerOutput $renderedWorkerWrangler
+$renderParameters = @{
+    ConfigPath = $resolvedConfigPath
+    CloudflareMail = $true
+    WorkerOutput = $renderedWorkerWrangler
+}
+if ($DryRun) {
+    $renderParameters['RedactWorkerVars'] = $true
+}
+& $renderScript @renderParameters
 
 if ($buildFrontend) {
     Write-Host "Building cloudflare frontend..." -ForegroundColor Cyan
