@@ -6,7 +6,6 @@ export * from "./domain/models.js";
 export * from "./domain/otp.js";
 export * from "./domain/registry.js";
 export * from "./domain/strategy-mode.js";
-export * from "./consumer/index.js";
 export * from "./defaults/index.js";
 export * from "./http/index.js";
 export * from "./persistence/index.js";

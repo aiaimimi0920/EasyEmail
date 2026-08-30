@@ -79,19 +79,13 @@ $tokenMap = @{
     '__LOCAL_SECRET_CLOUDFLARE_CUSTOM_AUTH__' = $secretMap.cloudflare_customAuth
     '__LOCAL_SECRET_CLOUDFLARE_ADMIN_AUTH__'  = $secretMap.cloudflare_adminAuth
     '__LOCAL_SECRET_MOEMAIL_API_KEY__'        = $secretMap.moemail_apiKey
+    '__LOCAL_SECRET_GPTMAIL_API_KEY__'        = $secretMap.gptmail_apiKey
     '__LOCAL_SECRET_IM215_API_KEY__'          = $secretMap.im215_apiKey
     '__LOCAL_SECRET_MAIL2925_ACCOUNT__'       = $secretMap.mail2925_account
     '__LOCAL_SECRET_MAIL2925_JWT_TOKEN__'     = $secretMap.mail2925_jwtToken
     '__LOCAL_SECRET_MAIL2925_DEVICE_UID__'    = $secretMap.mail2925_deviceUid
     '__LOCAL_SECRET_MAIL2925_COOKIE_HEADER__' = $secretMap.mail2925_cookieHeader
 }
-
-$escapedGptmailApiKey = $secretMap.gptmail_apiKey.Replace('\', '\\').Replace("'", "\'")
-$source = [regex]::Replace(
-    $source,
-    "gptmail_apiKey:\s*'[^']*'",
-    "gptmail_apiKey: '$escapedGptmailApiKey'"
-)
 
 foreach ($token in $tokenMap.Keys) {
     $replacement = [string]$tokenMap[$token]

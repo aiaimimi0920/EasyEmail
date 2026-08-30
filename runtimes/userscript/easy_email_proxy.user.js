@@ -96,7 +96,7 @@
     m2u_preferredDomain: 'edu.kg',
     gptmail_enabled: 'false',
     gptmail_baseUrl: 'https://mail.chatgpt.org.uk',
-    gptmail_apiKey: 'gpt-test',
+    gptmail_apiKey: '__LOCAL_SECRET_GPTMAIL_API_KEY__',
     gptmail_prefix: '',
     im215_enabled: 'false',
     im215_baseUrl: 'https://maliapi.215.im/v1',

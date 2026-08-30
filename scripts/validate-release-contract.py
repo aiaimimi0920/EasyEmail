@@ -46,6 +46,8 @@ def validate_workflow(workflow: dict[str, Any]) -> None:
     text = path.read_text(encoding="utf-8")
     if "workflow_dispatch:" not in text:
         raise AssertionError(f"{relative} must expose workflow_dispatch")
+    if "workflow_call:" not in text:
+        raise AssertionError(f"{relative} must expose workflow_call")
 
     for input_name in workflow.get("releaseTagInputs", []):
         require_regex(path, rf"^\s+{re.escape(input_name)}:\s*$", f"workflow_dispatch input {input_name}")
@@ -68,6 +70,97 @@ def validate_workflow(workflow: dict[str, Any]) -> None:
     if workflow.get("requiresImportCode"):
         if "import-code" not in text or "encrypt" not in text:
             raise AssertionError(f"{relative} must generate an encrypted import-code artifact")
+
+    if workflow.get("requiresCloudflareDeploy"):
+        if "scripts/deploy-cloudflare-email.ps1" not in text:
+            raise AssertionError(f"{relative} must invoke the Cloudflare email deploy entrypoint")
+
+    if workflow.get("requiresRuntimeReadback"):
+        if "/health_check" not in text or "cloudflare-email-runtime-readback" not in text:
+            raise AssertionError(f"{relative} must verify and publish Cloudflare runtime readback")
+
+    if workflow.get("requiresDistributionBuilder"):
+        require_file("scripts/build-distribution.py")
+        if "scripts/build-distribution.py" not in text or "--verify-only" not in text:
+            raise AssertionError(f"{relative} must build and re-verify the client/userscript distribution")
+
+    if workflow.get("requiresReusableValidation"):
+        if "uses: ./.github/workflows/reusable-validate.yml" not in text:
+            raise AssertionError(f"{relative} must call the reusable validation workflow")
+
+    if workflow.get("requiresAttestation"):
+        if "actions/attest-build-provenance" not in text:
+            raise AssertionError(f"{relative} must attest its published artifacts")
+
+    if workflow.get("requiresGitHubRelease"):
+        if "gh release create" not in text or "gh release upload" not in text:
+            raise AssertionError(f"{relative} must create/update a GitHub Release and upload assets")
+
+    if workflow.get("forbidsProductionSecrets") and "secrets." in text:
+        raise AssertionError(f"{relative} must not read repository or environment secrets")
+
+    environment = str(workflow.get("environment") or "").strip()
+    if environment and environment not in text:
+        raise AssertionError(f"{relative} must use environment {environment}")
+
+
+def validate_workflows(contract: dict[str, Any]) -> None:
+    workflows = contract.get("workflows", [])
+    if not isinstance(workflows, list) or not workflows:
+        raise AssertionError("at least one release workflow is required")
+
+    components: set[str] = set()
+    paths: set[str] = set()
+    for workflow in workflows:
+        component = str(workflow.get("component") or "").strip()
+        path = str(workflow.get("path") or "").strip()
+        if not component or component in components:
+            raise AssertionError(f"workflow components must be non-empty and unique: {component!r}")
+        if not path or path in paths:
+            raise AssertionError(f"workflow paths must be non-empty and unique: {path!r}")
+        components.add(component)
+        paths.add(path)
+        validate_workflow(workflow)
+
+
+def validate_coordinator(contract: dict[str, Any]) -> None:
+    coordinator = contract.get("coordinator")
+    if not isinstance(coordinator, dict):
+        raise AssertionError("coordinator is required")
+
+    relative = str(coordinator.get("path") or "").strip()
+    path = require_file(relative)
+    text = path.read_text(encoding="utf-8")
+    require_text(path, "uses: ./.github/workflows/reusable-validate.yml")
+    require_text(path, "group: release-${{ inputs.release_tag || github.ref_name }}")
+    require_text(path, "cancel-in-progress: false")
+
+    targets = coordinator.get("targets", [])
+    if targets != ["all", "service-base", "cloudflare-email", "client-userscript"]:
+        raise AssertionError("coordinator targets must declare the supported release surfaces")
+    for target in targets:
+        require_text(path, f"- {target}")
+
+    for pattern in coordinator.get("publicTagPatterns", []):
+        require_text(path, f'- "{pattern}"')
+
+    workflow_paths = {
+        str(workflow["component"]): str(workflow["path"])
+        for workflow in contract.get("workflows", [])
+    }
+    for component in coordinator.get("serialOrder", []):
+        component_path = workflow_paths.get(str(component))
+        if not component_path:
+            raise AssertionError(f"coordinator serialOrder references unknown component: {component}")
+        require_text(path, f"uses: ./{component_path}")
+
+    if coordinator.get("requiresReusableValidation") and "skip_preflight: true" not in text:
+        raise AssertionError("coordinator must run one preflight and explicitly bypass duplicate component preflights")
+
+
+def validate_required_files(contract: dict[str, Any]) -> None:
+    for relative in contract.get("requiredFiles", []):
+        require_file(str(relative))
 
 
 def validate_deploy(contract: dict[str, Any]) -> None:
@@ -93,8 +186,9 @@ def main() -> int:
         raise AssertionError("project is required")
     if not contract.get("releaseClass"):
         raise AssertionError("releaseClass is required")
-    for workflow in contract.get("workflows", []):
-        validate_workflow(workflow)
+    validate_workflows(contract)
+    validate_coordinator(contract)
+    validate_required_files(contract)
     validate_deploy(contract)
     validate_doc(contract)
     print(f"release contract ok: {contract['project']} ({contract['releaseClass']})")

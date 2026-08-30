@@ -1,0 +1,67 @@
+name: Reusable Validate
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Set Up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Enable Corepack
+        shell: pwsh
+        run: corepack enable
+
+      - name: Create Local Operator Config
+        shell: pwsh
+        run: Copy-Item config.example.yaml config.yaml
+
+      - name: Install service/base Dependencies
+        shell: pwsh
+        working-directory: service/base
+        run: npm ci
+
+      - name: Install EasyEmail Client Dependencies
+        shell: pwsh
+        working-directory: clients/typescript
+        run: npm ci
+
+      - name: Install Cloudflare Worker Dependencies
+        shell: pwsh
+        working-directory: upstreams/cloudflare_temp_email/worker
+        run: corepack pnpm install --no-frozen-lockfile
+
+      - name: Install Cloudflare Frontend Dependencies
+        shell: pwsh
+        working-directory: upstreams/cloudflare_temp_email/frontend
+        run: corepack pnpm install --no-frozen-lockfile
+
+      - name: Run Repository Validation
+        shell: pwsh
+        run: ./scripts/test-all.ps1
+
+      - name: Validate Release Contract
+        shell: pwsh
+        run: python scripts/validate-release-contract.py
+
+      - name: Check Tracked File Cleanliness
+        shell: pwsh
+        run: |
+          git diff --check
+          git diff --exit-code

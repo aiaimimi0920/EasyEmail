@@ -5,6 +5,7 @@ EasyEmail is the public monorepo entrypoint for the EasyEmail ecosystem.
 It contains:
 
 - `service/base`: the local EasyEmail service runtime
+- `clients/typescript`: the reusable HTTP client for `service/base`
 - `runtimes/userscript`: the browser-side userscript runtime
 - `upstreams/cloudflare_temp_email`: the upstream integration boundary for the Cloudflare temp mail worker
 - `deploy`: deployment templates and operational scripts
@@ -31,6 +32,8 @@ GHCR-based validation.
 ```text
 service/
   base/
+clients/
+  typescript/
 runtimes/
   userscript/
 upstreams/
@@ -59,6 +62,12 @@ The local service runtime. This is the main EasyEmail control plane that owns:
 
 The browser-side userscript runtime. It is an independent runtime, not a thin
 bridge that requires `service/base` to be online.
+
+### `clients/typescript`
+
+The independently packaged TypeScript/JavaScript client for the HTTP API exposed
+by `service/base`. It accepts the server URL and API key at runtime and ships no
+operator credentials or deployment configuration.
 
 ### `upstreams/cloudflare_temp_email`
 
@@ -121,6 +130,19 @@ Read `runtimes/userscript/README.md` and generate a local userscript directly
 from the root `config.yaml`. That file is the single source of operator
 secrets for userscript generation.
 
+### TypeScript HTTP client
+
+```powershell
+Set-Location clients/typescript
+npm ci
+npm test
+npm run pack:check
+```
+
+See `docs/client-userscript-distribution.md` for the API usage example, release
+artifact contract, and the distinction between public and locally configured
+Userscript outputs.
+
 ### Cloudflare temp mail upstream runtime
 
 ```powershell
@@ -143,6 +165,8 @@ corepack pnpm build
 - `docs/release-tagging.md`
 - `docs/github-actions-secrets.md`
 - `docs/cloudflare-email-deployment.md`
+- `docs/client-userscript-distribution.md`
+- `docs/github-actions-client-distribution-plan.md`
 - `docs/root-host-deploy-standard.md`
 - `docs/publish-control-center-release-catalog.md`
 - `CONTRIBUTING.md`
@@ -151,6 +175,10 @@ GitHub Actions release automation lives under `.github/workflows/`:
 
 - `publish-service-base-ghcr.yml`
 - `deploy-cloudflare-email.yml`
+- `publish-client-userscript.yml`
+- `release-easyemail.yml` (public-tag and selectable coordinated entrypoint)
+- `validate.yml` (thin trigger wrapper)
+- `reusable-validate.yml` (shared validation implementation)
 
 ## Operator Scripts
 
@@ -167,6 +195,11 @@ GitHub Actions release automation lives under `.github/workflows/`:
 - `scripts/publish-control-center-release-catalog.ps1`
 - `scripts/materialize-action-config.py`
 - `scripts/validate-release-tag.py`
+- `scripts/build-userscript-release.py`
+- `scripts/build-distribution.py`
+
+Hosted release sequencing, GitHub environments, evidence, retry, and rollback
+boundaries are documented in `docs/release-operations.md`.
 
 ## Shared Config
 
@@ -222,4 +255,4 @@ let EasyEmail reuse a stable sender mailbox such as
 
 ## Release Contract
 
-This repository follows the EasyAiMi release contract v1 for GitHub Actions, GHCR publication, R2 config distribution, encrypted import-code artifacts, and blank-host local deployment. See [docs/release-contract.md](docs/release-contract.md) for the exact contract and project-specific exceptions.
+This repository follows the EasyAiMi release contract v1 for the local server, Cloudflare email center, TypeScript client, Userscript distribution, and blank-host local deployment. See [docs/release-contract.md](docs/release-contract.md) for the exact multi-surface contract and security boundaries.

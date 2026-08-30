@@ -1,35 +1,103 @@
 {
-    "schemaVersion":  1,
-    "project":  "EasyEmail",
-    "releaseClass":  "standard-service-base",
-    "workflows":  [
-                      {
-                          "component":  "service-base",
-                          "requiresImportCode":  true,
-                          "releaseTagOutputs":  [
-                                                    "release_tag",
-                                                    "version"
-                                                ],
-                          "artifacts":  [
-                                            "service-base-release-manifest",
-                                            "service-base-r2-config-manifest",
-                                            "service-base-import-code-encrypted"
-                                        ],
-                          "releaseTagInputs":  [
-                                                   "release_tag",
-                                                   "version"
-                                               ],
-                          "requiresR2":  true,
-                          "path":  ".github/workflows/publish-service-base-ghcr.yml",
-                          "requiresGhcr":  true
-                      }
-                  ],
-    "localDeploy":  {
-                        "entrypoint":  "deploy-host.ps1",
-                        "zeroFolder":  true,
-                        "forbidDevSourceBindMounts":  true
-                    },
-    "exceptions":  [
-                       "Cloudflare Email deployment remains a separate project-specific workflow."
-                   ]
+  "schemaVersion": 1,
+  "project": "EasyEmail",
+  "releaseClass": "multi-surface-service-and-client-distribution",
+  "coordinator": {
+    "path": ".github/workflows/release-easyemail.yml",
+    "targets": [
+      "all",
+      "service-base",
+      "cloudflare-email",
+      "client-userscript"
+    ],
+    "publicTagPatterns": [
+      "v*",
+      "release-*"
+    ],
+    "serialOrder": [
+      "client-userscript",
+      "service-base",
+      "cloudflare-email"
+    ],
+    "requiresReusableValidation": true
+  },
+  "workflows": [
+    {
+      "component": "service-base",
+      "path": ".github/workflows/publish-service-base-ghcr.yml",
+      "releaseTagInputs": [
+        "release_tag",
+        "version"
+      ],
+      "releaseTagOutputs": [
+        "release_tag",
+        "version"
+      ],
+      "artifacts": [
+        "service-base-release-manifest",
+        "service-base-r2-config-manifest",
+        "service-base-import-code-encrypted"
+      ],
+      "requiresGhcr": true,
+      "requiresR2": true,
+      "requiresImportCode": true,
+      "requiresGitHubRelease": true,
+      "requiresReusableValidation": true,
+      "environment": "easyemail-service-production"
+    },
+    {
+      "component": "cloudflare-email",
+      "path": ".github/workflows/deploy-cloudflare-email.yml",
+      "artifacts": [
+        "cloudflare-email-release-manifest",
+        "cloudflare-email-deployment-notes",
+        "cloudflare-email-runtime-readback"
+      ],
+      "requiresCloudflareDeploy": true,
+      "requiresRuntimeReadback": true,
+      "requiresGitHubRelease": true,
+      "requiresReusableValidation": true,
+      "environment": "easyemail-cloudflare-production"
+    },
+    {
+      "component": "client-userscript",
+      "path": ".github/workflows/publish-client-userscript.yml",
+      "releaseTagInputs": [
+        "release_tag"
+      ],
+      "releaseTagOutputs": [
+        "release_tag",
+        "version"
+      ],
+      "artifacts": [
+        "easy-email-client-userscript-distribution",
+        "easy-email-client-userscript-release-evidence"
+      ],
+      "requiresDistributionBuilder": true,
+      "requiresReusableValidation": true,
+      "requiresAttestation": true,
+      "requiresGitHubRelease": true,
+      "forbidsProductionSecrets": true,
+      "environment": "easyemail-public-release"
+    }
+  ],
+  "requiredFiles": [
+    "clients/typescript/package.json",
+    "clients/typescript/src/index.ts",
+    "scripts/build-distribution.py",
+    "scripts/build-userscript-release.py",
+    "scripts/userscript_release.py",
+    "docs/release-operations.md"
+  ],
+  "localDeploy": {
+    "entrypoint": "deploy-host.ps1",
+    "zeroFolder": true,
+    "forbidDevSourceBindMounts": true
+  },
+  "securityBoundaries": [
+    "Published Userscript assets contain tracked placeholders only and never repository or production secrets.",
+    "Client credentials are runtime constructor inputs and are never embedded in the package.",
+    "Configured Userscripts remain local operator artifacts and are not uploaded by public release workflows."
+  ],
+  "exceptions": []
 }

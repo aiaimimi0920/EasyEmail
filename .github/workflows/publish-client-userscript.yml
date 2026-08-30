@@ -1,0 +1,184 @@
+name: Publish EasyEmail Client And Userscript
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag (vX.Y.Z or release-YYYYMMDD-NNN)
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Release tag (vX.Y.Z or release-YYYYMMDD-NNN)
+        required: true
+        type: string
+      skip_preflight:
+        description: Skip the component preflight when the coordinator already ran it
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: client-userscript-${{ inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: ${{ !inputs.skip_preflight }}
+    uses: ./.github/workflows/reusable-validate.yml
+
+  metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.release.outputs.release_tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Resolve Release Metadata
+        id: release
+        shell: bash
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            release_tag="${INPUT_RELEASE_TAG}"
+          else
+            release_tag="${GITHUB_REF_NAME}"
+          fi
+          python scripts/validate-release-tag.py --mode distribution --tag "${release_tag}" >/dev/null
+          version="$(RELEASE_TAG="${release_tag}" python -c 'import os; from userscript_release import userscript_version; print(userscript_version(os.environ["RELEASE_TAG"]))')"
+          echo "release_tag=${release_tag}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    needs:
+      - preflight
+      - metadata
+    if: ${{ always() && needs.metadata.result == 'success' && (needs.preflight.result == 'success' || needs.preflight.result == 'skipped') }}
+    runs-on: windows-latest
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Set Up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Client Dependencies
+        working-directory: clients/typescript
+        shell: pwsh
+        run: npm ci
+
+      - name: Build And Verify Distribution
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ needs.metadata.outputs.release_tag }}
+        run: |
+          python scripts/build-distribution.py `
+            --release-tag $env:RELEASE_TAG `
+            --output-dir .release-artifacts/client-userscript
+
+      - name: Upload Distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: easy-email-client-userscript-distribution
+          path: .release-artifacts/client-userscript/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs:
+      - metadata
+      - build
+    runs-on: ubuntu-latest
+    environment: easyemail-public-release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Download Distribution
+        uses: actions/download-artifact@v5
+        with:
+          name: easy-email-client-userscript-distribution
+          path: dist
+
+      - name: Verify Downloaded Distribution
+        run: python scripts/build-distribution.py --verify-only --output-dir dist
+
+      - name: Attest Distribution
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/*
+
+      - name: Render Managed Release Notes Section
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.metadata.outputs.release_tag }}
+        run: |
+          python scripts/render-release-template.py \
+            --template .github/release-notes/client-userscript.md.tmpl \
+            --context dist/easy-email-distribution-manifest.json \
+            --output client-userscript-notes.md
+          if gh release view "${RELEASE_TAG}" --json body --jq .body > existing-release-notes.md 2>/dev/null; then
+            :
+          else
+            : > existing-release-notes.md
+          fi
+          python scripts/upsert-release-notes-section.py \
+            --section-id client-userscript \
+            --section-file client-userscript-notes.md \
+            --existing existing-release-notes.md \
+            --output merged-release-notes.md
+      - name: Publish GitHub Release Assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.metadata.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          tag="${RELEASE_TAG}"
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release edit "${tag}" --notes-file merged-release-notes.md
+          else
+            gh release create "${tag}" --target "${GITHUB_SHA}" --title "${tag}" --notes-file merged-release-notes.md
+          fi
+          gh release upload "${tag}" dist/* --clobber
+
+      - name: Upload Release Evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: easy-email-client-userscript-release-evidence
+          path: |
+            dist/*
+            client-userscript-notes.md
+            merged-release-notes.md
+          if-no-files-found: error
+          retention-days: 90

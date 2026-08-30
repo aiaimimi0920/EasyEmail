@@ -8,6 +8,7 @@ $minimumNodeVersion = [Version]'22.0.0'
 
 $powerShellCommand = Get-EasyEmailPowerShellCommand
 $serviceBaseDir = Join-Path $repoRoot 'service/base'
+$clientDir = Join-Path $repoRoot 'clients/typescript'
 $workerDir = Join-Path $repoRoot 'upstreams/cloudflare_temp_email/worker'
 $frontendDir = Join-Path $repoRoot 'upstreams/cloudflare_temp_email/frontend'
 $serviceTsc = Resolve-EasyEmailLocalNodeTool -PackageDirectory $serviceBaseDir -ToolName 'tsc'
@@ -57,6 +58,12 @@ Invoke-InDirectory $repoRoot { & python -m unittest discover -s tests -p "test_*
 Write-Host "Validating userscript runtime..."
 Invoke-InDirectory $repoRoot { & $powerShellCommand -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts/validate-userscript.ps1') }
 
+Write-Host "Validating EasyEmail TypeScript client..."
+Invoke-InDirectory $clientDir { & npm test }
+if ($LASTEXITCODE -ne 0) {
+    throw "EasyEmail TypeScript client validation failed with exit code $LASTEXITCODE"
+}
+
 Write-Host "Validating service/base..."
 Invoke-InDirectory $serviceBaseDir { & $serviceTsc -p tsconfig.json --noEmit }
 Invoke-InDirectory $serviceBaseDir { & $serviceVitest run }
@@ -73,6 +80,10 @@ Invoke-InDirectory $frontendDir { & $frontendVite build -m prod --emptyOutDir }
 Write-Host "Validating release automation scripts..."
 & python -m py_compile `
     (Join-Path $repoRoot 'scripts/easyemail-import-code.py') `
+    (Join-Path $repoRoot 'scripts/build-userscript-release.py') `
+    (Join-Path $repoRoot 'scripts/build-distribution.py') `
+    (Join-Path $repoRoot 'scripts/release_tag.py') `
+    (Join-Path $repoRoot 'scripts/userscript_release.py') `
     (Join-Path $repoRoot 'scripts/render-release-template.py') `
     (Join-Path $repoRoot 'scripts/render-userscript-remote-config.py') `
     (Join-Path $repoRoot 'scripts/upsert-release-notes-section.py') `

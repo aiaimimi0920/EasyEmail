@@ -15,8 +15,8 @@ Use semantic version tags such as `v1.8.0` for coordinated public releases.
 
 What it triggers:
 
-- `publish-service-base-ghcr.yml`
-- `deploy-cloudflare-email.yml`
+- `release-easyemail.yml`, target `all`
+- the coordinator then calls the Client/Userscript, service, and Cloudflare workflows in order
 
 Recommended when:
 
@@ -31,8 +31,8 @@ tracked deployment without claiming a new public semantic version.
 
 What it triggers:
 
-- `publish-service-base-ghcr.yml`
-- `deploy-cloudflare-email.yml`
+- `release-easyemail.yml`, target `all`
+- the coordinator then calls the Client/Userscript, service, and Cloudflare workflows in order
 
 Recommended when:
 
@@ -62,6 +62,9 @@ Use `workflow_dispatch` when:
 - you need a dry-run validation
 - you want to force a publish/deploy without creating a tag first
 - you want to override options such as platform, health checks, or routing sync
+
+Use `release-easyemail.yml` for a manually coordinated release. Use a component
+workflow directly only for focused maintenance or a Cloudflare dry run.
 
 Manual runs are still recorded in the release manifests, but they use the
 `manual` channel instead of a tag-driven channel.

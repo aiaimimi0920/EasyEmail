@@ -3,8 +3,6 @@ name: Publish Service Base GHCR
 on:
   push:
     tags:
-      - "v*"
-      - "release-*"
       - "service-base-*"
   workflow_dispatch:
     inputs:
@@ -36,18 +34,57 @@ on:
         required: false
         default: false
         type: boolean
+  workflow_call:
+    inputs:
+      version:
+        required: false
+        type: string
+      release_tag:
+        required: false
+        type: string
+      platform:
+        required: false
+        default: "linux/amd64"
+        type: string
+      push_latest:
+        required: false
+        default: true
+        type: boolean
+      run_smoke:
+        required: false
+        default: true
+        type: boolean
+      force_publish:
+        required: false
+        default: false
+        type: boolean
+      coordinated_release:
+        required: false
+        default: false
+        type: boolean
+      skip_preflight:
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
   packages: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: service-base-${{ inputs.release_tag || inputs.version || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
+  preflight:
+    if: ${{ !inputs.skip_preflight }}
+    uses: ./.github/workflows/reusable-validate.yml
+
   publish:
+    needs: preflight
+    if: ${{ always() && (needs.preflight.result == 'success' || needs.preflight.result == 'skipped') }}
     runs-on: ubuntu-latest
+    environment: easyemail-service-production
 
     env:
       REGISTRY: ghcr.io
@@ -143,6 +180,7 @@ jobs:
         env:
           RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
           VERSION_INPUT: ${{ inputs.version }}
+          COORDINATED_RELEASE: ${{ inputs.coordinated_release }}
         shell: bash
         run: |
           set -euo pipefail
@@ -150,7 +188,7 @@ jobs:
           owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
           short_sha="$(git rev-parse --short HEAD)"
 
-          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${COORDINATED_RELEASE}" != "true" ]]; then
             version="${GITHUB_REF_NAME}"
             push_latest="true"
             run_smoke="true"

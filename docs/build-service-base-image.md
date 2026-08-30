@@ -42,7 +42,8 @@ default.
 For GitHub-hosted publishing without relying on a local Docker daemon, use the
 GitHub Actions workflow:
 
-- tag push triggers `.github/workflows/publish-service-base-ghcr.yml`
+- a `service-base-*` tag directly triggers `.github/workflows/publish-service-base-ghcr.yml`
+- public `v*` and `release-*` tags are owned by `release-easyemail.yml`, which calls the service workflow after preflight and Client publication
 - manual publish is available through `workflow_dispatch`
 - published images are smoke-checked before push
 - the workflow also renders the final `service/base` runtime config and uploads

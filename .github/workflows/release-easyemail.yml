@@ -1,0 +1,169 @@
+name: Release EasyEmail
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "release-*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag (vX.Y.Z or release-YYYYMMDD-NNN; service-base tags are service-only)
+        required: true
+        type: string
+      target:
+        description: Release surface
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - service-base
+          - cloudflare-email
+          - client-userscript
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    uses: ./.github/workflows/reusable-validate.yml
+
+  metadata:
+    needs: preflight
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.release.outputs.release_tag }}
+      target: ${{ steps.release.outputs.target }}
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Resolve Coordinated Release
+        id: release
+        shell: bash
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+          INPUT_TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            release_tag="${INPUT_RELEASE_TAG}"
+            target="${INPUT_TARGET}"
+          else
+            release_tag="${GITHUB_REF_NAME}"
+            target="all"
+          fi
+
+          mode="distribution"
+          if [[ "${target}" == "service-base" ]]; then
+            mode="service-base"
+          fi
+          python scripts/validate-release-tag.py --mode "${mode}" --tag "${release_tag}"
+
+          {
+            echo "release_tag=${release_tag}"
+            echo "target=${target}"
+          } >> "${GITHUB_OUTPUT}"
+
+  client-userscript:
+    needs:
+      - preflight
+      - metadata
+    if: ${{ needs.metadata.outputs.target == 'all' || needs.metadata.outputs.target == 'client-userscript' }}
+    uses: ./.github/workflows/publish-client-userscript.yml
+    with:
+      release_tag: ${{ needs.metadata.outputs.release_tag }}
+      skip_preflight: true
+
+  service-base:
+    needs:
+      - preflight
+      - metadata
+      - client-userscript
+    if: ${{ always() && needs.preflight.result == 'success' && needs.metadata.result == 'success' && (needs.client-userscript.result == 'success' || needs.client-userscript.result == 'skipped') && (needs.metadata.outputs.target == 'all' || needs.metadata.outputs.target == 'service-base') }}
+    uses: ./.github/workflows/publish-service-base-ghcr.yml
+    with:
+      release_tag: ${{ needs.metadata.outputs.release_tag }}
+      platform: linux/amd64
+      push_latest: true
+      run_smoke: true
+      force_publish: true
+      coordinated_release: true
+      skip_preflight: true
+    secrets: inherit
+
+  cloudflare-email:
+    needs:
+      - preflight
+      - metadata
+      - client-userscript
+      - service-base
+    if: ${{ always() && needs.preflight.result == 'success' && needs.metadata.result == 'success' && (needs.client-userscript.result == 'success' || needs.client-userscript.result == 'skipped') && (needs.service-base.result == 'success' || needs.service-base.result == 'skipped') && (needs.metadata.outputs.target == 'all' || needs.metadata.outputs.target == 'cloudflare-email') }}
+    uses: ./.github/workflows/deploy-cloudflare-email.yml
+    with:
+      release_tag: ${{ needs.metadata.outputs.release_tag }}
+      dry_run: false
+      sync_mode: wildcard
+      no_routing_sync: false
+      bootstrap_missing_resources: false
+      force_routing_state_sync: false
+      run_health_check: true
+      run_sender_matrix: true
+      force_deploy: true
+      coordinated_release: true
+      skip_preflight: true
+    secrets: inherit
+
+  summary:
+    needs:
+      - metadata
+      - client-userscript
+      - service-base
+      - cloudflare-email
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write Coordinated Release Summary
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.metadata.outputs.release_tag }}
+          TARGET: ${{ needs.metadata.outputs.target }}
+          CLIENT_RESULT: ${{ needs.client-userscript.result }}
+          SERVICE_RESULT: ${{ needs.service-base.result }}
+          CLOUDFLARE_RESULT: ${{ needs.cloudflare-email.result }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## EasyEmail Coordinated Release"
+            echo
+            echo "- Release tag: \`${RELEASE_TAG}\`"
+            echo "- Target: \`${TARGET}\`"
+            echo "- Client/Userscript: \`${CLIENT_RESULT}\`"
+            echo "- Service base: \`${SERVICE_RESULT}\`"
+            echo "- Cloudflare email: \`${CLOUDFLARE_RESULT}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          failed="false"
+          if [[ "${TARGET}" == "all" || "${TARGET}" == "client-userscript" ]]; then
+            [[ "${CLIENT_RESULT}" == "success" ]] || failed="true"
+          fi
+          if [[ "${TARGET}" == "all" || "${TARGET}" == "service-base" ]]; then
+            [[ "${SERVICE_RESULT}" == "success" ]] || failed="true"
+          fi
+          if [[ "${TARGET}" == "all" || "${TARGET}" == "cloudflare-email" ]]; then
+            [[ "${CLOUDFLARE_RESULT}" == "success" ]] || failed="true"
+          fi
+          [[ "${failed}" == "false" ]]

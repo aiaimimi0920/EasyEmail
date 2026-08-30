@@ -1,10 +1,6 @@
 name: Deploy Cloudflare Email
 
 on:
-  push:
-    tags:
-      - "v*"
-      - "release-*"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -50,22 +46,75 @@ on:
         required: false
         default: false
         type: boolean
+  workflow_call:
+    inputs:
+      release_tag:
+        required: true
+        type: string
+      dry_run:
+        required: false
+        default: false
+        type: boolean
+      sync_mode:
+        required: false
+        default: "wildcard"
+        type: string
+      no_routing_sync:
+        required: false
+        default: false
+        type: boolean
+      bootstrap_missing_resources:
+        required: false
+        default: false
+        type: boolean
+      force_routing_state_sync:
+        required: false
+        default: false
+        type: boolean
+      run_health_check:
+        required: false
+        default: true
+        type: boolean
+      run_sender_matrix:
+        required: false
+        default: true
+        type: boolean
+      force_deploy:
+        required: false
+        default: false
+        type: boolean
+      coordinated_release:
+        required: false
+        default: false
+        type: boolean
+      skip_preflight:
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: cloudflare-email-${{ inputs.release_tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
+  preflight:
+    if: ${{ !inputs.skip_preflight }}
+    uses: ./.github/workflows/reusable-validate.yml
+
   deploy:
+    needs: preflight
+    if: ${{ always() && (needs.preflight.result == 'success' || needs.preflight.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    environment:
+      name: ${{ inputs.dry_run && 'easyemail-cloudflare-validation' || 'easyemail-cloudflare-production' }}
 
     env:
       CI: true
-      ALLOW_EXAMPLE_CONFIG: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      ALLOW_EXAMPLE_CONFIG: ${{ (github.event_name == 'workflow_dispatch' || inputs.coordinated_release) && inputs.dry_run }}
 
     steps:
       - name: Check Out Repository
@@ -97,7 +146,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" || "${{ inputs.force_deploy }}" == "true" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" || "${{ inputs.coordinated_release }}" == "true" || "${{ inputs.force_deploy }}" == "true" ]]; then
             {
               echo "should_deploy=true"
               echo "reason=manual_or_forced"
@@ -138,13 +187,13 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Validate Release Tag
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || inputs.coordinated_release
         shell: bash
         run: |
           set -euo pipefail
           python scripts/validate-release-tag.py \
             --mode cloudflare \
-            --tag "${GITHUB_REF_NAME}"
+            --tag "${{ inputs.release_tag || github.ref_name }}"
 
       - name: Skip Deployment Summary
         if: steps.change_gate.outputs.should_deploy != 'true'
@@ -312,25 +361,25 @@ jobs:
         if: steps.change_gate.outputs.should_deploy == 'true'
         shell: pwsh
         run: |
-          $isWorkflowDispatch = "${{ github.event_name }}" -eq 'workflow_dispatch'
+          $useWorkflowInputs = (("${{ github.event_name }}" -eq 'workflow_dispatch') -or ('${{ inputs.coordinated_release }}' -eq 'true'))
           $deployParams = @{
             ConfigPath = '.\config.yaml'
             NoInstall = $true
           }
 
-          if ($isWorkflowDispatch) {
+          if ($useWorkflowInputs) {
             $deployParams.SyncMode = '${{ inputs.sync_mode }}'
           }
-          if ($isWorkflowDispatch -and ('${{ inputs.bootstrap_missing_resources }}' -eq 'true')) {
+          if ($useWorkflowInputs -and ('${{ inputs.bootstrap_missing_resources }}' -eq 'true')) {
             $deployParams.BootstrapMissingResources = $true
           }
-          if ($isWorkflowDispatch -and ('${{ inputs.force_routing_state_sync }}' -eq 'true')) {
+          if ($useWorkflowInputs -and ('${{ inputs.force_routing_state_sync }}' -eq 'true')) {
             $deployParams.ForceRoutingStateSync = $true
           }
-          if ($isWorkflowDispatch -and ('${{ inputs.no_routing_sync }}' -eq 'true')) {
+          if ($useWorkflowInputs -and ('${{ inputs.no_routing_sync }}' -eq 'true')) {
             $deployParams.NoRoutingSync = $true
           }
-          if ($isWorkflowDispatch -and ('${{ inputs.dry_run }}' -eq 'true')) {
+          if ($useWorkflowInputs -and ('${{ inputs.dry_run }}' -eq 'true')) {
             $deployParams.DryRun = $true
           }
 
@@ -341,7 +390,7 @@ jobs:
           }
 
       - name: Read Back Deployed Cloudflare Runtime
-        if: steps.change_gate.outputs.should_deploy == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run) && !(github.event_name == 'workflow_dispatch' && !inputs.run_health_check)
+        if: steps.change_gate.outputs.should_deploy == 'true' && !inputs.dry_run && inputs.run_health_check != false
         id: runtime
         shell: pwsh
         run: |
@@ -382,7 +431,7 @@ jobs:
           "base_url=$($runtimeReadback.baseUrl)" >> $env:GITHUB_OUTPUT
 
       - name: Deploy Local Service Base Sender-Matrix Verifier
-        if: steps.change_gate.outputs.should_deploy == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run) && (github.event_name != 'workflow_dispatch' || inputs.run_sender_matrix)
+        if: steps.change_gate.outputs.should_deploy == 'true' && !inputs.dry_run && inputs.run_sender_matrix != false
         id: sender_matrix_instance
         shell: pwsh
         run: |
@@ -397,7 +446,7 @@ jobs:
           "base_url=http://127.0.0.1:18131" >> $env:GITHUB_OUTPUT
 
       - name: Run Slim Sender Matrix
-        if: steps.change_gate.outputs.should_deploy == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run) && (github.event_name != 'workflow_dispatch' || inputs.run_sender_matrix)
+        if: steps.change_gate.outputs.should_deploy == 'true' && !inputs.dry_run && inputs.run_sender_matrix != false
         id: sender_matrix
         shell: pwsh
         run: |
@@ -472,9 +521,10 @@ jobs:
           $cloudflare = Get-EasyEmailSection -Config $config -Name 'cloudflareMail'
           $routing = Get-EasyEmailSection -Config $cloudflare -Name 'routing'
           $baseUrl = [string](Get-EasyEmailConfigValue -Object $cloudflare -Name 'publicBaseUrl' -Default '')
-          $tagOrRefName = '${{ github.ref_name }}'
-          $isDryRun = ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.dry_run }}' -eq 'true')
-          $shouldRunHealthCheck = -not ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.run_health_check }}' -eq 'false')
+          $tagOrRefName = '${{ inputs.release_tag || github.ref_name }}'
+          $useWorkflowInputs = (('${{ github.event_name }}' -eq 'workflow_dispatch') -or ('${{ inputs.coordinated_release }}' -eq 'true'))
+          $isDryRun = ($useWorkflowInputs -and '${{ inputs.dry_run }}' -eq 'true')
+          $shouldRunHealthCheck = -not ($useWorkflowInputs -and '${{ inputs.run_health_check }}' -eq 'false')
           $result = if ($isDryRun) { 'validated' } else { 'deployed' }
           $channel = Get-EasyEmailReleaseChannel -Tag $tagOrRefName
 
@@ -493,7 +543,7 @@ jobs:
             $runtimeReadback = Get-Content -Raw -LiteralPath '${{ steps.runtime.outputs.runtime_path }}' | ConvertFrom-Json
           }
 
-          $routingSyncEnabled = if ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.no_routing_sync }}' -eq 'true') {
+          $routingSyncEnabled = if ($useWorkflowInputs -and '${{ inputs.no_routing_sync }}' -eq 'true') {
             $false
           } else {
             [bool](Get-EasyEmailConfigValue -Object $cloudflare -Name 'syncRouting' -Default $false)
@@ -531,8 +581,8 @@ jobs:
               dryRun = $isDryRun
               baseUrl = $baseUrl
               version = if ($runtimeReadback) { [string]$runtimeReadback.version } else { 'n/a' }
-              bootstrap = ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.bootstrap_missing_resources }}' -eq 'true')
-              syncMode = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.sync_mode }}' } else { [string](Get-EasyEmailConfigValue -Object $routing -Name 'mode' -Default 'exact') }
+              bootstrap = ($useWorkflowInputs -and '${{ inputs.bootstrap_missing_resources }}' -eq 'true')
+              syncMode = if ($useWorkflowInputs) { '${{ inputs.sync_mode }}' } else { [string](Get-EasyEmailConfigValue -Object $routing -Name 'mode' -Default 'exact') }
               routingSyncEnabled = $routingSyncEnabled
               domains = if ($runtimeReadback) { @($runtimeReadback.domains) } else { @() }
               randomSubdomainDomains = if ($runtimeReadback) { @($runtimeReadback.randomSubdomainDomains) } else { @() }
@@ -588,14 +638,14 @@ jobs:
           path: ${{ steps.runtime.outputs.runtime_path }}
 
       - name: Create Or Update GitHub Release
-        if: steps.change_gate.outputs.should_deploy == 'true' && github.event_name == 'push'
+        if: steps.change_gate.outputs.should_deploy == 'true' && (github.event_name == 'push' || inputs.coordinated_release)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
 
-          tag="${GITHUB_REF_NAME}"
+          tag="${{ inputs.release_tag || github.ref_name }}"
           existing_body="existing-release-body.md"
           merged_body="merged-release-body.md"
 
