@@ -289,3 +289,9 @@ workflow needs:
 - `EASYEMAIL_PROVIDER_M2U_PREFERRED_DOMAIN`
 - `EASYEMAIL_PROVIDER_M2U_UPSTREAM_PROXY_URL`
 - `EASYEMAIL_PROVIDER_M2U_USE_EASY_PROXY_ON_CAPACITY`
+
+`EASYEMAIL_PROVIDER_M2U_UPSTREAM_PROXY_URL` must be reachable from a
+GitHub-hosted runner. Private DNS names and local Docker aliases are not
+reachable there. The hosted slim matrix exhausts its m2u retry budgets and then
+records only standardized upstream-transient failures as `degraded`; all other
+m2u failures still block the workflow.

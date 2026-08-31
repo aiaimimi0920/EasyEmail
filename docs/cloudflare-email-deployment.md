@@ -137,6 +137,12 @@ That hosted sender-matrix step also runs with a more conservative timeout and
 retry budget than the local default so the GitHub runner has extra room for
 slow upstream inbox delivery.
 
+The hosted gate treats `cloudflare_temp_email` and `mailtm` as required. m2u is
+allowed to finish as `degraded` only when its retry budgets are exhausted by a
+standardized upstream-transient error such as `MAILBOX_UPSTREAM_TRANSIENT`.
+Other m2u failures remain blocking, and local script runs stay strict unless the
+caller explicitly supplies `-NonBlockingTransientProviders`.
+
 ## Supported Deployment Modes
 
 The repository now supports both deployment modes through the same script path:

@@ -30,6 +30,7 @@ param(
     [int]$RecipientRetryDelaySeconds = 8,
     [int]$ProviderRetryCount = 1,
     [int]$ProviderRetryDelaySeconds = 10,
+    [string[]]$NonBlockingTransientProviders = @(),
     [switch]$IsolateTemplateMailbox,
     [string]$ResultOutputPath = ''
 )
@@ -319,6 +320,28 @@ function Test-ShouldRetryRecipientAddress {
     return $Message -match 'Timed out waiting for code|Operation failed|MAILBOX_CAPACITY_UNAVAILABLE|MAILBOX_UPSTREAM_TRANSIENT|M2U_TRANSIENT_FAILURE|PROVIDER_INSTANCE_UNAVAILABLE|Access denied|1010|errorcaptcha|fetch failed|daily_limit_exceeded|rate limit|quota'
 }
 
+function Test-IsNonBlockingUpstreamTransientFailure {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Provider,
+        [Parameter(Mandatory = $true)]
+        [string]$Message,
+        [string[]]$AllowedProviders = @()
+    )
+
+    $normalizedProvider = $Provider.Trim().ToLowerInvariant()
+    $normalizedAllowedProviders = @(
+        $AllowedProviders |
+            ForEach-Object { ([string]$_).Trim().ToLowerInvariant() } |
+            Where-Object { $_ }
+    )
+    if ($normalizedAllowedProviders -notcontains $normalizedProvider) {
+        return $false
+    }
+
+    return $Message -match 'MAILBOX_UPSTREAM_TRANSIENT|M2U_TRANSIENT_FAILURE'
+}
+
 function Test-ProviderMatrixOnce {
     param(
         [Parameter(Mandatory = $true)]
@@ -394,6 +417,7 @@ function Test-ProviderMatrixOnce {
                 return [pscustomobject]@{
                     provider = $Provider
                     ok = $true
+                    degraded = $false
                     email = $firstRecipientSession.emailAddress
                     sessionId = $firstRecipientSession.id
                     destinationStatus = $finalDestinationStatus
@@ -444,6 +468,7 @@ function Test-ProviderMatrixOnce {
             return [pscustomobject]@{
                 provider = $Provider
                 ok = $true
+                degraded = $false
                 email = $recipientSession.emailAddress
                 sessionId = $recipientSession.id
                 destinationStatus = if ($null -eq $destination) { 'skipped' } else { $destination.status }
@@ -458,9 +483,15 @@ function Test-ProviderMatrixOnce {
                 continue
             }
 
+            $degraded = Test-IsNonBlockingUpstreamTransientFailure `
+                -Provider $Provider `
+                -Message $message `
+                -AllowedProviders $NonBlockingTransientProviders
+
             return [pscustomobject]@{
                 provider = $Provider
                 ok = $false
+                degraded = $degraded
                 recipientAttempts = $recipientAttempt
                 detail = $message
                 errorType = $_.Exception.GetType().FullName

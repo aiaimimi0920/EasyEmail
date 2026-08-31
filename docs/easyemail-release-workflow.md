@@ -97,6 +97,13 @@ started `service/base` verifier:
 Manual runs can disable that acceptance step with the workflow input
 `run_sender_matrix=false`.
 
+The hosted slim matrix keeps `cloudflare_temp_email` and `mailtm` strict. After
+all configured retries are exhausted, only an explicitly normalized m2u
+upstream-transient failure is reported as `degraded` instead of blocking the
+release. Capacity, configuration, delivery, and content failures still fail the
+workflow. Direct script runs remain strict unless the caller explicitly opts in
+with `-NonBlockingTransientProviders`.
+
 ## Useful Flags
 
 Skip the Cloudflare deploy and publish only the service image:

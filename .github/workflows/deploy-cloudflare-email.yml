@@ -458,10 +458,13 @@ jobs:
             -CodeTimeoutSeconds 300 `
             -ProviderRetryCount 2 `
             -RecipientRetryCount 4 `
+            -NonBlockingTransientProviders 'm2u' `
             -ResultOutputPath $resultPath
 
           $results = Get-Content -Raw -LiteralPath $resultPath | ConvertFrom-Json
-          $failed = @($results | Where-Object { -not $_.ok })
+          $failed = @($results | Where-Object { -not $_.ok -and $_.degraded -ne $true })
+          $degraded = @($results | Where-Object { $_.degraded -eq $true })
+          $matrixResult = if ($failed.Count -gt 0) { 'failed' } elseif ($degraded.Count -gt 0) { 'degraded' } else { 'passed' }
 
           $summaryPath = Join-Path $PWD 'cloudflare-sender-matrix-smoke-summary.md'
           $summaryLines = @(
@@ -469,13 +472,15 @@ jobs:
             ''
             '- Providers: `cloudflare_temp_email`, `mailtm`, `m2u`'
             ('- Base URL: `${{ steps.sender_matrix_instance.outputs.base_url }}`')
-            ('- Result: ' + ($(if ($failed.Count -eq 0) { 'passed' } else { 'failed' })))
+            ('- Result: ' + $matrixResult)
             ''
           )
 
           foreach ($entry in $results) {
             if ($entry.ok) {
               $summaryLines += ('- `'+$entry.provider+'`: passed')
+            } elseif ($entry.degraded -eq $true) {
+              $summaryLines += ('- `'+$entry.provider+'`: degraded after upstream-transient retries')
             } else {
               $summaryLines += ('- `'+$entry.provider+'`: failed')
               if ($entry.detail) {
@@ -489,9 +494,13 @@ jobs:
 
           "result_path=$resultPath" >> $env:GITHUB_OUTPUT
           "summary_path=$summaryPath" >> $env:GITHUB_OUTPUT
+          "result=$matrixResult" >> $env:GITHUB_OUTPUT
 
           if ($failed.Count -gt 0) {
             throw ('Sender matrix smoke failed for providers: ' + (($failed | ForEach-Object { $_.provider }) -join ', '))
+          }
+          if ($degraded.Count -gt 0) {
+            Write-Warning ('Sender matrix completed with upstream-transient degradation for providers: ' + (($degraded | ForEach-Object { $_.provider }) -join ', '))
           }
 
       - name: Upload Sender Matrix Artifacts
@@ -593,6 +602,13 @@ jobs:
               routingSync = if ($routingSyncEnabled) { 'enabled' } else { 'disabled' }
               configSource = '${{ steps.operator_config.outputs.source }}'
               runtimeReadback = if ($runtimeReadback) { 'captured' } else { 'pending' }
+              senderMatrix = if ($isDryRun -or '${{ inputs.run_sender_matrix }}' -eq 'false') {
+                'skipped'
+              } elseif ('${{ steps.sender_matrix.outputs.result }}') {
+                '${{ steps.sender_matrix.outputs.result }}'
+              } else {
+                'pending'
+              }
             }
             markdown = [ordered]@{
               matchedFiles = (($matchedFiles | ForEach-Object { '- `' + $_ + '`' }) -join "`n")

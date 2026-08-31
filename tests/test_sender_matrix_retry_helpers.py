@@ -10,6 +10,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SENDER_MATRIX = ROOT / "scripts" / "test-easyemail-cloudflare-sender-matrix.ps1"
+CLOUDFLARE_WORKFLOW = ROOT / ".github" / "workflows" / "deploy-cloudflare-email.yml"
+CLOUDFLARE_RELEASE_NOTES = ROOT / ".github" / "release-notes" / "cloudflare-email-run.md.tmpl"
 
 
 class SenderMatrixRetryHelperTests(unittest.TestCase):
@@ -31,15 +33,21 @@ $ast = [System.Management.Automation.Language.Parser]::ParseFile(
 if ($errors.Count -gt 0) {
     throw ($errors | ForEach-Object { $_.Message } | Out-String)
 }
-$matches = @($ast.FindAll({
-    param($node)
-    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
-        $node.Name -eq 'Test-ShouldRetryRecipientAddress'
-}, $true))
-if ($matches.Count -ne 1) {
-    throw "Expected one retry helper, found $($matches.Count)."
+$functionNames = @(
+    'Test-ShouldRetryRecipientAddress',
+    'Test-IsNonBlockingUpstreamTransientFailure'
+)
+foreach ($functionName in $functionNames) {
+    $matches = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -eq $functionName
+    }, $true))
+    if ($matches.Count -ne 1) {
+        throw "Expected one function named $functionName, found $($matches.Count)."
+    }
+    Invoke-Expression $matches[0].Extent.Text
 }
-Invoke-Expression $matches[0].Extent.Text
 
 [pscustomobject]@{
     upstreamCode = Test-ShouldRetryRecipientAddress `
@@ -54,6 +62,17 @@ Invoke-Expression $matches[0].Extent.Text
     unsupportedProvider = Test-ShouldRetryRecipientAddress `
         -Provider 'cloudflare_temp_email' `
         -Message 'MAILBOX_UPSTREAM_TRANSIENT: temporary provider failure'
+    allowedDegradation = Test-IsNonBlockingUpstreamTransientFailure `
+        -Provider 'm2u' `
+        -Message 'MAILBOX_UPSTREAM_TRANSIENT: temporary provider failure' `
+        -AllowedProviders @('m2u')
+    strictByDefault = Test-IsNonBlockingUpstreamTransientFailure `
+        -Provider 'm2u' `
+        -Message 'MAILBOX_UPSTREAM_TRANSIENT: temporary provider failure'
+    permanentDegradation = Test-IsNonBlockingUpstreamTransientFailure `
+        -Provider 'm2u' `
+        -Message 'invalid mailbox configuration' `
+        -AllowedProviders @('m2u')
 } | ConvertTo-Json -Compress
 """
         completed = subprocess.run(
@@ -74,8 +93,21 @@ Invoke-Expression $matches[0].Extent.Text
                 "providerCode": True,
                 "permanentFailure": False,
                 "unsupportedProvider": False,
+                "allowedDegradation": True,
+                "strictByDefault": False,
+                "permanentDegradation": False,
             },
         )
+
+    def test_hosted_workflow_opts_in_only_m2u_transient_degradation(self) -> None:
+        workflow = CLOUDFLARE_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("-NonBlockingTransientProviders 'm2u'", workflow)
+        self.assertIn("-not $_.ok -and $_.degraded -ne $true", workflow)
+        self.assertIn("$_.degraded -eq $true", workflow)
+        self.assertIn('"result=$matrixResult"', workflow)
+        self.assertIn("senderMatrix = if", workflow)
+        release_notes = CLOUDFLARE_RELEASE_NOTES.read_text(encoding="utf-8")
+        self.assertIn("{{validation.senderMatrix}}", release_notes)
 
 
 if __name__ == "__main__":
