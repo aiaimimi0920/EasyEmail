@@ -316,7 +316,7 @@ function Test-ShouldRetryRecipientAddress {
         return $false
     }
 
-    return $Message -match 'Timed out waiting for code|Operation failed|MAILBOX_CAPACITY_UNAVAILABLE|PROVIDER_INSTANCE_UNAVAILABLE|Access denied|1010|errorcaptcha|fetch failed|daily_limit_exceeded|rate limit|quota'
+    return $Message -match 'Timed out waiting for code|Operation failed|MAILBOX_CAPACITY_UNAVAILABLE|MAILBOX_UPSTREAM_TRANSIENT|M2U_TRANSIENT_FAILURE|PROVIDER_INSTANCE_UNAVAILABLE|Access denied|1010|errorcaptcha|fetch failed|daily_limit_exceeded|rate limit|quota'
 }
 
 function Test-ProviderMatrixOnce {
