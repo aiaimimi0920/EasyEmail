@@ -2,6 +2,8 @@
 
 This runbook covers the hosted release boundary for the three EasyEmail
 surfaces. It does not replace provider-specific configuration documentation.
+The bundled UI is contract-defined but not released, so it has no operational
+target in this runbook.
 
 ## Entry points
 
@@ -92,7 +94,7 @@ A selected surface is successful only after its own evidence is available:
 
 | Surface | Required evidence |
 | --- | --- |
-| Client/Userscript | exact four-file set, verified manifest and `SHA256SUMS`, package install/syntax checks, provenance attestation |
+| Client/Userscript | exact four-file compatibility set, verified manifest and `SHA256SUMS`, optional helper package install/syntax checks, independent Userscript syntax checks, provenance attestation |
 | Service base | release manifest containing image reference and registry digest, GHCR image, R2 manifest, encrypted import-code artifact, container smoke result |
 | Cloudflare email | deployment manifest, deployment notes, `/health_check` and `/open_api/settings` readback, sender-matrix result when enabled |
 
@@ -141,8 +143,10 @@ For a named installation, also pass the same `-InstanceName`, `-RuntimeRoot`,
 ports, and compose project values used by that installation. The compose data
 mount is deliberately reused. Do not run either remove script during an image
 rollback because removal can destroy the state that rollback is intended to
-preserve. After redeploying, verify the HTTP health endpoint and make semantic
-catalog/open/read calls through the packaged Client.
+preserve. After redeploying, verify the HTTP readiness endpoint and make
+semantic catalog/open/read calls directly through the documented HTTP API. The
+optional packaged compatibility helper may be tested separately, but is not
+required for server rollback proof.
 
 ### Cloudflare email
 

@@ -4,13 +4,22 @@ Project: `EasyEmail`
 
 Release class: `multi-surface-service-and-client-distribution`
 
-This repository follows the EasyAiMi release contract v1 across three independently deployable or distributable surfaces. A public `vX.Y.Z` or `release-YYYYMMDD-NNN` tag drives the coordinated release workflow, while a `service-base-YYYYMMDD-NNN` tag remains restricted to the local server image.
+This repository follows the EasyAiMi release contract v1 across three current
+independently deployable or distributable surfaces. A public `vX.Y.Z` or
+`release-YYYYMMDD-NNN` tag drives the coordinated release workflow, while a
+`service-base-YYYYMMDD-NNN` tag remains restricted to the Local Server image.
+The product boundaries are machine-readable in
+[`product-contract.json`](../product-contract.json).
 
 ## Release surfaces
 
 ### Local EasyEmail server
 
-`service/base` is the local HTTP server used by EasyEmail clients. Its workflow publishes the GHCR image, release manifest, R2 bootstrap metadata, and encrypted owner import-code artifact. Blank-host deployment starts from `deploy-host.ps1`.
+`service/base` is the standalone Local Server and the main EasyEmail core. Any
+program can call its documented HTTP API directly; a published SDK is not
+required. Its workflow publishes the GHCR image, release manifest, R2 bootstrap
+metadata, and encrypted owner import-code artifact. Blank-host deployment starts
+from `deploy-host.ps1`.
 
 ### Cloudflare email center
 
@@ -18,7 +27,11 @@ This repository follows the EasyAiMi release contract v1 across three independen
 
 ### Client and Userscript distribution
 
-`clients/typescript` is a secret-free HTTP client for `service/base`. `runtimes/userscript` remains an independent, direct-provider runtime in this release phase; it is not silently changed into a `service/base` client.
+`clients/typescript` is an optional, secret-free compatibility helper for
+`service/base`; it is not the authoritative API contract. `runtimes/userscript`
+remains an independent, direct-provider runtime; it does not call
+`service/base`, share its business implementation, or silently become a Local
+Server client.
 
 The distribution workflow creates exactly four release files:
 
@@ -28,6 +41,18 @@ The distribution workflow creates exactly four release files:
 - `SHA256SUMS`
 
 The manifest and checksums are verified again after artifact download and before GitHub Release publication. The workflow also emits a build-provenance attestation and a 90-day evidence artifact.
+
+### Bundled UI status
+
+The bundled UI is an approved product architecture but is not one of the current
+release surfaces. It will package the same `service/base` core, start it
+automatically, and call it over authenticated loopback HTTP without requiring a
+separate server, Docker, or external Node.js installation.
+
+It must receive its own workflow, package manifest, lifecycle tests, and
+clean-machine runtime evidence before being added to the coordinator. It must
+not be inserted into the current exact Client/Userscript artifact set. See
+[`ui-bundled-runtime.md`](./ui-bundled-runtime.md).
 
 ## Workflow contract
 
@@ -56,8 +81,17 @@ rules; the names alone do not make environments protected.
 
 - The public Userscript is generated from the tracked template and contains only the known `__LOCAL_SECRET_*__` placeholders. The release builder fails closed if that placeholder set changes.
 - A Userscript generated locally from `config.yaml` may contain operator credentials and must never be uploaded by the public release workflow.
-- Client authorization is supplied at runtime through the client constructor. No API key, token, `.env`, `.npmrc`, or deployment configuration belongs in the npm archive.
+- Standalone callers use the documented HTTP API directly and supply
+  authorization at runtime. The TypeScript helper is optional and never owns the
+  API contract.
+- Client authorization is supplied at runtime through the compatibility helper
+  constructor. No API key, token, `.env`, `.npmrc`, or deployment configuration
+  belongs in the npm archive.
 - The Client/Userscript publishing workflow receives no repository or environment secrets. Its only elevated job permissions are GitHub Release writes and artifact attestation.
+- The future bundled UI must keep its packaged server on loopback and deliver a
+  generated token through a trusted host boundary, not static UI assets.
+- The Userscript directly calls its configured providers and never proxies
+  through `service/base`.
 
 ## Local verification
 
@@ -66,6 +100,9 @@ Run the repository release-contract check:
 ```powershell
 python scripts/validate-release-contract.py
 ```
+
+The check also validates the product contract and the presence of the
+authoritative OpenAPI and bundled-UI lifecycle documents.
 
 Build and then independently verify the distribution:
 

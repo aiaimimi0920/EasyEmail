@@ -1,0 +1,1066 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "EasyEmail Local Server HTTP API",
+    "version": "1.0.0",
+    "description": "Authoritative HTTP contract for service/base. Any HTTP-capable program may call this API directly; a published client SDK is not required."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:18081",
+      "description": "Default local server"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/mail/catalog": {
+      "get": {
+        "operationId": "getCatalog",
+        "summary": "Read provider and strategy catalog",
+        "responses": {
+          "200": { "$ref": "#/components/responses/CatalogResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/mail/snapshot": {
+      "get": {
+        "operationId": "getSnapshot",
+        "summary": "Read the current service snapshot",
+        "responses": {
+          "200": { "$ref": "#/components/responses/SnapshotResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/mail/providers/cloudflare_temp_email/register": {
+      "post": {
+        "operationId": "registerCloudflareTempEmailRuntime",
+        "summary": "Register a Cloudflare Temp Email runtime",
+        "requestBody": { "$ref": "#/components/requestBodies/RegisterCloudflareTempEmailRuntimeRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/providers/credentials/apply": {
+      "post": {
+        "operationId": "applyCredentialSets",
+        "summary": "Apply credential sets to a provider instance",
+        "requestBody": { "$ref": "#/components/requestBodies/ApplyCredentialSetsRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/providers/probe-all": {
+      "get": {
+        "operationId": "probeAllProviderInstances",
+        "summary": "Probe every provider instance",
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/providers/{instanceId}/probe": {
+      "get": {
+        "operationId": "probeProviderInstance",
+        "summary": "Probe one provider instance",
+        "parameters": [
+          { "$ref": "#/components/parameters/InstanceId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/query/provider-instances": {
+      "get": {
+        "operationId": "queryProviderInstances",
+        "summary": "Query provider instances",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProviderTypeKeyQuery" },
+          { "name": "status", "in": "query", "schema": { "type": "string" } },
+          { "name": "shared", "in": "query", "schema": { "type": "boolean" } },
+          { "name": "groupKey", "in": "query", "schema": { "type": "string" } },
+          { "$ref": "#/components/parameters/Limit" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/mail/query/host-bindings": {
+      "get": {
+        "operationId": "queryHostBindings",
+        "summary": "Query host-to-provider bindings",
+        "parameters": [
+          { "name": "hostId", "in": "query", "schema": { "type": "string" } },
+          { "$ref": "#/components/parameters/ProviderTypeKeyQuery" },
+          { "name": "instanceId", "in": "query", "schema": { "type": "string" } },
+          { "$ref": "#/components/parameters/Limit" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/mail/query/mailbox-sessions": {
+      "get": {
+        "operationId": "queryMailboxSessions",
+        "summary": "Query mailbox sessions",
+        "parameters": [
+          { "name": "hostId", "in": "query", "schema": { "type": "string" } },
+          { "$ref": "#/components/parameters/ProviderTypeKeyQuery" },
+          { "name": "providerInstanceId", "in": "query", "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["open", "resolved", "expired"] } },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/NewestFirst" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/mail/query/observed-messages": {
+      "get": {
+        "operationId": "queryObservedMessages",
+        "summary": "Query observed messages and optionally synchronize providers",
+        "parameters": [
+          { "name": "sessionId", "in": "query", "schema": { "type": "string" } },
+          { "name": "providerInstanceId", "in": "query", "schema": { "type": "string" } },
+          { "name": "extractedCodeOnly", "in": "query", "schema": { "type": "boolean" } },
+          { "name": "sync", "in": "query", "schema": { "type": "boolean" } },
+          { "$ref": "#/components/parameters/Limit" },
+          { "$ref": "#/components/parameters/NewestFirst" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/query/observed-messages/{messageId}": {
+      "get": {
+        "operationId": "getObservedMessage",
+        "summary": "Read one observed message",
+        "parameters": [
+          { "$ref": "#/components/parameters/MessageId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/mail/query/stats": {
+      "get": {
+        "operationId": "getPersistenceStats",
+        "summary": "Read persistence statistics",
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/mail/mailboxes/plan": {
+      "post": {
+        "operationId": "planMailbox",
+        "summary": "Plan a mailbox without opening it",
+        "requestBody": { "$ref": "#/components/requestBodies/MailboxRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/mailboxes/open": {
+      "post": {
+        "operationId": "openMailbox",
+        "summary": "Open or create a temporary mailbox",
+        "requestBody": { "$ref": "#/components/requestBodies/MailboxRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/OpenMailboxResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/mailboxes/send": {
+      "post": {
+        "operationId": "sendMailboxMessage",
+        "summary": "Send a message from an opened mailbox",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/MailboxSendRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/SendMailboxResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/mailboxes/update-session": {
+      "post": {
+        "operationId": "updateMailboxSession",
+        "summary": "Update mailbox session filters or metadata",
+        "requestBody": { "$ref": "#/components/requestBodies/UpdateMailboxSessionRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/mailboxes/release": {
+      "post": {
+        "operationId": "releaseMailbox",
+        "summary": "Release an opened mailbox",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ReleaseMailboxRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ReleaseMailboxResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/mailboxes/recover-by-email": {
+      "post": {
+        "operationId": "recoverMailboxByEmail",
+        "summary": "Recover a mailbox from its address and recovery data",
+        "requestBody": { "$ref": "#/components/requestBodies/RecoverMailboxByEmailRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/mailboxes/recover-capacity": {
+      "post": {
+        "operationId": "recoverMailboxCapacity",
+        "summary": "Run provider-specific mailbox capacity recovery",
+        "requestBody": { "$ref": "#/components/requestBodies/RecoverMailboxCapacityRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/providers/moemail/cleanup": {
+      "post": {
+        "operationId": "cleanupMoemailMailboxes",
+        "summary": "Clean stale MoEmail mailboxes",
+        "requestBody": { "$ref": "#/components/requestBodies/CleanupMoemailMailboxesRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/mailboxes/report-outcome": {
+      "post": {
+        "operationId": "reportMailboxOutcome",
+        "summary": "Report business outcome for a mailbox session",
+        "requestBody": { "$ref": "#/components/requestBodies/MailboxOutcomeReport" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/messages/observe": {
+      "post": {
+        "operationId": "observeMessage",
+        "summary": "Store a message observed by an external caller",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ObserveMessageInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/mailboxes/{sessionId}/code": {
+      "get": {
+        "operationId": "readVerificationCode",
+        "summary": "Synchronize a mailbox and read its verification code",
+        "parameters": [
+          { "$ref": "#/components/parameters/SessionId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/VerificationCodeResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/mailboxes/{sessionId}/auth-link": {
+      "get": {
+        "operationId": "readAuthenticationLink",
+        "summary": "Synchronize a mailbox and read its authentication link",
+        "parameters": [
+          { "$ref": "#/components/parameters/SessionId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/AuthenticationLinkResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/maintenance/run": {
+      "post": {
+        "operationId": "runMaintenance",
+        "summary": "Run service maintenance immediately",
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Value of serviceBase.runtime.server.apiKey."
+      }
+    },
+    "parameters": {
+      "InstanceId": {
+        "name": "instanceId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "SessionId": {
+        "name": "sessionId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "MessageId": {
+        "name": "messageId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "ProviderTypeKeyQuery": {
+        "name": "providerTypeKey",
+        "in": "query",
+        "schema": { "type": "string" }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 0 }
+      },
+      "NewestFirst": {
+        "name": "newestFirst",
+        "in": "query",
+        "schema": { "type": "boolean" }
+      }
+    },
+    "requestBodies": {
+      "RegisterCloudflareTempEmailRuntimeRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/RegisterCloudflareTempEmailRuntimeRequest" }
+          }
+        }
+      },
+      "ApplyCredentialSetsRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ApplyCredentialSetsRequest" }
+          }
+        }
+      },
+      "UpdateMailboxSessionRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/UpdateMailboxSessionRequest" }
+          }
+        }
+      },
+      "RecoverMailboxByEmailRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/RecoverMailboxByEmailRequest" }
+          }
+        }
+      },
+      "RecoverMailboxCapacityRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/RecoverMailboxCapacityRequest" }
+          }
+        }
+      },
+      "CleanupMoemailMailboxesRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CleanupMoemailMailboxesRequest" }
+          }
+        }
+      },
+      "MailboxOutcomeReport": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailboxOutcomeReport" }
+          }
+        }
+      },
+      "MailboxRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/VerificationMailboxRequest" }
+          }
+        }
+      }
+    },
+    "responses": {
+      "CatalogResponse": {
+        "description": "Provider and strategy catalog",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CatalogResponse" }
+          }
+        }
+      },
+      "SnapshotResponse": {
+        "description": "Current service snapshot",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/SnapshotResponse" }
+          }
+        }
+      },
+      "OpenMailboxResponse": {
+        "description": "Opened or created mailbox",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/OpenMailboxResponse" }
+          }
+        }
+      },
+      "SendMailboxResponse": {
+        "description": "Outbound message result",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/SendMailboxResponse" }
+          }
+        }
+      },
+      "ReleaseMailboxResponse": {
+        "description": "Mailbox release result",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ReleaseMailboxResponse" }
+          }
+        }
+      },
+      "VerificationCodeResponse": {
+        "description": "Verification code when one is available",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/VerificationCodeResponse" }
+          }
+        }
+      },
+      "AuthenticationLinkResponse": {
+        "description": "Authentication link when one is available",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/AuthenticationLinkResponse" }
+          }
+        }
+      },
+      "JsonResponse": {
+        "description": "Successful JSON response",
+        "content": {
+          "application/json": {
+            "schema": { "type": "object", "additionalProperties": true }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Invalid JSON or query input",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid Bearer token",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "ServerError": {
+        "description": "EasyEmail or upstream provider error",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "CatalogResponse": {
+        "type": "object",
+        "required": ["catalog"],
+        "properties": {
+          "catalog": { "type": "object", "additionalProperties": true }
+        },
+        "additionalProperties": false
+      },
+      "SnapshotResponse": {
+        "type": "object",
+        "required": ["snapshot"],
+        "properties": {
+          "snapshot": { "type": "object", "additionalProperties": true }
+        },
+        "additionalProperties": false
+      },
+      "MailboxSession": {
+        "type": "object",
+        "required": ["id", "hostId", "providerTypeKey", "providerInstanceId", "emailAddress", "mailboxRef", "status", "createdAt", "metadata"],
+        "properties": {
+          "id": { "type": "string" },
+          "hostId": { "type": "string" },
+          "providerTypeKey": { "type": "string" },
+          "providerInstanceId": { "type": "string" },
+          "emailAddress": { "type": "string", "format": "email" },
+          "mailboxRef": { "type": "string" },
+          "status": { "type": "string", "enum": ["open", "resolved", "expired"] },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+        },
+        "additionalProperties": false
+      },
+      "ProviderInstance": {
+        "type": "object",
+        "required": ["id", "providerTypeKey", "displayName", "status", "runtimeKind", "connectorKind", "shared", "costTier", "healthScore", "averageLatencyMs", "connectionRef", "hostBindings", "groupKeys", "metadata", "createdAt", "updatedAt"],
+        "properties": {
+          "id": { "type": "string" },
+          "providerTypeKey": { "type": "string" },
+          "displayName": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "cooling", "provisioning", "degraded", "offline"] },
+          "runtimeKind": { "type": "string", "enum": ["external", "cloudflare_temp_email-runtime"] },
+          "connectorKind": { "type": "string" },
+          "shared": { "type": "boolean" },
+          "costTier": { "type": "string", "enum": ["free", "paid"] },
+          "healthScore": { "type": "number" },
+          "averageLatencyMs": { "type": "number" },
+          "connectionRef": { "type": "string" },
+          "hostBindings": { "type": "array", "items": { "type": "string" } },
+          "groupKeys": { "type": "array", "items": { "type": "string" } },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" } },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      },
+      "HostBinding": {
+        "type": "object",
+        "required": ["hostId", "providerTypeKey", "bindingMode", "instanceId", "updatedAt"],
+        "properties": {
+          "hostId": { "type": "string" },
+          "providerTypeKey": { "type": "string" },
+          "bindingMode": { "type": "string", "enum": ["shared-instance", "dedicated-instance", "instance-group"] },
+          "instanceId": { "type": "string" },
+          "groupKey": { "type": "string" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      },
+      "MailboxTemporaryAuthCredential": {
+        "type": "object",
+        "required": ["credentialType", "fields", "serverManaged"],
+        "properties": {
+          "credentialType": { "type": "string" },
+          "fields": { "type": "object", "additionalProperties": { "type": "string" } },
+          "serverManaged": { "type": "boolean" },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      },
+      "MailboxRecoveryRequiredFields": {
+        "type": "object",
+        "required": ["evidenceStatus", "minimumHorizonDays", "reason", "fields", "serverSidePrerequisites"],
+        "properties": {
+          "evidenceStatus": { "type": "string", "enum": ["undetermined", "verified"] },
+          "minimumHorizonDays": { "type": "number" },
+          "reason": { "type": "string" },
+          "fields": { "type": "object", "additionalProperties": { "type": "string" } },
+          "serverSidePrerequisites": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      },
+      "MailboxCreatedByProvider": {
+        "type": "object",
+        "required": ["providerTypeKey", "providerInstanceId", "displayName"],
+        "properties": {
+          "providerTypeKey": { "type": "string" },
+          "providerInstanceId": { "type": "string" },
+          "displayName": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "VerificationMailboxOpenResult": {
+        "type": "object",
+        "required": ["session", "instance", "binding", "temporaryAuthCredential", "recoveryDataCredential", "recoverabilityLevel", "recoveryRequiredFields", "createdByProvider"],
+        "properties": {
+          "session": { "$ref": "#/components/schemas/MailboxSession" },
+          "instance": { "$ref": "#/components/schemas/ProviderInstance" },
+          "binding": { "$ref": "#/components/schemas/HostBinding" },
+          "temporaryAuthCredential": { "$ref": "#/components/schemas/MailboxTemporaryAuthCredential" },
+          "recoveryDataCredential": { "type": "object", "additionalProperties": { "type": "string" } },
+          "recoverabilityLevel": { "type": "string", "enum": ["unrecoverable", "key_recoverable", "recoverable"] },
+          "recoveryRequiredFields": { "$ref": "#/components/schemas/MailboxRecoveryRequiredFields" },
+          "createdByProvider": { "$ref": "#/components/schemas/MailboxCreatedByProvider" },
+          "runtimePlan": { "type": "object", "additionalProperties": true },
+          "strategyMode": { "type": "object", "additionalProperties": true },
+          "aliasOutcome": { "type": "object", "additionalProperties": true }
+        },
+        "additionalProperties": false
+      },
+      "OpenMailboxResponse": {
+        "type": "object",
+        "required": ["result"],
+        "properties": {
+          "result": { "$ref": "#/components/schemas/VerificationMailboxOpenResult" }
+        },
+        "additionalProperties": false
+      },
+      "MailboxSendResult": {
+        "type": "object",
+        "required": ["sessionId", "providerTypeKey", "providerInstanceId", "senderEmailAddress", "recipientEmailAddress", "sentAt", "deliveryMode"],
+        "properties": {
+          "sessionId": { "type": "string" },
+          "providerTypeKey": { "type": "string" },
+          "providerInstanceId": { "type": "string" },
+          "senderEmailAddress": { "type": "string", "format": "email" },
+          "recipientEmailAddress": { "type": "string", "format": "email" },
+          "sentAt": { "type": "string", "format": "date-time" },
+          "deliveryMode": { "type": "string" },
+          "detail": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "SendMailboxResponse": {
+        "type": "object",
+        "required": ["result"],
+        "properties": {
+          "result": { "$ref": "#/components/schemas/MailboxSendResult" }
+        },
+        "additionalProperties": false
+      },
+      "ReleaseMailboxResponse": {
+        "type": "object",
+        "required": ["result"],
+        "properties": {
+          "result": {
+            "type": "object",
+            "required": ["session", "providerInstanceId", "providerTypeKey", "released"],
+            "properties": {
+              "session": { "$ref": "#/components/schemas/MailboxSession" },
+              "providerInstanceId": { "type": "string" },
+              "providerTypeKey": { "type": "string" },
+              "released": { "type": "boolean" },
+              "detail": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "VerificationCodeResult": {
+        "type": "object",
+        "required": ["sessionId", "providerInstanceId", "code", "source", "observedMessageId", "receivedAt"],
+        "properties": {
+          "sessionId": { "type": "string" },
+          "providerInstanceId": { "type": "string" },
+          "code": { "type": "string" },
+          "source": { "type": "string", "enum": ["subject", "html", "text"] },
+          "observedMessageId": { "type": "string" },
+          "receivedAt": { "type": "string", "format": "date-time" },
+          "candidates": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      },
+      "VerificationCodeResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "$ref": "#/components/schemas/VerificationCodeResult" }
+        },
+        "additionalProperties": false
+      },
+      "AuthenticationLinkResult": {
+        "type": "object",
+        "required": ["sessionId", "providerInstanceId", "url", "source", "observedMessageId", "receivedAt"],
+        "properties": {
+          "sessionId": { "type": "string" },
+          "providerInstanceId": { "type": "string" },
+          "url": { "type": "string", "format": "uri" },
+          "label": { "type": "string" },
+          "source": { "type": "string", "enum": ["subject", "html", "text"] },
+          "observedMessageId": { "type": "string" },
+          "receivedAt": { "type": "string", "format": "date-time" },
+          "links": { "type": "array", "items": { "$ref": "#/components/schemas/ActionLinkCandidate" } }
+        },
+        "additionalProperties": false
+      },
+      "AuthenticationLinkResponse": {
+        "type": "object",
+        "properties": {
+          "authLink": { "$ref": "#/components/schemas/AuthenticationLinkResult" }
+        },
+        "additionalProperties": false
+      },
+      "VerificationMailboxRequest": {
+        "type": "object",
+        "required": ["hostId", "provisionMode", "bindingMode"],
+        "properties": {
+          "hostId": { "type": "string", "minLength": 1 },
+          "providerTypeKey": { "type": "string" },
+          "providerRoutingProfileId": { "type": "string" },
+          "excludedProviderTypeKeys": { "type": "array", "items": { "type": "string" } },
+          "excludedDomains": { "type": "array", "items": { "type": "string" } },
+          "excludedEmailAddresses": { "type": "array", "items": { "type": "string" } },
+          "avoid": {
+            "type": "object",
+            "properties": {
+              "providerTypeKeys": { "type": "array", "items": { "type": "string" } },
+              "domains": { "type": "array", "items": { "type": "string" } },
+              "emailAddresses": { "type": "array", "items": { "type": "string" } },
+              "reason": { "type": "string" },
+              "scope": { "const": "attempt" }
+            },
+            "additionalProperties": false
+          },
+          "provisionMode": {
+            "type": "string",
+            "enum": ["reuse-only", "auto-create-if-missing", "always-create-dedicated"]
+          },
+          "bindingMode": {
+            "type": "string",
+            "enum": ["shared-instance", "dedicated-instance", "instance-group"]
+          },
+          "requestedDomain": { "type": "string" },
+          "requestedLocalPart": { "type": "string" },
+          "turnstileToken": { "type": "string" },
+          "requestRandomSubdomain": { "type": "boolean" },
+          "includeAliasEmail": { "type": "boolean" },
+          "strategyProfileId": { "type": "string" },
+          "providerStrategyModeId": {
+            "type": "string",
+            "enum": ["available-first", "gptmail-first", "cloudflare_temp_email-first", "random"]
+          },
+          "providerGroupSelections": { "type": "array", "items": { "type": "string" } },
+          "preferredInstanceId": { "type": "string" },
+          "runtimeTemplateId": { "type": "string" },
+          "groupKey": { "type": "string" },
+          "ttlMinutes": { "type": "integer", "minimum": 1 },
+          "recoverabilityLevels": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["unrecoverable", "key_recoverable", "recoverable"] }
+          },
+          "includeUndeterminedRecoverability": { "type": "boolean" },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+        },
+        "additionalProperties": true
+      },
+      "RegisterCloudflareTempEmailRuntimeRequest": {
+        "type": "object",
+        "required": ["baseUrl"],
+        "properties": {
+          "instanceId": { "type": "string" },
+          "templateId": { "type": "string" },
+          "displayName": { "type": "string" },
+          "baseUrl": { "type": "string", "format": "uri" },
+          "customAuth": { "type": "string" },
+          "adminAuth": { "type": "string" },
+          "domain": { "type": "string" },
+          "domains": { "type": "array", "items": { "type": "string" } },
+          "randomSubdomainDomains": { "type": "array", "items": { "type": "string" } },
+          "deploymentTarget": { "type": "string" },
+          "shared": { "type": "boolean" },
+          "groupKeys": { "type": "array", "items": { "type": "string" } },
+          "connectionRef": { "type": "string" },
+          "connectorKind": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "ApplyCredentialSetsRequest": {
+        "type": "object",
+        "required": ["providerInstanceId", "credentialSets"],
+        "properties": {
+          "providerInstanceId": { "type": "string" },
+          "credentialSets": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CredentialSetDefinition" }
+          }
+        },
+        "additionalProperties": false
+      },
+      "CredentialSetDefinition": {
+        "type": "object",
+        "required": ["id", "displayName", "useCases", "items"],
+        "properties": {
+          "id": { "type": "string" },
+          "displayName": { "type": "string" },
+          "useCases": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["generate", "poll", "checkout"] }
+          },
+          "strategy": {
+            "type": "string",
+            "enum": ["first-active", "round-robin", "sticky-per-host"]
+          },
+          "priority": { "type": "integer" },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CredentialItemDefinition" }
+          },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+        },
+        "additionalProperties": false
+      },
+      "CredentialItemDefinition": {
+        "type": "object",
+        "required": ["id", "label"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "value": { "type": "string" },
+          "username": { "type": "string" },
+          "password": { "type": "string" },
+          "usernameTemplate": { "type": "string" },
+          "passwordTemplate": { "type": "string" },
+          "priority": { "type": "integer" },
+          "weight": { "type": "number" },
+          "status": {
+            "type": "string",
+            "enum": ["active", "cooling", "rate-limited", "exhausted", "invalid", "disabled"]
+          },
+          "cooldownUntil": { "type": "string", "format": "date-time" },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+        },
+        "additionalProperties": false
+      },
+      "UpdateMailboxSessionRequest": {
+        "type": "object",
+        "required": ["sessionId"],
+        "properties": {
+          "sessionId": { "type": "string" },
+          "fromContains": { "type": "string" },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+        },
+        "additionalProperties": false
+      },
+      "RecoverMailboxByEmailRequest": {
+        "type": "object",
+        "properties": {
+          "emailAddress": { "type": "string", "format": "email" },
+          "providerTypeKey": { "type": "string" },
+          "providerInstanceId": { "type": "string" },
+          "hostId": { "type": "string" },
+          "recoveryDataCredential": { "type": "object", "additionalProperties": { "type": "string" } },
+          "recoveryFields": { "type": "object", "additionalProperties": { "type": "string" } }
+        },
+        "additionalProperties": false
+      },
+      "RecoverMailboxCapacityRequest": {
+        "type": "object",
+        "properties": {
+          "failureCode": { "type": "string" },
+          "detail": { "type": "string" },
+          "providerTypeKey": { "type": "string" },
+          "providerInstanceId": { "type": "string" },
+          "staleAfterSeconds": { "type": "integer", "minimum": 0 },
+          "maxDeleteCount": { "type": "integer", "minimum": 0 },
+          "force": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "CleanupMoemailMailboxesRequest": {
+        "type": "object",
+        "properties": {
+          "staleAfterSeconds": { "type": "integer", "minimum": 0 },
+          "maxDeleteCount": { "type": "integer", "minimum": 0 },
+          "force": { "type": "boolean" },
+          "providerInstanceId": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "MailboxOutcomeReport": {
+        "type": "object",
+        "required": ["sessionId", "success"],
+        "properties": {
+          "sessionId": { "type": "string" },
+          "success": { "type": "boolean" },
+          "failureReason": { "type": "string" },
+          "observedAt": { "type": "string", "format": "date-time" },
+          "registrationMode": { "type": "string" },
+          "source": { "type": "string" },
+          "businessFlow": { "type": "string" },
+          "retryLayer": { "type": "string", "enum": ["step", "chain", "attempt"] },
+          "attribution": {
+            "type": "object",
+            "properties": {
+              "strength": { "type": "string", "enum": ["strong", "weak", "none"] },
+              "kind": { "type": "string", "enum": ["mailbox_domain_risk", "provider_route", "unknown"] },
+              "providerTypeKey": { "type": "string" },
+              "domain": { "type": "string" },
+              "emailAddress": { "type": "string", "format": "email" }
+            },
+            "additionalProperties": false
+          },
+          "policy": {
+            "type": "object",
+            "properties": {
+              "avoidInCurrentAttempt": { "type": "boolean" },
+              "globalBlacklist": { "type": "boolean" },
+              "cooldownSeconds": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "MailboxSendRequest": {
+        "type": "object",
+        "required": ["sessionId", "toEmailAddress", "subject"],
+        "properties": {
+          "sessionId": { "type": "string" },
+          "toEmailAddress": { "type": "string", "format": "email" },
+          "toName": { "type": "string" },
+          "subject": { "type": "string" },
+          "textBody": { "type": "string" },
+          "htmlBody": { "type": "string" },
+          "fromName": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "ReleaseMailboxRequest": {
+        "type": "object",
+        "required": ["sessionId"],
+        "properties": {
+          "sessionId": { "type": "string" },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "ObserveMessageInput": {
+        "type": "object",
+        "required": ["sessionId"],
+        "properties": {
+          "sessionId": { "type": "string" },
+          "sender": { "type": "string" },
+          "subject": { "type": "string" },
+          "htmlBody": { "type": "string" },
+          "textBody": { "type": "string" },
+          "observedAt": { "type": "string", "format": "date-time" },
+          "actionLinks": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ActionLinkCandidate" }
+          }
+        },
+        "additionalProperties": true
+      },
+      "ActionLinkCandidate": {
+        "type": "object",
+        "required": ["url", "source"],
+        "properties": {
+          "url": { "type": "string", "format": "uri" },
+          "label": { "type": "string" },
+          "source": { "type": "string", "enum": ["subject", "html", "text"] }
+        },
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "message": { "type": "string" },
+          "code": { "type": "string" },
+          "path": { "type": "string" },
+          "method": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}

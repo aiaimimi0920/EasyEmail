@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "project": "EasyEmail",
+  "core": {
+    "id": "service-base",
+    "path": "service/base",
+    "publicInterface": "http",
+    "apiSpecification": "docs/easyemail-openapi.json",
+    "owns": [
+      "provider-adapters",
+      "mailbox-orchestration",
+      "message-processing",
+      "persistence",
+      "maintenance"
+    ]
+  },
+  "products": {
+    "standaloneServer": {
+      "core": "service-base",
+      "deployment": "independent",
+      "callers": "any-http-client",
+      "requiresPublishedSdk": false,
+      "locations": [
+        "local-machine",
+        "lan-machine",
+        "remote-machine"
+      ]
+    },
+    "bundledUi": {
+      "core": "service-base",
+      "implementationStatus": "contract-defined",
+      "bundlesCore": true,
+      "startsCoreAutomatically": true,
+      "transport": "loopback-http",
+      "requiresDocker": false,
+      "requiresExternalNode": false,
+      "lifecycleOwner": "ui-host",
+      "contractDocument": "docs/ui-bundled-runtime.md"
+    },
+    "userscript": {
+      "path": "runtimes/userscript",
+      "implementation": "independent-direct-provider-runtime",
+      "dependsOnServiceBase": false,
+      "usesServiceBaseHttpApi": false,
+      "sharesBusinessImplementationWithServiceBase": false,
+      "sharedBoundary": "provider-names-upstream-endpoints-and-ports-only"
+    }
+  },
+  "compatibility": {
+    "typescriptClient": {
+      "path": "clients/typescript",
+      "role": "optional-compatibility-helper",
+      "required": false,
+      "authoritativeApiContract": false,
+      "newIntegrations": "use-http-api-documentation"
+    }
+  },
+  "forbiddenArchitectures": [
+    "standalone-callers-must-use-sdk",
+    "userscript-proxies-through-service-base",
+    "ui-reimplements-provider-adapters",
+    "ui-requires-separate-server-installation",
+    "ui-requires-docker-or-external-node"
+  ]
+}

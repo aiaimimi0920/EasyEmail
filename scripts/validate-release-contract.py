@@ -9,6 +9,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_PATH = ROOT / "release-contract.json"
+PRODUCT_CONTRACT_PATH = ROOT / "product-contract.json"
 DOC_PATH = ROOT / "docs" / "release-contract.md"
 
 
@@ -163,6 +164,64 @@ def validate_required_files(contract: dict[str, Any]) -> None:
         require_file(str(relative))
 
 
+def validate_product_contract(contract: dict[str, Any]) -> None:
+    relative = str(contract.get("productContract") or "").strip()
+    if relative != "product-contract.json":
+        raise AssertionError("release contract must reference product-contract.json")
+    require_file(relative)
+
+    product = json.loads(PRODUCT_CONTRACT_PATH.read_text(encoding="utf-8"))
+    if product.get("schemaVersion") != 1:
+        raise AssertionError("product-contract.json schemaVersion must be 1")
+
+    core = product.get("core")
+    if not isinstance(core, dict) or core.get("id") != "service-base" or core.get("publicInterface") != "http":
+        raise AssertionError("product contract must define service-base as the HTTP core")
+
+    products = product.get("products")
+    if not isinstance(products, dict):
+        raise AssertionError("product contract products are required")
+
+    standalone = products.get("standaloneServer")
+    if not isinstance(standalone, dict) or standalone.get("requiresPublishedSdk") is not False:
+        raise AssertionError("standalone server callers must not require a published SDK")
+
+    bundled_ui = products.get("bundledUi")
+    if not isinstance(bundled_ui, dict):
+        raise AssertionError("bundled UI product contract is required")
+    expected_ui_contract = {
+        "core": "service-base",
+        "implementationStatus": "contract-defined",
+        "bundlesCore": True,
+        "startsCoreAutomatically": True,
+        "transport": "loopback-http",
+        "requiresDocker": False,
+        "requiresExternalNode": False,
+        "lifecycleOwner": "ui-host",
+    }
+    for key, expected in expected_ui_contract.items():
+        if bundled_ui.get(key) != expected:
+            raise AssertionError(f"bundled UI contract {key} must be {expected!r}")
+
+    userscript = products.get("userscript")
+    if not isinstance(userscript, dict):
+        raise AssertionError("Userscript product contract is required")
+    if userscript.get("implementation") != "independent-direct-provider-runtime":
+        raise AssertionError("Userscript must remain an independent direct-provider runtime")
+    for key in ("dependsOnServiceBase", "usesServiceBaseHttpApi", "sharesBusinessImplementationWithServiceBase"):
+        if userscript.get(key) is not False:
+            raise AssertionError(f"Userscript product contract {key} must be false")
+
+    client = product.get("compatibility", {}).get("typescriptClient")
+    if not isinstance(client, dict) or client.get("required") is not False:
+        raise AssertionError("TypeScript client must remain optional")
+    if client.get("authoritativeApiContract") is not False:
+        raise AssertionError("TypeScript client must not own the authoritative API contract")
+
+    require_file(str(core.get("apiSpecification") or ""))
+    require_file(str(bundled_ui.get("contractDocument") or ""))
+
+
 def validate_deploy(contract: dict[str, Any]) -> None:
     deploy = contract.get("localDeploy", {})
     entrypoint = str(deploy.get("entrypoint") or "").strip()
@@ -189,6 +248,7 @@ def main() -> int:
     validate_workflows(contract)
     validate_coordinator(contract)
     validate_required_files(contract)
+    validate_product_contract(contract)
     validate_deploy(contract)
     validate_doc(contract)
     print(f"release contract ok: {contract['project']} ({contract['releaseClass']})")

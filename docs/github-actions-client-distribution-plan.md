@@ -1,6 +1,18 @@
 # EasyEmail GitHub Actions And Client Distribution Plan
 
-Status: approved direction, implementation in progress
+Status: superseded as a product-architecture plan; retained as implementation
+history for the current compatibility distribution
+
+> Current architecture correction: standalone programs call the documented
+> `service/base` HTTP API directly and do not require a published SDK.
+> `clients/typescript` is an optional compatibility helper, while the Userscript
+> is an independent direct-provider runtime. The future bundled UI packages and
+> automatically starts the same `service/base` core, but is not yet released.
+> See [`../product-contract.json`](../product-contract.json),
+> [`http-api.md`](./http-api.md), and
+> [`ui-bundled-runtime.md`](./ui-bundled-runtime.md). The remaining sections
+> describe how the existing Client/Userscript release automation was built; they
+> are not the current product roadmap.
 
 ## 1. Objective
 

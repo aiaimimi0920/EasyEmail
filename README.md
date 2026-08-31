@@ -4,9 +4,9 @@ EasyEmail is the public monorepo entrypoint for the EasyEmail ecosystem.
 
 It contains:
 
-- `service/base`: the local EasyEmail service runtime
-- `clients/typescript`: the reusable HTTP client for `service/base`
-- `runtimes/userscript`: the browser-side userscript runtime
+- `service/base`: the standalone EasyEmail Local Server and shared product core
+- `clients/typescript`: an optional compatibility helper for the HTTP API
+- `runtimes/userscript`: an independent browser-side provider runtime
 - `upstreams/cloudflare_temp_email`: the upstream integration boundary for the Cloudflare temp mail worker
 - `deploy`: deployment templates and operational scripts
 - `docs`: repository-level architecture, quickstart, and upstream sync guidance
@@ -47,27 +47,53 @@ docs/
 scripts/
 ```
 
+## Product Forms
+
+EasyEmail has three distinct product forms:
+
+1. **Standalone Local Server.** `service/base` can run on the caller's machine,
+   another LAN machine, or a reachable remote machine. Programs call its
+   documented HTTP API directly; no published SDK is required.
+2. **Bundled UI.** The approved UI architecture packages the same `service/base`
+   core with a UI host. Launching the UI automatically starts the packaged core,
+   and the UI communicates with it over authenticated loopback HTTP. This
+   lifecycle contract is defined, but a runnable UI package is not yet shipped.
+3. **Userscript.** The Userscript is a completely independent browser runtime.
+   It directly implements access to the configured upstream providers and never
+   proxies through `service/base`.
+
+The machine-readable boundary is [`product-contract.json`](product-contract.json).
+See [`docs/architecture.md`](docs/architecture.md) for the full ownership model.
+
 ## Module Roles
 
 ### `service/base`
 
-The local service runtime. This is the main EasyEmail control plane that owns:
+The standalone Local Server and the core bundled by the future UI. It owns:
 
 - provider catalog and provider defaults
 - HTTP API surface
 - mailbox routing and strategy logic
 - persistence and maintenance loops
 
+Its public integration boundary is HTTP. See
+[`docs/http-api.md`](docs/http-api.md) and the authoritative
+[`docs/easyemail-openapi.json`](docs/easyemail-openapi.json).
+
 ### `runtimes/userscript`
 
-The browser-side userscript runtime. It is an independent runtime, not a thin
-bridge that requires `service/base` to be online.
+The browser-side userscript runtime. It directly calls the configured providers
+and is not a thin bridge that requires `service/base` to be online. It shares no
+provider or mailbox business implementation with the server; only provider
+names and externally defined upstream endpoints or ports may align.
 
 ### `clients/typescript`
 
-The independently packaged TypeScript/JavaScript client for the HTTP API exposed
-by `service/base`. It accepts the server URL and API key at runtime and ships no
-operator credentials or deployment configuration.
+An optional, independently packaged TypeScript/JavaScript compatibility helper
+for the HTTP API exposed by `service/base`. It accepts the server URL and API key
+at runtime and ships no operator credentials or deployment configuration. New
+integrations may call the documented HTTP API directly; this package is not the
+authoritative API contract.
 
 ### `upstreams/cloudflare_temp_email`
 
@@ -130,7 +156,31 @@ Read `runtimes/userscript/README.md` and generate a local userscript directly
 from the root `config.yaml`. That file is the single source of operator
 secrets for userscript generation.
 
-### TypeScript HTTP client
+The generated Userscript directly implements provider access in the browser. It
+does not connect to the Local Server API.
+
+### Direct HTTP integration
+
+After starting `service/base`, any program can call it without installing an
+EasyEmail client package. For example:
+
+```powershell
+$headers = @{ Authorization = "Bearer $env:EASY_EMAIL_API_KEY" }
+Invoke-RestMethod `
+  -Uri "http://127.0.0.1:18081/mail/catalog" `
+  -Headers $headers
+```
+
+See [`docs/http-api.md`](docs/http-api.md) for mailbox creation examples in
+PowerShell, curl, JavaScript, and Python.
+
+### Bundled UI status
+
+The UI lifecycle and packaging requirements are defined in
+[`docs/ui-bundled-runtime.md`](docs/ui-bundled-runtime.md). The repository does
+not yet claim a runnable or released UI package.
+
+### Optional TypeScript HTTP helper
 
 ```powershell
 Set-Location clients/typescript
@@ -156,6 +206,9 @@ corepack pnpm build
 
 - `docs/architecture.md`
 - `docs/quickstart.md`
+- `docs/http-api.md`
+- `docs/easyemail-openapi.json`
+- `docs/ui-bundled-runtime.md`
 - `docs/upstream-sync.md`
 - `docs/configuration.md`
 - `docs/build-userscript.md`
@@ -255,4 +308,9 @@ let EasyEmail reuse a stable sender mailbox such as
 
 ## Release Contract
 
-This repository follows the EasyAiMi release contract v1 for the local server, Cloudflare email center, TypeScript client, Userscript distribution, and blank-host local deployment. See [docs/release-contract.md](docs/release-contract.md) for the exact multi-surface contract and security boundaries.
+This repository follows the EasyAiMi release contract v1 for the standalone
+server, Cloudflare email center, optional compatibility client, independent
+Userscript distribution, and blank-host local deployment. The bundled UI is an
+approved product contract but is not yet a release surface. See
+[docs/release-contract.md](docs/release-contract.md) for the exact current
+release surfaces and security boundaries.

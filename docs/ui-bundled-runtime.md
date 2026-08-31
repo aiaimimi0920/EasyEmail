@@ -1,0 +1,158 @@
+# Bundled UI Runtime Contract
+
+Status: **architecture contract defined; implementation and release artifact not
+yet shipped**.
+
+This document defines the product boundary for a lightweight EasyEmail UI. It
+does not claim that a runnable desktop package already exists, and it does not
+select a desktop framework prematurely.
+
+## Product definition
+
+The bundled UI product contains:
+
+1. the same `service/base` EasyEmail core used by the standalone Local Server;
+2. a UI host that owns the core process lifecycle; and
+3. UI assets that call the packaged core through the documented HTTP API.
+
+Launching the UI must be sufficient to use the product. The user must not have
+to install or start a separate EasyEmail server, Docker, or an external Node.js
+runtime.
+
+The UI is a product shell around the main core, not a second mail-server
+implementation. Provider adapters, mailbox orchestration, message processing,
+persistence, and maintenance remain owned by `service/base`.
+
+## Required lifecycle
+
+The UI host must perform this sequence:
+
+1. Enforce the product's single-instance policy or connect to the already
+   running instance.
+2. Select an available loopback port without exposing the service on LAN
+   interfaces.
+3. Generate or securely load a per-installation API token.
+4. Start the packaged `service/base` core with explicit configuration, state
+   directory, loopback host, port, and API token.
+5. Wait until an authenticated `GET /mail/catalog` request succeeds before
+   enabling UI operations. The current core has no dedicated health route, so
+   the catalog request is the readiness boundary.
+6. Send every UI operation through the same HTTP API documented in
+   [`http-api.md`](./http-api.md).
+7. On normal UI exit, request graceful core shutdown and wait for process exit.
+8. If graceful shutdown times out, terminate only the child process created by
+   this UI instance. Never kill an unrelated standalone EasyEmail server.
+
+The host must surface startup and runtime failures to the user. It must not
+silently fall back to copying provider logic into the UI.
+
+## Packaging requirements
+
+A released UI package must:
+
+- include a self-contained executable form of the `service/base` core;
+- include the UI host and UI assets;
+- run without Docker and without a separately installed Node.js runtime;
+- record the exact source commit and core build identity in release metadata;
+- keep writable state in the operating system's application-data directory,
+  never in an installation directory that may be read-only;
+- preserve persisted state across UI upgrades;
+- avoid embedding operator credentials in static UI assets;
+- verify package contents, checksums, and provenance before publication.
+
+Whether the core is packaged as a sidecar executable or embedded into a native
+host is an implementation choice. It must still be built from the same
+`service/base` main implementation and expose the same HTTP contract.
+
+## Loopback security contract
+
+- Bind the packaged core to `127.0.0.1` or an equivalent loopback address only.
+- Use a high-entropy token that is not present in source control or static web
+  assets.
+- Deliver the port and token to the UI through the host's trusted runtime
+  boundary, not through a public URL parameter.
+- Do not write the token to logs, crash reports, release manifests, or browser
+  storage that arbitrary web origins can read.
+- Reject navigation or requests from untrusted remote origins when the selected
+  UI framework exposes a webview.
+- Ensure a second local process cannot cause the UI to connect to a fake service
+  merely by occupying the preferred port.
+
+## Process and recovery behavior
+
+The implementation must define and test:
+
+- startup timeout and retry limits;
+- unexpected core exit reporting;
+- stale child-process detection after a UI crash;
+- port-collision behavior;
+- multiple UI launches;
+- graceful close and forced-close escalation;
+- persisted-state migration and rollback;
+- core log location, rotation, and secret redaction;
+- offline first startup when provider networks are unavailable.
+
+Automatic restart may be added, but it must be bounded and visible. A crash loop
+must not continuously respawn the core or hide the original failure.
+
+## HTTP usage
+
+The UI may use `fetch` or a private generated client inside the UI application.
+It does not require the separately published `clients/typescript` package. The
+OpenAPI document is the authoritative interface between UI and core.
+
+The UI must not import server-internal modules or reach into persistence files.
+Keeping the HTTP boundary intact ensures that standalone and bundled forms use
+the same observable behavior.
+
+## Userscript separation
+
+The Userscript is not part of this bundle and is not the UI's provider layer.
+It remains a completely independent browser-side implementation that directly
+calls the configured upstream providers.
+
+The two implementations may align only on provider names and externally defined
+upstream endpoints or ports. They do not share provider adapters, mailbox
+orchestration, persistence, message-processing logic, or process lifecycle code.
+
+## Release acceptance gates
+
+The UI must not be added to the coordinated release targets or described as
+available until a candidate package passes all of these gates:
+
+1. Build a self-contained package on every declared target operating system.
+2. Install or unpack it on a clean machine without Docker or Node.js.
+3. Launch the UI and prove that it starts the packaged core automatically.
+4. Prove authenticated loopback readiness and one real mailbox-open flow through
+   the UI-to-core HTTP boundary.
+5. Close the UI and prove that its child core exits without affecting an
+   independently started server.
+6. Restart and prove persistence survives.
+7. Exercise port collision, core crash, corrupt state, and upgrade/rollback
+   behavior.
+8. Verify exact artifacts, checksums, source revision, and provenance.
+
+When these gates exist, the UI should receive its own release component and
+artifact manifest. It must not be inserted into the existing Client/Userscript
+manifest, whose exact artifact set is a separate compatibility contract.
+
+## Non-goals
+
+- Reimplementing `service/base` provider logic in the UI.
+- Requiring callers of the standalone server to install the UI.
+- Requiring a public SDK for UI-to-core calls.
+- Converting the Userscript into a `service/base` client.
+- Claiming a UI release based only on source compilation or a web preview.
+
+## Open implementation decision
+
+The desktop host and packaging technology has not been selected. Tauri,
+Electron, a native webview host, and other options have different implications
+for binary size, Node.js bundling, sidecar management, signing, updates, and
+cross-platform coverage. That choice must be made against a concrete target OS
+matrix before implementation.
+
+EasyProxy is a useful structural reference for keeping frontend assets and
+release automation organized around a local service. Its runtime and business
+implementation are not an EasyEmail dependency and must not be copied as if the
+projects were equivalent.

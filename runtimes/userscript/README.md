@@ -6,6 +6,11 @@ userscript.
 This runtime is intentionally independent. It is not a thin bridge that
 requires `service/base` to be online.
 
+It carries its own browser-side provider implementation and directly requests
+the configured upstream provider endpoints. It does not call the
+`service/base` HTTP API and does not share the server's provider adapters,
+mailbox orchestration, persistence, or message-processing implementation.
+
 ## Main Files
 
 - `easy_email_proxy.user.js`: the tracked template userscript
@@ -71,6 +76,11 @@ This module is not:
 
 - a required frontend for `service/base`
 - a bridge that must proxy every action through the local EasyEmail HTTP API
+- the provider implementation used by the bundled UI
+
+The Userscript and `service/base` may align on provider names and externally
+defined upstream endpoints or ports only. Similar product capabilities do not
+make one runtime an implementation dependency of the other.
 
 ## Provider Scope
 

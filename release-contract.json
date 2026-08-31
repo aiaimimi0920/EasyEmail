@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "project": "EasyEmail",
   "releaseClass": "multi-surface-service-and-client-distribution",
+  "productContract": "product-contract.json",
   "coordinator": {
     "path": ".github/workflows/release-easyemail.yml",
     "targets": [
@@ -82,6 +83,10 @@
     }
   ],
   "requiredFiles": [
+    "product-contract.json",
+    "docs/easyemail-openapi.json",
+    "docs/http-api.md",
+    "docs/ui-bundled-runtime.md",
     "clients/typescript/package.json",
     "clients/typescript/src/index.ts",
     "scripts/build-distribution.py",
@@ -96,7 +101,10 @@
   },
   "securityBoundaries": [
     "Published Userscript assets contain tracked placeholders only and never repository or production secrets.",
-    "Client credentials are runtime constructor inputs and are never embedded in the package.",
+    "Standalone callers use the documented HTTP API directly; no published SDK is required.",
+    "The compatibility TypeScript client is optional and never owns the authoritative API contract.",
+    "The bundled UI starts the packaged service/base core and communicates over authenticated loopback HTTP.",
+    "The Userscript is an independent direct-provider runtime and never proxies through service/base.",
     "Configured Userscripts remain local operator artifacts and are not uploaded by public release workflows."
   ],
   "exceptions": []

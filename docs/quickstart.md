@@ -52,7 +52,43 @@ If you only want to render the generated config file without starting Docker:
 pwsh .\scripts\render-derived-configs.ps1 -ServiceBase
 ```
 
-## 5. Work On The Userscript Runtime
+## 5. Call The Local Server Directly
+
+No EasyEmail SDK is required. Export the API key configured at
+`serviceBase.runtime.server.apiKey` and call the HTTP API with any client:
+
+```powershell
+$headers = @{ Authorization = "Bearer $env:EASY_EMAIL_API_KEY" }
+
+Invoke-RestMethod `
+  -Method Get `
+  -Uri "http://127.0.0.1:18081/mail/catalog" `
+  -Headers $headers
+```
+
+To create a temporary mailbox:
+
+```powershell
+$body = @{
+  hostId = "quickstart"
+  provisionMode = "auto-create-if-missing"
+  bindingMode = "shared-instance"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:18081/mail/mailboxes/open" `
+  -Headers $headers `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+For LAN or remote deployment URLs, authentication requirements, all routes, and
+language-specific examples, see [http-api.md](./http-api.md). The authoritative
+machine-readable contract is
+[easyemail-openapi.json](./easyemail-openapi.json).
+
+## 6. Work On The Userscript Runtime
 
 Generate the local userscript from the root config:
 
@@ -67,7 +103,20 @@ secrets for userscript generation.
 The generated `easy_email_proxy.local.user.js` is intentionally ignored and must
 not be committed.
 
-## 6. Deploy The Cloudflare Temp Mail Runtime
+The Userscript directly calls its configured providers. It does not call the
+Local Server HTTP API and does not share `service/base` business logic.
+
+## 7. Bundled UI Status
+
+The approved UI product will package the same `service/base` core and start it
+automatically when the UI launches. The UI will use authenticated loopback HTTP;
+users will not install a separate server, Docker, or external Node.js runtime.
+
+This repository does not yet ship that UI. Do not treat a web preview or the
+Userscript as the bundled UI. Implementation and release acceptance requirements
+are defined in [ui-bundled-runtime.md](./ui-bundled-runtime.md).
+
+## 8. Deploy The Cloudflare Temp Mail Runtime
 
 Use the single operator entrypoint:
 
@@ -135,7 +184,7 @@ That same workflow also supports mode 1 bootstrap through the
 See [github-actions-secrets.md](./github-actions-secrets.md) for the complete
 secret inventory used by the hosted deployment workflows.
 
-## 7. Publish The Service Image And Deploy Cloudflare Together
+## 9. Publish The Service Image And Deploy Cloudflare Together
 
 Use the root release entrypoint when you want to publish the `service/base`
 Docker image to GHCR, run the Cloudflare deployment flow, and then validate the
@@ -158,7 +207,7 @@ Safe dry run:
 pwsh .\scripts\deploy-easyemail-release.ps1 -DryRun -NoRoutingSync
 ```
 
-## 8. Validate The Repositories
+## 10. Validate The Repositories
 
 Repository-wide validation:
 
@@ -200,8 +249,13 @@ corepack pnpm test
 corepack pnpm build
 ```
 
-## 9. Rule Of Thumb
+## 11. Rule Of Thumb
 
 - edit only the root `config.yaml`
 - do not hand-edit generated files
 - if a generated config looks stale, rerender it from the root file
+- integrate programs through the documented HTTP API; the compatibility client
+  is optional
+- keep Userscript and `service/base` implementations independent
+- do not claim the bundled UI is available until its lifecycle and package gates
+  pass

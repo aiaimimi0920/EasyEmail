@@ -1,21 +1,30 @@
 # Client and Userscript Distribution
 
-EasyEmail publishes a TypeScript HTTP client and a secret-free Userscript through `.github/workflows/publish-client-userscript.yml`.
+EasyEmail currently publishes an optional TypeScript HTTP helper and a
+secret-free Userscript through
+`.github/workflows/publish-client-userscript.yml`. They share a distribution
+workflow for release compatibility, not a runtime implementation or dependency.
+
+The authoritative Local Server interface is the HTTP/OpenAPI documentation in
+[`http-api.md`](./http-api.md) and
+[`easyemail-openapi.json`](./easyemail-openapi.json). A published SDK is not
+required.
 
 ## Migration from the private server consumer
 
 The former `service/base/src/consumer` HTTP client and
 `service/base/src/neuroplugin-consumer.ts` compatibility entrypoint have been
-removed intentionally. `service/base` is a private local-server package, not the
-SDK distribution boundary. Code that imported `HttpVerificationInboxClient`,
-`VerificationInboxClient`, or `createFetchJsonHttpClient` from the server source
-must migrate to the exported `EasyEmailClient` or `createFetchJsonHttpClient`
-from `easy-email-client`.
+removed intentionally. `service/base` owns the server, not an SDK distribution
+boundary. Code that imported `HttpVerificationInboxClient`,
+`VerificationInboxClient`, or `createFetchJsonHttpClient` from server-internal
+paths must migrate to the documented HTTP API. It may use ordinary HTTP tooling
+directly or choose the exported `EasyEmailClient` compatibility helper.
 
 This is a source-level breaking change for unofficial deep-path consumers. No
 compatibility re-export is retained because that would restore duplicate client
-ownership inside the server package. The independent client package and its
-declarations are the supported API going forward.
+ownership inside the server package. The OpenAPI document is the supported,
+language-neutral contract going forward; the independent client package and its
+declarations remain optional convenience artifacts.
 
 ## Triggering a release
 
@@ -37,9 +46,11 @@ because it is scoped to the local server image.
 4. `publish` downloads and verifies the distribution again, creates a build-provenance attestation, updates the managed GitHub Release notes section, and uploads the four release files.
 5. The workflow retains a separate release-evidence artifact for 90 days.
 
-## TypeScript client
+## Optional TypeScript compatibility helper
 
-The package under `clients/typescript` talks to the HTTP API exposed by `service/base`.
+The package under `clients/typescript` talks to the HTTP API exposed by
+`service/base`. It is not required, does not start the server, and does not own
+the API definition.
 
 ```ts
 import { EasyEmailClient } from "easy-email-client";
@@ -58,7 +69,12 @@ The package contains ESM JavaScript and TypeScript declarations. Credentials are
 
 The published `.user.js` file is a distributable template. It contains the tracked `__LOCAL_SECRET_*__` placeholders and does not contain repository secrets.
 
-The Userscript remains a standalone provider runtime. Converting it into a thin HTTP client for `service/base` would be a separate product and compatibility change, not a packaging optimization.
+The Userscript remains a standalone provider runtime. It directly implements
+provider access in the browser, does not call `service/base`, and does not share
+the server's provider or mailbox business implementation. It may align with the
+server only on provider names and externally defined upstream endpoints or
+ports. Converting it into a thin HTTP client for `service/base` would be a
+separate product and compatibility change, not a packaging optimization.
 
 For a locally configured Userscript, continue to use the operator flow documented in `docs/build-userscript.md`. Never upload that configured output to a public release.
 
@@ -78,4 +94,8 @@ python scripts/build-distribution.py `
   --output-dir .tmp/client-userscript-release
 ```
 
-The output directory must be empty before the build. Verification rejects missing files, extra files or directories, checksum drift, client-package metadata drift, forbidden client files, unexpected Userscript placeholders, and version/tag mismatch.
+The output directory must be empty before the build. Verification rejects
+missing files, extra files or directories, checksum drift, client-package
+metadata drift, forbidden client files, unexpected Userscript placeholders, and
+version/tag mismatch. The future bundled UI will require its own workflow and
+manifest; it must not be inserted into this exact compatibility distribution.
