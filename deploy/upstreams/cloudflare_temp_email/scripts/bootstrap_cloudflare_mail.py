@@ -569,6 +569,11 @@ def main() -> int:
     parser.add_argument("--worker-dir", required=True, help="Worker package directory containing local wrangler.")
     parser.add_argument("--wrangler-command", required=True, help="Absolute path to the local wrangler executable.")
     parser.add_argument("--create-missing-zones", action="store_true", help="Create missing Cloudflare zones before deploy.")
+    parser.add_argument(
+        "--sending-domains-only",
+        action="store_true",
+        help="Configure sending subdomains without validating or creating unrelated zones or D1 resources.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Validate bootstrap actions without mutating resources.")
     args = parser.parse_args()
 
@@ -583,6 +588,32 @@ def main() -> int:
         raise SystemExit("cloudflareMail.publicDomain is required for bootstrap mode.")
 
     headers, env = get_auth_config(config)
+    if args.sending_domains_only:
+        zones = fetch_all_zones(headers)
+        sending_result = ensure_sending_subdomains(
+            config,
+            headers,
+            build_zone_lookup(zones),
+            dry_run=args.dry_run,
+        )
+        if sending_result["unresolved"]:
+            raise SystemExit(
+                "Failed to resolve Cloudflare zones for sending subdomains: "
+                + ", ".join(sending_result["unresolved"])
+            )
+
+        summary = {
+            "accountId": str(get_bootstrap_config(config).get("accountId") or "").strip(),
+            "publicDomain": public_domain,
+            "publicZone": resolve_public_zone(config),
+            "configPath": str(config_path),
+            "zone": {"skipped": True},
+            "sending": sending_result,
+            "d1": {"skipped": True},
+        }
+        print(json.dumps(summary, ensure_ascii=False))
+        return 0
+
     account_id = resolve_account_id(config, wrangler_command, worker_dir, env)
     zone_result = ensure_zones(
         config,

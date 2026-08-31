@@ -173,6 +173,7 @@ function Invoke-CloudflareBootstrap {
         [Parameter(Mandatory = $true)]
         [string]$WorkerDirectory,
         [switch]$CreateMissingZones,
+        [switch]$SendingDomainsOnly,
         [switch]$DryRunMode
     )
 
@@ -190,6 +191,9 @@ function Invoke-CloudflareBootstrap {
     )
     if ($CreateMissingZones) {
         $args += '--create-missing-zones'
+    }
+    if ($SendingDomainsOnly) {
+        $args += '--sending-domains-only'
     }
     if ($DryRunMode) {
         $args += '--dry-run'
@@ -450,6 +454,7 @@ if ($bootstrapEnabled -or $shouldBootstrapSendingDomains) {
         -ConfigPathValue $resolvedConfigPath `
         -WorkerDirectory $workerDir `
         -CreateMissingZones:$bootstrapCreateZones `
+        -SendingDomainsOnly:(-not $bootstrapEnabled) `
         -DryRunMode:$DryRun
 
     $effectiveConfigPath = [string]$bootstrapSummary.configPath

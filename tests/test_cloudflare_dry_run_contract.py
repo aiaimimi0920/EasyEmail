@@ -24,6 +24,11 @@ class CloudflareDryRunContractTests(unittest.TestCase):
         self.assertIn("if ($DryRun -and -not $NoRoutingSync)", self.text)
         self.assertIn("no routing state is mutated", self.text)
 
+    def test_sending_only_mode_is_forwarded_when_resource_bootstrap_is_disabled(self) -> None:
+        self.assertIn("if ($SendingDomainsOnly)", self.text)
+        self.assertIn("$args += '--sending-domains-only'", self.text)
+        self.assertIn("-SendingDomainsOnly:(-not $bootstrapEnabled)", self.text)
+
 
 if __name__ == "__main__":
     unittest.main()
