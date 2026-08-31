@@ -337,7 +337,7 @@ function Convert-ToEasyEmailTomlString {
 function Convert-ToEasyEmailTomlArray {
     param([object]$Value)
 
-    $items = Convert-ToEasyEmailStringArray -Value $Value
+    $items = @(Convert-ToEasyEmailStringArray -Value $Value)
     if ($items.Count -eq 0) {
         return '[]'
     }
@@ -386,14 +386,16 @@ function Write-CloudflareRoutingPlanFile {
         [object]$Plan
     )
 
-    $labels = Convert-ToEasyEmailStringArray -Value (Get-EasyEmailConfigValue -Object $Plan -Name 'subdomainLabelPool' -Default @())
-    $domains = Remove-EasyEmailPlaceholderDomains -Value (Get-EasyEmailConfigValue -Object $Plan -Name 'domains' -Default @())
+    $labels = @(Convert-ToEasyEmailStringArray -Value (Get-EasyEmailConfigValue -Object $Plan -Name 'subdomainLabelPool' -Default @()))
+    $domains = @(Remove-EasyEmailPlaceholderDomains -Value (Get-EasyEmailConfigValue -Object $Plan -Name 'domains' -Default @()))
     $defaultDomainsValue = Get-EasyEmailConfigValue -Object $Plan -Name 'defaultDomains' -Default $null
-    $defaultDomains = if ($null -eq $defaultDomainsValue) {
-        $domains
-    } else {
-        Remove-EasyEmailPlaceholderDomains -Value $defaultDomainsValue
-    }
+    $defaultDomains = @(
+        if ($null -eq $defaultDomainsValue) {
+            $domains
+        } else {
+            Remove-EasyEmailPlaceholderDomains -Value $defaultDomainsValue
+        }
+    )
 
     if ($labels.Count -eq 0) {
         throw 'Missing cloudflareMail.routing.plan.subdomainLabelPool in config.yaml.'
