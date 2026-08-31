@@ -175,6 +175,42 @@ function Assert-DockerIsolationAvailable {
   }
 }
 
+function Clear-DockerOwnedSmokeRuntime {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path,
+    [Parameter(Mandatory = $true)]
+    [string]$ImageName
+  )
+
+  $mountSpec = "${Path}:/runtime"
+  $cleanupScript = @'
+from pathlib import Path
+import shutil
+
+for child in Path("/runtime").iterdir():
+    if child.is_dir() and not child.is_symlink():
+        shutil.rmtree(child)
+    else:
+        child.unlink()
+'@
+  $cleanupArgs = @(
+    'run', '--rm', '--pull', 'never', '--network', 'none', '--user', '0',
+    '--entrypoint', '/usr/bin/python3',
+    '-v', $mountSpec,
+    $ImageName,
+    '-c', $cleanupScript
+  )
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    docker @cleanupArgs | Out-Host
+    return $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+}
+
 $networkCreated = $false
 $composeAttempted = $false
 $cleanupFailure = ''
@@ -286,8 +322,19 @@ try {
       try {
         Remove-Item -LiteralPath $resolvedRuntimeRoot -Recurse -Force
       } catch {
-        $cleanupFailure = "Failed to remove isolated smoke runtime root $resolvedRuntimeRoot."
-        Write-Warning $cleanupFailure
+        Write-Warning "Direct runtime cleanup failed; clearing Docker-owned files with the isolated smoke image."
+        $dockerCleanupExitCode = Clear-DockerOwnedSmokeRuntime -Path $resolvedRuntimeRoot -ImageName $Image
+        if ($dockerCleanupExitCode -ne 0) {
+          $cleanupFailure = "Failed to clear Docker-owned files from isolated smoke runtime root $resolvedRuntimeRoot."
+          Write-Warning $cleanupFailure
+        } else {
+          try {
+            Remove-Item -LiteralPath $resolvedRuntimeRoot -Recurse -Force
+          } catch {
+            $cleanupFailure = "Failed to remove isolated smoke runtime root $resolvedRuntimeRoot after Docker cleanup."
+            Write-Warning $cleanupFailure
+          }
+        }
       }
     }
   } else {

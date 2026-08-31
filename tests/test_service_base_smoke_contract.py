@@ -57,6 +57,16 @@ class ServiceBaseSmokeContractTests(unittest.TestCase):
         ):
             self.assertIn(contract, self.smoke)
 
+    def test_smoke_cleanup_can_remove_container_owned_runtime_files(self) -> None:
+        self.assertIn("function Clear-DockerOwnedSmokeRuntime", self.smoke)
+        self.assertIn('$mountSpec = "${Path}:/runtime"', self.smoke)
+        self.assertIn("'--pull', 'never', '--network', 'none', '--user', '0'", self.smoke)
+        self.assertIn("Path(\"/runtime\").iterdir()", self.smoke)
+        self.assertIn(
+            "Clear-DockerOwnedSmokeRuntime -Path $resolvedRuntimeRoot -ImageName $Image",
+            self.smoke,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
