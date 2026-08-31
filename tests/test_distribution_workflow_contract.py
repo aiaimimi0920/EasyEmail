@@ -18,6 +18,10 @@ class DistributionWorkflowContractTests(unittest.TestCase):
 
     def test_pipeline_has_preflight_build_publish_and_evidence_gates(self) -> None:
         self.assertIn("uses: ./.github/workflows/reusable-validate.yml", self.text)
+        self.assertIn(
+            "always() && needs.metadata.result == 'success' && needs.build.result == 'success'",
+            self.text,
+        )
         self.assertIn("--verify-only", self.text)
         self.assertIn("actions/attest-build-provenance", self.text)
         self.assertIn("easy-email-client-userscript-release-evidence", self.text)
