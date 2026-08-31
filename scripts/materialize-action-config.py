@@ -71,7 +71,7 @@ def parse_list_secret(name: str) -> list[str] | None:
     if isinstance(parsed, list):
         return normalize_string_list(parsed)
     if isinstance(parsed, str):
-        lines = [line.strip() for line in parsed.splitlines() if line.strip()]
+        lines = [line.strip() for line in raw.splitlines() if line.strip()]
         if len(lines) > 1:
             return lines
         if "," in parsed:
