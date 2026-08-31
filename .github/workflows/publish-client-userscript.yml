@@ -50,6 +50,7 @@ jobs:
         shell: bash
         env:
           INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+          PYTHONPATH: ${{ github.workspace }}/scripts
         run: |
           set -euo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then

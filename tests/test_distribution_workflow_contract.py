@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -44,8 +47,33 @@ class DistributionWorkflowContractTests(unittest.TestCase):
         self.assertIn("easyemail-cloudflare-production", cloudflare_workflow)
 
     def test_version_output_is_the_normalized_userscript_version(self) -> None:
+        self.assertIn("PYTHONPATH: ${{ github.workspace }}/scripts", self.text)
         self.assertIn("from userscript_release import userscript_version", self.text)
         self.assertIn('echo "version=${version}"', self.text)
+
+    def test_workflow_pythonpath_resolves_userscript_release_from_repository_root(self) -> None:
+        environment = os.environ.copy()
+        environment["PYTHONPATH"] = str(ROOT / "scripts")
+        environment["RELEASE_TAG"] = "release-20260830-001"
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import os; "
+                    "from userscript_release import userscript_version; "
+                    'print(userscript_version(os.environ["RELEASE_TAG"]))'
+                ),
+            ],
+            cwd=ROOT,
+            env=environment,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(completed.stdout.strip(), "20260830.001")
 
 
 if __name__ == "__main__":
