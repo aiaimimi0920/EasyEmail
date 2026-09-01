@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "97dd334fbcd2f95330a8e19a23b366af54671220",
+  "sourceRegistration": "apps/desktop/src-tauri/src/lib.rs",
+  "counts": {
+    "registered": 56,
+    "retainHost": 2,
+    "migrateHttp": 52,
+    "removeDevelopmentStub": 2
+  },
+  "rules": {
+    "httpOwner": "service/base",
+    "hostOwner": "apps/desktop/src-tauri",
+    "httpPathPrefix": "/mail/",
+    "genericCommandEndpointForbidden": true
+  },
+  "capabilities": {
+    "host": {
+      "currentBackend": ["apps/desktop/src-tauri/src/core_runtime.rs", "apps/desktop/src-tauri/src/commands.rs"],
+      "frontend": ["apps/desktop/src/api/desktopCoreClient.ts"],
+      "finalOwner": "tauri-host"
+    },
+    "platform-development-stub": {
+      "currentBackend": ["apps/desktop/src-tauri/src/commands.rs"],
+      "frontend": ["apps/desktop/src/api/platformAccountClient.ts"],
+      "finalOwner": "remove-or-real-external-account-api"
+    },
+    "settings": {
+      "currentBackend": ["apps/desktop/src-tauri/src/commands.rs", "apps/desktop/src-tauri/src/storage/settings_repository.rs"],
+      "frontend": ["apps/desktop/src/api/settingsClient.ts"],
+      "finalOwner": "service/base"
+    },
+    "temporary-mailbox": {
+      "currentBackend": ["apps/desktop/src-tauri/src/services/easyemail_service.rs", "apps/desktop/src-tauri/src/services/temp_mailbox_service.rs", "apps/desktop/src-tauri/src/storage/temp_mailbox_repository.rs"],
+      "frontend": ["apps/desktop/src/App.tsx", "apps/desktop/src/api/easyEmailHttpClient.ts"],
+      "finalOwner": "service/base"
+    },
+    "normal-account": {
+      "currentBackend": ["apps/desktop/src-tauri/src/services/normal_account_service.rs", "apps/desktop/src-tauri/src/storage/account_repository.rs", "apps/desktop/src-tauri/src/imap/native.rs"],
+      "frontend": ["apps/desktop/src/App.tsx"],
+      "finalOwner": "service/base"
+    },
+    "outbound-message": {
+      "currentBackend": ["apps/desktop/src-tauri/src/services/send_service.rs", "apps/desktop/src-tauri/src/storage/message_repository.rs"],
+      "frontend": ["apps/desktop/src/App.tsx"],
+      "finalOwner": "service/base"
+    },
+    "send-queue": {
+      "currentBackend": ["apps/desktop/src-tauri/src/storage/send_queue_repository.rs", "apps/desktop/src-tauri/src/workers/send_queue_worker.rs", "apps/desktop/src-tauri/src/smtp/native.rs"],
+      "frontend": ["apps/desktop/src/api/sendQueueClient.ts"],
+      "finalOwner": "service/base"
+    },
+    "contacts": {
+      "currentBackend": ["apps/desktop/src-tauri/src/storage/contact_repository.rs"],
+      "frontend": ["apps/desktop/src/api/contactClient.ts"],
+      "finalOwner": "service/base"
+    },
+    "agent": {
+      "currentBackend": ["apps/desktop/src-tauri/src/services/agent_service.rs", "apps/desktop/src-tauri/src/storage/agent_repository.rs"],
+      "frontend": ["apps/desktop/src/App.tsx"],
+      "finalOwner": "service/base"
+    },
+    "messages": {
+      "currentBackend": ["apps/desktop/src-tauri/src/storage/message_repository.rs", "apps/desktop/src-tauri/src/services/normal_account_service.rs"],
+      "frontend": ["apps/desktop/src/App.tsx"],
+      "finalOwner": "service/base"
+    },
+    "newsletters": {
+      "currentBackend": ["apps/desktop/src-tauri/src/storage/message_repository.rs"],
+      "frontend": ["apps/desktop/src/api/newsletterClient.ts"],
+      "finalOwner": "service/base"
+    },
+    "taxonomy": {
+      "currentBackend": ["apps/desktop/src-tauri/src/storage/mail_taxonomy_repository.rs"],
+      "frontend": ["apps/desktop/src/api/mailTaxonomyClient.ts"],
+      "finalOwner": "service/base"
+    },
+    "verification": {
+      "currentBackend": ["apps/desktop/src-tauri/src/services/verification_service.rs", "apps/desktop/src-tauri/src/storage/verification_repository.rs"],
+      "frontend": ["apps/desktop/src/App.tsx"],
+      "finalOwner": "service/base"
+    },
+    "avatar": {
+      "currentBackend": ["apps/desktop/src-tauri/src/avatar.rs", "apps/desktop/src-tauri/src/commands.rs"],
+      "frontend": ["apps/desktop/src/api/avatarSettingsClient.ts"],
+      "finalOwner": "service/base"
+    }
+  },
+  "commands": [
+    { "command": "health_check", "capability": "host", "disposition": "retain_host", "milestone": "M8", "targetHttp": null },
+    { "command": "desktop_core_runtime", "capability": "host", "disposition": "retain_host", "milestone": "M9", "targetHttp": null },
+    { "command": "platform_account_get_session", "capability": "platform-development-stub", "disposition": "remove_development_stub", "milestone": "M7C", "targetHttp": null },
+    { "command": "platform_account_query_data", "capability": "platform-development-stub", "disposition": "remove_development_stub", "milestone": "M7C", "targetHttp": null },
+    { "command": "settings_get_easyemail", "capability": "settings", "disposition": "migrate_http", "milestone": "M2", "targetHttp": { "method": "GET", "path": "/mail/settings/easyemail" } },
+    { "command": "settings_update_easyemail", "capability": "settings", "disposition": "migrate_http", "milestone": "M2", "targetHttp": { "method": "PATCH", "path": "/mail/settings/easyemail" } },
+    { "command": "settings_test_easyemail", "capability": "settings", "disposition": "migrate_http", "milestone": "M2", "targetHttp": { "method": "POST", "path": "/mail/settings/easyemail/test" } },
+    { "command": "account_list_normal", "capability": "normal-account", "disposition": "migrate_http", "milestone": "M3", "targetHttp": { "method": "GET", "path": "/mail/accounts", "query": "scope=normal" } },
+    { "command": "temp_create_mailbox", "capability": "temporary-mailbox", "disposition": "migrate_http", "milestone": "M1", "targetHttp": { "method": "POST", "path": "/mail/mailboxes/open" } },
+    { "command": "temp_list_mailboxes", "capability": "temporary-mailbox", "disposition": "migrate_http", "milestone": "M1", "targetHttp": { "method": "GET", "path": "/mail/query/mailbox-sessions" } },
+    { "command": "temp_upgrade_mailbox", "capability": "temporary-mailbox", "disposition": "migrate_http", "milestone": "M7A", "targetHttp": { "method": "POST", "path": "/mail/mailboxes/{sessionId}/promote" } },
+    { "command": "temp_refresh_mailbox", "capability": "temporary-mailbox", "disposition": "migrate_http", "milestone": "M1", "targetHttp": { "method": "POST", "path": "/mail/mailboxes/{sessionId}/refresh" } },
+    { "command": "temp_refresh_anonymous", "capability": "temporary-mailbox", "disposition": "migrate_http", "milestone": "M1", "targetHttp": { "method": "POST", "path": "/mail/mailboxes/anonymous/refresh" } },
+    { "command": "normal_account_test_imap", "capability": "normal-account", "disposition": "migrate_http", "milestone": "M3", "targetHttp": { "method": "POST", "path": "/mail/accounts/imap/test" } },
+    { "command": "normal_account_add_manual_imap", "capability": "normal-account", "disposition": "migrate_http", "milestone": "M3", "targetHttp": { "method": "POST", "path": "/mail/accounts" } },
+    { "command": "normal_account_sync_recent", "capability": "normal-account", "disposition": "migrate_http", "milestone": "M6", "targetHttp": { "method": "POST", "path": "/mail/accounts/{accountId}/sync" } },
+    { "command": "send_message", "capability": "outbound-message", "disposition": "migrate_http", "milestone": "M5", "targetHttp": { "method": "POST", "path": "/mail/send-queue" } },
+    { "command": "message_save_local_draft", "capability": "outbound-message", "disposition": "migrate_http", "milestone": "M4", "targetHttp": { "method": "POST", "path": "/mail/drafts" } },
+    { "command": "message_delete_local_draft", "capability": "outbound-message", "disposition": "migrate_http", "milestone": "M4", "targetHttp": { "method": "DELETE", "path": "/mail/drafts/{messageId}" } },
+    { "command": "send_queue_list", "capability": "send-queue", "disposition": "migrate_http", "milestone": "M5", "targetHttp": { "method": "GET", "path": "/mail/send-queue" } },
+    { "command": "send_queue_run_due_batch", "capability": "send-queue", "disposition": "migrate_http", "milestone": "M5", "targetHttp": { "method": "POST", "path": "/mail/send-queue/run-due" } },
+    { "command": "send_queue_run_item", "capability": "send-queue", "disposition": "migrate_http", "milestone": "M5", "targetHttp": { "method": "POST", "path": "/mail/send-queue/{queueItemId}/run" } },
+    { "command": "send_queue_run_once", "capability": "send-queue", "disposition": "migrate_http", "milestone": "M5", "targetHttp": { "method": "POST", "path": "/mail/send-queue/run-once" } },
+    { "command": "contact_list", "capability": "contacts", "disposition": "migrate_http", "milestone": "M2", "targetHttp": { "method": "GET", "path": "/mail/contacts" } },
+    { "command": "contact_create", "capability": "contacts", "disposition": "migrate_http", "milestone": "M2", "targetHttp": { "method": "POST", "path": "/mail/contacts" } },
+    { "command": "agent_add_account", "capability": "agent", "disposition": "migrate_http", "milestone": "M7B", "targetHttp": { "method": "POST", "path": "/mail/agent/accounts" } },
+    { "command": "agent_list_accounts", "capability": "agent", "disposition": "migrate_http", "milestone": "M7B", "targetHttp": { "method": "GET", "path": "/mail/agent/accounts" } },
+    { "command": "agent_add_service", "capability": "agent", "disposition": "migrate_http", "milestone": "M7B", "targetHttp": { "method": "POST", "path": "/mail/agent/services" } },
+    { "command": "agent_list_services", "capability": "agent", "disposition": "migrate_http", "milestone": "M7B", "targetHttp": { "method": "GET", "path": "/mail/agent/services" } },
+    { "command": "agent_send_task", "capability": "agent", "disposition": "migrate_http", "milestone": "M7B", "targetHttp": { "method": "POST", "path": "/mail/agent/tasks" } },
+    { "command": "agent_list_threads", "capability": "agent", "disposition": "migrate_http", "milestone": "M7B", "targetHttp": { "method": "GET", "path": "/mail/agent/threads" } },
+    { "command": "agent_get_thread_detail", "capability": "agent", "disposition": "migrate_http", "milestone": "M7B", "targetHttp": { "method": "GET", "path": "/mail/agent/threads/{threadId}" } },
+    { "command": "message_list", "capability": "messages", "disposition": "migrate_http", "milestone": "M4", "targetHttp": { "method": "GET", "path": "/mail/messages" } },
+    { "command": "newsletter_subscription_list", "capability": "newsletters", "disposition": "migrate_http", "milestone": "M2", "targetHttp": { "method": "GET", "path": "/mail/newsletters/subscriptions" } },
+    { "command": "newsletter_subscription_set_hidden", "capability": "newsletters", "disposition": "migrate_http", "milestone": "M2", "targetHttp": { "method": "PATCH", "path": "/mail/newsletters/subscriptions/{subscriptionId}" } },
+    { "command": "mail_taxonomy_list", "capability": "taxonomy", "disposition": "migrate_http", "milestone": "M2", "targetHttp": { "method": "GET", "path": "/mail/taxonomy" } },
+    { "command": "mail_taxonomy_upsert", "capability": "taxonomy", "disposition": "migrate_http", "milestone": "M2", "targetHttp": { "method": "PUT", "path": "/mail/taxonomy/{kind}/{key}" } },
+    { "command": "mail_taxonomy_update", "capability": "taxonomy", "disposition": "migrate_http", "milestone": "M2", "targetHttp": { "method": "PATCH", "path": "/mail/taxonomy/{itemId}" } },
+    { "command": "mail_taxonomy_delete", "capability": "taxonomy", "disposition": "migrate_http", "milestone": "M2", "targetHttp": { "method": "DELETE", "path": "/mail/taxonomy/{itemId}" } },
+    { "command": "message_get_detail", "capability": "messages", "disposition": "migrate_http", "milestone": "M4", "targetHttp": { "method": "GET", "path": "/mail/messages/{messageId}" } },
+    { "command": "message_reopen_scheduled_send", "capability": "outbound-message", "disposition": "migrate_http", "milestone": "M5", "targetHttp": { "method": "POST", "path": "/mail/messages/{messageId}/scheduled-send/reopen" } },
+    { "command": "message_delete_local", "capability": "messages", "disposition": "migrate_http", "milestone": "M4", "targetHttp": { "method": "DELETE", "path": "/mail/messages/{messageId}/local" } },
+    { "command": "message_delete_forever", "capability": "messages", "disposition": "migrate_http", "milestone": "M4", "targetHttp": { "method": "DELETE", "path": "/mail/messages/{messageId}" } },
+    { "command": "message_empty_trash", "capability": "messages", "disposition": "migrate_http", "milestone": "M4", "targetHttp": { "method": "DELETE", "path": "/mail/trash" } },
+    { "command": "message_set_local_flag", "capability": "messages", "disposition": "migrate_http", "milestone": "M4", "targetHttp": { "method": "PATCH", "path": "/mail/messages/{messageId}/flags" } },
+    { "command": "message_set_local_folder", "capability": "messages", "disposition": "migrate_http", "milestone": "M4", "targetHttp": { "method": "PATCH", "path": "/mail/messages/{messageId}/folder" } },
+    { "command": "message_set_local_label", "capability": "messages", "disposition": "migrate_http", "milestone": "M4", "targetHttp": { "method": "PATCH", "path": "/mail/messages/{messageId}/labels" } },
+    { "command": "verification_list_recent", "capability": "verification", "disposition": "migrate_http", "milestone": "M4", "targetHttp": { "method": "GET", "path": "/mail/verifications" } },
+    { "command": "verification_reclassify_message", "capability": "verification", "disposition": "migrate_http", "milestone": "M4", "targetHttp": { "method": "POST", "path": "/mail/messages/{messageId}/reclassify-verification" } },
+    { "command": "verification_poll_temp_mailbox", "capability": "verification", "disposition": "migrate_http", "milestone": "M4", "targetHttp": { "method": "POST", "path": "/mail/mailboxes/{sessionId}/verification/poll" } },
+    { "command": "avatar_get_settings", "capability": "avatar", "disposition": "migrate_http", "milestone": "M7C", "targetHttp": { "method": "GET", "path": "/mail/avatars/settings" } },
+    { "command": "avatar_update_settings", "capability": "avatar", "disposition": "migrate_http", "milestone": "M7C", "targetHttp": { "method": "PATCH", "path": "/mail/avatars/settings" } },
+    { "command": "avatar_resolve_senders", "capability": "avatar", "disposition": "migrate_http", "milestone": "M7C", "targetHttp": { "method": "POST", "path": "/mail/avatars/resolve" } },
+    { "command": "avatar_set_contact", "capability": "avatar", "disposition": "migrate_http", "milestone": "M7C", "targetHttp": { "method": "PUT", "path": "/mail/avatars/contacts/{contactId}" } },
+    { "command": "avatar_clear_contact", "capability": "avatar", "disposition": "migrate_http", "milestone": "M7C", "targetHttp": { "method": "DELETE", "path": "/mail/avatars/contacts/{contactId}" } },
+    { "command": "avatar_clear_cache", "capability": "avatar", "disposition": "migrate_http", "milestone": "M7C", "targetHttp": { "method": "DELETE", "path": "/mail/avatars/cache" } }
+  ]
+}

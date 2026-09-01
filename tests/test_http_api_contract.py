@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import unittest
+from collections import Counter
 from pathlib import Path
 
 
@@ -15,7 +16,16 @@ SHARED_CREDENTIALS = (
 ROUTE_FILES = tuple(
     (ROOT / "service" / "base" / "src" / "http" / "routes").glob("*.ts")
 )
+HTTP_SERVER = ROOT / "service" / "base" / "src" / "http" / "server.ts"
+HTTP_SOURCE_FILES = (SERVER_CONTRACTS, HTTP_SERVER, *ROUTE_FILES)
 OPENAPI_PATH = ROOT / "docs" / "easyemail-openapi.json"
+
+DYNAMIC_ROUTE_METHODS = {
+    "probeProviderInstance": "get",
+    "readVerificationCode": "get",
+    "readAuthenticationLink": "get",
+    "getObservedMessage": "get",
+}
 
 
 def extract_static_routes(text: str) -> dict[str, str]:
@@ -25,6 +35,22 @@ def extract_static_routes(text: str) -> dict[str, str]:
             r'^\s{2}(\w+):\s+"([^"]+)",\s*$', text, re.MULTILINE
         )
     }
+
+
+def extract_dynamic_routes(text: str) -> dict[str, str]:
+    routes: dict[str, str] = {}
+    for name, parameter, template in re.findall(
+        r"^\s{2}(\w+)\((\w+): string\): string \{\s+"
+        r"return `([^`]+)`;\s+\},$",
+        text,
+        re.MULTILINE,
+    ):
+        expression = "${encodeURIComponent(" + parameter + ")}"
+        path = template.replace(expression, "{" + parameter + "}")
+        if "${" in path:
+            raise AssertionError(f"unsupported dynamic route template: {name}: {template}")
+        routes[name] = path
+    return routes
 
 
 def resolve_local_ref(document: dict[str, object], ref: str) -> object:
@@ -68,28 +94,44 @@ class HttpApiContractTests(unittest.TestCase):
         self.route_text = "\n".join(
             path.read_text(encoding="utf-8") for path in ROUTE_FILES
         )
+        self.http_source_text = "\n".join(
+            path.read_text(encoding="utf-8") for path in HTTP_SOURCE_FILES
+        )
         self.openapi = json.loads(OPENAPI_PATH.read_text(encoding="utf-8"))
 
     def test_openapi_covers_every_service_route(self) -> None:
         static_routes = set(extract_static_routes(self.server_text).values())
+        dynamic_routes = set(extract_dynamic_routes(self.server_text).values())
         documented_paths = set(self.openapi["paths"])
-        documented_static_paths = {
-            path for path in documented_paths if "{" not in path
-        }
 
-        self.assertEqual(documented_static_paths, static_routes)
-        self.assertEqual(
-            documented_paths - documented_static_paths,
-            {
-                "/mail/providers/{instanceId}/probe",
-                "/mail/mailboxes/{sessionId}/code",
-                "/mail/mailboxes/{sessionId}/auth-link",
-                "/mail/query/observed-messages/{messageId}",
-            },
+        self.assertEqual(documented_paths, static_routes | dynamic_routes)
+
+    def test_route_constants_are_unique_and_completely_dispatched(self) -> None:
+        static_routes = extract_static_routes(self.server_text)
+        dynamic_routes = extract_dynamic_routes(self.server_text)
+        all_paths = [*static_routes.values(), *dynamic_routes.values()]
+
+        duplicate_paths = sorted(
+            path for path, count in Counter(all_paths).items() if count > 1
         )
+        self.assertEqual(duplicate_paths, [])
+
+        static_references = Counter(
+            re.findall(r"EASY_EMAIL_HTTP_ROUTES\.(\w+)", self.route_text)
+        )
+        self.assertEqual(set(static_references), set(static_routes))
+        self.assertEqual(
+            {name: count for name, count in static_references.items() if count != 1},
+            {},
+        )
+
+        self.assertEqual(set(dynamic_routes), set(DYNAMIC_ROUTE_METHODS))
+        for name in dynamic_routes:
+            self.assertEqual(self.route_text.count(f"handler.{name}("), 1, name)
 
     def test_openapi_methods_match_service_route_implementations(self) -> None:
         routes = extract_static_routes(self.server_text)
+        dynamic_routes = extract_dynamic_routes(self.server_text)
         route_methods = {
             routes[name]: method.lower()
             for method, name in re.findall(
@@ -100,10 +142,8 @@ class HttpApiContractTests(unittest.TestCase):
         }
         route_methods.update(
             {
-                "/mail/providers/{instanceId}/probe": "get",
-                "/mail/mailboxes/{sessionId}/code": "get",
-                "/mail/mailboxes/{sessionId}/auth-link": "get",
-                "/mail/query/observed-messages/{messageId}": "get",
+                dynamic_routes[name]: method
+                for name, method in DYNAMIC_ROUTE_METHODS.items()
             }
         )
 
@@ -117,6 +157,14 @@ class HttpApiContractTests(unittest.TestCase):
                 "delete",
             }
             self.assertEqual(documented_methods, {method}, path)
+
+    def test_generic_commands_endpoint_is_not_exposed(self) -> None:
+        for path in self.openapi["paths"]:
+            self.assertNotIn("/commands", path)
+        self.assertNotRegex(
+            self.http_source_text,
+            r'["`][^"`\n]*/commands(?:/|\{|["`])',
+        )
 
     def test_openapi_operations_and_local_references_are_well_formed(self) -> None:
         operation_ids: set[str] = set()
