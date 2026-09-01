@@ -91,6 +91,19 @@ test("delegates temporary-mailbox operations through the cached authenticated HT
       authorization: new Headers(init?.headers).get("authorization"),
     });
     if (url.pathname.endsWith("/open")) return new Response(JSON.stringify({ result: {} }));
+    if (url.pathname.endsWith("/refresh")) {
+      return new Response(JSON.stringify({
+        refresh: {
+          fetchedCount: 0,
+          insertedCount: 0,
+          skippedCount: 0,
+          failedCount: 0,
+          refreshedSessionIds: [],
+          skippedSessionIds: [],
+          failures: [],
+        },
+      }));
+    }
     if (url.pathname.endsWith("/mailbox-sessions")) {
       return new Response(JSON.stringify({ sessions: [] }));
     }
@@ -108,6 +121,8 @@ test("delegates temporary-mailbox operations through the cached authenticated HT
   });
   await client.queryMailboxSessions({ hostId: "easyemail-desktop", newestFirst: true });
   await client.queryObservedMessages({ sessionId: "session-1", sync: true });
+  await client.refreshMailbox("session-1");
+  await client.refreshAnonymousMailboxes("easyemail-desktop");
   await client.readVerificationCode("session-1");
 
   assert.deepEqual(invokeCalls, ["desktop_core_runtime"]);
@@ -117,6 +132,8 @@ test("delegates temporary-mailbox operations through the cached authenticated HT
       ["/mail/mailboxes/open", "POST"],
       ["/mail/query/mailbox-sessions?hostId=easyemail-desktop&newestFirst=true", "GET"],
       ["/mail/query/observed-messages?sessionId=session-1&sync=true", "GET"],
+      ["/mail/mailboxes/session-1/refresh", "POST"],
+      ["/mail/mailboxes/anonymous/refresh", "POST"],
       ["/mail/mailboxes/session-1/code", "GET"],
     ],
   );

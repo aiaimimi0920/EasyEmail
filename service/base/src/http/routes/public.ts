@@ -8,6 +8,7 @@ export interface PublicRouteContext {
   readJsonBody<T>(): Promise<T>;
   extractVerificationCodeSessionId(path: string): string | undefined;
   extractAuthenticationLinkSessionId(path: string): string | undefined;
+  extractMailboxRefreshSessionId(path: string): string | undefined;
 }
 
 export async function handlePublicRoute(context: PublicRouteContext): Promise<unknown | undefined> {
@@ -18,6 +19,7 @@ export async function handlePublicRoute(context: PublicRouteContext): Promise<un
     readJsonBody,
     extractVerificationCodeSessionId,
     extractAuthenticationLinkSessionId,
+    extractMailboxRefreshSessionId,
   } = context;
 
   if (method === "GET" && path === EASY_EMAIL_HTTP_ROUTES.catalog) {
@@ -34,6 +36,10 @@ export async function handlePublicRoute(context: PublicRouteContext): Promise<un
 
   if (method === "POST" && path === EASY_EMAIL_HTTP_ROUTES.openMailbox) {
     return handler.openMailbox(await readJsonBody());
+  }
+
+  if (method === "POST" && path === EASY_EMAIL_HTTP_ROUTES.refreshAnonymousMailboxes) {
+    return handler.refreshAnonymousMailboxes(await readJsonBody());
   }
 
   if (method === "POST" && path === EASY_EMAIL_HTTP_ROUTES.sendMailboxMessage) {
@@ -66,6 +72,11 @@ export async function handlePublicRoute(context: PublicRouteContext): Promise<un
 
   if (method === "POST" && path === EASY_EMAIL_HTTP_ROUTES.observeMessage) {
     return handler.observeMessage(await readJsonBody());
+  }
+
+  const mailboxRefreshSessionId = extractMailboxRefreshSessionId(path);
+  if (method === "POST" && mailboxRefreshSessionId) {
+    return handler.refreshMailbox(mailboxRefreshSessionId);
   }
 
   const verificationCodeSessionId = extractVerificationCodeSessionId(path);

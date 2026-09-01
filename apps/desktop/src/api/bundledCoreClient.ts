@@ -6,6 +6,7 @@ import {
   type EasyEmailAuthenticationLinkResult,
   type EasyEmailCatalogResponse,
   type EasyEmailMailboxOutcomeRequest,
+  type EasyEmailMailboxRefreshResponse,
   type EasyEmailMailboxSendRequest,
   type EasyEmailMailboxSession,
   type EasyEmailMailboxSessionQuery,
@@ -116,6 +117,12 @@ export function createBundledCoreClient(
       sessionId: string,
     ): Promise<EasyEmailAuthenticationLinkResponse<TResult>> {
       return (await getHttpClient()).readAuthenticationLink<TResult>(sessionId);
+    },
+    async refreshMailbox(sessionId: string): Promise<EasyEmailMailboxRefreshResponse> {
+      return (await getHttpClient()).refreshMailbox(sessionId);
+    },
+    async refreshAnonymousMailboxes(hostId: string): Promise<EasyEmailMailboxRefreshResponse> {
+      return (await getHttpClient()).refreshAnonymousMailboxes({ hostId });
     },
     async updateMailbox<TSession = EasyEmailMailboxSession>(
       request: EasyEmailMailboxUpdateRequest,

@@ -227,6 +227,7 @@
           "200": { "$ref": "#/components/responses/SendMailboxResponse" },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
           "500": { "$ref": "#/components/responses/ServerError" }
         }
       }
@@ -240,6 +241,7 @@
           "200": { "$ref": "#/components/responses/JsonResponse" },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
           "500": { "$ref": "#/components/responses/ServerError" }
         }
       }
@@ -260,6 +262,7 @@
           "200": { "$ref": "#/components/responses/ReleaseMailboxResponse" },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
           "500": { "$ref": "#/components/responses/ServerError" }
         }
       }
@@ -312,6 +315,7 @@
           "200": { "$ref": "#/components/responses/JsonResponse" },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
           "500": { "$ref": "#/components/responses/ServerError" }
         }
       }
@@ -332,6 +336,7 @@
           "200": { "$ref": "#/components/responses/JsonResponse" },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
           "500": { "$ref": "#/components/responses/ServerError" }
         }
       }
@@ -359,6 +364,34 @@
         ],
         "responses": {
           "200": { "$ref": "#/components/responses/AuthenticationLinkResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/mailboxes/{sessionId}/refresh": {
+      "post": {
+        "operationId": "refreshMailbox",
+        "summary": "Synchronize one mailbox session",
+        "parameters": [
+          { "$ref": "#/components/parameters/SessionId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/RefreshMailboxResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/mail/mailboxes/anonymous/refresh": {
+      "post": {
+        "operationId": "refreshAnonymousMailboxes",
+        "summary": "Synchronize all mailbox sessions owned by one host",
+        "requestBody": { "$ref": "#/components/requestBodies/RefreshAnonymousMailboxesRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/RefreshMailboxResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "500": { "$ref": "#/components/responses/ServerError" }
         }
@@ -468,6 +501,14 @@
           }
         }
       },
+      "RefreshAnonymousMailboxesRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/RefreshAnonymousMailboxesRequest" }
+          }
+        }
+      },
       "MailboxOutcomeReport": {
         "required": true,
         "content": {
@@ -542,6 +583,14 @@
           }
         }
       },
+      "RefreshMailboxResponse": {
+        "description": "Mailbox synchronization result",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/RefreshMailboxResponse" }
+          }
+        }
+      },
       "JsonResponse": {
         "description": "Successful JSON response",
         "content": {
@@ -560,6 +609,14 @@
       },
       "Unauthorized": {
         "description": "Missing or invalid Bearer token",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Requested mailbox session was not found",
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/Error" }
@@ -786,6 +843,45 @@
         "type": "object",
         "properties": {
           "authLink": { "$ref": "#/components/schemas/AuthenticationLinkResult" }
+        },
+        "additionalProperties": false
+      },
+      "MailboxRefreshFailure": {
+        "type": "object",
+        "required": ["sessionId", "errorCode"],
+        "properties": {
+          "sessionId": { "type": "string" },
+          "errorCode": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "MailboxRefreshResult": {
+        "type": "object",
+        "required": ["fetchedCount", "insertedCount", "skippedCount", "failedCount", "refreshedSessionIds", "skippedSessionIds", "failures"],
+        "properties": {
+          "fetchedCount": { "type": "integer", "minimum": 0 },
+          "insertedCount": { "type": "integer", "minimum": 0 },
+          "skippedCount": { "type": "integer", "minimum": 0 },
+          "failedCount": { "type": "integer", "minimum": 0 },
+          "refreshedSessionIds": { "type": "array", "items": { "type": "string" } },
+          "skippedSessionIds": { "type": "array", "items": { "type": "string" } },
+          "failures": { "type": "array", "items": { "$ref": "#/components/schemas/MailboxRefreshFailure" } }
+        },
+        "additionalProperties": false
+      },
+      "RefreshMailboxResponse": {
+        "type": "object",
+        "required": ["refresh"],
+        "properties": {
+          "refresh": { "$ref": "#/components/schemas/MailboxRefreshResult" }
+        },
+        "additionalProperties": false
+      },
+      "RefreshAnonymousMailboxesRequest": {
+        "type": "object",
+        "required": ["hostId"],
+        "properties": {
+          "hostId": { "type": "string", "minLength": 1 }
         },
         "additionalProperties": false
       },

@@ -140,6 +140,8 @@ test("uses explicit HTTP resources for every temporary-mailbox mutation", async 
 
   await client.planMailbox(mailboxRequest);
   await client.openMailbox(mailboxRequest);
+  await client.refreshMailbox("session/a");
+  await client.refreshAnonymousMailboxes({ hostId: "easyemail-desktop" });
   await client.updateMailbox({ sessionId: "session-1", metadata: { note: "test" } });
   await client.releaseMailbox({ sessionId: "session-1", reason: "user" });
   await client.recoverMailbox({
@@ -160,6 +162,8 @@ test("uses explicit HTTP resources for every temporary-mailbox mutation", async 
     [
       ["/mail/mailboxes/plan", "POST"],
       ["/mail/mailboxes/open", "POST"],
+      ["/mail/mailboxes/session%2Fa/refresh", "POST"],
+      ["/mail/mailboxes/anonymous/refresh", "POST"],
       ["/mail/mailboxes/update-session", "POST"],
       ["/mail/mailboxes/release", "POST"],
       ["/mail/mailboxes/recover-by-email", "POST"],
@@ -169,7 +173,11 @@ test("uses explicit HTTP resources for every temporary-mailbox mutation", async 
     ],
   );
   assert.deepEqual(JSON.parse(String(calls[0]?.init?.body)), mailboxRequest);
-  assert.deepEqual(JSON.parse(String(calls[4]?.init?.body)), {
+  assert.equal(calls[2]?.init?.body, undefined);
+  assert.deepEqual(JSON.parse(String(calls[3]?.init?.body)), {
+    hostId: "easyemail-desktop",
+  });
+  assert.deepEqual(JSON.parse(String(calls[6]?.init?.body)), {
     emailAddress: "code@example.test",
     recoveryDataCredential: { opaque: "recovery" },
   });

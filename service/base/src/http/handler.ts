@@ -33,6 +33,10 @@ import type {
   QueryObservedMessagesHttpResponse,
   QueryProviderInstancesHttpRequest,
   QueryProviderInstancesHttpResponse,
+  RefreshAnonymousMailboxesHttpRequest,
+  RefreshAnonymousMailboxesHttpResponse,
+  RefreshMailboxHttpResponse,
+  MailboxRefreshResult,
   ReadAuthenticationLinkHttpResponse,
   ReadVerificationCodeHttpResponse,
   RegisterCloudflareTempEmailRuntimeHttpRequest,
@@ -41,6 +45,8 @@ import type {
   ReportMailboxOutcomeHttpResponse,
   RunMaintenanceHttpResponse,
 } from "./contracts.js";
+import { EasyEmailError } from "../domain/errors.js";
+import type { MailboxSession } from "../domain/models.js";
 import { createEasyEmailService, type EasyEmailService } from "../service/easy-email-service.js";
 import type { MailStateQueryRepository } from "../persistence/contracts.js";
 import {
@@ -150,6 +156,78 @@ export class EasyEmailHttpHandler {
 
   public async openMailbox(request: OpenMailboxHttpRequest): Promise<OpenMailboxHttpResponse> {
     return { result: await this.service.openMailbox(request) };
+  }
+
+  private async refreshSessions(
+    sessions: MailboxSession[],
+    captureFailures: boolean,
+  ): Promise<MailboxRefreshResult> {
+    const refresh: MailboxRefreshResult = {
+      fetchedCount: 0,
+      insertedCount: 0,
+      skippedCount: 0,
+      failedCount: 0,
+      refreshedSessionIds: [],
+      skippedSessionIds: [],
+      failures: [],
+    };
+
+    for (const session of sessions) {
+      if (session.status !== "open") {
+        refresh.skippedCount += 1;
+        refresh.skippedSessionIds.push(session.id);
+        continue;
+      }
+
+      const beforeIds = new Set(
+        this.service.getSnapshot().messages
+          .filter((message) => message.sessionId === session.id)
+          .map((message) => message.id),
+      );
+      try {
+        const fetched = await this.service.syncObservedMessages(session.id);
+        const insertedCount = this.service.getSnapshot().messages.filter(
+          (message) => message.sessionId === session.id && !beforeIds.has(message.id),
+        ).length;
+        refresh.fetchedCount += fetched.length;
+        refresh.insertedCount += insertedCount;
+        refresh.refreshedSessionIds.push(session.id);
+      } catch (error) {
+        const errorCode = error instanceof EasyEmailError ? error.code : "MAILBOX_REFRESH_FAILED";
+        if (!captureFailures) {
+          throw new EasyEmailError(
+            errorCode,
+            `Unable to refresh mailbox session ${session.id}.`,
+          );
+        }
+        refresh.failedCount += 1;
+        refresh.failures.push({
+          sessionId: session.id,
+          errorCode,
+        });
+      }
+    }
+
+    return refresh;
+  }
+
+  public async refreshMailbox(sessionId: string): Promise<RefreshMailboxHttpResponse> {
+    const session = this.service.getSnapshot().sessions.find((item) => item.id === sessionId);
+    if (!session) {
+      throw new EasyEmailError("MAILBOX_SESSION_NOT_FOUND", `Unknown mailbox session: ${sessionId}.`);
+    }
+    return { refresh: await this.refreshSessions([session], false) };
+  }
+
+  public async refreshAnonymousMailboxes(
+    request: RefreshAnonymousMailboxesHttpRequest,
+  ): Promise<RefreshAnonymousMailboxesHttpResponse> {
+    const hostId = request.hostId?.trim();
+    if (!hostId) {
+      throw new EasyEmailError("INVALID_QUERY", "hostId is required.");
+    }
+    const sessions = this.service.getSnapshot().sessions.filter((session) => session.hostId === hostId);
+    return { refresh: await this.refreshSessions(sessions, true) };
   }
 
   public async sendMailboxMessage(

@@ -95,10 +95,13 @@ import { formatMailListTime } from "./mail/mailDateUtils";
 import { renderLinkedMessageText } from "./mail/messageLinkRenderer";
 import {
   temporaryMailboxRecordFromOpenResult,
+  temporaryMailboxRefreshFailureMessage,
+  temporaryMailboxRefreshView,
   temporaryMailboxViewFromSession,
   temporaryObservedMessageView,
   temporaryVerificationCodeView,
   type TemporaryMailboxView,
+  type TemporaryMailboxRefreshView,
 } from "./mail/temporaryMailboxAdapter";
 import {
   detectInlineVerificationCode,
@@ -163,13 +166,7 @@ type AccountDto = {
   listed_in_all_accounts: boolean;
 };
 
-type TempRefreshDto = {
-  fetched_count: number;
-  inserted_count: number;
-  skipped_count: number;
-  refreshed_mailbox_ids: string[];
-  skipped_mailbox_ids: string[];
-};
+type TempRefreshDto = TemporaryMailboxRefreshView;
 
 type CoreTemporaryState = {
   mailboxes: TempMailboxDto[];
@@ -565,6 +562,17 @@ function asErrorDto(value: unknown): ErrorDto {
     user_message: "NMail could not complete the request.",
     correlation_id: "unknown",
   };
+}
+
+function temporaryRefreshError(result: TempRefreshDto): ErrorDto | null {
+  const message = temporaryMailboxRefreshFailureMessage(result);
+  return message
+    ? {
+        code: "MAILBOX_REFRESH_PARTIAL_FAILURE",
+        user_message: message,
+        correlation_id: "core-http-refresh",
+      }
+    : null;
 }
 
 function optionalValue(value: string): string | null {
@@ -1174,9 +1182,7 @@ function App() {
     return { folders, labels };
   }
 
-  async function loadCoreTemporaryState(
-    syncSessionIds: ReadonlySet<string> = new Set(),
-  ): Promise<CoreTemporaryState> {
+  async function loadCoreTemporaryState(): Promise<CoreTemporaryState> {
     const hostId = await bundledCoreClient.getHostId();
     const [{ sessions }, { instances }] = await Promise.all([
       bundledCoreClient.queryMailboxSessions({
@@ -1191,16 +1197,6 @@ function App() {
       temporaryMailboxViewFromSession(session, instancesById.get(session.providerInstanceId)),
     );
     const mailboxesById = new Map(mailboxes.map((mailbox) => [mailbox.id, mailbox]));
-    for (const session of sessions) {
-      if (syncSessionIds.has(session.id)) {
-        await bundledCoreClient.queryObservedMessages({
-          sessionId: session.id,
-          sync: true,
-          newestFirst: true,
-          limit: 100,
-        });
-      }
-    }
     const sessionIds = new Set(sessions.map((session) => session.id));
     const observedMessages = (
       await bundledCoreClient.queryObservedMessages({ newestFirst: true, limit: 5000 })
@@ -3132,30 +3128,14 @@ function App() {
   }
 
   async function refreshCoreMailboxes(
-    sessionIds: string[],
+    target: { sessionId: string } | { hostId: string },
     isCurrent: () => boolean = () => true,
   ) {
-    const beforeMessageIds = new Set(coreObservedMessagesRef.current.keys());
-    const coreState = await loadCoreTemporaryState(new Set(sessionIds));
-    const refreshedSessionIds = new Set(sessionIds);
-    const refreshedMessages = coreState.messages.filter((message) =>
-      refreshedSessionIds.has(message.temp_mailbox_id),
-    );
-    const result: TempRefreshDto = {
-      fetched_count: refreshedMessages.length,
-      inserted_count: refreshedMessages.filter(
-        (message) => !beforeMessageIds.has(message.message_id),
-      ).length,
-      skipped_count: sessionIds.filter(
-        (sessionId) => !coreState.mailboxes.some((mailbox) => mailbox.id === sessionId),
-      ).length,
-      refreshed_mailbox_ids: sessionIds.filter((sessionId) =>
-        coreState.mailboxes.some((mailbox) => mailbox.id === sessionId),
-      ),
-      skipped_mailbox_ids: sessionIds.filter(
-        (sessionId) => !coreState.mailboxes.some((mailbox) => mailbox.id === sessionId),
-      ),
-    };
+    const { refresh } = "sessionId" in target
+      ? await bundledCoreClient.refreshMailbox(target.sessionId)
+      : await bundledCoreClient.refreshAnonymousMailboxes(target.hostId);
+    const coreState = await loadCoreTemporaryState();
+    const result = temporaryMailboxRefreshView(refresh);
     if (isCurrent()) {
       setLastRefresh(result);
       setTempMailboxes(coreState.mailboxes);
@@ -3170,20 +3150,20 @@ function App() {
   }
 
   async function refreshAnonymousMailOnce() {
-    const activeSessionIds = tempMailboxes
-      .filter((mailbox) => mailbox.lifecycle_state === "active")
-      .map((mailbox) => mailbox.id);
-    return (await refreshCoreMailboxes(activeSessionIds)).result;
+    const hostId = await bundledCoreClient.getHostId();
+    return (await refreshCoreMailboxes({ hostId })).result;
   }
 
   async function refreshAnonymousMail() {
     setBusy(true);
     try {
       const result = await refreshAnonymousMailOnce();
+      const refreshError = temporaryRefreshError(result);
       setStatusMessage(
-        `Anonymous refresh fetched ${result.fetched_count} messages and inserted ${result.inserted_count}.`,
+        refreshError?.user_message ??
+          `Anonymous refresh fetched ${result.fetched_count} messages and inserted ${result.inserted_count}.`,
       );
-      setError(null);
+      setError(refreshError);
     } catch (caught: unknown) {
       setError(asErrorDto(caught));
     } finally {
@@ -3194,11 +3174,13 @@ function App() {
   async function refreshMailbox(tempMailboxId: string) {
     setBusy(true);
     try {
-      const { result } = await refreshCoreMailboxes([tempMailboxId]);
+      const { result } = await refreshCoreMailboxes({ sessionId: tempMailboxId });
+      const refreshError = temporaryRefreshError(result);
       setStatusMessage(
-        `Mailbox refresh fetched ${result.fetched_count} messages and inserted ${result.inserted_count}.`,
+        refreshError?.user_message ??
+          `Mailbox refresh fetched ${result.fetched_count} messages and inserted ${result.inserted_count}.`,
       );
-      setError(null);
+      setError(refreshError);
     } catch (caught: unknown) {
       setError(asErrorDto(caught));
     } finally {
@@ -3212,7 +3194,7 @@ function App() {
   ): Promise<boolean> {
     try {
       const { result: refresh, coreState } = await refreshCoreMailboxes(
-        [tempMailboxId],
+        { sessionId: tempMailboxId },
         isCurrent,
       );
       if (!isCurrent()) {
@@ -3569,10 +3551,12 @@ function App() {
         const normalFetched = normalResults.reduce((total, result) => total + result.fetched_count, 0);
         const normalInserted = normalResults.reduce((total, result) => total + result.inserted_count, 0);
         publishSyncStatus(
-          `Synced all mail: temp fetched ${tempResult.fetched_count}, inserted ${tempResult.inserted_count}; normal fetched ${normalFetched}, inserted ${normalInserted}.`,
+          temporaryMailboxRefreshFailureMessage(tempResult) ??
+            `Synced all mail: temp fetched ${tempResult.fetched_count}, inserted ${tempResult.inserted_count}; normal fetched ${normalFetched}, inserted ${normalInserted}.`,
         );
-        if (!silent) {
-          setError(null);
+        const refreshError = temporaryRefreshError(tempResult);
+        if (refreshError || !silent) {
+          setError(refreshError);
         }
         return;
       }
@@ -3580,10 +3564,12 @@ function App() {
       if (mailSourceId === "temp") {
         const result = await refreshAnonymousMailOnce();
         publishSyncStatus(
-          `Synced temp mail: fetched ${result.fetched_count}, inserted ${result.inserted_count}.`,
+          temporaryMailboxRefreshFailureMessage(result) ??
+            `Synced temp mail: fetched ${result.fetched_count}, inserted ${result.inserted_count}.`,
         );
-        if (!silent) {
-          setError(null);
+        const refreshError = temporaryRefreshError(result);
+        if (refreshError || !silent) {
+          setError(refreshError);
         }
         return;
       }
@@ -3616,10 +3602,12 @@ function App() {
 
       const result = await refreshAnonymousMailOnce();
       publishSyncStatus(
-        `Synced current source: fetched ${result.fetched_count}, inserted ${result.inserted_count}.`,
+        temporaryMailboxRefreshFailureMessage(result) ??
+          `Synced current source: fetched ${result.fetched_count}, inserted ${result.inserted_count}.`,
       );
-      if (!silent) {
-        setError(null);
+      const refreshError = temporaryRefreshError(result);
+      if (refreshError || !silent) {
+        setError(refreshError);
       }
     } catch (caught: unknown) {
       const errorDto = asErrorDto(caught);
@@ -10559,8 +10547,15 @@ function App() {
                     <strong>Last refresh</strong>
                     <span>
                       fetched {lastRefresh.fetched_count}, inserted {lastRefresh.inserted_count},
-                      skipped {lastRefresh.skipped_count}
+                      skipped {lastRefresh.skipped_count}, failed {lastRefresh.failed_count}
                     </span>
+                    {lastRefresh.failures.length > 0 ? (
+                      <small>
+                        {lastRefresh.failures
+                          .map((failure) => `${failure.temp_mailbox_id}: ${failure.error_code}`)
+                          .join(", ")}
+                      </small>
+                    ) : null}
                   </div>
                 ) : null}
                 {lastPromotion ? (

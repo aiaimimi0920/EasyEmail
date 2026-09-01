@@ -20,13 +20,22 @@ test("temporary mailbox create, list, refresh, message, and code flows use the b
     "bundledCoreClient.openMailbox",
     "bundledCoreClient.queryMailboxSessions",
     "bundledCoreClient.queryObservedMessages",
+    "bundledCoreClient.refreshMailbox",
+    "bundledCoreClient.refreshAnonymousMailboxes",
     "bundledCoreClient.getObservedMessage",
     "bundledCoreClient.readVerificationCode",
   ]) {
     assert.match(source, new RegExp(operation.replace(".", "\\.")));
   }
   assert.match(source, /temporaryMailboxRecordFromOpenResult/);
+  assert.match(source, /temporaryMailboxRefreshView/);
+  assert.match(source, /MAILBOX_REFRESH_PARTIAL_FAILURE/);
+  assert.match(source, /failure\.error_code/);
   assert.doesNotMatch(source, /temporaryMailboxAccessRef|recoveryDataCredential/);
+  const refreshStart = source.indexOf("async function refreshCoreMailboxes");
+  const refreshEnd = source.indexOf("async function refreshAnonymousMailOnce", refreshStart);
+  assert.ok(refreshStart >= 0 && refreshEnd > refreshStart);
+  assert.doesNotMatch(source.slice(refreshStart, refreshEnd), /queryObservedMessages|sync:\s*true/);
 });
 
 test("temporary-mailbox HTTP transport never reads the one-shot settings token", async () => {

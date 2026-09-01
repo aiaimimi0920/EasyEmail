@@ -188,6 +188,25 @@ export type EasyEmailAuthenticationLinkResponse<
   authLink?: TResult;
 };
 
+export type EasyEmailMailboxRefreshFailure = {
+  sessionId: string;
+  errorCode: string;
+};
+
+export type EasyEmailMailboxRefreshResult = {
+  fetchedCount: number;
+  insertedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  refreshedSessionIds: string[];
+  skippedSessionIds: string[];
+  failures: EasyEmailMailboxRefreshFailure[];
+};
+
+export type EasyEmailMailboxRefreshResponse = {
+  refresh: EasyEmailMailboxRefreshResult;
+};
+
 export type EasyEmailReleaseMailboxResponse<TResult = unknown> = {
   result: TResult;
 };
@@ -305,6 +324,7 @@ export const EASY_EMAIL_CORE_ROUTES = {
   catalog: "/mail/catalog",
   planMailbox: "/mail/mailboxes/plan",
   openMailbox: "/mail/mailboxes/open",
+  refreshAnonymousMailboxes: "/mail/mailboxes/anonymous/refresh",
   queryProviderInstances: "/mail/query/provider-instances",
   queryMailboxSessions: "/mail/query/mailbox-sessions",
   queryObservedMessages: "/mail/query/observed-messages",
@@ -318,6 +338,9 @@ export const EASY_EMAIL_CORE_ROUTES = {
   },
   authenticationLink(sessionId: string): string {
     return `/mail/mailboxes/${encodeURIComponent(sessionId)}/auth-link`;
+  },
+  refreshMailbox(sessionId: string): string {
+    return `/mail/mailboxes/${encodeURIComponent(sessionId)}/refresh`;
   },
   observedMessage(messageId: string): string {
     return `/mail/query/observed-messages/${encodeURIComponent(messageId)}`;
@@ -493,6 +516,21 @@ export function createEasyEmailHttpClient(options: EasyEmailHttpClientOptions) {
       sessionId: string,
     ): Promise<EasyEmailAuthenticationLinkResponse<TResult>> {
       return request({ path: EASY_EMAIL_CORE_ROUTES.authenticationLink(sessionId) });
+    },
+    refreshMailbox(sessionId: string): Promise<EasyEmailMailboxRefreshResponse> {
+      return request({
+        method: "POST",
+        path: EASY_EMAIL_CORE_ROUTES.refreshMailbox(sessionId),
+      });
+    },
+    refreshAnonymousMailboxes(requestBody: {
+      hostId: string;
+    }): Promise<EasyEmailMailboxRefreshResponse> {
+      return request({
+        method: "POST",
+        path: EASY_EMAIL_CORE_ROUTES.refreshAnonymousMailboxes,
+        body: requestBody,
+      });
     },
     updateMailbox<TSession = EasyEmailMailboxSession>(
       updateRequest: EasyEmailMailboxUpdateRequest,

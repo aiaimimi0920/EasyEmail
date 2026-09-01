@@ -53,6 +53,7 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   persistenceStats: "/mail/query/stats",
   planMailbox: "/mail/mailboxes/plan",
   openMailbox: "/mail/mailboxes/open",
+  refreshAnonymousMailboxes: "/mail/mailboxes/anonymous/refresh",
   sendMailboxMessage: "/mail/mailboxes/send",
   updateMailboxSession: "/mail/mailboxes/update-session",
   releaseMailbox: "/mail/mailboxes/release",
@@ -70,6 +71,9 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   },
   readAuthenticationLink(sessionId: string): string {
     return `/mail/mailboxes/${encodeURIComponent(sessionId)}/auth-link`;
+  },
+  refreshMailbox(sessionId: string): string {
+    return `/mail/mailboxes/${encodeURIComponent(sessionId)}/refresh`;
   },
   getObservedMessage(messageId: string): string {
     return `/mail/query/observed-messages/${encodeURIComponent(messageId)}`;
@@ -137,6 +141,33 @@ export interface PlanMailboxHttpResponse {
 export type OpenMailboxHttpRequest = VerificationMailboxRequest;
 export interface OpenMailboxHttpResponse {
   result: VerificationMailboxOpenResult;
+}
+
+export interface MailboxRefreshFailure {
+  sessionId: string;
+  errorCode: string;
+}
+
+export interface MailboxRefreshResult {
+  fetchedCount: number;
+  insertedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  refreshedSessionIds: string[];
+  skippedSessionIds: string[];
+  failures: MailboxRefreshFailure[];
+}
+
+export interface RefreshMailboxHttpResponse {
+  refresh: MailboxRefreshResult;
+}
+
+export interface RefreshAnonymousMailboxesHttpRequest {
+  hostId: string;
+}
+
+export interface RefreshAnonymousMailboxesHttpResponse {
+  refresh: MailboxRefreshResult;
 }
 
 export type SendMailboxMessageHttpRequest = MailboxSendRequest;

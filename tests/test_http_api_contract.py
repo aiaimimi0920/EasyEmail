@@ -24,6 +24,7 @@ DYNAMIC_ROUTE_METHODS = {
     "probeProviderInstance": "get",
     "readVerificationCode": "get",
     "readAuthenticationLink": "get",
+    "refreshMailbox": "post",
     "getObservedMessage": "get",
 }
 
@@ -286,6 +287,10 @@ class HttpApiContractTests(unittest.TestCase):
                 SERVER_CONTRACTS,
                 "CleanupMoemailMailboxesHttpRequest",
             ),
+            "RefreshAnonymousMailboxesRequest": (
+                SERVER_CONTRACTS,
+                "RefreshAnonymousMailboxesHttpRequest",
+            ),
             "MailboxOutcomeReport": (DOMAIN_MODELS, "MailboxOutcomeReport"),
             "MailboxSendRequest": (DOMAIN_MODELS, "MailboxSendRequest"),
             "ReleaseMailboxRequest": (
@@ -351,6 +356,18 @@ class HttpApiContractTests(unittest.TestCase):
                 SERVER_CONTRACTS,
                 "ReadAuthenticationLinkHttpResponse",
             ),
+            "MailboxRefreshResult": (
+                SERVER_CONTRACTS,
+                "MailboxRefreshResult",
+            ),
+            "MailboxRefreshFailure": (
+                SERVER_CONTRACTS,
+                "MailboxRefreshFailure",
+            ),
+            "RefreshMailboxResponse": (
+                SERVER_CONTRACTS,
+                "RefreshMailboxHttpResponse",
+            ),
         }
 
         for schema_name, (path, interface_name) in response_interfaces.items():
@@ -374,6 +391,8 @@ class HttpApiContractTests(unittest.TestCase):
             "releaseMailbox": "ReleaseMailboxResponse",
             "readVerificationCode": "VerificationCodeResponse",
             "readAuthenticationLink": "AuthenticationLinkResponse",
+            "refreshMailbox": "RefreshMailboxResponse",
+            "refreshAnonymousMailboxes": "RefreshMailboxResponse",
         }
         actual_responses = {}
         for path_item in self.openapi["paths"].values():
@@ -387,6 +406,26 @@ class HttpApiContractTests(unittest.TestCase):
                     ].rsplit("/", 1)[-1]
 
         self.assertEqual(actual_responses, expected_responses)
+
+    def test_session_mutations_document_not_found_responses(self) -> None:
+        expected_operation_ids = {
+            "sendMailboxMessage",
+            "updateMailboxSession",
+            "releaseMailbox",
+            "reportMailboxOutcome",
+            "observeMessage",
+            "refreshMailbox",
+        }
+        documented_operation_ids = {
+            operation["operationId"]
+            for path_item in self.openapi["paths"].values()
+            for method, operation in path_item.items()
+            if method in {"get", "post", "put", "patch", "delete"}
+            and operation.get("responses", {}).get("404")
+            == {"$ref": "#/components/responses/NotFound"}
+        }
+
+        self.assertEqual(documented_operation_ids, expected_operation_ids)
 
 
 if __name__ == "__main__":

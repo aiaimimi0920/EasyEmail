@@ -80,6 +80,11 @@ function extractAuthenticationLinkSessionId(path: string): string | undefined {
   return matched?.[1] ? decodeURIComponent(matched[1]) : undefined;
 }
 
+function extractMailboxRefreshSessionId(path: string): string | undefined {
+  const matched = path.match(/^\/mail\/mailboxes\/([^/]+)\/refresh$/);
+  return matched?.[1] ? decodeURIComponent(matched[1]) : undefined;
+}
+
 function extractProviderProbeInstanceId(path: string): string | undefined {
   const matched = path.match(/^\/mail\/providers\/([^/]+)\/probe$/);
   return matched?.[1] ? decodeURIComponent(matched[1]) : undefined;
@@ -144,6 +149,7 @@ export function createEasyEmailHttpServer(
         readJsonBody: readBodyJson,
         extractVerificationCodeSessionId,
         extractAuthenticationLinkSessionId,
+        extractMailboxRefreshSessionId,
       }) ?? await handleInternalRoute({
         method,
         path,
@@ -159,6 +165,11 @@ export function createEasyEmailHttpServer(
     } catch (error) {
       if (error instanceof EasyEmailError && ["INVALID_JSON", "INVALID_QUERY"].includes(error.code)) {
         writeEasyEmailError(response, 400, error);
+        return;
+      }
+
+      if (error instanceof EasyEmailError && error.code === "MAILBOX_SESSION_NOT_FOUND") {
+        writeEasyEmailError(response, 404, error);
         return;
       }
 

@@ -7,6 +7,8 @@ import type {
 } from "../src/api/easyEmailHttpClient.ts";
 import {
   temporaryMailboxRecordFromOpenResult,
+  temporaryMailboxRefreshFailureMessage,
+  temporaryMailboxRefreshView,
   temporaryMailboxViewFromSession,
   temporaryObservedMessageView,
   temporaryVerificationCodeView,
@@ -111,6 +113,39 @@ test("maps canonical session lifecycle states without inventing provider access 
   assert.equal(resolved.provider_label, "cloudflare_temp_email");
   assert.equal(resolved.lease_expires_at, null);
   assert.equal(expired.lifecycle_state, "expired");
+});
+
+test("maps server-owned refresh results without losing failure information", () => {
+  const refresh = temporaryMailboxRefreshView({
+    fetchedCount: 4,
+    insertedCount: 2,
+    skippedCount: 1,
+    failedCount: 1,
+    refreshedSessionIds: ["session-1"],
+    skippedSessionIds: ["session-2"],
+    failures: [{ sessionId: "session-3", errorCode: "PROVIDER_UNAVAILABLE" }],
+  });
+  assert.deepEqual(refresh, {
+    fetched_count: 4,
+    inserted_count: 2,
+    skipped_count: 1,
+    failed_count: 1,
+    refreshed_mailbox_ids: ["session-1"],
+    skipped_mailbox_ids: ["session-2"],
+    failures: [{
+      temp_mailbox_id: "session-3",
+      error_code: "PROVIDER_UNAVAILABLE",
+    }],
+  });
+  assert.equal(
+    temporaryMailboxRefreshFailureMessage(refresh),
+    "Refresh failed for 1 mailbox(es): session-3 (PROVIDER_UNAVAILABLE).",
+  );
+  assert.equal(temporaryMailboxRefreshFailureMessage({
+    ...refresh,
+    failed_count: 0,
+    failures: [],
+  }), null);
 });
 
 test("derives temporary message and code views from canonical message data", () => {

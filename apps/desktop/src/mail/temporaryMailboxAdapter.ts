@@ -1,5 +1,6 @@
 import type {
   EasyEmailMailboxSession,
+  EasyEmailMailboxRefreshResult,
   EasyEmailObservedMessage,
   EasyEmailProviderInstance,
   EasyEmailVerificationCodeResult,
@@ -62,6 +63,19 @@ export type TemporaryVerificationCodeView = {
   observed_at: string;
 };
 
+export type TemporaryMailboxRefreshView = {
+  fetched_count: number;
+  inserted_count: number;
+  skipped_count: number;
+  failed_count: number;
+  refreshed_mailbox_ids: string[];
+  skipped_mailbox_ids: string[];
+  failures: Array<{
+    temp_mailbox_id: string;
+    error_code: string;
+  }>;
+};
+
 function lifecycleState(
   status: EasyEmailMailboxSession["status"],
 ): TemporaryMailboxView["lifecycle_state"] {
@@ -103,6 +117,35 @@ export function temporaryMailboxRecordFromOpenResult(
     view: temporaryMailboxViewFromSession(result.session, result.instance),
     access: result,
   };
+}
+
+export function temporaryMailboxRefreshView(
+  refresh: EasyEmailMailboxRefreshResult,
+): TemporaryMailboxRefreshView {
+  return {
+    fetched_count: refresh.fetchedCount,
+    inserted_count: refresh.insertedCount,
+    skipped_count: refresh.skippedCount,
+    failed_count: refresh.failedCount,
+    refreshed_mailbox_ids: refresh.refreshedSessionIds,
+    skipped_mailbox_ids: refresh.skippedSessionIds,
+    failures: refresh.failures.map((failure) => ({
+      temp_mailbox_id: failure.sessionId,
+      error_code: failure.errorCode,
+    })),
+  };
+}
+
+export function temporaryMailboxRefreshFailureMessage(
+  refresh: TemporaryMailboxRefreshView,
+): string | null {
+  if (refresh.failed_count === 0) return null;
+  const failures = refresh.failures
+    .map((failure) => `${failure.temp_mailbox_id} (${failure.error_code})`)
+    .join(", ");
+  return failures
+    ? `Refresh failed for ${refresh.failed_count} mailbox(es): ${failures}.`
+    : `Refresh failed for ${refresh.failed_count} mailbox(es).`;
 }
 
 function messageSnippet(message: EasyEmailObservedMessage): string {
