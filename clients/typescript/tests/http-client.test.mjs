@@ -71,6 +71,53 @@ test("message routes encode identifiers and query filters", async () => {
   assert.equal(queryUrl.searchParams.get("limit"), "25");
 });
 
+test("contact resources use canonical methods, paths, bodies, and CAS query", async () => {
+  const calls = [];
+  const client = new EasyEmailClient({
+    baseUrl: "http://127.0.0.1:8080",
+    apiKey: "contacts-token",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      if (init.method === "GET" && String(url).includes("?")) {
+        return jsonResponse({ contacts: [], nextCursor: "next" });
+      }
+      if (init.method === "DELETE") return jsonResponse({ deleted: { id: "contact/a" } });
+      return jsonResponse({
+        contact: {
+          id: "contact/a",
+          displayName: "Ada",
+          emailAddress: "ada@example.com",
+          version: 1,
+          createdAt: "2026-09-01T00:00:00.000Z",
+          updatedAt: "2026-09-01T00:00:00.000Z",
+        },
+      });
+    },
+  });
+
+  assert.deepEqual(await client.listContacts({ limit: 25, cursor: "opaque/cursor" }), {
+    contacts: [],
+    nextCursor: "next",
+  });
+  await client.createContact({ displayName: "Ada", emailAddress: "ada@example.com" });
+  await client.getContact("contact/a");
+  await client.updateContact("contact/a", { expectedVersion: 1, note: "updated" });
+  assert.deepEqual(await client.deleteContact("contact/a", 2), { id: "contact/a" });
+
+  assert.equal(
+    calls[0].url,
+    "http://127.0.0.1:8080/mail/contacts?limit=25&cursor=opaque%2Fcursor",
+  );
+  assert.deepEqual(calls.map((call) => call.init.method), ["GET", "POST", "GET", "PATCH", "DELETE"]);
+  assert.equal(calls[2].url, "http://127.0.0.1:8080/mail/contacts/contact%2Fa");
+  assert.deepEqual(JSON.parse(calls[3].init.body), { expectedVersion: 1, note: "updated" });
+  assert.equal(
+    calls[4].url,
+    "http://127.0.0.1:8080/mail/contacts/contact%2Fa?expectedVersion=2",
+  );
+  assert.ok(calls.every((call) => call.init.headers.authorization === "Bearer contacts-token"));
+});
+
 test("HTTP failures expose status and server error code", async () => {
   const httpClient = createFetchJsonHttpClient({
     baseUrl: "https://mail.example.test",

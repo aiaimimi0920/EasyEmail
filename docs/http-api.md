@@ -157,6 +157,33 @@ selected provider, binding, temporary access, and recovery metadata:
    outbound delivery.
 6. `POST /mail/mailboxes/release` releases the session when the caller is done.
 
+## Persistent contacts
+
+Contacts are stored by the local server in its separate relational SQLite
+database. They are not held in UI memory and are not written to the legacy
+EasyEmailAM database.
+
+```http
+POST /mail/contacts
+Authorization: Bearer <easyemail-api-key>
+Content-Type: application/json
+
+{
+  "displayName": "Ada Lovelace",
+  "emailAddress": "ada@example.com",
+  "note": "Project contact"
+}
+```
+
+Create is an idempotent upsert by normalized email address and returns
+`{ "contact": ... }`. `GET /mail/contacts?limit=50&cursor=<opaque>` uses stable
+case-insensitive name/email ordering. Pass `nextCursor` back unchanged.
+
+`PATCH /mail/contacts/{contactId}` and
+`DELETE /mail/contacts/{contactId}?expectedVersion=N` use the returned positive
+`version` as compare-and-swap protection. Delete is hard and does not mutate
+messages. A stale version or email collision returns 409.
+
 Named request schemas, optional filters, enums, and the core mailbox response
 envelopes are defined in the OpenAPI document. Some large administrative and
 catalog payloads intentionally remain permissive JSON objects until their domain
@@ -186,6 +213,11 @@ authorization tier.
 | `POST` | `/mail/messages/observe` | Persist a message observed by an external caller. |
 | `GET` | `/mail/mailboxes/{sessionId}/code` | Synchronize a mailbox and read its verification code. |
 | `GET` | `/mail/mailboxes/{sessionId}/auth-link` | Synchronize a mailbox and read its authentication link. |
+| `GET` | `/mail/contacts` | List persistent contacts with opaque keyset pagination. |
+| `POST` | `/mail/contacts` | Create or upsert a contact by normalized email. |
+| `GET` | `/mail/contacts/{contactId}` | Read one contact. |
+| `PATCH` | `/mail/contacts/{contactId}` | Update one contact with version CAS. |
+| `DELETE` | `/mail/contacts/{contactId}?expectedVersion=N` | Hard-delete one contact with version CAS. |
 
 ### Provider administration and queries
 
@@ -218,7 +250,9 @@ Current status behavior is:
 | `400` | Invalid JSON or an invalid query value. |
 | `401` | The configured Bearer token is missing or incorrect. |
 | `404` | No route matches the method and path. |
+| `409` | A unique constraint or version compare-and-swap conflict occurred. |
 | `500` | An EasyEmail, provider, persistence, or unexpected runtime error occurred. |
+| `503` | A required persistent relational capability is disabled or unavailable. |
 
 EasyEmail errors normally include `code`, `error`, and `message`. Callers must
 not assume that every `500` is permanent; provider-specific error codes can

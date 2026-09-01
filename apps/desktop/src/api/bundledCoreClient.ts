@@ -5,6 +5,11 @@ import {
   type EasyEmailAuthenticationLinkResponse,
   type EasyEmailAuthenticationLinkResult,
   type EasyEmailCatalogResponse,
+  type EasyEmailContact,
+  type EasyEmailContactCreateRequest,
+  type EasyEmailContactListQuery,
+  type EasyEmailContactResponse,
+  type EasyEmailContactsResponse,
   type EasyEmailMailboxOutcomeRequest,
   type EasyEmailMailboxOutcomeResult,
   type EasyEmailMailboxRefreshResponse,
@@ -81,6 +86,16 @@ export function createBundledCoreClient(
     },
     async getCatalog<TCatalog = unknown>(): Promise<EasyEmailCatalogResponse<TCatalog>> {
       return (await getHttpClient()).getCatalog<TCatalog>();
+    },
+    async listContacts<TContact = EasyEmailContact>(
+      query: EasyEmailContactListQuery = {},
+    ): Promise<EasyEmailContactsResponse<TContact>> {
+      return (await getHttpClient()).listContacts<TContact>(query);
+    },
+    async createContact<TContact = EasyEmailContact>(
+      request: EasyEmailContactCreateRequest,
+    ): Promise<EasyEmailContactResponse<TContact>> {
+      return (await getHttpClient()).createContact<TContact>(request);
     },
     async planMailbox<TResult = unknown>(
       request: EasyEmailOpenMailboxRequest,

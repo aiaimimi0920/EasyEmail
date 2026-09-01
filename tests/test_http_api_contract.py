@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SERVER_CONTRACTS = ROOT / "service" / "base" / "src" / "http" / "contracts.ts"
 DOMAIN_MODELS = ROOT / "service" / "base" / "src" / "domain" / "models.ts"
+DOMAIN_CONTACT = ROOT / "service" / "base" / "src" / "domain" / "contact.ts"
 SHARED_CREDENTIALS = (
     ROOT / "service" / "base" / "src" / "shared" / "credentials.ts"
 )
@@ -21,12 +22,22 @@ HTTP_SOURCE_FILES = (SERVER_CONTRACTS, HTTP_SERVER, *ROUTE_FILES)
 OPENAPI_PATH = ROOT / "docs" / "easyemail-openapi.json"
 
 DYNAMIC_ROUTE_METHODS = {
-    "probeProviderInstance": "get",
-    "readVerificationCode": "get",
-    "readAuthenticationLink": "get",
-    "refreshMailbox": "post",
-    "getObservedMessage": "get",
+    "probeProviderInstance": {"get": "probeProviderInstance"},
+    "readVerificationCode": {"get": "readVerificationCode"},
+    "readAuthenticationLink": {"get": "readAuthenticationLink"},
+    "refreshMailbox": {"post": "refreshMailbox"},
+    "getObservedMessage": {"get": "getObservedMessage"},
+    "contact": {
+        "get": "getContact",
+        "patch": "updateContact",
+        "delete": "deleteContact",
+    },
 }
+
+STATIC_ROUTE_DISPATCH = re.compile(
+    r'method === "(GET|POST|PUT|PATCH|DELETE)" && path === '
+    r"EASY_EMAIL_HTTP_ROUTES\.(\w+)"
+)
 
 
 def extract_static_routes(text: str) -> dict[str, str]:
@@ -117,39 +128,33 @@ class HttpApiContractTests(unittest.TestCase):
         )
         self.assertEqual(duplicate_paths, [])
 
-        static_references = Counter(
-            re.findall(r"EASY_EMAIL_HTTP_ROUTES\.(\w+)", self.route_text)
-        )
+        static_dispatches = STATIC_ROUTE_DISPATCH.findall(self.route_text)
+        static_references = Counter(name for _, name in static_dispatches)
         self.assertEqual(set(static_references), set(static_routes))
         self.assertEqual(
-            {name: count for name, count in static_references.items() if count != 1},
-            {},
+            len(static_dispatches), len(set(static_dispatches)), "duplicate static dispatch"
         )
 
         self.assertEqual(set(dynamic_routes), set(DYNAMIC_ROUTE_METHODS))
-        for name in dynamic_routes:
-            self.assertEqual(self.route_text.count(f"handler.{name}("), 1, name)
+        for name, methods in DYNAMIC_ROUTE_METHODS.items():
+            for handler_name in methods.values():
+                self.assertEqual(
+                    self.route_text.count(f"handler.{handler_name}("),
+                    1,
+                    f"{name}: {handler_name}",
+                )
 
     def test_openapi_methods_match_service_route_implementations(self) -> None:
         routes = extract_static_routes(self.server_text)
         dynamic_routes = extract_dynamic_routes(self.server_text)
-        route_methods = {
-            routes[name]: method.lower()
-            for method, name in re.findall(
-                r'method === "(GET|POST)" && path === '
-                r"EASY_EMAIL_HTTP_ROUTES\.(\w+)",
-                self.route_text,
-            )
-        }
-        route_methods.update(
-            {
-                dynamic_routes[name]: method
-                for name, method in DYNAMIC_ROUTE_METHODS.items()
-            }
-        )
+        route_methods: dict[str, set[str]] = {}
+        for method, name in STATIC_ROUTE_DISPATCH.findall(self.route_text):
+            route_methods.setdefault(routes[name], set()).add(method.lower())
+        for name, methods in DYNAMIC_ROUTE_METHODS.items():
+            route_methods.setdefault(dynamic_routes[name], set()).update(methods)
 
         self.assertEqual(set(route_methods), set(self.openapi["paths"]))
-        for path, method in route_methods.items():
+        for path, methods in route_methods.items():
             documented_methods = set(self.openapi["paths"][path]) & {
                 "get",
                 "post",
@@ -157,7 +162,7 @@ class HttpApiContractTests(unittest.TestCase):
                 "patch",
                 "delete",
             }
-            self.assertEqual(documented_methods, {method}, path)
+            self.assertEqual(documented_methods, methods, path)
 
     def test_generic_commands_endpoint_is_not_exposed(self) -> None:
         for path in self.openapi["paths"]:
@@ -298,6 +303,8 @@ class HttpApiContractTests(unittest.TestCase):
                 "ReleaseMailboxHttpRequest",
             ),
             "ObserveMessageInput": (DOMAIN_MODELS, "ObserveMessageInput"),
+            "ContactCreateInput": (DOMAIN_CONTACT, "ContactCreateInput"),
+            "ContactUpdateInput": (DOMAIN_CONTACT, "ContactUpdateInput"),
         }
 
         for schema_name, (path, interface_name) in request_interfaces.items():
@@ -368,6 +375,13 @@ class HttpApiContractTests(unittest.TestCase):
                 SERVER_CONTRACTS,
                 "RefreshMailboxHttpResponse",
             ),
+            "Contact": (DOMAIN_CONTACT, "Contact"),
+            "ContactsResponse": (SERVER_CONTRACTS, "ListContactsHttpResponse"),
+            "ContactResponse": (SERVER_CONTRACTS, "CreateContactHttpResponse"),
+            "DeleteContactResponse": (
+                SERVER_CONTRACTS,
+                "DeleteContactHttpResponse",
+            ),
         }
 
         for schema_name, (path, interface_name) in response_interfaces.items():
@@ -393,6 +407,11 @@ class HttpApiContractTests(unittest.TestCase):
             "readAuthenticationLink": "AuthenticationLinkResponse",
             "refreshMailbox": "RefreshMailboxResponse",
             "refreshAnonymousMailboxes": "RefreshMailboxResponse",
+            "listContacts": "ContactsResponse",
+            "getContact": "ContactResponse",
+            "createContact": "ContactResponse",
+            "updateContact": "ContactResponse",
+            "deleteContact": "DeleteContactResponse",
         }
         actual_responses = {}
         for path_item in self.openapi["paths"].values():
@@ -407,7 +426,7 @@ class HttpApiContractTests(unittest.TestCase):
 
         self.assertEqual(actual_responses, expected_responses)
 
-    def test_session_mutations_document_not_found_responses(self) -> None:
+    def test_resource_operations_document_not_found_responses(self) -> None:
         expected_operation_ids = {
             "sendMailboxMessage",
             "updateMailboxSession",
@@ -415,6 +434,9 @@ class HttpApiContractTests(unittest.TestCase):
             "reportMailboxOutcome",
             "observeMessage",
             "refreshMailbox",
+            "getContact",
+            "updateContact",
+            "deleteContact",
         }
         documented_operation_ids = {
             operation["operationId"]

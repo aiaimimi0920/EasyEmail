@@ -3,10 +3,17 @@ import type {
   ApplyMailCredentialSetsHttpResponse,
   CleanupMoemailMailboxesHttpRequest,
   CleanupMoemailMailboxesHttpResponse,
+  CreateContactHttpRequest,
+  CreateContactHttpResponse,
+  DeleteContactHttpRequest,
+  DeleteContactHttpResponse,
+  GetContactHttpResponse,
   GetMailCatalogHttpResponse,
   GetObservedMessageHttpResponse,
   GetMailPersistenceStatsHttpResponse,
   GetMailSnapshotHttpResponse,
+  ListContactsHttpRequest,
+  ListContactsHttpResponse,
   ObserveMessageHttpRequest,
   ObserveMessageHttpResponse,
   OpenMailboxHttpRequest,
@@ -44,11 +51,14 @@ import type {
   ReportMailboxOutcomeHttpRequest,
   ReportMailboxOutcomeHttpResponse,
   RunMaintenanceHttpResponse,
+  UpdateContactHttpRequest,
+  UpdateContactHttpResponse,
 } from "./contracts.js";
 import { EasyEmailError } from "../domain/errors.js";
 import type { MailboxSession } from "../domain/models.js";
 import { createEasyEmailService, type EasyEmailService } from "../service/easy-email-service.js";
 import type { MailStateQueryRepository } from "../persistence/contracts.js";
+import type { ContactService } from "../service/contacts.js";
 import {
   calculateMailPersistenceStats,
   queryHostBindingsFromSnapshot,
@@ -61,7 +71,18 @@ export class EasyEmailHttpHandler {
   public constructor(
     private readonly service: EasyEmailService = createEasyEmailService(),
     private readonly queryRepository?: MailStateQueryRepository,
+    private readonly contacts?: ContactService,
   ) {}
+
+  private requireContacts(): ContactService {
+    if (!this.contacts) {
+      throw new EasyEmailError(
+        "CONTACTS_PERSISTENCE_UNAVAILABLE",
+        "Persistent contacts are not available in this runtime.",
+      );
+    }
+    return this.contacts;
+  }
 
   public getCatalog(): GetMailCatalogHttpResponse {
     return { catalog: this.service.getCatalog() };
@@ -156,6 +177,34 @@ export class EasyEmailHttpHandler {
 
   public async openMailbox(request: OpenMailboxHttpRequest): Promise<OpenMailboxHttpResponse> {
     return { result: await this.service.openMailbox(request) };
+  }
+
+  public async listContacts(
+    request: ListContactsHttpRequest = {},
+  ): Promise<ListContactsHttpResponse> {
+    return this.requireContacts().listContacts(request);
+  }
+
+  public async getContact(contactId: string): Promise<GetContactHttpResponse> {
+    return { contact: await this.requireContacts().getContact(contactId) };
+  }
+
+  public async createContact(request: CreateContactHttpRequest): Promise<CreateContactHttpResponse> {
+    return { contact: await this.requireContacts().createContact(request) };
+  }
+
+  public async updateContact(
+    contactId: string,
+    request: UpdateContactHttpRequest,
+  ): Promise<UpdateContactHttpResponse> {
+    return { contact: await this.requireContacts().updateContact(contactId, request) };
+  }
+
+  public async deleteContact(
+    contactId: string,
+    request: DeleteContactHttpRequest,
+  ): Promise<DeleteContactHttpResponse> {
+    return { deleted: await this.requireContacts().deleteContact(contactId, request) };
   }
 
   private async refreshSessions(

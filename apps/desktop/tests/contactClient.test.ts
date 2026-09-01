@@ -4,32 +4,43 @@ import test from "node:test";
 import {
   createContactClient,
   type ContactCreateRequest,
-  type ContactDto,
+  type ContactHttpTransport,
 } from "../src/api/contactClient.ts";
-import type { InvokeCommand } from "../src/api/invokeCommand.ts";
+import type {
+  EasyEmailContact,
+  EasyEmailContactCreateRequest,
+} from "../src/api/easyEmailHttpClient.ts";
 
-type InvokeCall =
-  | { command: string }
-  | { command: string; args: Record<string, unknown> };
+const contact: EasyEmailContact = {
+  id: "contact-1",
+  displayName: "Ada Lovelace",
+  emailAddress: "ada@example.com",
+  version: 1,
+  createdAt: "2026-07-24T09:00:00Z",
+  updatedAt: "2026-07-24T09:00:00Z",
+};
 
-function createFakeInvoke(responses: ReadonlyMap<string, unknown>) {
-  const calls: InvokeCall[] = [];
-  const invokeCommand: InvokeCommand = async <T>(
-    command: string,
-    args?: Record<string, unknown>,
-  ): Promise<T> => {
-    calls.push(args === undefined ? { command } : { command, args });
-    if (!responses.has(command)) {
-      throw new Error(`Unexpected command: ${command}`);
-    }
-    return responses.get(command) as T;
+test("maps canonical HTTP contacts into the existing UI DTO", async () => {
+  const listQueries: unknown[] = [];
+  const secondContact: EasyEmailContact = {
+    ...contact,
+    id: "contact-2",
+    displayName: "Grace Hopper",
+    emailAddress: "grace@example.com",
+  };
+  const transport: ContactHttpTransport = {
+    async listContacts(query) {
+      listQueries.push(query);
+      return listQueries.length === 1
+        ? { contacts: [contact], nextCursor: "page-2" }
+        : { contacts: [secondContact] };
+    },
+    async createContact() {
+      throw new Error("unexpected create");
+    },
   };
 
-  return { calls, invokeCommand };
-}
-
-test("lists contacts with contact_list and no argument object", async () => {
-  const contacts: ContactDto[] = [
+  assert.deepEqual(await createContactClient(transport).listContacts(), [
     {
       id: "contact-1",
       display_name: "Ada Lovelace",
@@ -38,44 +49,59 @@ test("lists contacts with contact_list and no argument object", async () => {
       created_at: "2026-07-24T09:00:00Z",
       updated_at: "2026-07-24T09:00:00Z",
     },
-  ];
-  const { calls, invokeCommand } = createFakeInvoke(
-    new Map<string, unknown>([["contact_list", contacts]]),
-  );
-
-  const result = await createContactClient(invokeCommand).listContacts();
-
-  assert.strictEqual(result, contacts);
-  assert.deepEqual(calls, [{ command: "contact_list" }]);
-  assert.equal("args" in calls[0], false);
+    {
+      id: "contact-2",
+      display_name: "Grace Hopper",
+      email_address: "grace@example.com",
+      note: null,
+      created_at: "2026-07-24T09:00:00Z",
+      updated_at: "2026-07-24T09:00:00Z",
+    },
+  ]);
+  assert.deepEqual(listQueries, [
+    { limit: 100, cursor: undefined },
+    { limit: 100, cursor: "page-2" },
+  ]);
 });
 
-test("creates a contact with contact_create and exactly the wrapped request payload", async () => {
+test("maps the existing UI create request to the canonical HTTP request", async () => {
   const request: ContactCreateRequest = {
     display_name: "Grace Hopper",
     email_address: "grace@example.com",
     note: "Compiler pioneer",
   };
-  const createdContact: ContactDto = {
-    id: "contact-2",
-    ...request,
-    created_at: "2026-07-24T10:00:00Z",
-    updated_at: "2026-07-24T10:00:00Z",
-  };
-  const { calls, invokeCommand } = createFakeInvoke(
-    new Map<string, unknown>([["contact_create", createdContact]]),
-  );
-
-  const result = await createContactClient(invokeCommand).createContact(request);
-
-  assert.strictEqual(result, createdContact);
-  assert.deepEqual(calls, [
-    {
-      command: "contact_create",
-      args: { request },
+  let captured: EasyEmailContactCreateRequest | undefined;
+  const transport: ContactHttpTransport = {
+    async listContacts() {
+      throw new Error("unexpected list");
     },
-  ]);
-  const createCall = calls[0];
-  assert.ok("args" in createCall);
-  assert.strictEqual(createCall.args.request, request);
+    async createContact(httpRequest) {
+      captured = httpRequest;
+      return {
+        contact: {
+          ...contact,
+          id: "contact-2",
+          displayName: httpRequest.displayName ?? "",
+          emailAddress: httpRequest.emailAddress,
+          note: httpRequest.note ?? undefined,
+        },
+      };
+    },
+  };
+
+  const result = await createContactClient(transport).createContact(request);
+
+  assert.deepEqual(captured, {
+    displayName: "Grace Hopper",
+    emailAddress: "grace@example.com",
+    note: "Compiler pioneer",
+  });
+  assert.deepEqual(result, {
+    id: "contact-2",
+    display_name: "Grace Hopper",
+    email_address: "grace@example.com",
+    note: "Compiler pioneer",
+    created_at: contact.createdAt,
+    updated_at: contact.updatedAt,
+  });
 });

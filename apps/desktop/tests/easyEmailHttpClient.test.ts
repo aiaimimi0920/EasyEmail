@@ -229,6 +229,61 @@ test("queries provider instances used to label canonical mailbox sessions", asyn
   );
 });
 
+test("uses authenticated canonical contact resources", async () => {
+  const calls: CapturedRequest[] = [];
+  const client = createEasyEmailHttpClient({
+    baseUrl: "http://127.0.0.1:18081",
+    bearerToken: "runtime-contact-token",
+    fetch: async (input, init) => {
+      calls.push({ url: String(input), init });
+      return calls.length === 1
+        ? jsonResponse({ contacts: [] })
+        : calls.length < 5
+          ? jsonResponse({ contact: { id: "contact-1" } })
+          : jsonResponse({ deleted: { id: "contact-1" } });
+    },
+  });
+
+  await client.listContacts({ limit: 25, cursor: "opaque/cursor" });
+  await client.createContact({
+    displayName: "Ada",
+    emailAddress: "ada@example.com",
+    note: null,
+  });
+  await client.getContact("contact/a");
+  await client.updateContact("contact/a", { expectedVersion: 1, displayName: "Ada Byron" });
+  await client.deleteContact("contact/a", 2);
+
+  assert.equal(
+    calls[0]?.url,
+    "http://127.0.0.1:18081/mail/contacts?limit=25&cursor=opaque%2Fcursor",
+  );
+  assert.equal(calls[0]?.init?.method, "GET");
+  assert.equal(
+    new Headers(calls[0]?.init?.headers).get("authorization"),
+    "Bearer runtime-contact-token",
+  );
+  assert.equal(calls[1]?.url, "http://127.0.0.1:18081/mail/contacts");
+  assert.equal(calls[1]?.init?.method, "POST");
+  assert.deepEqual(JSON.parse(String(calls[1]?.init?.body)), {
+    displayName: "Ada",
+    emailAddress: "ada@example.com",
+    note: null,
+  });
+  assert.equal(calls[2]?.url, "http://127.0.0.1:18081/mail/contacts/contact%2Fa");
+  assert.equal(calls[2]?.init?.method, "GET");
+  assert.equal(calls[3]?.init?.method, "PATCH");
+  assert.deepEqual(JSON.parse(String(calls[3]?.init?.body)), {
+    expectedVersion: 1,
+    displayName: "Ada Byron",
+  });
+  assert.equal(
+    calls[4]?.url,
+    "http://127.0.0.1:18081/mail/contacts/contact%2Fa?expectedVersion=2",
+  );
+  assert.equal(calls[4]?.init?.method, "DELETE");
+});
+
 test("surfaces structured HTTP failures without including the bearer token", async () => {
   const client = createEasyEmailHttpClient({
     baseUrl: "http://localhost:8080",

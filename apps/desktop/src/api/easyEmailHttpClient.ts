@@ -142,6 +142,47 @@ export type EasyEmailCatalogResponse<TCatalog = unknown> = {
   catalog: TCatalog;
 };
 
+export type EasyEmailContact = {
+  id: string;
+  displayName: string;
+  emailAddress: string;
+  note?: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type EasyEmailContactCreateRequest = {
+  displayName?: string;
+  emailAddress: string;
+  note?: string | null;
+};
+
+export type EasyEmailContactUpdateRequest = {
+  expectedVersion: number;
+  displayName?: string;
+  emailAddress?: string;
+  note?: string | null;
+};
+
+export type EasyEmailContactListQuery = {
+  limit?: number;
+  cursor?: string;
+};
+
+export type EasyEmailContactsResponse<TContact = EasyEmailContact> = {
+  contacts: TContact[];
+  nextCursor?: string;
+};
+
+export type EasyEmailContactResponse<TContact = EasyEmailContact> = {
+  contact: TContact;
+};
+
+export type EasyEmailContactDeleteResponse = {
+  deleted: { id: string };
+};
+
 export type EasyEmailPlanMailboxResponse<TResult = unknown> = {
   plan: TResult;
 };
@@ -399,6 +440,7 @@ export const EASY_EMAIL_CORE_ROUTES = {
   recoverMailbox: "/mail/mailboxes/recover-by-email",
   reportMailboxOutcome: "/mail/mailboxes/report-outcome",
   sendMailboxMessage: "/mail/mailboxes/send",
+  contacts: "/mail/contacts",
   verificationCode(sessionId: string): string {
     return `/mail/mailboxes/${encodeURIComponent(sessionId)}/code`;
   },
@@ -410,6 +452,9 @@ export const EASY_EMAIL_CORE_ROUTES = {
   },
   observedMessage(messageId: string): string {
     return `/mail/query/observed-messages/${encodeURIComponent(messageId)}`;
+  },
+  contact(contactId: string): string {
+    return `/mail/contacts/${encodeURIComponent(contactId)}`;
   },
 } as const;
 
@@ -534,6 +579,42 @@ export function createEasyEmailHttpClient(options: EasyEmailHttpClientOptions) {
     request,
     getCatalog<TCatalog = unknown>(): Promise<EasyEmailCatalogResponse<TCatalog>> {
       return request({ path: EASY_EMAIL_CORE_ROUTES.catalog });
+    },
+    listContacts<TContact = EasyEmailContact>(
+      query: EasyEmailContactListQuery = {},
+    ): Promise<EasyEmailContactsResponse<TContact>> {
+      return request({ path: EASY_EMAIL_CORE_ROUTES.contacts, query });
+    },
+    createContact<TContact = EasyEmailContact>(
+      contactRequest: EasyEmailContactCreateRequest,
+    ): Promise<EasyEmailContactResponse<TContact>> {
+      return request({
+        method: "POST",
+        path: EASY_EMAIL_CORE_ROUTES.contacts,
+        body: contactRequest,
+      });
+    },
+    getContact<TContact = EasyEmailContact>(
+      contactId: string,
+    ): Promise<EasyEmailContactResponse<TContact>> {
+      return request({ path: EASY_EMAIL_CORE_ROUTES.contact(contactId) });
+    },
+    updateContact<TContact = EasyEmailContact>(
+      contactId: string,
+      contactRequest: EasyEmailContactUpdateRequest,
+    ): Promise<EasyEmailContactResponse<TContact>> {
+      return request({
+        method: "PATCH",
+        path: EASY_EMAIL_CORE_ROUTES.contact(contactId),
+        body: contactRequest,
+      });
+    },
+    deleteContact(contactId: string, expectedVersion: number): Promise<EasyEmailContactDeleteResponse> {
+      return request({
+        method: "DELETE",
+        path: EASY_EMAIL_CORE_ROUTES.contact(contactId),
+        query: { expectedVersion },
+      });
     },
     planMailbox<TResult = unknown>(
       mailboxRequest: EasyEmailOpenMailboxRequest,

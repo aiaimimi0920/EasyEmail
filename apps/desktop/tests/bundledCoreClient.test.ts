@@ -138,6 +138,8 @@ test("delegates temporary-mailbox operations through the cached authenticated HT
     subject: "hello",
     textBody: "body",
   });
+  await client.listContacts({ limit: 100, cursor: "page-2" });
+  await client.createContact({ displayName: "Ada", emailAddress: "ada@example.com" });
 
   assert.deepEqual(invokeCalls, ["desktop_core_runtime"]);
   assert.deepEqual(
@@ -155,6 +157,8 @@ test("delegates temporary-mailbox operations through the cached authenticated HT
       ["/mail/mailboxes/recover-by-email", "POST"],
       ["/mail/mailboxes/report-outcome", "POST"],
       ["/mail/mailboxes/send", "POST"],
+      ["/mail/contacts?limit=100&cursor=page-2", "GET"],
+      ["/mail/contacts", "POST"],
     ],
   );
   assert.ok(httpCalls.every((call) => call.authorization === "Bearer runtime-only-token"));

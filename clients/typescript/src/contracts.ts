@@ -30,6 +30,39 @@ export type MailBusinessStrategyId =
   | "random"
   | (string & {});
 
+export interface Contact {
+  id: string;
+  displayName: string;
+  emailAddress: string;
+  note?: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContactListQuery {
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ContactListResult {
+  contacts: Contact[];
+  nextCursor?: string;
+}
+
+export interface ContactCreateInput {
+  displayName?: string;
+  emailAddress: string;
+  note?: string | null;
+}
+
+export interface ContactUpdateInput {
+  expectedVersion: number;
+  displayName?: string;
+  emailAddress?: string;
+  note?: string | null;
+}
+
 export interface ActionLinkCandidate {
   url: string;
   label?: string;

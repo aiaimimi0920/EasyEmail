@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /workspace
 
 COPY service/base/package.json service/base/package-lock.json ./service/base/
@@ -8,7 +8,7 @@ RUN npm ci
 COPY service/base ./
 RUN npm run build   && npm prune --omit=dev
 
-FROM node:20-bookworm-slim AS runtime
+FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production \

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "EasyEmail Local Server HTTP API",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Authoritative HTTP contract for service/base. Any HTTP-capable program may call this API directly; a published client SDK is not required."
   },
   "servers": [
@@ -182,6 +182,80 @@
         "responses": {
           "200": { "$ref": "#/components/responses/JsonResponse" },
           "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/mail/contacts": {
+      "get": {
+        "operationId": "listContacts",
+        "summary": "List persistent contacts with stable keyset pagination",
+        "parameters": [
+          { "$ref": "#/components/parameters/ContactLimit" },
+          { "$ref": "#/components/parameters/ContactCursor" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ContactsResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "post": {
+        "operationId": "createContact",
+        "summary": "Create or update a contact by normalized email address",
+        "requestBody": { "$ref": "#/components/requestBodies/ContactCreateRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ContactResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/contacts/{contactId}": {
+      "get": {
+        "operationId": "getContact",
+        "summary": "Read one persistent contact",
+        "parameters": [
+          { "$ref": "#/components/parameters/ContactId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ContactResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "patch": {
+        "operationId": "updateContact",
+        "summary": "Update a contact using version compare-and-swap",
+        "parameters": [
+          { "$ref": "#/components/parameters/ContactId" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/ContactUpdateRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ContactResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteContact",
+        "summary": "Hard-delete a contact using version compare-and-swap",
+        "parameters": [
+          { "$ref": "#/components/parameters/ContactId" },
+          { "$ref": "#/components/parameters/ExpectedVersion" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/DeleteContactResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
         }
       }
     },
@@ -436,6 +510,29 @@
         "required": true,
         "schema": { "type": "string" }
       },
+      "ContactId": {
+        "name": "contactId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "ContactLimit": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
+      },
+      "ContactCursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "Opaque keyset cursor returned by the previous page.",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "ExpectedVersion": {
+        "name": "expectedVersion",
+        "in": "query",
+        "required": true,
+        "schema": { "type": "integer", "minimum": 1 }
+      },
       "ProviderTypeKeyQuery": {
         "name": "providerTypeKey",
         "in": "query",
@@ -466,6 +563,22 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/ApplyCredentialSetsRequest" }
+          }
+        }
+      },
+      "ContactCreateRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ContactCreateInput" }
+          }
+        }
+      },
+      "ContactUpdateRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ContactUpdateInput" }
           }
         }
       },
@@ -543,6 +656,30 @@
           }
         }
       },
+      "ContactsResponse": {
+        "description": "Stable page of persistent contacts",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ContactsResponse" }
+          }
+        }
+      },
+      "ContactResponse": {
+        "description": "One persistent contact",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ContactResponse" }
+          }
+        }
+      },
+      "DeleteContactResponse": {
+        "description": "Deleted contact identity",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/DeleteContactResponse" }
+          }
+        }
+      },
       "OpenMailboxResponse": {
         "description": "Opened or created mailbox",
         "content": {
@@ -616,7 +753,23 @@
         }
       },
       "NotFound": {
-        "description": "Requested mailbox session was not found",
+        "description": "Requested resource was not found",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Unique or version compare-and-swap conflict",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "PersistenceUnavailable": {
+        "description": "The required persistent relational capability is disabled or unavailable",
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/Error" }
@@ -646,6 +799,79 @@
         "required": ["snapshot"],
         "properties": {
           "snapshot": { "type": "object", "additionalProperties": true }
+        },
+        "additionalProperties": false
+      },
+      "Contact": {
+        "type": "object",
+        "required": ["id", "displayName", "emailAddress", "version", "createdAt", "updatedAt"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "displayName": { "type": "string" },
+          "emailAddress": { "type": "string", "format": "email" },
+          "note": { "type": "string" },
+          "version": { "type": "integer", "minimum": 1 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      },
+      "ContactCreateInput": {
+        "type": "object",
+        "required": ["emailAddress"],
+        "properties": {
+          "displayName": { "type": "string" },
+          "emailAddress": { "type": "string", "minLength": 3 },
+          "note": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      },
+      "ContactUpdateInput": {
+        "type": "object",
+        "required": ["expectedVersion"],
+        "properties": {
+          "expectedVersion": { "type": "integer", "minimum": 1 },
+          "displayName": { "type": "string" },
+          "emailAddress": { "type": "string", "minLength": 3 },
+          "note": { "type": ["string", "null"] }
+        },
+        "anyOf": [
+          { "required": ["displayName"] },
+          { "required": ["emailAddress"] },
+          { "required": ["note"] }
+        ],
+        "additionalProperties": false
+      },
+      "ContactsResponse": {
+        "type": "object",
+        "required": ["contacts"],
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Contact" }
+          },
+          "nextCursor": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "ContactResponse": {
+        "type": "object",
+        "required": ["contact"],
+        "properties": {
+          "contact": { "$ref": "#/components/schemas/Contact" }
+        },
+        "additionalProperties": false
+      },
+      "DeleteContactResponse": {
+        "type": "object",
+        "required": ["deleted"],
+        "properties": {
+          "deleted": {
+            "type": "object",
+            "required": ["id"],
+            "properties": { "id": { "type": "string" } },
+            "additionalProperties": false
+          }
         },
         "additionalProperties": false
       },

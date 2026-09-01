@@ -1,6 +1,6 @@
 # EasyEmail Desktop 业务核心迁移与产品化开发计划
 
-Status: **execution in progress; M0 and M1 complete, M2 is next**
+Status: **execution in progress; M0 and M1 complete, M2 contact slice implemented**
 Created: **2026-09-01**  
 Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
 
@@ -45,8 +45,21 @@ Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
   `temp_upgrade_mailbox`, which the map owns in M7A. Global account, aggregate-message, and recent-
   verification loads remain assigned to later milestones and are outside this audit. The legacy
   Rust repository remains present and unchanged as the M8 importer source.
-- **Next:** begin M2 with the persistence capability/schema decision and the contact,
-  taxonomy/folder/label, and newsletter CRUD contract inventory.
+- **M2 contact slice (2026-09-01):** `service/base` now owns contact normalization,
+  deterministic ordering, opaque keyset pagination, unique-email upsert, version/CAS update and
+  delete semantics. A separate native SQLite relational database uses ordered checksummed
+  migrations, a durable migration ledger, pre-migration backup, fail-closed schema checks and an
+  explicit validated restore operation. Contact list/get/create/update/delete resources are
+  covered by typed HTTP contracts, OpenAPI, the TypeScript client and the bundled desktop client;
+  React no longer calls the `contact_*` Tauri business commands. The old Rust repository remains
+  frozen as the M8 import source.
+- **M2 contact validation:** 199 `service/base` tests, 113 frontend unit/contract tests, 234
+  desktop Rust tests and 87 repository Python tests passed. The complete desktop `verify` pipeline
+  also proved the production frontend build, Rust fmt/clippy/check, a self-contained bundled core,
+  authenticated contact persistence, unauthenticated 401 and fake-provider mailbox open.
+- **Next:** complete the M2 taxonomy/folder/label slice. Newsletter durable overrides and the
+  derived subscription view must respect the M3/M4 account/message ownership boundary rather than
+  fabricating subscription data before those sources exist.
 
 本计划定义将已导入 `apps/desktop` 的 EasyEmailAM 从“React UI +
 过渡期 Rust 业务后端”收敛为“React UI + 随桌面程序启动的
@@ -256,6 +269,12 @@ HTTP 资源和 UI 切换模式。
 - CRUD 契约、并发更新、唯一冲突、排序/分页及重启读回；
 - 同一 UI fixture 的 old/new 语义对比；
 - 该三组功能的 React 运行时无 business `invoke` 调用。
+
+**当前进度（2026-09-01）**：联系人切片已按上述纵向顺序实现并通过完整 desktop
+打包运行时验证；schema v1 只包含联系人，不提前混入 taxonomy/newsletter。下一切片
+将以独立迁移版本增加 taxonomy/folder/label。Newsletter 列表所需的账户与聚合消息
+来源仍归 M3/M4，因此 M2 只在来源契约确定后实现可持久化的显式 override，并保留
+subscription 作为派生视图，不建立虚假双写数据源。
 
 ### M3 - 账户与凭据库基础
 
@@ -639,7 +658,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-all.ps1
 
 ## 10. 下一个可执行批次
 
-M0 与 M1 已通过；下一个开发批次是 **M2：扩展持久化与低风险 CRUD**。
+M0 与 M1 已通过；**M2 联系人切片已经实现，M2 整体仍在执行中**。
 
 建议精确交付顺序：
 
@@ -661,8 +680,13 @@ M0 与 M1 已通过；下一个开发批次是 **M2：扩展持久化与低风�
 
 M2 的首个精确批次：
 
-1. 核对当前 file/database persistence adapter 能力并冻结联系人、taxonomy 与
-   newsletter 的 schema/version/rollback 契约；
-2. 建立显式 CRUD、唯一冲突、排序/分页与删除语义的 HTTP/OpenAPI golden tests；
-3. 按 `contact_* -> mail_taxonomy_* -> newsletter_subscription_*` 的顺序迁移 UI，
-   每组都以重启读回和无 business `invoke` 为出口门禁。
+1. **已完成**：核对 persistence 能力，冻结原生 SQLite、独立关系库、版本化迁移
+   账本、迁移前备份和显式恢复契约；
+2. **已完成**：联系人 schema v1、显式 CRUD、唯一邮箱 upsert、CAS、稳定排序、
+   keyset 分页、HTTP/OpenAPI/TypeScript client 和重启读回测试；
+3. **已完成**：`contact_*` React 调用已迁移到 bundled HTTP，完整桌面打包 smoke
+   已证明联系人创建、持久化与鉴权边界；
+4. **下一批次**：以 schema v2 实现 `mail_taxonomy_*`，冻结 kind、parent、唯一约束、
+   删除策略和排序，并以重启读回及无 business `invoke` 为出口；
+5. **后续批次**：在 M3/M4 来源模型明确后实现 `newsletter_subscription_*` 的持久
+   override 与派生视图，不提前复制或伪造账户/消息所有权。

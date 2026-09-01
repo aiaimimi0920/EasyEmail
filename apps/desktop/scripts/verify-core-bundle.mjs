@@ -173,6 +173,44 @@ try {
   if (unauthorized.status !== 401) {
     throw new Error(`Expected unauthenticated catalog to return 401, got ${unauthorized.status}.`);
   }
+  const unauthorizedContacts = await fetch(`http://127.0.0.1:${port}/mail/contacts`);
+  await unauthorizedContacts.arrayBuffer();
+  if (unauthorizedContacts.status !== 401) {
+    throw new Error(`Expected unauthenticated contacts to return 401, got ${unauthorizedContacts.status}.`);
+  }
+  const contactCreate = await fetch(`http://127.0.0.1:${port}/mail/contacts`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      displayName: "Packaged core contact",
+      emailAddress: "packaged-core@example.test",
+    }),
+  });
+  if (!contactCreate.ok) {
+    throw new Error(`Authenticated packaged-core contact create failed with status ${contactCreate.status}.`);
+  }
+  const contactPayload = await contactCreate.json();
+  if (
+    contactPayload?.contact?.displayName !== "Packaged core contact"
+    || contactPayload?.contact?.emailAddress !== "packaged-core@example.test"
+    || contactPayload?.contact?.version !== 1
+  ) {
+    throw new Error("Authenticated packaged-core contact create returned an invalid canonical result.");
+  }
+  const contactsList = await fetch(`http://127.0.0.1:${port}/mail/contacts`, {
+    headers: { authorization: `Bearer ${apiToken}` },
+  });
+  const contactsPayload = await contactsList.json();
+  if (
+    !contactsList.ok
+    || contactsPayload?.contacts?.length !== 1
+    || contactsPayload.contacts[0]?.id !== contactPayload.contact.id
+  ) {
+    throw new Error("Authenticated packaged-core contact list did not read the created contact.");
+  }
   const mailboxRequest = {
     hostId: "easyemail-desktop-core-smoke",
     provisionMode: "reuse-only",
@@ -244,5 +282,5 @@ if (credentialLeakDetected) {
   throw new Error("Bundled core output leaked a smoke credential.");
 }
 console.log(
-  "Bundled EasyEmail core authenticated readiness, unauthenticated 401, and fake-provider mailbox open passed.",
+  "Bundled EasyEmail core authenticated readiness, contact persistence, unauthenticated 401, and fake-provider mailbox open passed.",
 );

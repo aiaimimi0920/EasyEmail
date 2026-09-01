@@ -1,5 +1,12 @@
 import type { CredentialSetDefinition } from "../shared/index.js";
 import type {
+  Contact,
+  ContactCreateInput,
+  ContactDeleteInput,
+  ContactListQuery,
+  ContactUpdateInput,
+} from "../domain/contact.js";
+import type {
   AuthenticationLinkResult,
   HostBinding,
   HostBindingQueryFilters,
@@ -51,6 +58,7 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   queryMailboxSessions: "/mail/query/mailbox-sessions",
   queryObservedMessages: "/mail/query/observed-messages",
   persistenceStats: "/mail/query/stats",
+  contacts: "/mail/contacts",
   planMailbox: "/mail/mailboxes/plan",
   openMailbox: "/mail/mailboxes/open",
   refreshAnonymousMailboxes: "/mail/mailboxes/anonymous/refresh",
@@ -77,6 +85,9 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   },
   getObservedMessage(messageId: string): string {
     return `/mail/query/observed-messages/${encodeURIComponent(messageId)}`;
+  },
+  contact(contactId: string): string {
+    return `/mail/contacts/${encodeURIComponent(contactId)}`;
   },
 } as const;
 
@@ -131,6 +142,31 @@ export interface GetObservedMessageHttpResponse {
 
 export interface GetMailPersistenceStatsHttpResponse {
   stats: MailPersistenceStats;
+}
+
+export type ListContactsHttpRequest = ContactListQuery;
+export interface ListContactsHttpResponse {
+  contacts: Contact[];
+  nextCursor?: string;
+}
+
+export type CreateContactHttpRequest = ContactCreateInput;
+export interface CreateContactHttpResponse {
+  contact: Contact;
+}
+
+export interface GetContactHttpResponse {
+  contact: Contact;
+}
+
+export type UpdateContactHttpRequest = ContactUpdateInput;
+export interface UpdateContactHttpResponse {
+  contact: Contact;
+}
+
+export type DeleteContactHttpRequest = ContactDeleteInput;
+export interface DeleteContactHttpResponse {
+  deleted: { id: string };
 }
 
 export type PlanMailboxHttpRequest = VerificationMailboxRequest;

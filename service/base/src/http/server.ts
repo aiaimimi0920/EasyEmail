@@ -105,8 +105,17 @@ function parseQueryString(url: string): Record<string, string> {
   for (const part of queryText.split("&")) {
     if (!part) continue;
     const [rawKey, rawValue = ""] = part.split("=");
-    const key = decodeURIComponent(rawKey.replace(/\+/g, "%20"));
-    const value = decodeURIComponent(rawValue.replace(/\+/g, "%20"));
+    let key: string;
+    let value: string;
+    try {
+      key = decodeURIComponent(rawKey.replace(/\+/g, "%20"));
+      value = decodeURIComponent(rawValue.replace(/\+/g, "%20"));
+    } catch {
+      throw new EasyEmailError(
+        "INVALID_QUERY",
+        "Request query string contains invalid percent-encoding.",
+      );
+    }
     entries[key] = value;
   }
 
@@ -125,7 +134,6 @@ export function createEasyEmailHttpServer(
     const method = request.method ?? "GET";
     const url = request.url ?? "/";
     const path = url.split("?")[0] ?? "/";
-    const query = parseQueryString(url);
 
     if (!checkApiKey(apiKey, request, response)) {
       return;
@@ -134,6 +142,7 @@ export function createEasyEmailHttpServer(
     const readBodyJson = <T>() => readJsonBody<T>(request);
 
     try {
+      const query = parseQueryString(url);
       const result = await handleAdminRoute({
         method,
         path,
@@ -168,8 +177,31 @@ export function createEasyEmailHttpServer(
         return;
       }
 
+      if (error instanceof EasyEmailError && ["INVALID_CONTACT", "INVALID_CONTACT_CURSOR"].includes(error.code)) {
+        writeEasyEmailError(response, 400, error);
+        return;
+      }
+
       if (error instanceof EasyEmailError && error.code === "MAILBOX_SESSION_NOT_FOUND") {
         writeEasyEmailError(response, 404, error);
+        return;
+      }
+
+      if (error instanceof EasyEmailError && error.code === "CONTACT_NOT_FOUND") {
+        writeEasyEmailError(response, 404, error);
+        return;
+      }
+
+      if (
+        error instanceof EasyEmailError
+        && ["CONTACT_VERSION_CONFLICT", "CONTACT_EMAIL_CONFLICT"].includes(error.code)
+      ) {
+        writeEasyEmailError(response, 409, error);
+        return;
+      }
+
+      if (error instanceof EasyEmailError && error.code === "CONTACTS_PERSISTENCE_UNAVAILABLE") {
+        writeEasyEmailError(response, 503, error);
         return;
       }
 

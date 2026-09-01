@@ -272,6 +272,29 @@ curl -X POST http://127.0.0.1:8080/mail/messages/observe \
 | `GET` | `/mail/query/observed-messages` | 查询 observed messages 列表 |
 | `GET` | `/mail/query/observed-messages/{messageId}` | 查询单条 observed message |
 | `GET` | `/mail/query/stats` | 查询 persistence stats |
+| `GET` | `/mail/contacts` | 按稳定顺序分页列出联系人 |
+| `POST` | `/mail/contacts` | 创建联系人；相同规范化邮箱会更新原联系人 |
+| `GET` | `/mail/contacts/{contactId}` | 读取单个联系人 |
+| `PATCH` | `/mail/contacts/{contactId}` | 使用 `expectedVersion` 更新联系人 |
+| `DELETE` | `/mail/contacts/{contactId}?expectedVersion=N` | 使用版本 CAS 硬删除联系人 |
+
+### 联系人资源
+
+联系人由独立的 `easy-email-relational.sqlite3` 持久化，字段使用 HTTP 的
+camelCase 约定：`id`、`displayName`、`emailAddress`、可选 `note`、`version`、
+`createdAt` 和 `updatedAt`。
+
+- `GET /mail/contacts?limit=50&cursor=<opaque>` 返回
+  `{ "contacts": [...], "nextCursor": "..." }`。`limit` 为 1 到 100；
+  `nextCursor` 只应原样传回，不应解析或持久修改。
+- `POST /mail/contacts` 请求为
+  `{ "displayName": "Ada", "emailAddress": "ada@example.com", "note": null }`。
+  邮箱会去除首尾空白并转为小写；`Name <mail@example.com>` 也会提取邮箱。
+- `PATCH /mail/contacts/{contactId}` 请求必须带正整数 `expectedVersion`，并至少
+  带一个 `displayName`、`emailAddress` 或 `note` 字段。
+- `DELETE` 是硬删除且必须带 `expectedVersion`。它不会删除或修改邮件。
+- 过期版本返回 409 `CONTACT_VERSION_CONFLICT`，重复邮箱更新冲突返回 409
+  `CONTACT_EMAIL_CONFLICT`，不存在返回 404 `CONTACT_NOT_FOUND`。
 
 ### 重点说明：原样邮件内容访问
 
@@ -343,6 +366,12 @@ curl -X POST http://127.0.0.1:8080/mail/messages/observe \
   - `{ "message": ... }`
 - `GET /mail/query/stats`
   - `{ "stats": ... }`
+- `GET /mail/contacts`
+  - `{ "contacts": [...], "nextCursor": "..." }`
+- `POST /mail/contacts`、`GET/PATCH /mail/contacts/{contactId}`
+  - `{ "contact": ... }`
+- `DELETE /mail/contacts/{contactId}`
+  - `{ "deleted": { "id": "..." } }`
 - `POST /mail/maintenance/run`
   - `{ "maintenance": ... }`
 

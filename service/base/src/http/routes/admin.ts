@@ -50,6 +50,32 @@ function parseLimitQuery(value: string | undefined): number | undefined {
   return parsed;
 }
 
+function parseExpectedVersion(value: string | undefined): number {
+  const parsed = value === undefined ? Number.NaN : Number.parseInt(value, 10);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || String(parsed) !== value) {
+    throw new EasyEmailError("INVALID_QUERY", "expectedVersion must be a positive integer.");
+  }
+  return parsed;
+}
+
+function parseContactLimit(value: string | undefined): number | undefined {
+  if (value === undefined || value === "") return undefined;
+  if (!/^[1-9]\d*$/.test(value)) {
+    throw new EasyEmailError("INVALID_QUERY", "Contact limit must be a positive integer.");
+  }
+  return Number(value);
+}
+
+function extractContactId(path: string): string | undefined {
+  const matched = path.match(/^\/mail\/contacts\/([^/]+)$/);
+  if (!matched?.[1]) return undefined;
+  try {
+    return decodeURIComponent(matched[1]);
+  } catch {
+    throw new EasyEmailError("INVALID_CONTACT", "Contact id path encoding is invalid.");
+  }
+}
+
 function parseProviderInstanceFilters(query: Record<string, string>): ProviderInstanceQueryFilters {
   const filters: ProviderInstanceQueryFilters = {};
   if (query.providerTypeKey) {
@@ -153,6 +179,21 @@ export async function handleAdminRoute(context: AdminRouteContext): Promise<unkn
     return handler.applyCredentialSets(await readJsonBody());
   }
 
+  if (method === "POST" && path === EASY_EMAIL_HTTP_ROUTES.contacts) {
+    return handler.createContact(await readJsonBody());
+  }
+
+  const contactId = extractContactId(path);
+  if (method === "PATCH" && contactId) {
+    return handler.updateContact(contactId, await readJsonBody());
+  }
+
+  if (method === "DELETE" && contactId) {
+    return handler.deleteContact(contactId, {
+      expectedVersion: parseExpectedVersion(query.expectedVersion),
+    });
+  }
+
   if (method === "GET" && path === EASY_EMAIL_HTTP_ROUTES.probeAllProviderInstances) {
     return handler.probeAllProviderInstances();
   }
@@ -164,6 +205,17 @@ export async function handleAdminRoute(context: AdminRouteContext): Promise<unkn
 
   if (method === "GET" && path === EASY_EMAIL_HTTP_ROUTES.queryProviderInstances) {
     return handler.queryProviderInstances(parseProviderInstanceFilters(query));
+  }
+
+  if (method === "GET" && path === EASY_EMAIL_HTTP_ROUTES.contacts) {
+    return handler.listContacts({
+      limit: parseContactLimit(query.limit),
+      cursor: query.cursor || undefined,
+    });
+  }
+
+  if (method === "GET" && contactId) {
+    return handler.getContact(contactId);
   }
 
   if (method === "GET" && path === EASY_EMAIL_HTTP_ROUTES.queryHostBindings) {

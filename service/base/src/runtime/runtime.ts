@@ -48,12 +48,19 @@ import type {
 } from "../domain/models.js";
 import type { EasyEmailService } from "../service/easy-email-service.js";
 import type { MailRegistrySeed } from "../domain/registry.js";
+import type { ContactRepository } from "../domain/contact.js";
+import {
+  resolveRelationalDatabasePath,
+  SqliteRelationalDatabase,
+} from "../persistence/relational/database.js";
+import { createContactService } from "../service/contacts.js";
 
 export interface EasyEmailServiceRuntimeOptions extends EasyEmailBootstrapOptions {
   config?: EasyEmailServiceRuntimeConfig;
   stateStore?: MailStateStore;
   queryRepository?: MailStateQueryRepository;
   databaseState?: MailStateDatabase;
+  contactRepository?: ContactRepository;
 }
 
 export interface StartedEasyEmailServiceRuntime {
@@ -64,6 +71,7 @@ export interface StartedEasyEmailServiceRuntime {
   maintenanceLoop?: MailMaintenanceLoop;
   persistenceLoop?: MailStatePersistenceLoop;
   queryRepository?: MailStateQueryRepository;
+  contactRepository?: ContactRepository;
   close(): Promise<void>;
 }
 
@@ -196,32 +204,75 @@ export async function startEasyEmailServiceRuntime(
   configureMail2925ProviderInstance(service, config);
   await configureCloudflareTempEmailProviderInstance(service, config);
   service.resetOperationalState(new Date());
- 
-  const handler = new EasyEmailHttpHandler(service, queryRepository);
-  const server = await createEasyEmailHttpServer(handler, {
-    hostname: config.hostname,
-    port: config.port,
-    apiKey: config.apiKey,
-  });
 
-  const maintenanceLoop = config.maintenance.enabled
-    ? startMailMaintenanceLoop(service, {
-        intervalMs: config.maintenance.intervalMs,
-        keepRecentCount: config.maintenance.keepRecentCount,
-        keepRecentSessionCount: config.maintenance.keepRecentSessionCount,
-        activeProbeEnabled: config.maintenance.activeProbeEnabled,
-        activeProbeIntervalMs: config.maintenance.activeProbeIntervalMs,
+  const relationalDatabase = !options.contactRepository && config.persistence.enabled
+    ? new SqliteRelationalDatabase({
+        databasePath: resolveRelationalDatabasePath(config.persistence.databasePath),
       })
     : undefined;
+  const contactRepository = options.contactRepository ?? relationalDatabase;
+  let handler: EasyEmailHttpHandler | undefined;
+  let server: StartedEasyEmailHttpServer | undefined;
+  let maintenanceLoop: MailMaintenanceLoop | undefined;
+  let persistenceLoop: MailStatePersistenceLoop | undefined;
+  try {
+    handler = new EasyEmailHttpHandler(
+      service,
+      queryRepository,
+      contactRepository ? createContactService(contactRepository) : undefined,
+    );
+    server = await createEasyEmailHttpServer(handler, {
+      hostname: config.hostname,
+      port: config.port,
+      apiKey: config.apiKey,
+    });
 
-  const persistenceLoop = stateStore
-    ? startMailStatePersistenceLoop(service, stateStore, {
-        intervalMs: config.persistence.intervalMs,
-      })
-    : undefined;
+    maintenanceLoop = config.maintenance.enabled
+      ? startMailMaintenanceLoop(service, {
+          intervalMs: config.maintenance.intervalMs,
+          keepRecentCount: config.maintenance.keepRecentCount,
+          keepRecentSessionCount: config.maintenance.keepRecentSessionCount,
+          activeProbeEnabled: config.maintenance.activeProbeEnabled,
+          activeProbeIntervalMs: config.maintenance.activeProbeIntervalMs,
+        })
+      : undefined;
 
-  if (persistenceLoop) {
-    await persistenceLoop.flush();
+    persistenceLoop = stateStore
+      ? startMailStatePersistenceLoop(service, stateStore, {
+          intervalMs: config.persistence.intervalMs,
+        })
+      : undefined;
+
+    if (persistenceLoop) {
+      await persistenceLoop.flush();
+    }
+  } catch (error) {
+    maintenanceLoop?.stop();
+    if (persistenceLoop) {
+      try {
+        await persistenceLoop.stop();
+      } catch {
+        // Preserve the original startup failure after stopping the interval.
+      }
+    }
+    if (server) {
+      try {
+        await server.close();
+      } catch {
+        // Preserve the original startup failure after closing the listener.
+      }
+    }
+    try {
+      relationalDatabase?.close();
+    } catch {
+      // Preserve the original startup failure after releasing persistence.
+    }
+    throw error;
+  }
+
+  if (!handler || !server) {
+    relationalDatabase?.close();
+    throw new Error("EasyEmail runtime startup completed without an HTTP handler or server.");
   }
 
   return {
@@ -232,12 +283,20 @@ export async function startEasyEmailServiceRuntime(
     maintenanceLoop,
     persistenceLoop,
     queryRepository,
+    contactRepository,
     async close() {
       maintenanceLoop?.stop();
-      if (persistenceLoop) {
-        await persistenceLoop.stop();
+      try {
+        if (persistenceLoop) {
+          await persistenceLoop.stop();
+        }
+      } finally {
+        try {
+          await server.close();
+        } finally {
+          relationalDatabase?.close();
+        }
       }
-      await server.close();
     },
   };
 }

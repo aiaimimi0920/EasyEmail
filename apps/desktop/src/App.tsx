@@ -144,7 +144,7 @@ import "./App.css";
 
 const bundledCoreClient = createBundledCoreClient(invoke);
 const avatarSettingsClient = createAvatarSettingsClient(invoke);
-const contactClient = createContactClient(invoke);
+const contactClient = createContactClient(bundledCoreClient);
 const mailTaxonomyClient = createMailTaxonomyClient(invoke);
 const newsletterClient = createNewsletterClient(invoke);
 const platformAccountClient = createPlatformAccountClient(invoke);

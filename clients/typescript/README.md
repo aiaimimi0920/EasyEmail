@@ -25,6 +25,15 @@ const mailbox = await client.openMailbox({
 });
 
 const code = await client.readVerificationCode(mailbox.session.id);
+
+const contact = await client.createContact({
+  displayName: "Ada Lovelace",
+  emailAddress: "ada@example.com",
+});
+await client.updateContact(contact.id, {
+  expectedVersion: contact.version,
+  note: "Project contact",
+});
 ```
 
 The API key is a runtime input. Do not write it into source files, package

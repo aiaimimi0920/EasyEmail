@@ -1,5 +1,10 @@
 import type {
   AuthenticationLinkResult,
+  Contact,
+  ContactCreateInput,
+  ContactListQuery,
+  ContactListResult,
+  ContactUpdateInput,
   EasyEmailCatalog,
   EasyEmailSnapshot,
   MailboxOutcomeReport,
@@ -27,6 +32,7 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   catalog: "/mail/catalog",
   snapshot: "/mail/snapshot",
   queryObservedMessages: "/mail/query/observed-messages",
+  contacts: "/mail/contacts",
   planMailbox: "/mail/mailboxes/plan",
   openMailbox: "/mail/mailboxes/open",
   sendMailboxMessage: "/mail/mailboxes/send",
@@ -45,6 +51,9 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   getObservedMessage(messageId: string): string {
     return `/mail/query/observed-messages/${encodeURIComponent(messageId)}`;
   },
+  contact(contactId: string): string {
+    return `/mail/contacts/${encodeURIComponent(contactId)}`;
+  },
 } as const;
 
 export interface FetchJsonHttpClientOptions {
@@ -61,6 +70,8 @@ export interface QueryParameters {
 export interface JsonHttpClient {
   get<TResponse>(path: string, query?: QueryParameters): Promise<TResponse>;
   post<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse>;
+  patch<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse>;
+  delete<TResponse>(path: string, query?: QueryParameters): Promise<TResponse>;
 }
 
 export class EasyEmailHttpError extends Error {
@@ -141,9 +152,11 @@ async function decodeJsonResponse<TResponse>(response: Response): Promise<TRespo
     const message = isRecord(payload) && typeof payload.message === "string"
       ? payload.message
       : text || `EasyEmail HTTP request failed with status ${response.status}.`;
-    const code = isRecord(payload) && typeof payload.error === "string"
-      ? payload.error
-      : undefined;
+    const code = isRecord(payload) && typeof payload.code === "string"
+      ? payload.code
+      : isRecord(payload) && typeof payload.error === "string"
+        ? payload.error
+        : undefined;
     throw new EasyEmailHttpError(message, response.status, code);
   }
 
@@ -165,7 +178,7 @@ export function createFetchJsonHttpClient(options: FetchJsonHttpClientOptions): 
   async function request<TResponse>(
     path: string,
     init: {
-      method: "GET" | "POST";
+      method: "GET" | "POST" | "PATCH" | "DELETE";
       headers?: Record<string, string>;
       body?: string;
     },
@@ -207,12 +220,29 @@ export function createFetchJsonHttpClient(options: FetchJsonHttpClientOptions): 
         body: JSON.stringify(body ?? {}),
       });
     },
+    patch<TRequest, TResponse>(path: string, body: TRequest) {
+      return request<TResponse>(path, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body ?? {}),
+      });
+    },
+    delete<TResponse>(path: string, query?: QueryParameters) {
+      return request<TResponse>(buildPath(path, query), { method: "DELETE" });
+    },
   };
 }
 
 export interface EasyEmailClientApi {
   getCatalog(): Promise<EasyEmailCatalog>;
   getSnapshot(): Promise<EasyEmailSnapshot>;
+  listContacts(query?: ContactListQuery): Promise<ContactListResult>;
+  getContact(contactId: string): Promise<Contact>;
+  createContact(input: ContactCreateInput): Promise<Contact>;
+  updateContact(contactId: string, input: ContactUpdateInput): Promise<Contact>;
+  deleteContact(contactId: string, expectedVersion: number): Promise<{ id: string }>;
   planMailbox(request: VerificationMailboxRequest): Promise<MailboxPlanResult>;
   openMailbox(request: VerificationMailboxRequest): Promise<VerificationMailboxOpenResult>;
   sendMailboxMessage(request: MailboxSendRequest): Promise<MailboxSendResult>;
@@ -245,6 +275,44 @@ export class EasyEmailClient implements EasyEmailClientApi {
   public async getSnapshot(): Promise<EasyEmailSnapshot> {
     const response = await this.httpClient.get<{ snapshot: EasyEmailSnapshot }>(EASY_EMAIL_HTTP_ROUTES.snapshot);
     return response.snapshot;
+  }
+
+  public async listContacts(query: ContactListQuery = {}): Promise<ContactListResult> {
+    return this.httpClient.get<ContactListResult>(EASY_EMAIL_HTTP_ROUTES.contacts, {
+      limit: query.limit,
+      cursor: query.cursor,
+    });
+  }
+
+  public async getContact(contactId: string): Promise<Contact> {
+    const response = await this.httpClient.get<{ contact: Contact }>(
+      EASY_EMAIL_HTTP_ROUTES.contact(contactId),
+    );
+    return response.contact;
+  }
+
+  public async createContact(input: ContactCreateInput): Promise<Contact> {
+    const response = await this.httpClient.post<ContactCreateInput, { contact: Contact }>(
+      EASY_EMAIL_HTTP_ROUTES.contacts,
+      input,
+    );
+    return response.contact;
+  }
+
+  public async updateContact(contactId: string, input: ContactUpdateInput): Promise<Contact> {
+    const response = await this.httpClient.patch<ContactUpdateInput, { contact: Contact }>(
+      EASY_EMAIL_HTTP_ROUTES.contact(contactId),
+      input,
+    );
+    return response.contact;
+  }
+
+  public async deleteContact(contactId: string, expectedVersion: number): Promise<{ id: string }> {
+    const response = await this.httpClient.delete<{ deleted: { id: string } }>(
+      EASY_EMAIL_HTTP_ROUTES.contact(contactId),
+      { expectedVersion },
+    );
+    return response.deleted;
   }
 
   public async planMailbox(request: VerificationMailboxRequest): Promise<MailboxPlanResult> {

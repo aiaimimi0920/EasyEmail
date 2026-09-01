@@ -10,6 +10,15 @@ const serviceRoot = join(repositoryRoot, "service", "base");
 const outputRoot = join(desktopRoot, "src-tauri", "resources", "core");
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
+const [nodeMajor = 0, nodeMinor = 0] = process.versions.node
+  .split(".")
+  .map((part) => Number.parseInt(part, 10));
+if (nodeMajor < 22 || (nodeMajor === 22 && nodeMinor < 13)) {
+  throw new Error(
+    `Bundled EasyEmail core requires Node.js 22.13 or newer; current runtime is ${process.version}.`,
+  );
+}
+
 function requirePath(path, description) {
   if (!existsSync(path)) {
     throw new Error(`${description} is missing: ${path}`);
