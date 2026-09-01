@@ -3,6 +3,7 @@ import type { ProviderInstance } from "../../src/domain/models.js";
 import { CloudflareTempEmailConnectorAdapter } from "../../src/providers/cloudflare_temp_email/connector/index.js";
 import {
   CloudflareTempEmailCreateClient,
+  encodeCloudflareTempMailboxRef,
   probeCloudflareTempEmailInstance,
 } from "../../src/providers/cloudflare_temp_email/connector/client.js";
 
@@ -72,7 +73,182 @@ describe("cloudflare temp email connector", () => {
     );
   });
 
-  it("captures randomSubdomainDomains metadata during runtime probe", async () => {
+  it("lets the provider select its default after an auto-selected domain is rejected", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("Invalid domain", { status: 400 }))
+      .mockResolvedValueOnce(new Response('{"address":"demo@live.example.com","jwt":"jwt-demo"}', { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new CloudflareTempEmailCreateClient({
+      baseUrl: "https://temp.example.test",
+      domains: ["stale.example.com"],
+      randomSubdomainDomains: [],
+      timeoutSeconds: 30,
+    });
+
+    await expect(client.newAddress("demo")).resolves.toEqual({
+      address: "demo@live.example.com",
+      jwt: "jwt-demo",
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://temp.example.test/api/new_address",
+      expect.objectContaining({ body: JSON.stringify({ name: "demo", domain: "stale.example.com" }) }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://temp.example.test/api/new_address",
+      expect.objectContaining({ body: JSON.stringify({ name: "demo" }) }),
+    );
+  });
+
+  it("keeps random-subdomain mode when falling back from a rejected auto-selected root", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("Invalid domain", { status: 400 }))
+      .mockResolvedValueOnce(new Response('{"address":"demo@random.live.example.com","jwt":"jwt-demo"}', { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new CloudflareTempEmailCreateClient({
+      baseUrl: "https://temp.example.test",
+      domains: [],
+      randomSubdomainDomains: ["stale.example.com"],
+      timeoutSeconds: 30,
+    });
+
+    await expect(client.newAddress("demo", { requestRandomSubdomain: true })).resolves.toEqual({
+      address: "demo@random.live.example.com",
+      jwt: "jwt-demo",
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://temp.example.test/api/new_address",
+      expect.objectContaining({
+        body: JSON.stringify({
+          name: "demo",
+          domain: "stale.example.com",
+          enableRandomSubdomain: true,
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://temp.example.test/api/new_address",
+      expect.objectContaining({
+        body: JSON.stringify({ name: "demo", enableRandomSubdomain: true }),
+      }),
+    );
+  });
+
+  it("does not retry unrelated 400 failures after auto-selecting a domain", async () => {
+    const fetchMock = vi.fn(async () => new Response("Human verification check failed", { status: 400 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new CloudflareTempEmailCreateClient({
+      baseUrl: "https://temp.example.test",
+      domains: ["pool.example.com"],
+      randomSubdomainDomains: [],
+      timeoutSeconds: 30,
+    });
+
+    await expect(client.newAddress("demo")).rejects.toThrow(
+      "Cloudflare Temp Email newAddress failed with status 400: Human verification check failed",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("deletes a mailbox through its bearer credential", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response('{"success":true}', { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new CloudflareTempEmailCreateClient({
+      baseUrl: "https://temp.example.test",
+      customAuth: "custom-auth",
+      domains: ["pool.example.com"],
+      randomSubdomainDomains: [],
+      timeoutSeconds: 30,
+    });
+
+    await expect(client.deleteMailbox({
+      address: "demo@pool.example.com",
+      jwt: "jwt-demo",
+    })).resolves.toEqual({
+      released: true,
+      detail: "deleted",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://temp.example.test/api/delete_address",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          Authorization: "Bearer jwt-demo",
+          "x-custom-auth": "custom-auth",
+        }),
+        body: undefined,
+      }),
+    );
+  });
+
+  it("rejects a failed mailbox deletion without reporting a release", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      return new Response("delete disabled", { status: 403 });
+    }));
+    const client = new CloudflareTempEmailCreateClient({
+      baseUrl: "https://temp.example.test",
+      domains: [],
+      randomSubdomainDomains: [],
+      timeoutSeconds: 30,
+    });
+
+    await expect(client.deleteMailbox({
+      address: "demo@pool.example.com",
+      jwt: "jwt-demo",
+    })).rejects.toThrow("Cloudflare Temp Email deleteAddress failed with status 403");
+  });
+
+  it("releases a cloudflare mailbox session through the provider adapter", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response('{"success":true}', { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const instance = createCloudflareInstance();
+    const adapter = new CloudflareTempEmailConnectorAdapter();
+    const result = await adapter.releaseMailboxSession?.({
+      session: {
+        id: "mailbox-release-1",
+        hostId: "release-host",
+        providerTypeKey: "cloudflare_temp_email",
+        providerInstanceId: instance.id,
+        emailAddress: "demo@pool.example.com",
+        mailboxRef: encodeCloudflareTempMailboxRef(instance.id, {
+          address: "demo@pool.example.com",
+          jwt: "jwt-release",
+        }),
+        status: "open",
+        createdAt: "2026-04-30T00:00:00.000Z",
+        metadata: {},
+      },
+      instance,
+      credentialSets: [],
+      now: new Date("2026-04-30T00:10:00.000Z"),
+      reason: "test-cleanup",
+    });
+
+    expect(result).toEqual({ released: true, detail: "deleted" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://temp.example.test/api/delete_address",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          Authorization: "Bearer jwt-release",
+        }),
+      }),
+    );
+  });
+
+  it("uses provider defaultDomains for mailbox creation metadata during runtime probe", async () => {
     const fetchMock = vi.fn(async (input: string) => {
       if (input.endsWith("/health_check")) {
         return new Response("ok", { status: 200 });
@@ -80,6 +256,7 @@ describe("cloudflare temp email connector", () => {
 
       return new Response(JSON.stringify({
         domains: ["pool.example.com", "mail.pool.example.com"],
+        defaultDomains: ["mail.pool.example.com"],
         randomSubdomainDomains: ["root.example.com", "team.example.com"],
       }), { status: 200 });
     });
@@ -89,10 +266,14 @@ describe("cloudflare temp email connector", () => {
 
     expect(probe.ok).toBe(true);
     expect(probe.metadata).toEqual({
-      domains: "pool.example.com,mail.pool.example.com",
-      domainsJson: JSON.stringify(["pool.example.com", "mail.pool.example.com"]),
+      domains: "mail.pool.example.com",
+      domainsJson: JSON.stringify(["mail.pool.example.com"]),
+      providerDefaultDomains: "mail.pool.example.com",
+      providerDefaultDomainsJson: JSON.stringify(["mail.pool.example.com"]),
       randomSubdomainDomains: "root.example.com,team.example.com",
       randomSubdomainDomainsJson: JSON.stringify(["root.example.com", "team.example.com"]),
+      providerRandomSubdomainDomains: "root.example.com,team.example.com",
+      providerRandomSubdomainDomainsJson: JSON.stringify(["root.example.com", "team.example.com"]),
     });
   });
 
@@ -248,6 +429,44 @@ describe("cloudflare temp email connector", () => {
       textBody: "Use code QWERTY to continue.",
     });
     expect(observed?.htmlBody).toContain("QWERTY");
+  });
+
+  it("recovers the subject from raw mail when the list response omits it", async () => {
+    const fetchMock = vi.fn(async (input: string) => {
+      if (input.endsWith("/api/mails?limit=20&offset=0")) {
+        return new Response('{"results":[{"id":13,"source":"sender@example.com"}]}', { status: 200 });
+      }
+      if (input.endsWith("/api/mail/13")) {
+        return new Response(JSON.stringify({
+          raw: [
+            "Date: Tue, 28 Apr 2026 01:11:01 +0000",
+            "Subject: EasyEmail lifecycle marker",
+            "Content-Type: text/plain; charset=\"UTF-8\"",
+            "",
+            "Your verification code is 445566.",
+          ].join("\r\n"),
+        }), { status: 200 });
+      }
+      throw new Error(`Unexpected request: ${input}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new CloudflareTempEmailCreateClient({
+      baseUrl: "https://temp.example.test",
+      domains: ["pool.example.com"],
+      randomSubdomainDomains: [],
+      timeoutSeconds: 30,
+    });
+
+    await expect(client.tryReadLatestCode(
+      "session-raw-subject",
+      { address: "demo@pool.example.com", jwt: "jwt-demo" },
+      "cloudflare_temp_email_shared_default",
+    )).resolves.toMatchObject({
+      subject: "EasyEmail lifecycle marker",
+      textBody: "Your verification code is 445566.",
+      extractedCode: "445566",
+    });
   });
 
   it("falls back to parsed_mail content when raw mail bodies do not expose the verification code", async () => {

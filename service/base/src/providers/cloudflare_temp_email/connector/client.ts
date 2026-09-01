@@ -1,4 +1,4 @@
-﻿declare const fetch: (
+declare const fetch: (
   input: string,
   init?: {
     method?: string;
@@ -37,6 +37,10 @@ export interface CloudflareTempEmailSendResult {
 interface MailCreateAddressResponse {
   address?: string;
   jwt?: string;
+}
+
+interface MailDeleteAddressResponse {
+  success?: boolean;
 }
 
 interface MailCreateMailItem {
@@ -128,6 +132,14 @@ function parseDomainListFromMetadata(
 }
 
 function parseDomainList(instance: ProviderInstance): string[] {
+  const providerDefaults = parseDomainListFromMetadata(instance, {
+    jsonKey: "providerDefaultDomainsJson",
+    listKey: "providerDefaultDomains",
+  });
+  if (providerDefaults.length > 0) {
+    return providerDefaults;
+  }
+
   return parseDomainListFromMetadata(instance, {
     jsonKey: "domainsJson",
     listKey: "domains",
@@ -136,6 +148,14 @@ function parseDomainList(instance: ProviderInstance): string[] {
 }
 
 function parseRandomSubdomainDomainList(instance: ProviderInstance): string[] {
+  const providerDomains = parseDomainListFromMetadata(instance, {
+    jsonKey: "providerRandomSubdomainDomainsJson",
+    listKey: "providerRandomSubdomainDomains",
+  });
+  if (providerDomains.length > 0) {
+    return providerDomains;
+  }
+
   return parseDomainListFromMetadata(instance, {
     jsonKey: "randomSubdomainDomainsJson",
     listKey: "randomSubdomainDomains",
@@ -618,13 +638,25 @@ export class CloudflareTempEmailCreateClient {
   ): Promise<CloudflareTempMailboxCredentials> {
     const requestRandomSubdomain = options.requestRandomSubdomain === true;
     const resolvedDomain = this.selectDomain(options.requestedDomain, requestRandomSubdomain);
-    const response = await requestJson(this.config, "POST", "/api/new_address", {
+    const requestAddress = async (domain?: string) => await requestJson(this.config, "POST", "/api/new_address", {
       jsonBody: {
         name: name?.trim() || "",
-        ...(resolvedDomain ? { domain: resolvedDomain } : {}),
+        ...(domain ? { domain } : {}),
         ...(requestRandomSubdomain ? { enableRandomSubdomain: true } : {}),
       },
     });
+    let response = await requestAddress(resolvedDomain);
+    const initialFailureDetail = response.status === 400
+      ? extractErrorDetail(response.body, response.rawText)
+      : "";
+    if (
+      response.status === 400
+      && resolvedDomain
+      && !options.requestedDomain?.trim()
+      && /(?:invalid domain|无效的域名)/i.test(initialFailureDetail)
+    ) {
+      response = await requestAddress();
+    }
     if (response.status !== 200) {
       const detail = extractErrorDetail(response.body, response.rawText);
       throw new Error(`Cloudflare Temp Email newAddress failed with status ${response.status}${detail ? `: ${detail}` : "."}`);
@@ -638,6 +670,23 @@ export class CloudflareTempEmailCreateClient {
     }
 
     return { address, jwt };
+  }
+
+  public async deleteMailbox(
+    mailbox: CloudflareTempMailboxCredentials,
+  ): Promise<{ released: boolean; detail: string }> {
+    const response = await requestJson(this.config, "DELETE", "/api/delete_address", {
+      bearerToken: mailbox.jwt,
+    });
+    if (response.status !== 200) {
+      const detail = extractErrorDetail(response.body, response.rawText);
+      throw new Error(`Cloudflare Temp Email deleteAddress failed with status ${response.status}${detail ? `: ${detail}` : "."}`);
+    }
+
+    const body = asRecord(response.body) as MailDeleteAddressResponse;
+    return body.success === true
+      ? { released: true, detail: "deleted" }
+      : { released: false, detail: "delete_failed" };
   }
 
   public async recoverMailboxByEmail(emailAddress: string): Promise<CloudflareTempMailboxCredentials | undefined> {
@@ -918,6 +967,9 @@ export class CloudflareTempEmailCreateClient {
       const detail = await this.getMail(mailbox.jwt, mailId);
       const raw = typeof detail.raw === "string" ? detail.raw : undefined;
       const parsedBodies = parseRawMailBodies(raw);
+      let resolvedSubject = typeof mail.subject === "string" && mail.subject.trim()
+        ? mail.subject.trim()
+        : parseRawMailHeader(raw, "Subject");
       const fallbackRaw = !parsedBodies.textBody && !parsedBodies.htmlBody
         ? raw
         : undefined;
@@ -925,7 +977,7 @@ export class CloudflareTempEmailCreateClient {
       let resolvedHtmlBody = parsedBodies.htmlBody;
       let rawCode = extractOtpFromContent({
         sender,
-        subject: typeof mail.subject === "string" ? mail.subject : undefined,
+        subject: resolvedSubject,
         htmlBody: resolvedHtmlBody ?? fallbackRaw,
         textBody: resolvedTextBody ?? fallbackRaw,
       });
@@ -935,6 +987,7 @@ export class CloudflareTempEmailCreateClient {
           const parsedMail = await this.getParsedMail(mailbox.jwt, mailId);
           const parsedTextBody = typeof parsedMail.text === "string" ? parsedMail.text.trim() : "";
           const parsedHtmlBody = typeof parsedMail.html === "string" ? parsedMail.html.trim() : "";
+          const parsedSubject = typeof parsedMail.subject === "string" ? parsedMail.subject.trim() : "";
           rawCode = extractOtpFromContent({
             sender: String(parsedMail.sender ?? sender).trim(),
             subject: typeof parsedMail.subject === "string" && parsedMail.subject.trim()
@@ -944,6 +997,9 @@ export class CloudflareTempEmailCreateClient {
             textBody: parsedTextBody || undefined,
           });
           parsedMailUsedForCode = Boolean(rawCode);
+          if (parsedSubject) {
+            resolvedSubject = parsedSubject;
+          }
           if (parsedTextBody && (!resolvedTextBody || parsedMailUsedForCode)) {
             resolvedTextBody = parsedTextBody;
           }
@@ -963,7 +1019,7 @@ export class CloudflareTempEmailCreateClient {
         providerInstanceId,
         observedAt: extractObservedAtFromRaw(raw),
         sender,
-        subject: mail.subject,
+        subject: resolvedSubject,
         htmlBody: resolvedHtmlBody,
         textBody: resolvedTextBody,
         extractedCode: rawCode.code,
@@ -1014,19 +1070,26 @@ export async function probeCloudflareTempEmailInstance(instance: ProviderInstanc
       const settingsResponse = await requestJson(config, "GET", "/open_api/settings");
       if (settingsResponse.status === 200) {
         settings = asRecord(settingsResponse.body);
-        const availableDomains = normalizeDomainArray(settings.domains);
+        const defaultDomains = normalizeDomainArray(settings.defaultDomains);
+        const availableDomains = defaultDomains.length > 0
+          ? defaultDomains
+          : normalizeDomainArray(settings.domains);
         const randomSubdomainDomains = normalizeDomainArray(settings.randomSubdomainDomains);
         metadata = {
           ...(availableDomains.length > 0
-            ? {
+              ? {
                 domains: availableDomains.join(","),
                 domainsJson: JSON.stringify(availableDomains),
+                providerDefaultDomains: availableDomains.join(","),
+                providerDefaultDomainsJson: JSON.stringify(availableDomains),
               }
             : {}),
           ...(randomSubdomainDomains.length > 0
-            ? {
+              ? {
                 randomSubdomainDomains: randomSubdomainDomains.join(","),
                 randomSubdomainDomainsJson: JSON.stringify(randomSubdomainDomains),
+                providerRandomSubdomainDomains: randomSubdomainDomains.join(","),
+                providerRandomSubdomainDomainsJson: JSON.stringify(randomSubdomainDomains),
               }
             : {}),
         };

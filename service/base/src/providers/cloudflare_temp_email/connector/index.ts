@@ -151,6 +151,28 @@ export class CloudflareTempEmailConnectorAdapter implements MailProviderAdapter 
     };
   }
 
+  public async releaseMailboxSession(
+    { session, instance }: Parameters<NonNullable<MailProviderAdapter["releaseMailboxSession"]>>[0],
+  ) {
+    const mailbox = decodeCloudflareTempMailboxRef(session.mailboxRef, instance.id);
+    if (!mailbox) {
+      return {
+        released: false,
+        detail: "invalid_mailbox_ref",
+      };
+    }
+
+    const client = CloudflareTempEmailCreateClient.fromInstance(instance);
+    if (!client) {
+      return {
+        released: false,
+        detail: "client_unavailable",
+      };
+    }
+
+    return await client.deleteMailbox(mailbox);
+  }
+
   public async recoverMailboxSession(
     { emailAddress, hostId, instance, now, session }: Parameters<NonNullable<MailProviderAdapter["recoverMailboxSession"]>>[0],
   ) {

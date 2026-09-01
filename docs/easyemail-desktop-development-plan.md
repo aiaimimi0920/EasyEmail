@@ -1,6 +1,6 @@
 # EasyEmail Desktop 业务核心迁移与产品化开发计划
 
-Status: **execution in progress; M0 complete, M1 temporary-mailbox slice in progress**
+Status: **execution in progress; M0 and M1 complete, M2 is next**
 Created: **2026-09-01**  
 Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
 
@@ -28,18 +28,25 @@ Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
   React state/storage; recovery uses server-held state rather than retaining provider credentials
   in the UI. Static transport tests prohibit regressions to the migrated `temp_*` commands;
   `temp_upgrade_mailbox` remains assigned to M7A.
-- **M1 slice validation:** 183 `service/base` tests, 112 frontend unit/contract tests,
-  234 desktop Rust tests, and 81 repository Python tests passed. The complete desktop `verify`
+- **M1 complete (2026-09-01):** 190 `service/base` tests, 112 frontend unit/contract tests,
+  234 desktop Rust tests, and 87 repository Python tests passed. The complete desktop `verify`
   pipeline, TypeScript/Vite production build, Rust format/clippy/test/check, authenticated
   bundled-core readiness smoke, packaged fake-provider mailbox open, and release contract
   validation also passed. The packaged smoke starts the bundled `service/base`, completes its
   authenticated provider probes, proves an unauthenticated mailbox-open request returns 401
   without reaching the provider, and proves the authenticated request returns the canonical open
-  result through the real Cloudflare Temp Email connector. This is not the M1 exit gate: controlled
-  real-provider receive/code/release evidence and restart readback are still required.
-- **Next:** run controlled real-provider create/receive/body-and-code/release/restart-readback
-  validation, without deleting the legacy Rust temporary-mailbox repository until the M8 importer
-  and rollback gate pass.
+  result through the real Cloudflare Temp Email connector. The controlled live gate then created
+  real recipient/sender mailboxes, delivered and read a marker plus verification code, confirmed
+  upstream deletion, restored the released session and message after restart, found no configured
+  credential in launch/container logs, and left zero isolated Docker/runtime resources. See
+  [`real-provider-lifecycle-validation.md`](./real-provider-lifecycle-validation.md).
+- **M1 exit audit:** every temporary-mailbox command explicitly assigned to M1 in the
+  machine-readable map uses the bundled HTTP client. The only remaining `temp_*` business invoke is
+  `temp_upgrade_mailbox`, which the map owns in M7A. Global account, aggregate-message, and recent-
+  verification loads remain assigned to later milestones and are outside this audit. The legacy
+  Rust repository remains present and unchanged as the M8 importer source.
+- **Next:** begin M2 with the persistence capability/schema decision and the contact,
+  taxonomy/folder/label, and newsletter CRUD contract inventory.
 
 本计划定义将已导入 `apps/desktop` 的 EasyEmailAM 从“React UI +
 过渡期 Rust 业务后端”收敛为“React UI + 随桌面程序启动的
@@ -632,7 +639,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-all.ps1
 
 ## 10. 下一个可执行批次
 
-M0 已通过，当前开发批次是 **M1：临时邮箱端到端 HTTP 迁移**。
+M0 与 M1 已通过；下一个开发批次是 **M2：扩展持久化与低风险 CRUD**。
 
 建议精确交付顺序：
 
@@ -643,7 +650,19 @@ M0 已通过，当前开发批次是 **M1：临时邮箱端到端 HTTP 迁移**�
    send 已有 UI 入口、类型化 bundled HTTP 调用和可操作错误语义；
 3. **已完成**：打包宿主 fake-provider mailbox-open smoke 已通过真实 `service/base`
    provider connector 同时证明鉴权成功、未鉴权 401 且未鉴权请求不会触达 provider；
-4. 用受控真实 provider 验证创建、收信、正文/验证码、释放和重启读回，扫描
-   日志确认无 credential；
-5. 运行完整 M1 门禁并审查 UI 无已迁移的 business `invoke`；
-6. 将旧 Rust 临时邮箱代码冻结为 importer 源，但在 M8 前不物理删除。
+4. **已完成**：受控真实 provider 创建、收信、正文/验证码、上下游释放、持久化
+   重启读回与 credential 日志扫描全部通过，证据见
+   [`real-provider-lifecycle-validation.md`](./real-provider-lifecycle-validation.md)；
+5. **已完成**：完整 M1 门禁通过；UI 审计确认命令映射中明确归属 M1 的临时邮箱
+   command 不再使用 business `invoke`；`temp_upgrade_mailbox` 按映射保留给 M7A，
+   全局 account/message/recent-verification 加载归属后续里程碑且不在本次审计范围；
+6. **已完成**：旧 Rust 临时邮箱实现继续冻结为 importer 源，本批次未修改且在 M8
+   importer/rollback 门禁前不物理删除。
+
+M2 的首个精确批次：
+
+1. 核对当前 file/database persistence adapter 能力并冻结联系人、taxonomy 与
+   newsletter 的 schema/version/rollback 契约；
+2. 建立显式 CRUD、唯一冲突、排序/分页与删除语义的 HTTP/OpenAPI golden tests；
+3. 按 `contact_* -> mail_taxonomy_* -> newsletter_subscription_*` 的顺序迁移 UI，
+   每组都以重启读回和无 business `invoke` 为出口门禁。
