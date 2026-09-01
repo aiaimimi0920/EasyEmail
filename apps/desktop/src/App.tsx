@@ -13,6 +13,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { createBundledCoreClient } from "./api/bundledCoreClient";
 import {
   EasyEmailHttpError,
+  type EasyEmailAuthenticationLinkResult,
   type EasyEmailObservedMessage,
 } from "./api/easyEmailHttpClient";
 import {
@@ -537,9 +538,28 @@ function asErrorDto(value: unknown): ErrorDto {
 
   if (value instanceof Error) {
     const message = value.message.trim();
+    const normalizedMessage = message.toLowerCase();
+    const isTimeout = value.name === "AbortError" || normalizedMessage.includes("timed out");
+    const coreExited = normalizedMessage.includes("core exited");
+    const coreUnreachable =
+      normalizedMessage.includes("failed to fetch") ||
+      normalizedMessage.includes("networkerror") ||
+      normalizedMessage.includes("network request failed");
     return {
-      code: message.toLowerCase().includes("core exited") ? "core_exited" : "request_failed",
-      user_message: message || "NMail could not complete the request.",
+      code: isTimeout
+        ? "request_timeout"
+        : coreExited
+          ? "core_exited"
+          : coreUnreachable
+            ? "core_unreachable"
+            : "request_failed",
+      user_message: isTimeout
+        ? "The EasyEmail core or provider timed out. Retry the mailbox action."
+        : coreExited
+          ? "The local EasyEmail core exited. Restart NMail and try again."
+          : coreUnreachable
+            ? "NMail cannot reach the local EasyEmail core. Confirm it is running and retry."
+            : message || "NMail could not complete the request.",
       correlation_id: "desktop-runtime",
     };
   }
@@ -797,6 +817,8 @@ function App() {
   const toastRemoveTimerRef = useRef<number | null>(null);
   const [recentCodes, setRecentCodes] = useState<VerificationCodeDto[]>([]);
   const [lastRefresh, setLastRefresh] = useState<TempRefreshDto | null>(null);
+  const [lastAuthenticationLink, setLastAuthenticationLink] =
+    useState<EasyEmailAuthenticationLinkResult | null>(null);
   const [lastPromotion, setLastPromotion] = useState<PromoteTempMailboxDto | null>(null);
   const [lastNormalSync, setLastNormalSync] = useState<NormalAccountSyncDto | null>(null);
   const [normalImapTest, setNormalImapTest] = useState<NormalImapConnectionTestDto | null>(null);
@@ -902,6 +924,14 @@ function App() {
   const [note, setNote] = useState("");
   const [waitForCode, setWaitForCode] = useState(true);
   const [waitingMailboxId, setWaitingMailboxId] = useState<string | null>(null);
+  const [selectedTempMailboxId, setSelectedTempMailboxId] = useState("");
+  const [tempRecoveryEmail, setTempRecoveryEmail] = useState("");
+  const [tempRecoveryProviderType, setTempRecoveryProviderType] = useState("");
+  const [tempMailboxFromContains, setTempMailboxFromContains] = useState("");
+  const [tempOutcomeFailureReason, setTempOutcomeFailureReason] = useState("");
+  const [tempSendTo, setTempSendTo] = useState("");
+  const [tempSendSubject, setTempSendSubject] = useState("");
+  const [tempSendBody, setTempSendBody] = useState("");
   const [, setStatusMessage] = useState("Loading local foundation status...");
   const [statusToast, setStatusToast] = useState<string | null>(null);
   const [error, setError] = useState<ErrorDto | null>(null);
@@ -1338,6 +1368,23 @@ function App() {
       setBusy(false);
     };
   }, []);
+
+  useEffect(() => {
+    setSelectedTempMailboxId((current) => {
+      if (tempMailboxes.some((mailbox) => mailbox.id === current)) {
+        return current;
+      }
+      return (
+        tempMailboxes.find((mailbox) => mailbox.lifecycle_state === "active")?.id ??
+        tempMailboxes[0]?.id ??
+        ""
+      );
+    });
+  }, [tempMailboxes]);
+
+  useEffect(() => {
+    setLastAuthenticationLink(null);
+  }, [selectedTempMailboxId]);
 
   useEffect(() => {
     clearToastLifecycleTimers();
@@ -3083,6 +3130,28 @@ function App() {
     }
   }
 
+  function applyCoreTemporaryState(coreState: CoreTemporaryState) {
+    setTempMailboxes(coreState.mailboxes);
+    setAnonymousMessages((current) =>
+      mergeByIdentity(coreState.messages, current, (message) => message.message_id),
+    );
+    setRecentCodes((current) =>
+      mergeByIdentity(coreState.codes, current, (code) => code.id),
+    );
+  }
+
+  function selectedTemporaryMailbox(): TempMailboxDto | null {
+    const mailbox = tempMailboxes.find((candidate) => candidate.id === selectedTempMailboxId) ?? null;
+    if (!mailbox) {
+      setError({
+        code: "TEMP_MAILBOX_SELECTION_REQUIRED",
+        user_message: "Select a temporary mailbox before running this action.",
+        correlation_id: "desktop-validation",
+      });
+    }
+    return mailbox;
+  }
+
   async function createTempMailbox() {
     setBusy(true);
     try {
@@ -3101,14 +3170,9 @@ function App() {
       const mailboxRecord = temporaryMailboxRecordFromOpenResult(result);
       const coreState = await loadCoreTemporaryState();
       const accounts = await loadNormalAccounts();
-      setTempMailboxes(coreState.mailboxes);
-      setAnonymousMessages((current) =>
-        mergeByIdentity(coreState.messages, current, (message) => message.message_id),
-      );
-      setRecentCodes((current) =>
-        mergeByIdentity(coreState.codes, current, (code) => code.id),
-      );
+      applyCoreTemporaryState(coreState);
       setNormalAccounts(accounts);
+      setSelectedTempMailboxId(mailboxRecord.view.id);
       setTargetService("");
       setNote("");
       if (waitForCode) {
@@ -3138,13 +3202,7 @@ function App() {
     const result = temporaryMailboxRefreshView(refresh);
     if (isCurrent()) {
       setLastRefresh(result);
-      setTempMailboxes(coreState.mailboxes);
-      setAnonymousMessages((current) =>
-        mergeByIdentity(coreState.messages, current, (message) => message.message_id),
-      );
-      setRecentCodes((current) =>
-        mergeByIdentity(coreState.codes, current, (code) => code.id),
-      );
+      applyCoreTemporaryState(coreState);
     }
     return { result, coreState };
   }
@@ -3181,6 +3239,216 @@ function App() {
           `Mailbox refresh fetched ${result.fetched_count} messages and inserted ${result.inserted_count}.`,
       );
       setError(refreshError);
+    } catch (caught: unknown) {
+      setError(asErrorDto(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function recoverTempMailbox() {
+    const emailAddress = optionalValue(tempRecoveryEmail);
+    if (!emailAddress) {
+      setError({
+        code: "TEMP_MAILBOX_RECOVERY_EMAIL_REQUIRED",
+        user_message: "Enter the temporary mailbox address to recover.",
+        correlation_id: "desktop-validation",
+      });
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const hostId = await bundledCoreClient.getHostId();
+      const { result } = await bundledCoreClient.recoverMailbox({
+        emailAddress,
+        providerTypeKey: optionalValue(tempRecoveryProviderType) ?? undefined,
+        hostId,
+      });
+      if (!result.recovered || !result.session) {
+        setError({
+          code: "TEMP_MAILBOX_RECOVERY_NOT_AVAILABLE",
+          user_message:
+            result.detail ??
+            "The selected provider could not recover this mailbox from its server-side state.",
+          correlation_id: "core-http-recovery",
+        });
+        return;
+      }
+      applyCoreTemporaryState(await loadCoreTemporaryState());
+      setSelectedTempMailboxId(result.session.id);
+      setTempRecoveryEmail("");
+      showStatusToast(
+        `Recovered ${result.session.emailAddress} with ${result.strategy.replace(/_/g, " ")}.`,
+      );
+      setError(null);
+    } catch (caught: unknown) {
+      setError(asErrorDto(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function readTempMailboxAuthenticationLink() {
+    const mailbox = selectedTemporaryMailbox();
+    if (!mailbox) return;
+
+    setBusy(true);
+    try {
+      const { authLink } = await bundledCoreClient.readAuthenticationLink(mailbox.id);
+      setLastAuthenticationLink(authLink ?? null);
+      if (!authLink) {
+        setError({
+          code: "TEMP_MAILBOX_AUTH_LINK_NOT_FOUND",
+          user_message: "No authentication link has been observed for this mailbox yet.",
+          correlation_id: "core-http-auth-link",
+        });
+        return;
+      }
+      showStatusToast(`Found an authentication link for ${mailbox.email_address}.`);
+      setError(null);
+    } catch (caught: unknown) {
+      setLastAuthenticationLink(null);
+      setError(asErrorDto(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openLastTempMailboxAuthenticationLink() {
+    if (!lastAuthenticationLink) return;
+    try {
+      await openUrl(lastAuthenticationLink.url);
+      showStatusToast("Opened the temporary-mailbox authentication link.");
+      setError(null);
+    } catch (caught: unknown) {
+      setError(asErrorDto(caught));
+    }
+  }
+
+  async function updateTempMailboxSession() {
+    const mailbox = selectedTemporaryMailbox();
+    if (!mailbox) return;
+
+    setBusy(true);
+    try {
+      await bundledCoreClient.updateMailbox({
+        sessionId: mailbox.id,
+        fromContains: tempMailboxFromContains,
+      });
+      applyCoreTemporaryState(await loadCoreTemporaryState());
+      showStatusToast(
+        tempMailboxFromContains.trim()
+          ? `Updated sender filter for ${mailbox.email_address}.`
+          : `Cleared sender filter for ${mailbox.email_address}.`,
+      );
+      setError(null);
+    } catch (caught: unknown) {
+      setError(asErrorDto(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reportTempMailboxOutcome(success: boolean) {
+    const mailbox = selectedTemporaryMailbox();
+    if (!mailbox) return;
+    const failureReason = optionalValue(tempOutcomeFailureReason);
+    if (!success && !failureReason) {
+      setError({
+        code: "TEMP_MAILBOX_FAILURE_REASON_REQUIRED",
+        user_message: "Enter a failure reason before reporting a failed mailbox outcome.",
+        correlation_id: "desktop-validation",
+      });
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const { result } = await bundledCoreClient.reportMailboxOutcome({
+        sessionId: mailbox.id,
+        success,
+        failureReason: failureReason ?? undefined,
+        source: "desktop-ui",
+        businessFlow: "temporary-mailbox",
+        retryLayer: "attempt",
+      });
+      showStatusToast(
+        `Reported ${success ? "successful" : "failed"} outcome; provider health is ${result.healthScore.toFixed(2)}.`,
+      );
+      if (success) setTempOutcomeFailureReason("");
+      setError(null);
+    } catch (caught: unknown) {
+      setError(asErrorDto(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function releaseTempMailbox() {
+    const mailbox = selectedTemporaryMailbox();
+    if (!mailbox) return;
+    if (!window.confirm(`Release ${mailbox.email_address} and stop receiving new messages?`)) {
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const { result } = await bundledCoreClient.releaseMailbox({
+        sessionId: mailbox.id,
+        reason: "desktop-user-release",
+      });
+      applyCoreTemporaryState(await loadCoreTemporaryState());
+      if (waitingMailboxId === mailbox.id) setWaitingMailboxId(null);
+      showStatusToast(
+        result.released
+          ? `Released ${mailbox.email_address} at the provider.`
+          : `Closed ${mailbox.email_address} locally; provider release was unavailable.`,
+      );
+      setError(null);
+    } catch (caught: unknown) {
+      setError(asErrorDto(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendTempMailboxMessage() {
+    const mailbox = selectedTemporaryMailbox();
+    if (!mailbox) return;
+    const toEmailAddress = optionalValue(tempSendTo);
+    const subject = optionalValue(tempSendSubject);
+    if (!toEmailAddress || !subject) {
+      setError({
+        code: "TEMP_MAILBOX_SEND_FIELDS_REQUIRED",
+        user_message: "Enter both a recipient address and subject before sending.",
+        correlation_id: "desktop-validation",
+      });
+      return;
+    }
+    if (mailbox.lifecycle_state !== "active") {
+      setError({
+        code: "TEMP_MAILBOX_NOT_ACTIVE",
+        user_message: "Only an active temporary mailbox can send mail.",
+        correlation_id: "desktop-validation",
+      });
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const { result } = await bundledCoreClient.sendMailboxMessage({
+        sessionId: mailbox.id,
+        toEmailAddress,
+        subject,
+        textBody: optionalValue(tempSendBody) ?? undefined,
+      });
+      setTempSendSubject("");
+      setTempSendBody("");
+      showStatusToast(
+        `Sent from ${result.senderEmailAddress} to ${result.recipientEmailAddress} via ${result.deliveryMode}.`,
+      );
+      setError(null);
     } catch (caught: unknown) {
       setError(asErrorDto(caught));
     } finally {
@@ -10542,6 +10810,161 @@ function App() {
                     Refresh anonymous
                   </button>
                 </div>
+                <div className="nt-divider" />
+                <p className="nt-kicker">RECOVER MAILBOX</p>
+                <div className="nt-form-grid">
+                  <label>
+                    Email address
+                    <input
+                      value={tempRecoveryEmail}
+                      placeholder="mailbox@example.test"
+                      onChange={(event) => setTempRecoveryEmail(event.currentTarget.value)}
+                    />
+                  </label>
+                  <label>
+                    Provider type (optional)
+                    <input
+                      value={tempRecoveryProviderType}
+                      placeholder="mailtm, m2u..."
+                      onChange={(event) => setTempRecoveryProviderType(event.currentTarget.value)}
+                    />
+                  </label>
+                </div>
+                <div className="nt-actions">
+                  <button
+                    type="button"
+                    className="nt-btn nt-btn--secondary"
+                    onClick={() => void recoverTempMailbox()}
+                    disabled={busy}
+                  >
+                    Recover from local core
+                  </button>
+                </div>
+                <small>
+                  Recovery uses provider and mailbox state already held by the local core; credentials are not retained by this UI.
+                </small>
+                <div className="nt-divider" />
+                <p className="nt-kicker">MAILBOX ACTIONS</p>
+                <div className="nt-form-grid">
+                  <label className="nt-wide-field">
+                    Temporary mailbox
+                    <select
+                      value={selectedTempMailboxId}
+                      onChange={(event) => setSelectedTempMailboxId(event.currentTarget.value)}
+                    >
+                      <option value="">Select a mailbox</option>
+                      {tempMailboxes.map((mailbox) => (
+                        <option key={mailbox.id} value={mailbox.id}>
+                          {mailbox.email_address} ({mailbox.lifecycle_state})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Sender filter
+                    <input
+                      value={tempMailboxFromContains}
+                      placeholder="example.com; blank clears"
+                      onChange={(event) => setTempMailboxFromContains(event.currentTarget.value)}
+                    />
+                  </label>
+                  <label>
+                    Failure reason
+                    <input
+                      value={tempOutcomeFailureReason}
+                      placeholder="Rejected domain, provider error..."
+                      onChange={(event) => setTempOutcomeFailureReason(event.currentTarget.value)}
+                    />
+                  </label>
+                  <label>
+                    Send to
+                    <input
+                      value={tempSendTo}
+                      placeholder="recipient@example.test"
+                      onChange={(event) => setTempSendTo(event.currentTarget.value)}
+                    />
+                  </label>
+                  <label>
+                    Send subject
+                    <input
+                      value={tempSendSubject}
+                      placeholder="Message subject"
+                      onChange={(event) => setTempSendSubject(event.currentTarget.value)}
+                    />
+                  </label>
+                  <label className="nt-wide-field">
+                    Send body
+                    <textarea
+                      value={tempSendBody}
+                      placeholder="Plain-text message body"
+                      onChange={(event) => setTempSendBody(event.currentTarget.value)}
+                    />
+                  </label>
+                </div>
+                <div className="nt-actions">
+                  <button
+                    type="button"
+                    className="nt-btn nt-btn--secondary"
+                    onClick={() => void readTempMailboxAuthenticationLink()}
+                    disabled={busy || !selectedTempMailboxId}
+                  >
+                    Read auth link
+                  </button>
+                  <button
+                    type="button"
+                    className="nt-btn nt-btn--secondary"
+                    onClick={() => void updateTempMailboxSession()}
+                    disabled={busy || !selectedTempMailboxId}
+                  >
+                    Update sender filter
+                  </button>
+                  <button
+                    type="button"
+                    className="nt-btn nt-btn--secondary"
+                    onClick={() => void reportTempMailboxOutcome(true)}
+                    disabled={busy || !selectedTempMailboxId}
+                  >
+                    Report success
+                  </button>
+                  <button
+                    type="button"
+                    className="nt-btn nt-btn--secondary"
+                    onClick={() => void reportTempMailboxOutcome(false)}
+                    disabled={busy || !selectedTempMailboxId}
+                  >
+                    Report failure
+                  </button>
+                  <button
+                    type="button"
+                    className="nt-btn nt-btn--primary"
+                    onClick={() => void sendTempMailboxMessage()}
+                    disabled={busy || !selectedTempMailboxId}
+                  >
+                    Send from mailbox
+                  </button>
+                  <button
+                    type="button"
+                    className="nt-btn nt-btn--secondary"
+                    onClick={() => void releaseTempMailbox()}
+                    disabled={busy || !selectedTempMailboxId}
+                  >
+                    Release mailbox
+                  </button>
+                </div>
+                {lastAuthenticationLink ? (
+                  <div className="nt-result">
+                    <strong>Authentication link</strong>
+                    <span>{lastAuthenticationLink.label ?? "Detected action link"}</span>
+                    <small>{lastAuthenticationLink.url}</small>
+                    <button
+                      type="button"
+                      className="nt-mini-btn"
+                      onClick={() => void openLastTempMailboxAuthenticationLink()}
+                    >
+                      Open link
+                    </button>
+                  </div>
+                ) : null}
                 {lastRefresh ? (
                   <div className="nt-result">
                     <strong>Last refresh</strong>

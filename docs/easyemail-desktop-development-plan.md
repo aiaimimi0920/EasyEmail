@@ -1,6 +1,6 @@
 # EasyEmail Desktop 业务核心迁移与产品化开发计划
 
-Status: **execution in progress; M0 complete, M1 transport slice in progress**
+Status: **execution in progress; M0 complete, M1 temporary-mailbox slice in progress**
 Created: **2026-09-01**  
 Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
 
@@ -16,24 +16,27 @@ Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
   and build passed; the complete desktop `verify` pipeline passed, including 231
   Rust tests and authenticated bundled-core readiness; the release contract
   passed.
-- **M1 transport and refresh slice (2026-09-01):** the desktop now has typed HTTP contracts for
+- **M1 transport, refresh, and action UI slices (2026-09-01):** the desktop now has typed HTTP contracts for
   the complete existing temporary-mailbox API, preserves the full canonical open/access
   response without a lossy transport DTO, uses a stable per-installation host ID, and routes create, list,
   refresh, observed-message detail and verification polling through the authenticated
   bundled-core client. Single-session and host-batch refresh are now explicit server-owned
   HTTP resources; React no longer orchestrates per-session synchronization, provider errors
-  are redacted, and partial batch failures remain visible in the UI. Static transport tests
-  prohibit regressions to the migrated `temp_*` commands; `temp_upgrade_mailbox` remains
-  assigned to M7A.
-- **M1 slice validation:** 183 `service/base` tests, 111 frontend unit/contract tests,
-  and 80 repository Python tests passed. The complete desktop `verify` pipeline,
-  TypeScript/Vite production build, Rust format/clippy/test/check, authenticated bundled-core
-  readiness smoke, and release contract validation also passed. This is not
-  the M1 exit gate: packaged fake-provider open, controlled real-provider receive/code/
-  release evidence, recovery UI and restart readback are still required.
-- **Next:** finish the recovery/outcome/update/release/auth-link/send UI slice and packaged
-  runtime acceptance without deleting the legacy Rust temporary-mailbox repository
-  until the M8 importer and rollback gate pass.
+  are redacted, and partial batch failures remain visible in the UI. Recovery, outcome report,
+  session update, release, authentication-link reading, and provider-backed mailbox sending now
+  have explicit UI entries using the same bundled HTTP client. Runtime credentials remain outside
+  React state/storage; recovery uses server-held state rather than retaining provider credentials
+  in the UI. Static transport tests prohibit regressions to the migrated `temp_*` commands;
+  `temp_upgrade_mailbox` remains assigned to M7A.
+- **M1 slice validation:** 183 `service/base` tests, 112 frontend unit/contract tests,
+  234 desktop Rust tests, and 80 repository Python tests passed. The complete desktop `verify`
+  pipeline, TypeScript/Vite production build, Rust format/clippy/test/check, authenticated
+  bundled-core readiness smoke, and release contract validation also passed. This is not the M1
+  exit gate: packaged fake-provider open, controlled real-provider receive/code/release evidence,
+  and restart readback are still required.
+- **Next:** add packaged-host fake-provider mailbox-open acceptance with authenticated success and
+  unauthenticated 401, without deleting the legacy Rust temporary-mailbox repository until the M8
+  importer and rollback gate pass.
 
 本计划定义将已导入 `apps/desktop` 的 EasyEmailAM 从“React UI +
 过渡期 Rust 业务后端”收敛为“React UI + 随桌面程序启动的
@@ -633,8 +636,8 @@ M0 已通过，当前开发批次是 **M1：临时邮箱端到端 HTTP 迁移**�
 1. **已完成**：为单邮箱和匿名批量刷新增加 server-owned 显式 HTTP 资源，避免
    React 编排多个 session 同步，并覆盖鉴权、400/404、重复插入、host 隔离、
    provider 错误脱敏和 partial failure UI；
-2. 完成 recovery、outcome report、update-session、release、auth-link 和 mailbox
-   send 的 UI 入口及错误语义；
+2. **已完成**：recovery、outcome report、update-session、release、auth-link 和 mailbox
+   send 已有 UI 入口、类型化 bundled HTTP 调用和可操作错误语义；
 3. 增加打包宿主 fake-provider mailbox-open smoke，并同时证明鉴权成功与未鉴权
    401；
 4. 用受控真实 provider 验证创建、收信、正文/验证码、释放和重启读回，扫描

@@ -6,7 +6,9 @@ import {
   type EasyEmailAuthenticationLinkResult,
   type EasyEmailCatalogResponse,
   type EasyEmailMailboxOutcomeRequest,
+  type EasyEmailMailboxOutcomeResult,
   type EasyEmailMailboxRefreshResponse,
+  type EasyEmailMailboxSendResult,
   type EasyEmailMailboxSendRequest,
   type EasyEmailMailboxSession,
   type EasyEmailMailboxSessionQuery,
@@ -23,7 +25,9 @@ import {
   type EasyEmailProviderInstanceQuery,
   type EasyEmailProviderInstancesResponse,
   type EasyEmailRecoverMailboxRequest,
+  type EasyEmailRecoverMailboxResult,
   type EasyEmailRecoverMailboxResponse,
+  type EasyEmailReleaseMailboxResult,
   type EasyEmailReleaseMailboxResponse,
   type EasyEmailReportMailboxOutcomeResponse,
   type EasyEmailSendMailboxResponse,
@@ -129,22 +133,22 @@ export function createBundledCoreClient(
     ): Promise<EasyEmailUpdateMailboxResponse<TSession>> {
       return (await getHttpClient()).updateMailbox<TSession>(request);
     },
-    async releaseMailbox<TResult = unknown>(
+    async releaseMailbox<TResult = EasyEmailReleaseMailboxResult>(
       request: { sessionId: string; reason?: string },
     ): Promise<EasyEmailReleaseMailboxResponse<TResult>> {
       return (await getHttpClient()).releaseMailbox<TResult>(request);
     },
-    async recoverMailbox<TResult = unknown>(
+    async recoverMailbox<TResult = EasyEmailRecoverMailboxResult>(
       request: EasyEmailRecoverMailboxRequest,
     ): Promise<EasyEmailRecoverMailboxResponse<TResult>> {
       return (await getHttpClient()).recoverMailbox<TResult>(request);
     },
-    async reportMailboxOutcome<TResult = unknown>(
+    async reportMailboxOutcome<TResult = EasyEmailMailboxOutcomeResult>(
       request: EasyEmailMailboxOutcomeRequest,
     ): Promise<EasyEmailReportMailboxOutcomeResponse<TResult>> {
       return (await getHttpClient()).reportMailboxOutcome<TResult>(request);
     },
-    async sendMailboxMessage<TResult = unknown>(
+    async sendMailboxMessage<TResult = EasyEmailMailboxSendResult>(
       request: EasyEmailMailboxSendRequest,
     ): Promise<EasyEmailSendMailboxResponse<TResult>> {
       return (await getHttpClient()).sendMailboxMessage<TResult>(request);

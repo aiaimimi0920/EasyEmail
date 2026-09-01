@@ -207,7 +207,17 @@ export type EasyEmailMailboxRefreshResponse = {
   refresh: EasyEmailMailboxRefreshResult;
 };
 
-export type EasyEmailReleaseMailboxResponse<TResult = unknown> = {
+export type EasyEmailReleaseMailboxResult = {
+  session: EasyEmailMailboxSession;
+  providerInstanceId: string;
+  providerTypeKey: string;
+  released: boolean;
+  detail?: string;
+};
+
+export type EasyEmailReleaseMailboxResponse<
+  TResult = EasyEmailReleaseMailboxResult,
+> = {
   result: TResult;
 };
 
@@ -217,15 +227,59 @@ export type EasyEmailUpdateMailboxResponse<
   session: TSession;
 };
 
-export type EasyEmailSendMailboxResponse<TResult = unknown> = {
+export type EasyEmailMailboxSendResult = {
+  sessionId: string;
+  providerTypeKey: string;
+  providerInstanceId: string;
+  senderEmailAddress: string;
+  recipientEmailAddress: string;
+  sentAt: string;
+  deliveryMode: string;
+  detail?: string;
+};
+
+export type EasyEmailSendMailboxResponse<
+  TResult = EasyEmailMailboxSendResult,
+> = {
   result: TResult;
 };
 
-export type EasyEmailRecoverMailboxResponse<TResult = unknown> = {
+export type EasyEmailRecoverMailboxResult = {
+  recovered: boolean;
+  strategy:
+    | "account_restore"
+    | "session_restore"
+    | "recreate_same_address"
+    | "not_supported";
+  session?: EasyEmailMailboxSession;
+  providerTypeKey?: string;
+  providerInstanceId?: string;
+  detail?: string;
+  temporaryAuthCredential?: EasyEmailTemporaryAuthCredential;
+  recoveryDataCredential?: Record<string, string>;
+  recoverabilityLevel?: "unrecoverable" | "key_recoverable" | "recoverable";
+  recoveryRequiredFields?: EasyEmailRecoveryRequiredFields;
+  createdByProvider?: EasyEmailCreatedByProvider;
+};
+
+export type EasyEmailRecoverMailboxResponse<
+  TResult = EasyEmailRecoverMailboxResult,
+> = {
   result: TResult;
 };
 
-export type EasyEmailReportMailboxOutcomeResponse<TResult = unknown> = {
+export type EasyEmailMailboxOutcomeResult = {
+  session: EasyEmailMailboxSession;
+  instance: EasyEmailProviderInstance;
+  providerTypeKey: string;
+  providerInstanceId: string;
+  healthScore: number;
+  selectedDomain?: string;
+};
+
+export type EasyEmailReportMailboxOutcomeResponse<
+  TResult = EasyEmailMailboxOutcomeResult,
+> = {
   result: TResult;
 };
 
@@ -318,6 +372,18 @@ export type EasyEmailMailboxOutcomeRequest = {
   source?: string;
   businessFlow?: string;
   retryLayer?: "step" | "chain" | "attempt";
+  attribution?: {
+    strength?: "strong" | "weak" | "none";
+    kind?: "mailbox_domain_risk" | "provider_route" | "unknown";
+    providerTypeKey?: string;
+    domain?: string;
+    emailAddress?: string;
+  };
+  policy?: {
+    avoidInCurrentAttempt?: boolean;
+    globalBlacklist?: boolean;
+    cooldownSeconds?: number;
+  };
 };
 
 export const EASY_EMAIL_CORE_ROUTES = {
@@ -541,7 +607,7 @@ export function createEasyEmailHttpClient(options: EasyEmailHttpClientOptions) {
         body: updateRequest,
       });
     },
-    releaseMailbox<TResult = unknown>(
+    releaseMailbox<TResult = EasyEmailReleaseMailboxResult>(
       releaseRequest: { sessionId: string; reason?: string },
     ): Promise<EasyEmailReleaseMailboxResponse<TResult>> {
       return request({
@@ -550,7 +616,7 @@ export function createEasyEmailHttpClient(options: EasyEmailHttpClientOptions) {
         body: releaseRequest,
       });
     },
-    recoverMailbox<TResult = unknown>(
+    recoverMailbox<TResult = EasyEmailRecoverMailboxResult>(
       recoverRequest: EasyEmailRecoverMailboxRequest,
     ): Promise<EasyEmailRecoverMailboxResponse<TResult>> {
       return request({
@@ -559,7 +625,7 @@ export function createEasyEmailHttpClient(options: EasyEmailHttpClientOptions) {
         body: recoverRequest,
       });
     },
-    reportMailboxOutcome<TResult = unknown>(
+    reportMailboxOutcome<TResult = EasyEmailMailboxOutcomeResult>(
       outcomeRequest: EasyEmailMailboxOutcomeRequest,
     ): Promise<EasyEmailReportMailboxOutcomeResponse<TResult>> {
       return request({
@@ -568,7 +634,7 @@ export function createEasyEmailHttpClient(options: EasyEmailHttpClientOptions) {
         body: outcomeRequest,
       });
     },
-    sendMailboxMessage<TResult = unknown>(
+    sendMailboxMessage<TResult = EasyEmailMailboxSendResult>(
       sendRequest: EasyEmailMailboxSendRequest,
     ): Promise<EasyEmailSendMailboxResponse<TResult>> {
       return request({

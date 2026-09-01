@@ -4,7 +4,7 @@ import test from "node:test";
 
 const appSourceUrl = new URL("../src/App.tsx", import.meta.url);
 
-test("temporary mailbox create, list, refresh, message, and code flows use the bundled HTTP client", async () => {
+test("every migrated temporary-mailbox action uses the bundled HTTP client", async () => {
   const source = await readFile(appSourceUrl, "utf8");
 
   for (const command of [
@@ -24,6 +24,12 @@ test("temporary mailbox create, list, refresh, message, and code flows use the b
     "bundledCoreClient.refreshAnonymousMailboxes",
     "bundledCoreClient.getObservedMessage",
     "bundledCoreClient.readVerificationCode",
+    "bundledCoreClient.readAuthenticationLink",
+    "bundledCoreClient.recoverMailbox",
+    "bundledCoreClient.updateMailbox",
+    "bundledCoreClient.reportMailboxOutcome",
+    "bundledCoreClient.releaseMailbox",
+    "bundledCoreClient.sendMailboxMessage",
   ]) {
     assert.match(source, new RegExp(operation.replace(".", "\\.")));
   }
@@ -36,6 +42,21 @@ test("temporary mailbox create, list, refresh, message, and code flows use the b
   const refreshEnd = source.indexOf("async function refreshAnonymousMailOnce", refreshStart);
   assert.ok(refreshStart >= 0 && refreshEnd > refreshStart);
   assert.doesNotMatch(source.slice(refreshStart, refreshEnd), /queryObservedMessages|sync:\s*true/);
+  const temporaryActionsStart = source.indexOf("async function createTempMailbox");
+  const temporaryActionsEnd = source.indexOf("async function promoteMailbox", temporaryActionsStart);
+  assert.ok(temporaryActionsStart >= 0 && temporaryActionsEnd > temporaryActionsStart);
+  assert.doesNotMatch(source.slice(temporaryActionsStart, temporaryActionsEnd), /invoke\s*\(/);
+  for (const visibleAction of [
+    "Recover from local core",
+    "Read auth link",
+    "Update sender filter",
+    "Report success",
+    "Report failure",
+    "Send from mailbox",
+    "Release mailbox",
+  ]) {
+    assert.match(source, new RegExp(visibleAction));
+  }
 });
 
 test("temporary-mailbox HTTP transport never reads the one-shot settings token", async () => {
@@ -47,4 +68,24 @@ test("temporary-mailbox HTTP transport never reads the one-shot settings token",
   assert.ok(createStart >= 0 && createEnd > createStart && refreshEnd > createEnd);
   const temporaryFlow = source.slice(createStart, refreshEnd);
   assert.doesNotMatch(temporaryFlow, /apiToken|setApiToken|localStorage|sessionStorage/);
+});
+
+test("temporary-mailbox failures keep actionable auth, timeout, offline, and recovery semantics", async () => {
+  const source = await readFile(appSourceUrl, "utf8");
+
+  for (const errorCode of [
+    "request_timeout",
+    "core_exited",
+    "core_unreachable",
+    "TEMP_MAILBOX_RECOVERY_NOT_AVAILABLE",
+    "TEMP_MAILBOX_AUTH_LINK_NOT_FOUND",
+    "TEMP_MAILBOX_NOT_ACTIVE",
+  ]) {
+    assert.match(source, new RegExp(errorCode));
+  }
+  assert.match(source, /credentials are not retained by this UI/);
+  assert.match(
+    source,
+    /useEffect\(\(\) => \{\s*setLastAuthenticationLink\(null\);\s*\}, \[selectedTempMailboxId\]\)/,
+  );
 });

@@ -124,6 +124,20 @@ test("delegates temporary-mailbox operations through the cached authenticated HT
   await client.refreshMailbox("session-1");
   await client.refreshAnonymousMailboxes("easyemail-desktop");
   await client.readVerificationCode("session-1");
+  await client.readAuthenticationLink("session-1");
+  await client.updateMailbox({ sessionId: "session-1", fromContains: "example.test" });
+  await client.releaseMailbox({ sessionId: "session-1", reason: "test" });
+  await client.recoverMailbox({
+    emailAddress: "mailbox@example.test",
+    hostId: "easyemail-desktop",
+  });
+  await client.reportMailboxOutcome({ sessionId: "session-1", success: true });
+  await client.sendMailboxMessage({
+    sessionId: "session-1",
+    toEmailAddress: "receiver@example.test",
+    subject: "hello",
+    textBody: "body",
+  });
 
   assert.deepEqual(invokeCalls, ["desktop_core_runtime"]);
   assert.deepEqual(
@@ -135,6 +149,12 @@ test("delegates temporary-mailbox operations through the cached authenticated HT
       ["/mail/mailboxes/session-1/refresh", "POST"],
       ["/mail/mailboxes/anonymous/refresh", "POST"],
       ["/mail/mailboxes/session-1/code", "GET"],
+      ["/mail/mailboxes/session-1/auth-link", "GET"],
+      ["/mail/mailboxes/update-session", "POST"],
+      ["/mail/mailboxes/release", "POST"],
+      ["/mail/mailboxes/recover-by-email", "POST"],
+      ["/mail/mailboxes/report-outcome", "POST"],
+      ["/mail/mailboxes/send", "POST"],
     ],
   );
   assert.ok(httpCalls.every((call) => call.authorization === "Bearer runtime-only-token"));

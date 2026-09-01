@@ -148,7 +148,17 @@ test("uses explicit HTTP resources for every temporary-mailbox mutation", async 
     emailAddress: "code@example.test",
     recoveryDataCredential: { opaque: "recovery" },
   });
-  await client.reportMailboxOutcome({ sessionId: "session-1", success: true });
+  await client.reportMailboxOutcome({
+    sessionId: "session-1",
+    success: false,
+    failureReason: "provider rejected",
+    attribution: {
+      strength: "weak",
+      kind: "provider_route",
+      providerTypeKey: "mailtm",
+    },
+    policy: { avoidInCurrentAttempt: true, cooldownSeconds: 60 },
+  });
   await client.sendMailboxMessage({
     sessionId: "session-1",
     toEmailAddress: "target@example.test",
@@ -180,6 +190,23 @@ test("uses explicit HTTP resources for every temporary-mailbox mutation", async 
   assert.deepEqual(JSON.parse(String(calls[6]?.init?.body)), {
     emailAddress: "code@example.test",
     recoveryDataCredential: { opaque: "recovery" },
+  });
+  assert.deepEqual(JSON.parse(String(calls[7]?.init?.body)), {
+    sessionId: "session-1",
+    success: false,
+    failureReason: "provider rejected",
+    attribution: {
+      strength: "weak",
+      kind: "provider_route",
+      providerTypeKey: "mailtm",
+    },
+    policy: { avoidInCurrentAttempt: true, cooldownSeconds: 60 },
+  });
+  assert.deepEqual(JSON.parse(String(calls[8]?.init?.body)), {
+    sessionId: "session-1",
+    toEmailAddress: "target@example.test",
+    subject: "hello",
+    textBody: "body",
   });
 });
 
