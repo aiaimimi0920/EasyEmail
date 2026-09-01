@@ -33,6 +33,10 @@ class ValidateWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("secrets: inherit", self.reusable_text)
 
     def test_reusable_validation_runs_repository_and_release_gates(self) -> None:
+        self.assertIn(
+            "python -m pip install --disable-pip-version-check pyyaml",
+            self.reusable_text,
+        )
         self.assertIn("./scripts/test-all.ps1", self.reusable_text)
         self.assertIn(
             "python scripts/validate-release-contract.py",

@@ -31,6 +31,13 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
         self.assertIn("verify-core-bundle.mjs", scripts["core:verify"])
         self.assertIn("npm run core:bundle", self.tauri["build"]["beforeBuildCommand"])
         self.assertEqual(self.tauri["bundle"]["resources"], {"resources/core/": "core/"})
+        self.assertTrue(
+            (DESKTOP / "src-tauri" / "resources" / "core" / ".gitkeep").is_file()
+        )
+        bundle_script = (
+            DESKTOP / "scripts" / "bundle-core-runtime.mjs"
+        ).read_text(encoding="utf-8")
+        self.assertIn('writeFileSync(join(outputRoot, ".gitkeep")', bundle_script)
 
     def test_host_uses_authenticated_loopback_and_owns_exact_child(self) -> None:
         for expected in (

@@ -191,7 +191,7 @@ def validate_product_contract(contract: dict[str, Any]) -> None:
         raise AssertionError("bundled UI product contract is required")
     expected_ui_contract = {
         "core": "service-base",
-        "implementationStatus": "contract-defined",
+        "implementationStatus": "bundled-core-hosted-http-migration-in-progress",
         "bundlesCore": True,
         "startsCoreAutomatically": True,
         "transport": "loopback-http",

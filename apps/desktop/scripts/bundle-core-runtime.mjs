@@ -30,6 +30,7 @@ requirePath(process.execPath, "Node.js runtime");
 
 rmSync(outputRoot, { recursive: true, force: true });
 mkdirSync(join(outputRoot, "node_modules"), { recursive: true });
+writeFileSync(join(outputRoot, ".gitkeep"), "", "utf8");
 cpSync(serviceDist, join(outputRoot, "dist"), { recursive: true });
 cpSync(yamlPackage, join(outputRoot, "node_modules", "yaml"), { recursive: true });
 cpSync(join(serviceRoot, "package.json"), join(outputRoot, "package.json"));
