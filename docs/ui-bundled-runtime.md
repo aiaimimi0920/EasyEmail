@@ -1,12 +1,13 @@
 # Bundled UI Runtime Contract
 
-Status: **EasyEmailAM source imported into `apps/desktop`; HTTP ownership,
-packaged-core lifecycle, and release artifact not yet complete**.
+Status: **private core packaging and authenticated startup implemented; business
+HTTP ownership, graceful shutdown, and release acceptance are not yet complete**.
 
 This document defines the product boundary for a lightweight EasyEmail UI. The
 desktop framework is now Tauri 2 with React 19, based on the imported EasyEmailAM
 application. Importing a buildable application does not by itself satisfy the
-bundled-core or release contract.
+release contract. The current host implements the initial packaged-core
+lifecycle, while feature-by-feature ownership migration remains in progress.
 
 The staged ownership migration is recorded in
 [`easyemailam-migration.md`](./easyemailam-migration.md).
@@ -99,6 +100,26 @@ The implementation must define and test:
 Automatic restart may be added, but it must be bounded and visible. A crash loop
 must not continuously respawn the core or hide the original failure.
 
+## Current implementation evidence
+
+The current Windows implementation:
+
+- packages the current Node runtime, compiled `service/base` assets, and its
+  runtime YAML dependency as private Tauri resources;
+- starts exactly one child on an ephemeral `127.0.0.1` port with a generated
+  bearer token and application-data persistence;
+- waits for authenticated `GET /mail/catalog` readiness and makes the React
+  startup path repeat that semantic HTTP request;
+- rejects an unauthenticated catalog request and reaps the exact child when the
+  UI closes normally;
+- provides a manual, read-only-permission candidate Action that builds unsigned
+  MSI/NSIS installers plus a non-release manifest and SHA-256 checksums.
+
+This evidence does not yet prove graceful shutdown, a clean-machine installer,
+restart persistence, collision/crash recovery, or a real mailbox flow through
+the UI HTTP path. Most extended EasyEmailAM operations still use transitional
+Tauri commands.
+
 ## HTTP usage
 
 The UI may use `fetch` or a private generated client inside the UI application.
@@ -151,11 +172,10 @@ manifest, whose exact artifact set is a separate compatibility contract.
 ## Selected desktop host
 
 Tauri 2 is the selected desktop host and React 19 is the imported UI stack. The
-remaining packaging decision is how to make the TypeScript `service/base` core
-self-contained: either a Node single-executable application or a bundled private
-Node runtime plus compiled service assets. Both are acceptable only if the user
-does not need a separate Node installation and the host satisfies the lifecycle,
-security, provenance, and clean-machine gates above.
+current implementation uses the permitted bundled-private-Node option for the
+TypeScript `service/base` core. It is not release-complete until the host and
+installer satisfy every lifecycle, security, provenance, and clean-machine gate
+above.
 
 The imported Rust business services are transitional migration input. They must
 be removed as their HTTP-owned equivalents become complete; they are not an

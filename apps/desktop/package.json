@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:tauri": "npm run core:build && npm run dev",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "preview:smoke": "node scripts/verify-preview-http.mjs",
@@ -15,7 +16,11 @@
     "rust:clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
     "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "rust:check": "cargo check --manifest-path src-tauri/Cargo.toml",
-    "verify": "npm run test:unit && npm run ui:verify && npm run build && npm run preview:smoke && npm run rust:fmt && npm run rust:clippy && npm run rust:test && npm run rust:check"
+    "core:build": "npm --prefix ../../service/base run build",
+    "core:bundle": "node scripts/bundle-core-runtime.mjs",
+    "core:verify": "node scripts/verify-core-bundle.mjs",
+    "host:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-desktop-host-smoke.ps1",
+    "verify": "npm run test:unit && npm run ui:verify && npm run build && npm run preview:smoke && npm run rust:fmt && npm run rust:clippy && npm run rust:test && npm run rust:check && npm run core:bundle && npm run core:verify"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

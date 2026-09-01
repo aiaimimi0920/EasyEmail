@@ -1,6 +1,9 @@
+use tauri::Manager;
+
 pub mod app_state;
 pub mod avatar;
 pub mod commands;
+pub mod core_runtime;
 pub mod diagnostics;
 pub mod domain;
 pub mod easyemail;
@@ -27,12 +30,20 @@ pub fn run() {
             return;
         }
     };
+    let application_data_dir = app_state.data_dir.clone();
 
-    if let Err(error) = tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(app_state)
+        .setup(move |app| {
+            let runtime = core_runtime::DesktopCoreRuntime::start(app, &application_data_dir)
+                .map_err(std::io::Error::other)?;
+            app.manage(runtime);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::health_check,
+            core_runtime::desktop_core_runtime,
             commands::platform_account_get_session,
             commands::platform_account_query_data,
             commands::settings_get_easyemail,
@@ -88,11 +99,27 @@ pub fn run() {
             commands::avatar_clear_contact,
             commands::avatar_clear_cache
         ])
-        .run(tauri::generate_context!())
-    {
-        eprintln!(
-            "EasyEmailAM could not start the application: {}",
-            crate::redaction::redact_text(&error.to_string())
-        );
-    }
+        .build(tauri::generate_context!());
+
+    let app = match app {
+        Ok(app) => app,
+        Err(error) => {
+            eprintln!(
+                "EasyEmailAM could not build the application: {}",
+                crate::redaction::redact_text(&error.to_string())
+            );
+            return;
+        }
+    };
+
+    app.run(|app_handle, event| {
+        if matches!(
+            event,
+            tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }
+        ) {
+            app_handle
+                .state::<core_runtime::DesktopCoreRuntime>()
+                .stop();
+        }
+    });
 }

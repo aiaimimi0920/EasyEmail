@@ -31,10 +31,13 @@ class ProductArchitectureContractTests(unittest.TestCase):
         self.assertEqual(ui["core"], "service-base")
         self.assertEqual(ui["path"], "apps/desktop")
         self.assertEqual(ui["framework"], "tauri-2-react-19")
-        self.assertEqual(ui["implementationStatus"], "source-imported-migration-in-progress")
+        self.assertEqual(
+            ui["implementationStatus"],
+            "bundled-core-hosted-http-migration-in-progress",
+        )
         self.assertEqual(
             ui["releaseStatus"],
-            "blocked-until-http-ownership-and-sidecar-gates-pass",
+            "blocked-until-business-http-and-release-acceptance-gates-pass",
         )
         self.assertTrue(ui["bundlesCore"])
         self.assertTrue(ui["startsCoreAutomatically"])

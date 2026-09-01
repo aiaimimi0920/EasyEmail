@@ -1,0 +1,103 @@
+name: Build Desktop Migration Candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-desktop-candidate:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Set Up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Check Rust Toolchain
+        shell: pwsh
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Install Core Dependencies
+        shell: pwsh
+        working-directory: service/base
+        run: npm ci
+
+      - name: Install Desktop Dependencies
+        shell: pwsh
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Verify Desktop Migration
+        shell: pwsh
+        working-directory: apps/desktop
+        run: npm run verify
+
+      - name: Build Unsigned Windows Candidates
+        shell: pwsh
+        working-directory: apps/desktop
+        run: npm run tauri -- build --ci --no-sign --bundles msi nsis
+
+      - name: Verify Release Host Lifecycle
+        shell: pwsh
+        working-directory: apps/desktop
+        run: npm run host:smoke -- -ExecutablePath src-tauri/target/release/easyemailam.exe
+
+      - name: Assemble Candidate Evidence
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $candidateRoot = Join-Path $env:RUNNER_TEMP 'easyemail-desktop-candidate'
+          $bundleRoot = 'apps/desktop/src-tauri/target/release/bundle'
+          New-Item -ItemType Directory -Path $candidateRoot -Force | Out-Null
+
+          $installers = Get-ChildItem -LiteralPath $bundleRoot -Recurse -File |
+            Where-Object { $_.Extension -in @('.msi', '.exe') }
+          if (-not $installers) {
+            throw 'Tauri produced no MSI or NSIS candidate installers.'
+          }
+          foreach ($installer in $installers) {
+            Copy-Item -LiteralPath $installer.FullName -Destination $candidateRoot
+          }
+
+          $sourceSnapshot = Get-Content -LiteralPath 'apps/desktop/SOURCE_SNAPSHOT.json' -Raw |
+            ConvertFrom-Json
+          $desktopPackage = Get-Content -LiteralPath 'apps/desktop/package.json' -Raw |
+            ConvertFrom-Json
+          [ordered]@{
+            schemaVersion = 1
+            artifactKind = 'desktop-migration-candidate'
+            releaseEligible = $false
+            repositoryCommit = '${{ github.sha }}'
+            workflowRunId = '${{ github.run_id }}'
+            desktopVersion = $desktopPackage.version
+            importedSourceProject = $sourceSnapshot.sourceProject
+            importedSourceCommit = $sourceSnapshot.sourceCommit
+          } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $candidateRoot 'candidate-manifest.json') -Encoding utf8
+
+          Get-ChildItem -LiteralPath $candidateRoot -File |
+            Sort-Object Name |
+            ForEach-Object {
+              $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              "$hash  $($_.Name)"
+            } | Set-Content -LiteralPath (Join-Path $candidateRoot 'SHA256SUMS') -Encoding ascii
+
+      - name: Upload Desktop Migration Candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: easyemail-desktop-candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/easyemail-desktop-candidate
+          if-no-files-found: error
+          retention-days: 14

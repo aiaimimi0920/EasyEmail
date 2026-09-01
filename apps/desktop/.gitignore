@@ -22,6 +22,8 @@ easyemailam-*.png
 nmail-*.png
 artifacts/
 output/
+/src-tauri/resources/core/*
+!/src-tauri/resources/core/.gitkeep
 
 # Editor directories and files
 .vscode/*

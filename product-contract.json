@@ -31,7 +31,7 @@
       "path": "apps/desktop",
       "framework": "tauri-2-react-19",
       "sourceLineage": "EasyEmailAM",
-      "implementationStatus": "source-imported-migration-in-progress",
+      "implementationStatus": "bundled-core-hosted-http-migration-in-progress",
       "bundlesCore": true,
       "startsCoreAutomatically": true,
       "transport": "loopback-http",
@@ -40,7 +40,7 @@
       "lifecycleOwner": "ui-host",
       "contractDocument": "docs/ui-bundled-runtime.md",
       "migrationDocument": "docs/easyemailam-migration.md",
-      "releaseStatus": "blocked-until-http-ownership-and-sidecar-gates-pass"
+      "releaseStatus": "blocked-until-business-http-and-release-acceptance-gates-pass"
     },
     "userscript": {
       "path": "runtimes/userscript",

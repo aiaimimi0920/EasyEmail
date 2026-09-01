@@ -16,6 +16,7 @@ pub struct AppState {
     pub connection: Mutex<Connection>,
     pub event_bus: InMemoryEventBus,
     pub diagnostic_logger: DiagnosticLogger,
+    pub data_dir: PathBuf,
 }
 
 impl AppState {
@@ -91,6 +92,7 @@ impl AppState {
             connection: Mutex::new(connection),
             event_bus: InMemoryEventBus::default(),
             diagnostic_logger: DiagnosticLogger::default(),
+            data_dir,
         })
     }
 }

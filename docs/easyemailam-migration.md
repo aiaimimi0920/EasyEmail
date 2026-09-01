@@ -66,16 +66,22 @@ fetching.
 
 ## Imported transitional state
 
-The imported application is buildable and preserves all EasyEmailAM features,
-but its Rust backend still owns the business logic through Tauri commands. This
-is an explicitly temporary, non-release state. In particular:
+The imported application is buildable and preserves all EasyEmailAM features.
+The Tauri host now starts the compiled `service/base` core with a private Node
+runtime, waits for authenticated loopback readiness, and the React startup path
+queries the canonical `/mail/catalog` resource. Most extended business features
+are still owned by the transitional Rust backend, so this remains an explicitly
+temporary, non-release state. In particular:
 
-- `src/App.tsx` still calls the Tauri command surface;
+- `src/App.tsx` uses HTTP for bundled-core startup readiness but still calls the
+  Tauri command surface for mailbox and extended client operations;
 - `src-tauri/src/commands.rs` still maps UI requests to Rust services;
 - the Rust services and SQLite repositories still implement the extended mail
   client behavior;
-- no packaged `service/base` sidecar is started yet;
-- no desktop release is added to the coordinated EasyEmail release workflow.
+- normal close reaps the exact child process, but the core does not yet expose a
+  graceful shutdown API;
+- the manual desktop candidate workflow uploads only unsigned migration
+  evidence; no desktop release is added to the coordinated release workflow.
 
 Keeping this intermediate state buildable prevents feature loss while each
 ownership boundary is moved and verified. It does not authorize a public desktop
@@ -159,6 +165,14 @@ importer and rollback path are proven.
 a private self-contained core runtime, either as a Node single-executable
 application or as a bundled private Node runtime plus compiled service assets.
 Requiring a separately installed Node.js remains forbidden.
+
+The current migration packages a private Node runtime, compiled `service/base`
+assets, and the runtime `yaml` dependency under Tauri resources. The host owns a
+single exact child, selects an ephemeral loopback port, generates a runtime-only
+bearer token, waits for authenticated catalog readiness, and reaps the child on
+normal UI exit. `build-desktop-candidate.yml` can build unsigned MSI/NSIS
+candidates and upload a manifest plus SHA-256 checksums, but it deliberately does
+not create a tag or GitHub Release.
 
 The Windows GitHub Actions job must build the core, package the Tauri app,
 produce MSI/NSIS artifacts, record source revisions and SHA-256 checksums, and

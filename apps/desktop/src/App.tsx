@@ -10,7 +10,7 @@ import type {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { createAppClient } from "./api/appClient";
+import { createBundledCoreClient } from "./api/bundledCoreClient";
 import {
   createAvatarSettingsClient,
   type AvatarSettingsDto,
@@ -127,7 +127,7 @@ import { senderAvatarMapKey } from "./mail/senderAvatar";
 import { createNonOverlappingAsyncRunner } from "./utils/asyncTask";
 import "./App.css";
 
-const appClient = createAppClient(invoke);
+const bundledCoreClient = createBundledCoreClient(invoke);
 const avatarSettingsClient = createAvatarSettingsClient(invoke);
 const contactClient = createContactClient(invoke);
 const mailTaxonomyClient = createMailTaxonomyClient(invoke);
@@ -1133,7 +1133,7 @@ function App() {
         mailboxesResult,
         platformSessionResult,
       ] = await Promise.all([
-        appClient.getHealth(),
+        bundledCoreClient.getCatalog(),
         settingsClient.getEasyEmailSettings(),
         avatarSettingsClient.getAvatarSettings(),
         invoke<TempMailboxDto[]>("temp_list_mailboxes"),

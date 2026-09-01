@@ -60,9 +60,10 @@ EasyEmail has three distinct product forms:
 2. **Bundled UI.** The approved UI architecture packages the same `service/base`
    core with a UI host. Launching the UI automatically starts the packaged core,
    and the UI communicates with it over authenticated loopback HTTP. The
-   EasyEmailAM source is now imported under `apps/desktop`, but its business
-   ownership and packaged-core migration are still in progress; no compliant UI
-   package is shipped yet.
+   EasyEmailAM source is now imported under `apps/desktop`. The host packages and
+   starts the private core and the UI proves authenticated HTTP catalog readiness,
+   but business ownership is still being migrated; no compliant UI package is
+   shipped yet.
 3. **Userscript.** The Userscript is a completely independent browser runtime.
    It directly implements access to the configured upstream providers and never
    proxies through `service/base`.
@@ -100,6 +101,11 @@ promotion, Agent mail, taxonomy, newsletter, contact, and avatar features while
 those business capabilities are moved behind `service/base` HTTP APIs. Tauri is
 the final lifecycle/OS host, not a second EasyEmail business core. See
 [`docs/easyemailam-migration.md`](docs/easyemailam-migration.md).
+
+The current desktop host bundles a private Node runtime plus compiled
+`service/base`, starts it automatically on loopback, and injects a runtime-only
+token into the UI HTTP transport. The remaining Tauri business commands are
+transitional and block a public desktop release.
 
 ### `clients/typescript`
 
