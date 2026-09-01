@@ -7,6 +7,13 @@ import type {
   ContactUpdateInput,
   EasyEmailCatalog,
   EasyEmailSnapshot,
+  MailTaxonomyDeleteResult,
+  MailTaxonomyKind,
+  MailTaxonomyListQuery,
+  MailTaxonomyListResult,
+  MailTaxonomyMutationResult,
+  MailTaxonomyUpdateInput,
+  MailTaxonomyUpsertInput,
   MailboxOutcomeReport,
   MailboxOutcomeReportResult,
   MailboxPlanResult,
@@ -33,6 +40,7 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   snapshot: "/mail/snapshot",
   queryObservedMessages: "/mail/query/observed-messages",
   contacts: "/mail/contacts",
+  taxonomy: "/mail/taxonomy",
   planMailbox: "/mail/mailboxes/plan",
   openMailbox: "/mail/mailboxes/open",
   sendMailboxMessage: "/mail/mailboxes/send",
@@ -54,6 +62,12 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   contact(contactId: string): string {
     return `/mail/contacts/${encodeURIComponent(contactId)}`;
   },
+  taxonomyItem(itemId: string): string {
+    return `/mail/taxonomy/${encodeURIComponent(itemId)}`;
+  },
+  taxonomyUpsert(kind: MailTaxonomyKind, key: string): string {
+    return `/mail/taxonomy/${encodeURIComponent(kind)}/${encodeURIComponent(key)}`;
+  },
 } as const;
 
 export interface FetchJsonHttpClientOptions {
@@ -70,6 +84,7 @@ export interface QueryParameters {
 export interface JsonHttpClient {
   get<TResponse>(path: string, query?: QueryParameters): Promise<TResponse>;
   post<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse>;
+  put<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse>;
   patch<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse>;
   delete<TResponse>(path: string, query?: QueryParameters): Promise<TResponse>;
 }
@@ -178,7 +193,7 @@ export function createFetchJsonHttpClient(options: FetchJsonHttpClientOptions): 
   async function request<TResponse>(
     path: string,
     init: {
-      method: "GET" | "POST" | "PATCH" | "DELETE";
+      method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
       headers?: Record<string, string>;
       body?: string;
     },
@@ -220,6 +235,15 @@ export function createFetchJsonHttpClient(options: FetchJsonHttpClientOptions): 
         body: JSON.stringify(body ?? {}),
       });
     },
+    put<TRequest, TResponse>(path: string, body: TRequest) {
+      return request<TResponse>(path, {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body ?? {}),
+      });
+    },
     patch<TRequest, TResponse>(path: string, body: TRequest) {
       return request<TResponse>(path, {
         method: "PATCH",
@@ -243,6 +267,18 @@ export interface EasyEmailClientApi {
   createContact(input: ContactCreateInput): Promise<Contact>;
   updateContact(contactId: string, input: ContactUpdateInput): Promise<Contact>;
   deleteContact(contactId: string, expectedVersion: number): Promise<{ id: string }>;
+  listMailTaxonomy(query: MailTaxonomyListQuery): Promise<MailTaxonomyListResult>;
+  getMailTaxonomy(itemId: string): Promise<MailTaxonomyMutationResult>;
+  upsertMailTaxonomy(
+    kind: MailTaxonomyKind,
+    key: string,
+    input: MailTaxonomyUpsertInput,
+  ): Promise<MailTaxonomyMutationResult>;
+  updateMailTaxonomy(
+    itemId: string,
+    input: MailTaxonomyUpdateInput,
+  ): Promise<MailTaxonomyMutationResult>;
+  deleteMailTaxonomy(itemId: string, expectedVersion: number): Promise<MailTaxonomyDeleteResult>;
   planMailbox(request: VerificationMailboxRequest): Promise<MailboxPlanResult>;
   openMailbox(request: VerificationMailboxRequest): Promise<VerificationMailboxOpenResult>;
   sendMailboxMessage(request: MailboxSendRequest): Promise<MailboxSendResult>;
@@ -313,6 +349,51 @@ export class EasyEmailClient implements EasyEmailClientApi {
       { expectedVersion },
     );
     return response.deleted;
+  }
+
+  public async listMailTaxonomy(query: MailTaxonomyListQuery): Promise<MailTaxonomyListResult> {
+    return this.httpClient.get<MailTaxonomyListResult>(EASY_EMAIL_HTTP_ROUTES.taxonomy, {
+      kind: query.kind,
+      limit: query.limit,
+      cursor: query.cursor,
+    });
+  }
+
+  public async getMailTaxonomy(itemId: string): Promise<MailTaxonomyMutationResult> {
+    return this.httpClient.get<MailTaxonomyMutationResult>(
+      EASY_EMAIL_HTTP_ROUTES.taxonomyItem(itemId),
+    );
+  }
+
+  public async upsertMailTaxonomy(
+    kind: MailTaxonomyKind,
+    key: string,
+    input: MailTaxonomyUpsertInput,
+  ): Promise<MailTaxonomyMutationResult> {
+    return this.httpClient.put<MailTaxonomyUpsertInput, MailTaxonomyMutationResult>(
+      EASY_EMAIL_HTTP_ROUTES.taxonomyUpsert(kind, key),
+      input,
+    );
+  }
+
+  public async updateMailTaxonomy(
+    itemId: string,
+    input: MailTaxonomyUpdateInput,
+  ): Promise<MailTaxonomyMutationResult> {
+    return this.httpClient.patch<MailTaxonomyUpdateInput, MailTaxonomyMutationResult>(
+      EASY_EMAIL_HTTP_ROUTES.taxonomyItem(itemId),
+      input,
+    );
+  }
+
+  public async deleteMailTaxonomy(
+    itemId: string,
+    expectedVersion: number,
+  ): Promise<MailTaxonomyDeleteResult> {
+    return this.httpClient.delete<MailTaxonomyDeleteResult>(
+      EASY_EMAIL_HTTP_ROUTES.taxonomyItem(itemId),
+      { expectedVersion },
+    );
   }
 
   public async planMailbox(request: VerificationMailboxRequest): Promise<MailboxPlanResult> {

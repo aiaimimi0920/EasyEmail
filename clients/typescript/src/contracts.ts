@@ -63,6 +63,57 @@ export interface ContactUpdateInput {
   note?: string | null;
 }
 
+export type MailTaxonomyKind = "folder" | "label";
+
+export interface MailTaxonomyItem {
+  id: string;
+  kind: MailTaxonomyKind;
+  name: string;
+  parentId?: string;
+  color: string;
+  sortOrder: number;
+  system: boolean;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MailTaxonomyCapabilities {
+  messageReferencePropagation: boolean;
+}
+
+export interface MailTaxonomyListQuery {
+  kind: MailTaxonomyKind;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface MailTaxonomyListResult {
+  items: MailTaxonomyItem[];
+  nextCursor?: string;
+  capabilities: MailTaxonomyCapabilities;
+}
+
+export interface MailTaxonomyUpsertInput {
+  name: string;
+  parentId?: string | null;
+  color?: string;
+}
+
+export interface MailTaxonomyUpdateInput extends MailTaxonomyUpsertInput {
+  expectedVersion: number;
+}
+
+export interface MailTaxonomyMutationResult {
+  item: MailTaxonomyItem;
+  capabilities: MailTaxonomyCapabilities;
+}
+
+export interface MailTaxonomyDeleteResult {
+  deleted: { id: string; changed: boolean };
+  capabilities: MailTaxonomyCapabilities;
+}
+
 export interface ActionLinkCandidate {
   url: string;
   label?: string;

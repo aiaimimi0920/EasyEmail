@@ -49,11 +49,13 @@ import type {
 import type { EasyEmailService } from "../service/easy-email-service.js";
 import type { MailRegistrySeed } from "../domain/registry.js";
 import type { ContactRepository } from "../domain/contact.js";
+import type { MailTaxonomyRepository } from "../domain/mail-taxonomy.js";
 import {
   resolveRelationalDatabasePath,
   SqliteRelationalDatabase,
 } from "../persistence/relational/database.js";
 import { createContactService } from "../service/contacts.js";
+import { createMailTaxonomyService } from "../service/mail-taxonomy.js";
 
 export interface EasyEmailServiceRuntimeOptions extends EasyEmailBootstrapOptions {
   config?: EasyEmailServiceRuntimeConfig;
@@ -61,6 +63,7 @@ export interface EasyEmailServiceRuntimeOptions extends EasyEmailBootstrapOption
   queryRepository?: MailStateQueryRepository;
   databaseState?: MailStateDatabase;
   contactRepository?: ContactRepository;
+  mailTaxonomyRepository?: MailTaxonomyRepository;
 }
 
 export interface StartedEasyEmailServiceRuntime {
@@ -72,6 +75,7 @@ export interface StartedEasyEmailServiceRuntime {
   persistenceLoop?: MailStatePersistenceLoop;
   queryRepository?: MailStateQueryRepository;
   contactRepository?: ContactRepository;
+  mailTaxonomyRepository?: MailTaxonomyRepository;
   close(): Promise<void>;
 }
 
@@ -205,12 +209,15 @@ export async function startEasyEmailServiceRuntime(
   await configureCloudflareTempEmailProviderInstance(service, config);
   service.resetOperationalState(new Date());
 
-  const relationalDatabase = !options.contactRepository && config.persistence.enabled
+  const relationalDatabase = (
+    !options.contactRepository || !options.mailTaxonomyRepository
+  ) && config.persistence.enabled
     ? new SqliteRelationalDatabase({
         databasePath: resolveRelationalDatabasePath(config.persistence.databasePath),
       })
     : undefined;
   const contactRepository = options.contactRepository ?? relationalDatabase;
+  const mailTaxonomyRepository = options.mailTaxonomyRepository ?? relationalDatabase;
   let handler: EasyEmailHttpHandler | undefined;
   let server: StartedEasyEmailHttpServer | undefined;
   let maintenanceLoop: MailMaintenanceLoop | undefined;
@@ -220,6 +227,7 @@ export async function startEasyEmailServiceRuntime(
       service,
       queryRepository,
       contactRepository ? createContactService(contactRepository) : undefined,
+      mailTaxonomyRepository ? createMailTaxonomyService(mailTaxonomyRepository) : undefined,
     );
     server = await createEasyEmailHttpServer(handler, {
       hostname: config.hostname,
@@ -284,6 +292,7 @@ export async function startEasyEmailServiceRuntime(
     persistenceLoop,
     queryRepository,
     contactRepository,
+    mailTaxonomyRepository,
     async close() {
       maintenanceLoop?.stop();
       try {

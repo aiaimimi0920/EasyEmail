@@ -183,6 +183,57 @@ export type EasyEmailContactDeleteResponse = {
   deleted: { id: string };
 };
 
+export type EasyEmailMailTaxonomyKind = "folder" | "label";
+
+export type EasyEmailMailTaxonomyItem = {
+  id: string;
+  kind: EasyEmailMailTaxonomyKind;
+  name: string;
+  parentId?: string;
+  color: string;
+  sortOrder: number;
+  system: boolean;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type EasyEmailMailTaxonomyCapabilities = {
+  messageReferencePropagation: boolean;
+};
+
+export type EasyEmailMailTaxonomyListQuery = {
+  kind: EasyEmailMailTaxonomyKind;
+  limit?: number;
+  cursor?: string;
+};
+
+export type EasyEmailMailTaxonomyListResponse = {
+  items: EasyEmailMailTaxonomyItem[];
+  nextCursor?: string;
+  capabilities: EasyEmailMailTaxonomyCapabilities;
+};
+
+export type EasyEmailMailTaxonomyUpsertRequest = {
+  name: string;
+  parentId?: string | null;
+  color?: string;
+};
+
+export type EasyEmailMailTaxonomyUpdateRequest = EasyEmailMailTaxonomyUpsertRequest & {
+  expectedVersion: number;
+};
+
+export type EasyEmailMailTaxonomyMutationResponse = {
+  item: EasyEmailMailTaxonomyItem;
+  capabilities: EasyEmailMailTaxonomyCapabilities;
+};
+
+export type EasyEmailMailTaxonomyDeleteResponse = {
+  deleted: { id: string; changed: boolean };
+  capabilities: EasyEmailMailTaxonomyCapabilities;
+};
+
 export type EasyEmailPlanMailboxResponse<TResult = unknown> = {
   plan: TResult;
 };
@@ -441,6 +492,7 @@ export const EASY_EMAIL_CORE_ROUTES = {
   reportMailboxOutcome: "/mail/mailboxes/report-outcome",
   sendMailboxMessage: "/mail/mailboxes/send",
   contacts: "/mail/contacts",
+  taxonomy: "/mail/taxonomy",
   verificationCode(sessionId: string): string {
     return `/mail/mailboxes/${encodeURIComponent(sessionId)}/code`;
   },
@@ -455,6 +507,12 @@ export const EASY_EMAIL_CORE_ROUTES = {
   },
   contact(contactId: string): string {
     return `/mail/contacts/${encodeURIComponent(contactId)}`;
+  },
+  taxonomyItem(itemId: string): string {
+    return `/mail/taxonomy/${encodeURIComponent(itemId)}`;
+  },
+  taxonomyUpsert(kind: EasyEmailMailTaxonomyKind, key: string): string {
+    return `/mail/taxonomy/${encodeURIComponent(kind)}/${encodeURIComponent(key)}`;
   },
 } as const;
 
@@ -613,6 +671,45 @@ export function createEasyEmailHttpClient(options: EasyEmailHttpClientOptions) {
       return request({
         method: "DELETE",
         path: EASY_EMAIL_CORE_ROUTES.contact(contactId),
+        query: { expectedVersion },
+      });
+    },
+    listMailTaxonomy(
+      query: EasyEmailMailTaxonomyListQuery,
+    ): Promise<EasyEmailMailTaxonomyListResponse> {
+      return request({ path: EASY_EMAIL_CORE_ROUTES.taxonomy, query });
+    },
+    getMailTaxonomy(itemId: string): Promise<EasyEmailMailTaxonomyMutationResponse> {
+      return request({ path: EASY_EMAIL_CORE_ROUTES.taxonomyItem(itemId) });
+    },
+    upsertMailTaxonomy(
+      kind: EasyEmailMailTaxonomyKind,
+      key: string,
+      taxonomyRequest: EasyEmailMailTaxonomyUpsertRequest,
+    ): Promise<EasyEmailMailTaxonomyMutationResponse> {
+      return request({
+        method: "PUT",
+        path: EASY_EMAIL_CORE_ROUTES.taxonomyUpsert(kind, key),
+        body: taxonomyRequest,
+      });
+    },
+    updateMailTaxonomy(
+      itemId: string,
+      taxonomyRequest: EasyEmailMailTaxonomyUpdateRequest,
+    ): Promise<EasyEmailMailTaxonomyMutationResponse> {
+      return request({
+        method: "PATCH",
+        path: EASY_EMAIL_CORE_ROUTES.taxonomyItem(itemId),
+        body: taxonomyRequest,
+      });
+    },
+    deleteMailTaxonomy(
+      itemId: string,
+      expectedVersion: number,
+    ): Promise<EasyEmailMailTaxonomyDeleteResponse> {
+      return request({
+        method: "DELETE",
+        path: EASY_EMAIL_CORE_ROUTES.taxonomyItem(itemId),
         query: { expectedVersion },
       });
     },

@@ -177,7 +177,19 @@ export function createEasyEmailHttpServer(
         return;
       }
 
-      if (error instanceof EasyEmailError && ["INVALID_CONTACT", "INVALID_CONTACT_CURSOR"].includes(error.code)) {
+      if (
+        error instanceof EasyEmailError
+        && [
+          "INVALID_CONTACT",
+          "INVALID_CONTACT_CURSOR",
+          "INVALID_MAIL_TAXONOMY",
+          "INVALID_MAIL_TAXONOMY_CURSOR",
+          "MAIL_TAXONOMY_KIND_UNSUPPORTED",
+          "MAIL_TAXONOMY_PARENT_UNSUPPORTED",
+          "MAIL_TAXONOMY_PARENT_NOT_FOUND",
+          "MAIL_TAXONOMY_PARENT_CYCLE",
+        ].includes(error.code)
+      ) {
         writeEasyEmailError(response, 400, error);
         return;
       }
@@ -192,6 +204,11 @@ export function createEasyEmailHttpServer(
         return;
       }
 
+      if (error instanceof EasyEmailError && error.code === "MAIL_TAXONOMY_NOT_FOUND") {
+        writeEasyEmailError(response, 404, error);
+        return;
+      }
+
       if (
         error instanceof EasyEmailError
         && ["CONTACT_VERSION_CONFLICT", "CONTACT_EMAIL_CONFLICT"].includes(error.code)
@@ -200,7 +217,23 @@ export function createEasyEmailHttpServer(
         return;
       }
 
+      if (
+        error instanceof EasyEmailError
+        && ["MAIL_TAXONOMY_VERSION_CONFLICT", "MAIL_TAXONOMY_NAME_CONFLICT"].includes(error.code)
+      ) {
+        writeEasyEmailError(response, 409, error);
+        return;
+      }
+
       if (error instanceof EasyEmailError && error.code === "CONTACTS_PERSISTENCE_UNAVAILABLE") {
+        writeEasyEmailError(response, 503, error);
+        return;
+      }
+
+      if (
+        error instanceof EasyEmailError
+        && error.code === "MAIL_TAXONOMY_PERSISTENCE_UNAVAILABLE"
+      ) {
         writeEasyEmailError(response, 503, error);
         return;
       }

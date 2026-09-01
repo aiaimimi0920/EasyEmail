@@ -118,6 +118,71 @@ test("contact resources use canonical methods, paths, bodies, and CAS query", as
   assert.ok(calls.every((call) => call.init.headers.authorization === "Bearer contacts-token"));
 });
 
+test("mail taxonomy resources preserve methods, encoded paths, CAS, and capability metadata", async () => {
+  const calls = [];
+  const capabilities = { messageReferencePropagation: false };
+  const item = {
+    id: "mailtax_folder_team/a",
+    kind: "folder",
+    name: "Team / Alpha",
+    color: "#8b5cf6",
+    sortOrder: 10,
+    system: false,
+    version: 1,
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+  };
+  const client = new EasyEmailClient({
+    baseUrl: "http://127.0.0.1:8080",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      if (init.method === "GET" && String(url).includes("?")) {
+        return jsonResponse({ items: [item], capabilities });
+      }
+      if (init.method === "DELETE") {
+        return jsonResponse({ deleted: { id: item.id, changed: true }, capabilities });
+      }
+      return jsonResponse({ item, capabilities });
+    },
+  });
+
+  await client.listMailTaxonomy({ kind: "folder", limit: 10, cursor: "opaque/cursor" });
+  await client.getMailTaxonomy(item.id);
+  await client.upsertMailTaxonomy("folder", "team___alpha", {
+    name: "Team / Alpha",
+  });
+  await client.updateMailTaxonomy(item.id, {
+    expectedVersion: 1,
+    name: "Team Alpha",
+  });
+  assert.deepEqual(await client.deleteMailTaxonomy(item.id, 2), {
+    deleted: { id: item.id, changed: true },
+    capabilities,
+  });
+
+  assert.equal(
+    calls[0].url,
+    "http://127.0.0.1:8080/mail/taxonomy?kind=folder&limit=10&cursor=opaque%2Fcursor",
+  );
+  assert.equal(calls[1].url, "http://127.0.0.1:8080/mail/taxonomy/mailtax_folder_team%2Fa");
+  assert.equal(
+    calls[2].url,
+    "http://127.0.0.1:8080/mail/taxonomy/folder/team___alpha",
+  );
+  assert.deepEqual(
+    calls.map((call) => call.init.method),
+    ["GET", "GET", "PUT", "PATCH", "DELETE"],
+  );
+  assert.deepEqual(JSON.parse(calls[3].init.body), {
+    expectedVersion: 1,
+    name: "Team Alpha",
+  });
+  assert.equal(
+    calls[4].url,
+    "http://127.0.0.1:8080/mail/taxonomy/mailtax_folder_team%2Fa?expectedVersion=2",
+  );
+});
+
 test("HTTP failures expose status and server error code", async () => {
   const httpClient = createFetchJsonHttpClient({
     baseUrl: "https://mail.example.test",

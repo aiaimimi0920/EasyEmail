@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SERVER_CONTRACTS = ROOT / "service" / "base" / "src" / "http" / "contracts.ts"
 DOMAIN_MODELS = ROOT / "service" / "base" / "src" / "domain" / "models.ts"
 DOMAIN_CONTACT = ROOT / "service" / "base" / "src" / "domain" / "contact.ts"
+DOMAIN_TAXONOMY = (
+    ROOT / "service" / "base" / "src" / "domain" / "mail-taxonomy.ts"
+)
 SHARED_CREDENTIALS = (
     ROOT / "service" / "base" / "src" / "shared" / "credentials.ts"
 )
@@ -32,6 +35,12 @@ DYNAMIC_ROUTE_METHODS = {
         "patch": "updateContact",
         "delete": "deleteContact",
     },
+    "taxonomyItem": {
+        "get": "getMailTaxonomy",
+        "patch": "updateMailTaxonomy",
+        "delete": "deleteMailTaxonomy",
+    },
+    "taxonomyUpsert": {"put": "upsertMailTaxonomy"},
 }
 
 STATIC_ROUTE_DISPATCH = re.compile(
@@ -51,14 +60,16 @@ def extract_static_routes(text: str) -> dict[str, str]:
 
 def extract_dynamic_routes(text: str) -> dict[str, str]:
     routes: dict[str, str] = {}
-    for name, parameter, template in re.findall(
-        r"^\s{2}(\w+)\((\w+): string\): string \{\s+"
+    for name, parameters, template in re.findall(
+        r"^\s{2}(\w+)\(([^)]*)\): string \{\s+"
         r"return `([^`]+)`;\s+\},$",
         text,
         re.MULTILINE,
     ):
-        expression = "${encodeURIComponent(" + parameter + ")}"
-        path = template.replace(expression, "{" + parameter + "}")
+        path = template
+        for parameter in re.findall(r"(\w+)\s*:", parameters):
+            expression = "${encodeURIComponent(" + parameter + ")}"
+            path = path.replace(expression, "{" + parameter + "}")
         if "${" in path:
             raise AssertionError(f"unsupported dynamic route template: {name}: {template}")
         routes[name] = path
@@ -305,6 +316,14 @@ class HttpApiContractTests(unittest.TestCase):
             "ObserveMessageInput": (DOMAIN_MODELS, "ObserveMessageInput"),
             "ContactCreateInput": (DOMAIN_CONTACT, "ContactCreateInput"),
             "ContactUpdateInput": (DOMAIN_CONTACT, "ContactUpdateInput"),
+            "MailTaxonomyUpsertInput": (
+                DOMAIN_TAXONOMY,
+                "MailTaxonomyUpsertRequest",
+            ),
+            "MailTaxonomyUpdateInput": (
+                DOMAIN_TAXONOMY,
+                "MailTaxonomyUpdateRequest",
+            ),
         }
 
         for schema_name, (path, interface_name) in request_interfaces.items():
@@ -382,6 +401,23 @@ class HttpApiContractTests(unittest.TestCase):
                 SERVER_CONTRACTS,
                 "DeleteContactHttpResponse",
             ),
+            "MailTaxonomyItem": (DOMAIN_TAXONOMY, "MailTaxonomyItem"),
+            "MailTaxonomyCapabilities": (
+                DOMAIN_TAXONOMY,
+                "MailTaxonomyCapabilities",
+            ),
+            "MailTaxonomyListResponse": (
+                SERVER_CONTRACTS,
+                "ListMailTaxonomyHttpResponse",
+            ),
+            "MailTaxonomyMutationResponse": (
+                SERVER_CONTRACTS,
+                "UpsertMailTaxonomyHttpResponse",
+            ),
+            "MailTaxonomyDeleteResponse": (
+                SERVER_CONTRACTS,
+                "DeleteMailTaxonomyHttpResponse",
+            ),
         }
 
         for schema_name, (path, interface_name) in response_interfaces.items():
@@ -412,6 +448,11 @@ class HttpApiContractTests(unittest.TestCase):
             "createContact": "ContactResponse",
             "updateContact": "ContactResponse",
             "deleteContact": "DeleteContactResponse",
+            "listMailTaxonomy": "MailTaxonomyListResponse",
+            "getMailTaxonomy": "MailTaxonomyMutationResponse",
+            "upsertMailTaxonomy": "MailTaxonomyMutationResponse",
+            "updateMailTaxonomy": "MailTaxonomyMutationResponse",
+            "deleteMailTaxonomy": "MailTaxonomyDeleteResponse",
         }
         actual_responses = {}
         for path_item in self.openapi["paths"].values():
@@ -437,6 +478,9 @@ class HttpApiContractTests(unittest.TestCase):
             "getContact",
             "updateContact",
             "deleteContact",
+            "getMailTaxonomy",
+            "updateMailTaxonomy",
+            "deleteMailTaxonomy",
         }
         documented_operation_ids = {
             operation["operationId"]

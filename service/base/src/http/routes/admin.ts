@@ -8,6 +8,7 @@ import type {
   ProviderInstanceStatus,
 } from "../../domain/models.js";
 import { normalizeMailProviderTypeKey } from "../../domain/models.js";
+import type { MailTaxonomyKind } from "../../domain/mail-taxonomy.js";
 import { EASY_EMAIL_HTTP_ROUTES } from "../contracts.js";
 import type { EasyEmailHttpHandler } from "../handler.js";
 
@@ -74,6 +75,47 @@ function extractContactId(path: string): string | undefined {
   } catch {
     throw new EasyEmailError("INVALID_CONTACT", "Contact id path encoding is invalid.");
   }
+}
+
+function decodeTaxonomyPathPart(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    throw new EasyEmailError(
+      "INVALID_MAIL_TAXONOMY",
+      "Mail taxonomy path encoding is invalid.",
+    );
+  }
+}
+
+function extractMailTaxonomyUpsertTarget(
+  path: string,
+): { kind: MailTaxonomyKind; key: string } | undefined {
+  const matched = path.match(/^\/mail\/taxonomy\/([^/]+)\/([^/]+)$/);
+  if (!matched?.[1] || !matched[2]) return undefined;
+  const kind = decodeTaxonomyPathPart(matched[1]);
+  if (kind !== "folder" && kind !== "label") {
+    throw new EasyEmailError(
+      "MAIL_TAXONOMY_KIND_UNSUPPORTED",
+      "Mail taxonomy kind must be folder or label.",
+    );
+  }
+  return { kind, key: decodeTaxonomyPathPart(matched[2]) };
+}
+
+function extractMailTaxonomyItemId(path: string): string | undefined {
+  const matched = path.match(/^\/mail\/taxonomy\/([^/]+)$/);
+  return matched?.[1] ? decodeTaxonomyPathPart(matched[1]) : undefined;
+}
+
+function parseMailTaxonomyKind(value: string | undefined): MailTaxonomyKind {
+  if (value !== "folder" && value !== "label") {
+    throw new EasyEmailError(
+      "MAIL_TAXONOMY_KIND_UNSUPPORTED",
+      "Mail taxonomy kind query must be folder or label.",
+    );
+  }
+  return value;
 }
 
 function parseProviderInstanceFilters(query: Record<string, string>): ProviderInstanceQueryFilters {
@@ -183,6 +225,26 @@ export async function handleAdminRoute(context: AdminRouteContext): Promise<unkn
     return handler.createContact(await readJsonBody());
   }
 
+  const taxonomyUpsertTarget = extractMailTaxonomyUpsertTarget(path);
+  if (method === "PUT" && taxonomyUpsertTarget) {
+    return handler.upsertMailTaxonomy(
+      taxonomyUpsertTarget.kind,
+      taxonomyUpsertTarget.key,
+      await readJsonBody(),
+    );
+  }
+
+  const taxonomyItemId = extractMailTaxonomyItemId(path);
+  if (method === "PATCH" && taxonomyItemId) {
+    return handler.updateMailTaxonomy(taxonomyItemId, await readJsonBody());
+  }
+
+  if (method === "DELETE" && taxonomyItemId) {
+    return handler.deleteMailTaxonomy(taxonomyItemId, {
+      expectedVersion: parseExpectedVersion(query.expectedVersion),
+    });
+  }
+
   const contactId = extractContactId(path);
   if (method === "PATCH" && contactId) {
     return handler.updateContact(contactId, await readJsonBody());
@@ -216,6 +278,18 @@ export async function handleAdminRoute(context: AdminRouteContext): Promise<unkn
 
   if (method === "GET" && contactId) {
     return handler.getContact(contactId);
+  }
+
+  if (method === "GET" && path === EASY_EMAIL_HTTP_ROUTES.taxonomy) {
+    return handler.listMailTaxonomy({
+      kind: parseMailTaxonomyKind(query.kind),
+      limit: parseContactLimit(query.limit),
+      cursor: query.cursor || undefined,
+    });
+  }
+
+  if (method === "GET" && taxonomyItemId) {
+    return handler.getMailTaxonomy(taxonomyItemId);
   }
 
   if (method === "GET" && path === EASY_EMAIL_HTTP_ROUTES.queryHostBindings) {

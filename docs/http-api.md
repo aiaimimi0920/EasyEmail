@@ -184,6 +184,58 @@ case-insensitive name/email ordering. Pass `nextCursor` back unchanged.
 `version` as compare-and-swap protection. Delete is hard and does not mutate
 messages. A stale version or email collision returns 409.
 
+## Persistent mail taxonomy
+
+Folders and labels are stored in schema v2 of the same separate relational
+SQLite database. List one kind at a time with
+`GET /mail/taxonomy?kind=folder|label&limit=50&cursor=<opaque>`.
+
+Create or idempotently update an item by normalized name with:
+
+```http
+PUT /mail/taxonomy/folder/project_alpha
+Authorization: Bearer <easyemail-api-key>
+Content-Type: application/json
+
+{
+  "name": "Project Alpha",
+  "parentId": null,
+  "color": "#8b5cf6"
+}
+```
+
+The path `key` is the legacy-compatible name slug: ASCII letters and digits are
+lowercased and retained, every other character becomes `_`, edge underscores
+are removed, and an empty result becomes `item`. Names contain 1 to 64
+characters after whitespace normalization. Labels reject `parentId`; folders
+require an existing folder parent and reject cycles. Invalid colors normalize
+to `#8b5cf6`.
+
+Read an item with `GET /mail/taxonomy/{itemId}`. Update with
+`PATCH /mail/taxonomy/{itemId}` using the full `name`, optional `parentId` and
+`color`, plus the returned `expectedVersion`. Delete with
+`DELETE /mail/taxonomy/{itemId}?expectedVersion=N`. Delete is hard for
+non-system items and reparents direct children to the root; a protected system
+item returns `changed: false`.
+
+Every taxonomy response includes:
+
+```json
+{
+  "capabilities": {
+    "messageReferencePropagation": false
+  }
+}
+```
+
+This is a deliberate capability boundary: schema v2 owns taxonomy records, but
+the current `service/base` message model does not yet own the legacy desktop
+message folder/label references. Taxonomy rename/delete therefore does not
+rewrite message records. The desktop UI continues to use its legacy
+transactional taxonomy command until the M4 message model can provide equivalent
+propagation; HTTP callers must not interpret taxonomy mutations as message
+mutations.
+
 Named request schemas, optional filters, enums, and the core mailbox response
 envelopes are defined in the OpenAPI document. Some large administrative and
 catalog payloads intentionally remain permissive JSON objects until their domain
@@ -218,6 +270,11 @@ authorization tier.
 | `GET` | `/mail/contacts/{contactId}` | Read one contact. |
 | `PATCH` | `/mail/contacts/{contactId}` | Update one contact with version CAS. |
 | `DELETE` | `/mail/contacts/{contactId}?expectedVersion=N` | Hard-delete one contact with version CAS. |
+| `GET` | `/mail/taxonomy?kind=folder\|label` | List persistent folders or labels with opaque keyset pagination. |
+| `PUT` | `/mail/taxonomy/{kind}/{key}` | Create or upsert a folder or label by normalized name. |
+| `GET` | `/mail/taxonomy/{itemId}` | Read one folder or label. |
+| `PATCH` | `/mail/taxonomy/{itemId}` | Update one folder or label with version CAS. |
+| `DELETE` | `/mail/taxonomy/{itemId}?expectedVersion=N` | Delete a non-system folder or label with version CAS. |
 
 ### Provider administration and queries
 

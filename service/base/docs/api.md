@@ -132,7 +132,7 @@
 > 说明：
 >
 > - 以下示例中的：
->   - `http://127.0.0.1:8080`
+>   - `http://127.0.0.1:18081`
 >   - `YOUR_EASY_EMAIL_API_KEY`
 >   - `mailbox_...`
 >   - `hostId`
@@ -142,14 +142,14 @@
 ### 1. 获取 catalog
 
 ```bash
-curl http://127.0.0.1:8080/mail/catalog \
+curl http://127.0.0.1:18081/mail/catalog \
   -H "Authorization: Bearer YOUR_EASY_EMAIL_API_KEY"
 ```
 
 ### 2. 只做 plan，不真正开邮箱
 
 ```bash
-curl -X POST http://127.0.0.1:8080/mail/mailboxes/plan \
+curl -X POST http://127.0.0.1:18081/mail/mailboxes/plan \
   -H "Authorization: Bearer YOUR_EASY_EMAIL_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -165,7 +165,7 @@ curl -X POST http://127.0.0.1:8080/mail/mailboxes/plan \
 ### 3. 打开邮箱 session
 
 ```bash
-curl -X POST http://127.0.0.1:8080/mail/mailboxes/open \
+curl -X POST http://127.0.0.1:18081/mail/mailboxes/open \
   -H "Authorization: Bearer YOUR_EASY_EMAIL_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -183,7 +183,7 @@ curl -X POST http://127.0.0.1:8080/mail/mailboxes/open \
 已知邮箱地址或从 `open` 返回中保存过 `recoveryDataCredential` 时，应使用恢复入口，不要再调用 `open` 重新创建同名邮箱。
 
 ```bash
-curl -X POST http://127.0.0.1:8080/mail/mailboxes/recover-by-email \
+curl -X POST http://127.0.0.1:18081/mail/mailboxes/recover-by-email \
   -H "Authorization: Bearer YOUR_EASY_EMAIL_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -209,21 +209,21 @@ curl -X POST http://127.0.0.1:8080/mail/mailboxes/recover-by-email \
 ### 4. 读取验证码
 
 ```bash
-curl http://127.0.0.1:8080/mail/mailboxes/mailbox_20260331101500_0001/code \
+curl http://127.0.0.1:18081/mail/mailboxes/mailbox_20260331101500_0001/code \
   -H "Authorization: Bearer YOUR_EASY_EMAIL_API_KEY"
 ```
 
 ### 5. 读取认证链接
 
 ```bash
-curl http://127.0.0.1:8080/mail/mailboxes/mailbox_20260331101500_0001/auth-link \
+curl http://127.0.0.1:18081/mail/mailboxes/mailbox_20260331101500_0001/auth-link \
   -H "Authorization: Bearer YOUR_EASY_EMAIL_API_KEY"
 ```
 
 ### 6. 回报结果 / 反馈 provider 健康度
 
 ```bash
-curl -X POST http://127.0.0.1:8080/mail/mailboxes/report-outcome \
+curl -X POST http://127.0.0.1:18081/mail/mailboxes/report-outcome \
   -H "Authorization: Bearer YOUR_EASY_EMAIL_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -238,7 +238,7 @@ curl -X POST http://127.0.0.1:8080/mail/mailboxes/report-outcome \
 ### 7. 手动注入一条 observed message
 
 ```bash
-curl -X POST http://127.0.0.1:8080/mail/messages/observe \
+curl -X POST http://127.0.0.1:18081/mail/messages/observe \
   -H "Authorization: Bearer YOUR_EASY_EMAIL_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -277,6 +277,11 @@ curl -X POST http://127.0.0.1:8080/mail/messages/observe \
 | `GET` | `/mail/contacts/{contactId}` | 读取单个联系人 |
 | `PATCH` | `/mail/contacts/{contactId}` | 使用 `expectedVersion` 更新联系人 |
 | `DELETE` | `/mail/contacts/{contactId}?expectedVersion=N` | 使用版本 CAS 硬删除联系人 |
+| `GET` | `/mail/taxonomy?kind=folder\|label` | 按稳定顺序分页列出 folder 或 label |
+| `PUT` | `/mail/taxonomy/{kind}/{key}` | 按规范化名称创建或 upsert taxonomy item |
+| `GET` | `/mail/taxonomy/{itemId}` | 读取单个 taxonomy item |
+| `PATCH` | `/mail/taxonomy/{itemId}` | 使用 `expectedVersion` 更新 taxonomy item |
+| `DELETE` | `/mail/taxonomy/{itemId}?expectedVersion=N` | 使用版本 CAS 删除非 system item |
 
 ### 联系人资源
 
@@ -295,6 +300,25 @@ camelCase 约定：`id`、`displayName`、`emailAddress`、可选 `note`、`vers
 - `DELETE` 是硬删除且必须带 `expectedVersion`。它不会删除或修改邮件。
 - 过期版本返回 409 `CONTACT_VERSION_CONFLICT`，重复邮箱更新冲突返回 409
   `CONTACT_EMAIL_CONFLICT`，不存在返回 404 `CONTACT_NOT_FOUND`。
+
+### Mail taxonomy 资源
+
+Folder/label 使用关系库 schema v2 持久化。`GET /mail/taxonomy` 必须带
+`kind=folder` 或 `kind=label`，支持 `limit=1..100` 与不可解析的 opaque cursor。
+稳定排序为 `sortOrder`、不区分大小写的 `name`、`id`；新建 item 的 sort order
+按 kind 每次递增 10。
+
+- `PUT /mail/taxonomy/{kind}/{key}` body 包含 `name`、可选 `parentId` 和
+  `color`；相同 kind + 规范化 name 保留 identity 并更新原 item。
+- label 不支持 parent；folder parent 必须是已存在 folder，且禁止 parent cycle。
+- name 规范化内部连续空白并限制 1..64 字符；无效颜色回落为 `#8b5cf6`。
+- `PATCH` 必须提交完整 name 和正整数 `expectedVersion`；重复名称或过期版本返回
+  409。`DELETE` 硬删除非 system item，并通过外键将子 folder 的 parent 置空；
+  system item 返回 `changed: false`。
+- 所有响应都包含 `capabilities.messageReferencePropagation`。当前值为 `false`：
+  关系库只拥有 taxonomy，尚未拥有 M4 聚合消息的 folder/label 写模型，因此
+  rename/delete 不会伪装成已经传播到消息。Desktop UI 在 M4 前继续使用旧的事务性
+  Tauri taxonomy command。
 
 ### 重点说明：原样邮件内容访问
 
@@ -372,6 +396,12 @@ camelCase 约定：`id`、`displayName`、`emailAddress`、可选 `note`、`vers
   - `{ "contact": ... }`
 - `DELETE /mail/contacts/{contactId}`
   - `{ "deleted": { "id": "..." } }`
+- `GET /mail/taxonomy`
+  - `{ "items": [...], "nextCursor": "...", "capabilities": { "messageReferencePropagation": false } }`
+- `PUT/PATCH/GET /mail/taxonomy/...`
+  - `{ "item": ..., "capabilities": { "messageReferencePropagation": false } }`
+- `DELETE /mail/taxonomy/{itemId}`
+  - `{ "deleted": { "id": "...", "changed": true }, "capabilities": { "messageReferencePropagation": false } }`
 - `POST /mail/maintenance/run`
   - `{ "maintenance": ... }`
 

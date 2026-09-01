@@ -19,6 +19,46 @@ import { ContactService } from "../../src/service/contacts.js";
 const NOW = new Date("2026-09-01T08:00:00.000Z");
 
 describe("relational SQLite persistence", () => {
+  it("upgrades a v1 contact database to taxonomy schema v2 with a restorable backup", async () => {
+    const root = await mkdtemp(join(tmpdir(), "easy-email-taxonomy-migration-"));
+    const databasePath = join(root, "easy-email-relational.sqlite3");
+    try {
+      const versionOne = new SqliteRelationalDatabase({
+        databasePath,
+        migrations: [RELATIONAL_MIGRATIONS[0] as RelationalMigration],
+      });
+      const contact = await new ContactService(versionOne, () => NOW).createContact({
+        displayName: "Before taxonomy",
+        emailAddress: "before-taxonomy@example.test",
+      });
+      versionOne.close();
+
+      const upgraded = new SqliteRelationalDatabase({ databasePath });
+      try {
+        expect(upgraded.backupPath && existsSync(upgraded.backupPath)).toBe(true);
+        await expect(upgraded.getContact(contact.id)).resolves.toMatchObject({ id: contact.id });
+        await expect(upgraded.listMailTaxonomyItems({ kind: "folder", limit: 10 }))
+          .resolves.toEqual({ items: [], hasMore: false });
+      } finally {
+        upgraded.close();
+      }
+
+      const inspector = new DatabaseSync(databasePath);
+      try {
+        expect(inspector.prepare(
+          "SELECT version, result FROM schema_migrations ORDER BY version",
+        ).all()).toEqual([
+          { version: 1, result: "applied" },
+          { version: 2, result: "applied" },
+        ]);
+      } finally {
+        inspector.close();
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("preserves contact ordering, pagination, upsert identity, CAS, delete, and restart readback", async () => {
     const root = await mkdtemp(join(tmpdir(), "easy-email-relational-"));
     const databasePath = join(root, "easy-email-relational.sqlite3");
@@ -115,7 +155,7 @@ describe("relational SQLite persistence", () => {
     const failingMigrations: RelationalMigration[] = [
       ...RELATIONAL_MIGRATIONS,
       {
-        version: 2,
+        version: 3,
         name: "intentional-test-failure",
         sql: "CREATE TABLE should_rollback (id TEXT PRIMARY KEY); SELECT missing_test_function();",
       },
@@ -131,10 +171,10 @@ describe("relational SQLite persistence", () => {
       const inspector = new DatabaseSync(databasePath);
       try {
         const failed = inspector.prepare(
-          "SELECT checksum, result, error_code FROM schema_migrations WHERE version = 2",
+          "SELECT checksum, result, error_code FROM schema_migrations WHERE version = 3",
         ).get() as { checksum: string; result: string; error_code: string };
         expect(failed).toEqual({
-          checksum: prepareRelationalMigrations(failingMigrations)[1]?.checksum,
+          checksum: prepareRelationalMigrations(failingMigrations)[2]?.checksum,
           result: "failed",
           error_code: "RELATIONAL_MIGRATION_FAILED",
         });

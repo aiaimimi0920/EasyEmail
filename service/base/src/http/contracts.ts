@@ -7,6 +7,14 @@ import type {
   ContactUpdateInput,
 } from "../domain/contact.js";
 import type {
+  MailTaxonomyCapabilities,
+  MailTaxonomyDeleteRequest,
+  MailTaxonomyItem,
+  MailTaxonomyListQuery,
+  MailTaxonomyUpdateRequest,
+  MailTaxonomyUpsertRequest,
+} from "../domain/mail-taxonomy.js";
+import type {
   AuthenticationLinkResult,
   HostBinding,
   HostBindingQueryFilters,
@@ -59,6 +67,7 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   queryObservedMessages: "/mail/query/observed-messages",
   persistenceStats: "/mail/query/stats",
   contacts: "/mail/contacts",
+  taxonomy: "/mail/taxonomy",
   planMailbox: "/mail/mailboxes/plan",
   openMailbox: "/mail/mailboxes/open",
   refreshAnonymousMailboxes: "/mail/mailboxes/anonymous/refresh",
@@ -88,6 +97,12 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   },
   contact(contactId: string): string {
     return `/mail/contacts/${encodeURIComponent(contactId)}`;
+  },
+  taxonomyItem(itemId: string): string {
+    return `/mail/taxonomy/${encodeURIComponent(itemId)}`;
+  },
+  taxonomyUpsert(kind: "folder" | "label", key: string): string {
+    return `/mail/taxonomy/${encodeURIComponent(kind)}/${encodeURIComponent(key)}`;
   },
 } as const;
 
@@ -167,6 +182,30 @@ export interface UpdateContactHttpResponse {
 export type DeleteContactHttpRequest = ContactDeleteInput;
 export interface DeleteContactHttpResponse {
   deleted: { id: string };
+}
+
+export type ListMailTaxonomyHttpRequest = MailTaxonomyListQuery;
+export interface ListMailTaxonomyHttpResponse {
+  items: MailTaxonomyItem[];
+  nextCursor?: string;
+  capabilities: MailTaxonomyCapabilities;
+}
+
+export type UpsertMailTaxonomyHttpRequest = MailTaxonomyUpsertRequest;
+export interface UpsertMailTaxonomyHttpResponse {
+  item: MailTaxonomyItem;
+  capabilities: MailTaxonomyCapabilities;
+}
+
+export interface GetMailTaxonomyHttpResponse extends UpsertMailTaxonomyHttpResponse {}
+
+export type UpdateMailTaxonomyHttpRequest = MailTaxonomyUpdateRequest;
+export interface UpdateMailTaxonomyHttpResponse extends UpsertMailTaxonomyHttpResponse {}
+
+export type DeleteMailTaxonomyHttpRequest = MailTaxonomyDeleteRequest;
+export interface DeleteMailTaxonomyHttpResponse {
+  deleted: { id: string; changed: boolean };
+  capabilities: MailTaxonomyCapabilities;
 }
 
 export type PlanMailboxHttpRequest = VerificationMailboxRequest;

@@ -19,6 +19,13 @@ import {
   type EasyEmailMailboxSessionQuery,
   type EasyEmailMailboxSessionsResponse,
   type EasyEmailMailboxUpdateRequest,
+  type EasyEmailMailTaxonomyDeleteResponse,
+  type EasyEmailMailTaxonomyKind,
+  type EasyEmailMailTaxonomyListQuery,
+  type EasyEmailMailTaxonomyListResponse,
+  type EasyEmailMailTaxonomyMutationResponse,
+  type EasyEmailMailTaxonomyUpdateRequest,
+  type EasyEmailMailTaxonomyUpsertRequest,
   type EasyEmailObservedMessage,
   type EasyEmailObservedMessageResponse,
   type EasyEmailObservedMessagesResponse,
@@ -96,6 +103,33 @@ export function createBundledCoreClient(
       request: EasyEmailContactCreateRequest,
     ): Promise<EasyEmailContactResponse<TContact>> {
       return (await getHttpClient()).createContact<TContact>(request);
+    },
+    async listMailTaxonomy(
+      query: EasyEmailMailTaxonomyListQuery,
+    ): Promise<EasyEmailMailTaxonomyListResponse> {
+      return (await getHttpClient()).listMailTaxonomy(query);
+    },
+    async getMailTaxonomy(itemId: string): Promise<EasyEmailMailTaxonomyMutationResponse> {
+      return (await getHttpClient()).getMailTaxonomy(itemId);
+    },
+    async upsertMailTaxonomy(
+      kind: EasyEmailMailTaxonomyKind,
+      key: string,
+      request: EasyEmailMailTaxonomyUpsertRequest,
+    ): Promise<EasyEmailMailTaxonomyMutationResponse> {
+      return (await getHttpClient()).upsertMailTaxonomy(kind, key, request);
+    },
+    async updateMailTaxonomy(
+      itemId: string,
+      request: EasyEmailMailTaxonomyUpdateRequest,
+    ): Promise<EasyEmailMailTaxonomyMutationResponse> {
+      return (await getHttpClient()).updateMailTaxonomy(itemId, request);
+    },
+    async deleteMailTaxonomy(
+      itemId: string,
+      expectedVersion: number,
+    ): Promise<EasyEmailMailTaxonomyDeleteResponse> {
+      return (await getHttpClient()).deleteMailTaxonomy(itemId, expectedVersion);
     },
     async planMailbox<TResult = unknown>(
       request: EasyEmailOpenMailboxRequest,

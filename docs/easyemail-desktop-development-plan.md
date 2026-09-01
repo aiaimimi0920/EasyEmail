@@ -271,10 +271,14 @@ HTTP 资源和 UI 切换模式。
 - 该三组功能的 React 运行时无 business `invoke` 调用。
 
 **当前进度（2026-09-01）**：联系人切片已按上述纵向顺序实现并通过完整 desktop
-打包运行时验证；schema v1 只包含联系人，不提前混入 taxonomy/newsletter。下一切片
-将以独立迁移版本增加 taxonomy/folder/label。Newsletter 列表所需的账户与聚合消息
-来源仍归 M3/M4，因此 M2 只在来源契约确定后实现可持久化的显式 override，并保留
-subscription 作为派生视图，不建立虚假双写数据源。
+打包运行时验证；schema v1 只包含联系人。Schema v2 已增加 taxonomy/folder/label
+关系模型、严格层级约束、CAS、稳定分页、HTTP/OpenAPI/TypeScript transport 与重启
+读回。跨边界复核确认旧 Tauri rename/delete 会事务性更新 legacy message flags，但
+`service/base` 在 M4 前没有等价消息写模型，因此响应显式返回
+`messageReferencePropagation: false`，React 仍保留旧 command，禁止静默不一致。
+Newsletter 列表所需的账户与聚合消息来源仍归 M3/M4，因此 M2 只在来源契约确定后
+实现可持久化的显式 override，并保留 subscription 作为派生视图，不建立虚假双写
+数据源。
 
 ### M3 - 账户与凭据库基础
 
@@ -686,7 +690,9 @@ M2 的首个精确批次：
    keyset 分页、HTTP/OpenAPI/TypeScript client 和重启读回测试；
 3. **已完成**：`contact_*` React 调用已迁移到 bundled HTTP，完整桌面打包 smoke
    已证明联系人创建、持久化与鉴权边界；
-4. **下一批次**：以 schema v2 实现 `mail_taxonomy_*`，冻结 kind、parent、唯一约束、
-   删除策略和排序，并以重启读回及无 business `invoke` 为出口；
+4. **部分完成**：schema v2、`mail_taxonomy_*` HTTP/SDK、kind/parent/唯一约束、
+   删除策略、排序、CAS、分页与重启读回已实现；因旧 rename/delete 同时传播消息
+   folder/label，而新消息写模型归 M4，React 切换按 fail-closed 规则延后，API 明确
+   返回 `messageReferencePropagation: false`；
 5. **后续批次**：在 M3/M4 来源模型明确后实现 `newsletter_subscription_*` 的持久
    override 与派生视图，不提前复制或伪造账户/消息所有权。

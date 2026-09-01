@@ -7,13 +7,18 @@ import type {
   CreateContactHttpResponse,
   DeleteContactHttpRequest,
   DeleteContactHttpResponse,
+  DeleteMailTaxonomyHttpRequest,
+  DeleteMailTaxonomyHttpResponse,
   GetContactHttpResponse,
   GetMailCatalogHttpResponse,
+  GetMailTaxonomyHttpResponse,
   GetObservedMessageHttpResponse,
   GetMailPersistenceStatsHttpResponse,
   GetMailSnapshotHttpResponse,
   ListContactsHttpRequest,
   ListContactsHttpResponse,
+  ListMailTaxonomyHttpRequest,
+  ListMailTaxonomyHttpResponse,
   ObserveMessageHttpRequest,
   ObserveMessageHttpResponse,
   OpenMailboxHttpRequest,
@@ -53,12 +58,21 @@ import type {
   RunMaintenanceHttpResponse,
   UpdateContactHttpRequest,
   UpdateContactHttpResponse,
+  UpdateMailTaxonomyHttpRequest,
+  UpdateMailTaxonomyHttpResponse,
+  UpsertMailTaxonomyHttpRequest,
+  UpsertMailTaxonomyHttpResponse,
 } from "./contracts.js";
 import { EasyEmailError } from "../domain/errors.js";
 import type { MailboxSession } from "../domain/models.js";
 import { createEasyEmailService, type EasyEmailService } from "../service/easy-email-service.js";
 import type { MailStateQueryRepository } from "../persistence/contracts.js";
 import type { ContactService } from "../service/contacts.js";
+import type { MailTaxonomyKind } from "../domain/mail-taxonomy.js";
+import {
+  MAIL_TAXONOMY_CAPABILITIES,
+  type MailTaxonomyService,
+} from "../service/mail-taxonomy.js";
 import {
   calculateMailPersistenceStats,
   queryHostBindingsFromSnapshot,
@@ -72,6 +86,7 @@ export class EasyEmailHttpHandler {
     private readonly service: EasyEmailService = createEasyEmailService(),
     private readonly queryRepository?: MailStateQueryRepository,
     private readonly contacts?: ContactService,
+    private readonly mailTaxonomy?: MailTaxonomyService,
   ) {}
 
   private requireContacts(): ContactService {
@@ -82,6 +97,16 @@ export class EasyEmailHttpHandler {
       );
     }
     return this.contacts;
+  }
+
+  private requireMailTaxonomy(): MailTaxonomyService {
+    if (!this.mailTaxonomy) {
+      throw new EasyEmailError(
+        "MAIL_TAXONOMY_PERSISTENCE_UNAVAILABLE",
+        "Persistent mail taxonomy is not available in this runtime.",
+      );
+    }
+    return this.mailTaxonomy;
   }
 
   public getCatalog(): GetMailCatalogHttpResponse {
@@ -205,6 +230,50 @@ export class EasyEmailHttpHandler {
     request: DeleteContactHttpRequest,
   ): Promise<DeleteContactHttpResponse> {
     return { deleted: await this.requireContacts().deleteContact(contactId, request) };
+  }
+
+  public async listMailTaxonomy(
+    request: ListMailTaxonomyHttpRequest,
+  ): Promise<ListMailTaxonomyHttpResponse> {
+    return this.requireMailTaxonomy().listItems(request);
+  }
+
+  public async getMailTaxonomy(itemId: string): Promise<GetMailTaxonomyHttpResponse> {
+    return {
+      item: await this.requireMailTaxonomy().getItem(itemId),
+      capabilities: MAIL_TAXONOMY_CAPABILITIES,
+    };
+  }
+
+  public async upsertMailTaxonomy(
+    kind: MailTaxonomyKind,
+    key: string,
+    request: UpsertMailTaxonomyHttpRequest,
+  ): Promise<UpsertMailTaxonomyHttpResponse> {
+    return {
+      item: await this.requireMailTaxonomy().upsertItem(kind, key, request),
+      capabilities: MAIL_TAXONOMY_CAPABILITIES,
+    };
+  }
+
+  public async updateMailTaxonomy(
+    itemId: string,
+    request: UpdateMailTaxonomyHttpRequest,
+  ): Promise<UpdateMailTaxonomyHttpResponse> {
+    return {
+      item: await this.requireMailTaxonomy().updateItem(itemId, request),
+      capabilities: MAIL_TAXONOMY_CAPABILITIES,
+    };
+  }
+
+  public async deleteMailTaxonomy(
+    itemId: string,
+    request: DeleteMailTaxonomyHttpRequest,
+  ): Promise<DeleteMailTaxonomyHttpResponse> {
+    return {
+      deleted: await this.requireMailTaxonomy().deleteItem(itemId, request),
+      capabilities: MAIL_TAXONOMY_CAPABILITIES,
+    };
   }
 
   private async refreshSessions(

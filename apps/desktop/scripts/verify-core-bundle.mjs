@@ -178,6 +178,11 @@ try {
   if (unauthorizedContacts.status !== 401) {
     throw new Error(`Expected unauthenticated contacts to return 401, got ${unauthorizedContacts.status}.`);
   }
+  const unauthorizedTaxonomy = await fetch(`http://127.0.0.1:${port}/mail/taxonomy?kind=folder`);
+  await unauthorizedTaxonomy.arrayBuffer();
+  if (unauthorizedTaxonomy.status !== 401) {
+    throw new Error(`Expected unauthenticated taxonomy to return 401, got ${unauthorizedTaxonomy.status}.`);
+  }
   const contactCreate = await fetch(`http://127.0.0.1:${port}/mail/contacts`, {
     method: "POST",
     headers: {
@@ -210,6 +215,37 @@ try {
     || contactsPayload.contacts[0]?.id !== contactPayload.contact.id
   ) {
     throw new Error("Authenticated packaged-core contact list did not read the created contact.");
+  }
+  const taxonomyCreate = await fetch(`http://127.0.0.1:${port}/mail/taxonomy/folder/packaged_core`, {
+    method: "PUT",
+    headers: {
+      authorization: `Bearer ${apiToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ name: "Packaged core", color: "#8b5cf6" }),
+  });
+  if (!taxonomyCreate.ok) {
+    throw new Error(`Authenticated packaged-core taxonomy create failed with status ${taxonomyCreate.status}.`);
+  }
+  const taxonomyPayload = await taxonomyCreate.json();
+  if (
+    taxonomyPayload?.item?.name !== "Packaged core"
+    || taxonomyPayload?.item?.kind !== "folder"
+    || taxonomyPayload?.item?.version !== 1
+    || taxonomyPayload?.capabilities?.messageReferencePropagation !== false
+  ) {
+    throw new Error("Authenticated packaged-core taxonomy create returned an invalid canonical result.");
+  }
+  const taxonomyList = await fetch(`http://127.0.0.1:${port}/mail/taxonomy?kind=folder`, {
+    headers: { authorization: `Bearer ${apiToken}` },
+  });
+  const taxonomyListPayload = await taxonomyList.json();
+  if (
+    !taxonomyList.ok
+    || taxonomyListPayload?.items?.length !== 1
+    || taxonomyListPayload.items[0]?.id !== taxonomyPayload.item.id
+  ) {
+    throw new Error("Authenticated packaged-core taxonomy list did not read the created folder.");
   }
   const mailboxRequest = {
     hostId: "easyemail-desktop-core-smoke",
@@ -282,5 +318,5 @@ if (credentialLeakDetected) {
   throw new Error("Bundled core output leaked a smoke credential.");
 }
 console.log(
-  "Bundled EasyEmail core authenticated readiness, contact persistence, unauthenticated 401, and fake-provider mailbox open passed.",
+  "Bundled EasyEmail core authenticated readiness, contact/taxonomy persistence, unauthenticated 401, and fake-provider mailbox open passed.",
 );

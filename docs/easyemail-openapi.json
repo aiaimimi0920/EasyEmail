@@ -259,6 +259,88 @@
         }
       }
     },
+    "/mail/taxonomy": {
+      "get": {
+        "operationId": "listMailTaxonomy",
+        "summary": "List persistent folders or labels with stable keyset pagination",
+        "parameters": [
+          { "$ref": "#/components/parameters/TaxonomyKindQuery" },
+          { "$ref": "#/components/parameters/TaxonomyLimit" },
+          { "$ref": "#/components/parameters/TaxonomyCursor" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/MailTaxonomyListResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/taxonomy/{kind}/{key}": {
+      "put": {
+        "operationId": "upsertMailTaxonomy",
+        "summary": "Create or update a folder or label by normalized name",
+        "parameters": [
+          { "$ref": "#/components/parameters/TaxonomyKind" },
+          { "$ref": "#/components/parameters/TaxonomyKey" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/MailTaxonomyUpsertRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MailTaxonomyMutationResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/taxonomy/{itemId}": {
+      "get": {
+        "operationId": "getMailTaxonomy",
+        "summary": "Read one persistent folder or label",
+        "parameters": [
+          { "$ref": "#/components/parameters/TaxonomyItemId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/MailTaxonomyMutationResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "patch": {
+        "operationId": "updateMailTaxonomy",
+        "summary": "Update a folder or label using version compare-and-swap",
+        "parameters": [
+          { "$ref": "#/components/parameters/TaxonomyItemId" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/MailTaxonomyUpdateRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MailTaxonomyMutationResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMailTaxonomy",
+        "summary": "Delete a non-system folder or label using version compare-and-swap",
+        "parameters": [
+          { "$ref": "#/components/parameters/TaxonomyItemId" },
+          { "$ref": "#/components/parameters/ExpectedVersion" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/MailTaxonomyDeleteResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
     "/mail/mailboxes/plan": {
       "post": {
         "operationId": "planMailbox",
@@ -527,6 +609,42 @@
         "description": "Opaque keyset cursor returned by the previous page.",
         "schema": { "type": "string", "minLength": 1 }
       },
+      "TaxonomyKindQuery": {
+        "name": "kind",
+        "in": "query",
+        "required": true,
+        "schema": { "type": "string", "enum": ["folder", "label"] }
+      },
+      "TaxonomyKind": {
+        "name": "kind",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "enum": ["folder", "label"] }
+      },
+      "TaxonomyKey": {
+        "name": "key",
+        "in": "path",
+        "required": true,
+        "description": "Legacy-compatible ASCII slug derived from the normalized name.",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "TaxonomyItemId": {
+        "name": "itemId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "TaxonomyLimit": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
+      },
+      "TaxonomyCursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "Opaque taxonomy keyset cursor returned by the previous page.",
+        "schema": { "type": "string", "minLength": 1 }
+      },
       "ExpectedVersion": {
         "name": "expectedVersion",
         "in": "query",
@@ -579,6 +697,22 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/ContactUpdateInput" }
+          }
+        }
+      },
+      "MailTaxonomyUpsertRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailTaxonomyUpsertInput" }
+          }
+        }
+      },
+      "MailTaxonomyUpdateRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailTaxonomyUpdateInput" }
           }
         }
       },
@@ -677,6 +811,30 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/DeleteContactResponse" }
+          }
+        }
+      },
+      "MailTaxonomyListResponse": {
+        "description": "Stable page of persistent folders or labels and adapter capabilities",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailTaxonomyListResponse" }
+          }
+        }
+      },
+      "MailTaxonomyMutationResponse": {
+        "description": "One persistent folder or label and adapter capabilities",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailTaxonomyMutationResponse" }
+          }
+        }
+      },
+      "MailTaxonomyDeleteResponse": {
+        "description": "Taxonomy deletion result and adapter capabilities",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailTaxonomyDeleteResponse" }
           }
         }
       },
@@ -872,6 +1030,94 @@
             "properties": { "id": { "type": "string" } },
             "additionalProperties": false
           }
+        },
+        "additionalProperties": false
+      },
+      "MailTaxonomyItem": {
+        "type": "object",
+        "required": ["id", "kind", "name", "color", "sortOrder", "system", "version", "createdAt", "updatedAt"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "enum": ["folder", "label"] },
+          "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "parentId": { "type": "string", "minLength": 1 },
+          "color": { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+          "sortOrder": { "type": "integer" },
+          "system": { "type": "boolean" },
+          "version": { "type": "integer", "minimum": 1 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      },
+      "MailTaxonomyCapabilities": {
+        "type": "object",
+        "required": ["messageReferencePropagation"],
+        "properties": {
+          "messageReferencePropagation": {
+            "type": "boolean",
+            "description": "Whether folder and label rename/delete is transactionally propagated into stored message references."
+          }
+        },
+        "additionalProperties": false
+      },
+      "MailTaxonomyUpsertInput": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "parentId": { "type": ["string", "null"] },
+          "color": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "MailTaxonomyUpdateInput": {
+        "type": "object",
+        "required": ["expectedVersion", "name"],
+        "properties": {
+          "expectedVersion": { "type": "integer", "minimum": 1 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "parentId": { "type": ["string", "null"] },
+          "color": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "MailTaxonomyListResponse": {
+        "type": "object",
+        "required": ["items", "capabilities"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MailTaxonomyItem" }
+          },
+          "nextCursor": { "type": "string" },
+          "capabilities": { "$ref": "#/components/schemas/MailTaxonomyCapabilities" }
+        },
+        "additionalProperties": false
+      },
+      "MailTaxonomyMutationResponse": {
+        "type": "object",
+        "required": ["item", "capabilities"],
+        "properties": {
+          "item": { "$ref": "#/components/schemas/MailTaxonomyItem" },
+          "capabilities": { "$ref": "#/components/schemas/MailTaxonomyCapabilities" }
+        },
+        "additionalProperties": false
+      },
+      "MailTaxonomyDeleteResponse": {
+        "type": "object",
+        "required": ["deleted", "capabilities"],
+        "properties": {
+          "deleted": {
+            "type": "object",
+            "required": ["id", "changed"],
+            "properties": {
+              "id": { "type": "string" },
+              "changed": { "type": "boolean" }
+            },
+            "additionalProperties": false
+          },
+          "capabilities": { "$ref": "#/components/schemas/MailTaxonomyCapabilities" }
         },
         "additionalProperties": false
       },

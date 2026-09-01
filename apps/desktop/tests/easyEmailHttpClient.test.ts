@@ -284,6 +284,61 @@ test("uses authenticated canonical contact resources", async () => {
   assert.equal(calls[4]?.init?.method, "DELETE");
 });
 
+test("uses canonical mail taxonomy resources and preserves capability metadata", async () => {
+  const calls: CapturedRequest[] = [];
+  const capabilities = { messageReferencePropagation: false };
+  const item = {
+    id: "mailtax_folder_team/a",
+    kind: "folder" as const,
+    name: "Team / Alpha",
+    color: "#8b5cf6",
+    sortOrder: 10,
+    system: false,
+    version: 1,
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+  };
+  const client = createEasyEmailHttpClient({
+    baseUrl: "http://127.0.0.1:18081",
+    bearerToken: "runtime-taxonomy-token",
+    fetch: async (input, init) => {
+      calls.push({ url: String(input), init });
+      if (init?.method === "DELETE") {
+        return jsonResponse({ deleted: { id: item.id, changed: true }, capabilities });
+      }
+      if (String(input).includes("?")) return jsonResponse({ items: [item], capabilities });
+      return jsonResponse({ item, capabilities });
+    },
+  });
+
+  assert.deepEqual(
+    (await client.listMailTaxonomy({ kind: "folder", limit: 10 })).capabilities,
+    capabilities,
+  );
+  await client.getMailTaxonomy(item.id);
+  await client.upsertMailTaxonomy("folder", "team___alpha", { name: "Team / Alpha" });
+  await client.updateMailTaxonomy(item.id, { expectedVersion: 1, name: "Team Alpha" });
+  await client.deleteMailTaxonomy(item.id, 2);
+
+  assert.deepEqual(
+    calls.map(({ url, init }) => [new URL(url).pathname, init?.method ?? "GET"]),
+    [
+      ["/mail/taxonomy", "GET"],
+      ["/mail/taxonomy/mailtax_folder_team%2Fa", "GET"],
+      ["/mail/taxonomy/folder/team___alpha", "PUT"],
+      ["/mail/taxonomy/mailtax_folder_team%2Fa", "PATCH"],
+      ["/mail/taxonomy/mailtax_folder_team%2Fa", "DELETE"],
+    ],
+  );
+  assert.equal(
+    calls[4]?.url,
+    "http://127.0.0.1:18081/mail/taxonomy/mailtax_folder_team%2Fa?expectedVersion=2",
+  );
+  assert.ok(calls.every(({ init }) => (
+    new Headers(init?.headers).get("authorization") === "Bearer runtime-taxonomy-token"
+  )));
+});
+
 test("surfaces structured HTTP failures without including the bearer token", async () => {
   const client = createEasyEmailHttpClient({
     baseUrl: "http://localhost:8080",
