@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PRODUCT_CONTRACT = ROOT / "product-contract.json"
 USERSCRIPT = ROOT / "runtimes" / "userscript" / "easy_email_proxy.user.js"
+DESKTOP = ROOT / "apps" / "desktop"
 
 
 class ProductArchitectureContractTests(unittest.TestCase):
@@ -28,13 +29,22 @@ class ProductArchitectureContractTests(unittest.TestCase):
         ui = self.contract["products"]["bundledUi"]
 
         self.assertEqual(ui["core"], "service-base")
-        self.assertEqual(ui["implementationStatus"], "contract-defined")
+        self.assertEqual(ui["path"], "apps/desktop")
+        self.assertEqual(ui["framework"], "tauri-2-react-19")
+        self.assertEqual(ui["implementationStatus"], "source-imported-migration-in-progress")
+        self.assertEqual(
+            ui["releaseStatus"],
+            "blocked-until-http-ownership-and-sidecar-gates-pass",
+        )
         self.assertTrue(ui["bundlesCore"])
         self.assertTrue(ui["startsCoreAutomatically"])
         self.assertEqual(ui["transport"], "loopback-http")
         self.assertEqual(ui["lifecycleOwner"], "ui-host")
         self.assertFalse(ui["requiresDocker"])
         self.assertFalse(ui["requiresExternalNode"])
+        self.assertTrue((DESKTOP / "package.json").is_file())
+        self.assertTrue((DESKTOP / "src-tauri" / "Cargo.toml").is_file())
+        self.assertTrue((DESKTOP / "SOURCE_SNAPSHOT.json").is_file())
 
     def test_userscript_remains_an_independent_direct_provider_runtime(self) -> None:
         userscript = self.contract["products"]["userscript"]

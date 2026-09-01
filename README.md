@@ -5,6 +5,7 @@ EasyEmail is the public monorepo entrypoint for the EasyEmail ecosystem.
 It contains:
 
 - `service/base`: the standalone EasyEmail Local Server and shared product core
+- `apps/desktop`: the imported EasyEmailAM/NMail UI being migrated to the bundled HTTP architecture
 - `clients/typescript`: an optional compatibility helper for the HTTP API
 - `runtimes/userscript`: an independent browser-side provider runtime
 - `upstreams/cloudflare_temp_email`: the upstream integration boundary for the Cloudflare temp mail worker
@@ -32,6 +33,8 @@ GHCR-based validation.
 ```text
 service/
   base/
+apps/
+  desktop/
 clients/
   typescript/
 runtimes/
@@ -56,8 +59,10 @@ EasyEmail has three distinct product forms:
    documented HTTP API directly; no published SDK is required.
 2. **Bundled UI.** The approved UI architecture packages the same `service/base`
    core with a UI host. Launching the UI automatically starts the packaged core,
-   and the UI communicates with it over authenticated loopback HTTP. This
-   lifecycle contract is defined, but a runnable UI package is not yet shipped.
+   and the UI communicates with it over authenticated loopback HTTP. The
+   EasyEmailAM source is now imported under `apps/desktop`, but its business
+   ownership and packaged-core migration are still in progress; no compliant UI
+   package is shipped yet.
 3. **Userscript.** The Userscript is a completely independent browser runtime.
    It directly implements access to the configured upstream providers and never
    proxies through `service/base`.
@@ -86,6 +91,15 @@ The browser-side userscript runtime. It directly calls the configured providers
 and is not a thin bridge that requires `service/base` to be online. It shares no
 provider or mailbox business implementation with the server; only provider
 names and externally defined upstream endpoints or ports may align.
+
+### `apps/desktop`
+
+The React 19 + Tauri 2 desktop UI imported from EasyEmailAM. The imported source
+preserves its existing mailbox aggregation, IMAP/SMTP, queue, verification,
+promotion, Agent mail, taxonomy, newsletter, contact, and avatar features while
+those business capabilities are moved behind `service/base` HTTP APIs. Tauri is
+the final lifecycle/OS host, not a second EasyEmail business core. See
+[`docs/easyemailam-migration.md`](docs/easyemailam-migration.md).
 
 ### `clients/typescript`
 
@@ -177,8 +191,23 @@ PowerShell, curl, JavaScript, and Python.
 ### Bundled UI status
 
 The UI lifecycle and packaging requirements are defined in
-[`docs/ui-bundled-runtime.md`](docs/ui-bundled-runtime.md). The repository does
-not yet claim a runnable or released UI package.
+[`docs/ui-bundled-runtime.md`](docs/ui-bundled-runtime.md). EasyEmailAM source is
+now imported under `apps/desktop`; the HTTP ownership and packaged-core work is
+tracked in [`docs/easyemailam-migration.md`](docs/easyemailam-migration.md). The
+repository does not yet claim a compliant released UI package.
+
+The imported migration baseline can be developed and verified with:
+
+```powershell
+Set-Location apps/desktop
+npm ci
+npm run verify
+npm run tauri -- dev
+```
+
+`npm run verify` is also part of the repository-wide validation workflow. A
+successful source/build gate is not evidence that the packaged-core lifecycle is
+complete.
 
 ### Optional TypeScript HTTP helper
 
@@ -209,6 +238,7 @@ corepack pnpm build
 - `docs/http-api.md`
 - `docs/easyemail-openapi.json`
 - `docs/ui-bundled-runtime.md`
+- `docs/easyemailam-migration.md`
 - `docs/upstream-sync.md`
 - `docs/configuration.md`
 - `docs/build-userscript.md`

@@ -1,0 +1,32 @@
+[package]
+name = "easyemailam"
+version = "0.1.0"
+description = "EasyEmailAM desktop mailbox aggregation app"
+authors = ["EasyEmailAM contributors"]
+edition = "2021"
+
+[lib]
+name = "easyemailam_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+base64 = "0.22.1"
+chrono = { version = "0.4.42", default-features = false, features = ["clock", "std", "serde"] }
+dirs = "6.0.0"
+encoding_rs = "0.8.35"
+imap = "3.0.0-alpha.15"
+lettre = "0.11.22"
+mailparse = "0.16.1"
+rusqlite = { version = "0.40.1", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+thiserror = "2.0.18"
+ureq = { version = "2.12.1", features = ["json"] }
+url = "2.5.8"
+uuid = { version = "1.23.3", features = ["v4", "serde"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security_Credentials"] }

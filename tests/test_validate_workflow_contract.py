@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATE_WORKFLOW = ROOT / ".github" / "workflows" / "validate.yml"
 REUSABLE_WORKFLOW = ROOT / ".github" / "workflows" / "reusable-validate.yml"
+TEST_ALL = ROOT / "scripts" / "test-all.ps1"
 
 
 class ValidateWorkflowContractTests(unittest.TestCase):
@@ -14,6 +15,7 @@ class ValidateWorkflowContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.validate_text = VALIDATE_WORKFLOW.read_text(encoding="utf-8")
         cls.reusable_text = REUSABLE_WORKFLOW.read_text(encoding="utf-8")
+        cls.test_all_text = TEST_ALL.read_text(encoding="utf-8")
 
     def test_trigger_workflow_delegates_to_reusable_validation(self) -> None:
         self.assertIn("workflow_dispatch:", self.validate_text)
@@ -38,6 +40,16 @@ class ValidateWorkflowContractTests(unittest.TestCase):
         )
         self.assertIn("git diff --check", self.reusable_text)
         self.assertIn("git diff --exit-code", self.reusable_text)
+
+    def test_reusable_validation_installs_and_runs_desktop_gate(self) -> None:
+        self.assertIn("working-directory: apps/desktop", self.reusable_text)
+        self.assertIn("rustc --version", self.reusable_text)
+        self.assertIn("$desktopDir = Join-Path $repoRoot 'apps/desktop'", self.test_all_text)
+        self.assertIn(
+            "Validating imported desktop migration baseline",
+            self.test_all_text,
+        )
+        self.assertIn("Invoke-InDirectory $desktopDir { & npm run verify }", self.test_all_text)
 
 
 if __name__ == "__main__":

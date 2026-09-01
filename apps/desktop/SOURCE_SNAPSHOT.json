@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "sourceProject": "EasyEmailAM",
+  "sourceBranch": "foundation",
+  "sourceCommit": "34838bc",
+  "sourceWorktreeDirty": true,
+  "snapshotDate": "2026-09-01",
+  "destination": "apps/desktop",
+  "fileManifest": "SOURCE_SNAPSHOT_FILES.sha256",
+  "copiedFileCount": 182,
+  "included": [
+    ".vscode/extensions.json",
+    "docs",
+    "public",
+    "scripts",
+    "src",
+    "src-tauri",
+    "tests",
+    ".gitignore",
+    "README.md",
+    "index.html",
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "tsconfig.node.json",
+    "vite.config.ts"
+  ],
+  "excludedGeneratedState": [
+    ".git",
+    ".easyemailam",
+    "graphify-out",
+    "node_modules",
+    "dist",
+    "src-tauri/target",
+    "root-level visual verification captures",
+    "local log files"
+  ],
+  "baselineVerification": {
+    "install": "npm ci",
+    "command": "npm run verify",
+    "result": "passed",
+    "verifiedAt": "2026-09-01"
+  },
+  "migrationState": "source-imported-business-ownership-migration-pending"
+}

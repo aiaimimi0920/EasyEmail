@@ -1,11 +1,15 @@
 # Bundled UI Runtime Contract
 
-Status: **architecture contract defined; implementation and release artifact not
-yet shipped**.
+Status: **EasyEmailAM source imported into `apps/desktop`; HTTP ownership,
+packaged-core lifecycle, and release artifact not yet complete**.
 
-This document defines the product boundary for a lightweight EasyEmail UI. It
-does not claim that a runnable desktop package already exists, and it does not
-select a desktop framework prematurely.
+This document defines the product boundary for a lightweight EasyEmail UI. The
+desktop framework is now Tauri 2 with React 19, based on the imported EasyEmailAM
+application. Importing a buildable application does not by itself satisfy the
+bundled-core or release contract.
+
+The staged ownership migration is recorded in
+[`easyemailam-migration.md`](./easyemailam-migration.md).
 
 ## Product definition
 
@@ -144,13 +148,18 @@ manifest, whose exact artifact set is a separate compatibility contract.
 - Converting the Userscript into a `service/base` client.
 - Claiming a UI release based only on source compilation or a web preview.
 
-## Open implementation decision
+## Selected desktop host
 
-The desktop host and packaging technology has not been selected. Tauri,
-Electron, a native webview host, and other options have different implications
-for binary size, Node.js bundling, sidecar management, signing, updates, and
-cross-platform coverage. That choice must be made against a concrete target OS
-matrix before implementation.
+Tauri 2 is the selected desktop host and React 19 is the imported UI stack. The
+remaining packaging decision is how to make the TypeScript `service/base` core
+self-contained: either a Node single-executable application or a bundled private
+Node runtime plus compiled service assets. Both are acceptable only if the user
+does not need a separate Node installation and the host satisfies the lifecycle,
+security, provenance, and clean-machine gates above.
+
+The imported Rust business services are transitional migration input. They must
+be removed as their HTTP-owned equivalents become complete; they are not an
+alternative permanent core.
 
 EasyProxy is a useful structural reference for keeping frontend assets and
 release automation organized around a local service. Its runtime and business

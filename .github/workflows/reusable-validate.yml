@@ -37,6 +37,17 @@ jobs:
         working-directory: service/base
         run: npm ci
 
+      - name: Install Desktop Dependencies
+        shell: pwsh
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Check Rust Toolchain
+        shell: pwsh
+        run: |
+          rustc --version
+          cargo --version
+
       - name: Install EasyEmail Client Dependencies
         shell: pwsh
         working-directory: clients/typescript

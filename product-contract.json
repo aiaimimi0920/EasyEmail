@@ -28,14 +28,19 @@
     },
     "bundledUi": {
       "core": "service-base",
-      "implementationStatus": "contract-defined",
+      "path": "apps/desktop",
+      "framework": "tauri-2-react-19",
+      "sourceLineage": "EasyEmailAM",
+      "implementationStatus": "source-imported-migration-in-progress",
       "bundlesCore": true,
       "startsCoreAutomatically": true,
       "transport": "loopback-http",
       "requiresDocker": false,
       "requiresExternalNode": false,
       "lifecycleOwner": "ui-host",
-      "contractDocument": "docs/ui-bundled-runtime.md"
+      "contractDocument": "docs/ui-bundled-runtime.md",
+      "migrationDocument": "docs/easyemailam-migration.md",
+      "releaseStatus": "blocked-until-http-ownership-and-sidecar-gates-pass"
     },
     "userscript": {
       "path": "runtimes/userscript",

@@ -1,0 +1,37 @@
+{
+  "name": "easyemailam",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "preview:smoke": "node scripts/verify-preview-http.mjs",
+    "test:unit": "node --test \"tests/*.test.ts\"",
+    "ui:verify": "node scripts/verify-neuroterminal-ui.mjs",
+    "tauri": "tauri",
+    "rust:fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
+    "rust:clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
+    "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "rust:check": "cargo check --manifest-path src-tauri/Cargo.toml",
+    "verify": "npm run test:unit && npm run ui:verify && npm run build && npm run preview:smoke && npm run rust:fmt && npm run rust:clippy && npm run rust:test && npm run rust:check"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "dompurify": "^3.4.13",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/jsdom": "^30.0.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "jsdom": "^30.0.1",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.4"
+  }
+}

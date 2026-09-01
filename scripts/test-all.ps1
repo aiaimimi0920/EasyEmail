@@ -8,6 +8,7 @@ $minimumNodeVersion = [Version]'22.0.0'
 
 $powerShellCommand = Get-EasyEmailPowerShellCommand
 $serviceBaseDir = Join-Path $repoRoot 'service/base'
+$desktopDir = Join-Path $repoRoot 'apps/desktop'
 $clientDir = Join-Path $repoRoot 'clients/typescript'
 $workerDir = Join-Path $repoRoot 'upstreams/cloudflare_temp_email/worker'
 $frontendDir = Join-Path $repoRoot 'upstreams/cloudflare_temp_email/frontend'
@@ -68,6 +69,12 @@ Write-Host "Validating service/base..."
 Invoke-InDirectory $serviceBaseDir { & $serviceTsc -p tsconfig.json --noEmit }
 Invoke-InDirectory $serviceBaseDir { & $serviceVitest run }
 Invoke-InDirectory $serviceBaseDir { & $serviceTsc -p tsconfig.json }
+
+Write-Host "Validating imported desktop migration baseline..."
+Invoke-InDirectory $desktopDir { & npm run verify }
+if ($LASTEXITCODE -ne 0) {
+    throw "EasyEmail desktop validation failed with exit code $LASTEXITCODE"
+}
 
 Write-Host "Validating upstream worker..."
 Invoke-InDirectory $workerDir { & $workerEslint src }

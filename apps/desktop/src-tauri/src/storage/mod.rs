@@ -1,0 +1,13 @@
+pub mod account_repository;
+pub mod agent_repository;
+pub mod contact_repository;
+pub mod credential_repository;
+pub mod db;
+pub mod mail_folder_repository;
+pub mod mail_taxonomy_repository;
+pub mod message_repository;
+pub mod migrations;
+pub mod send_queue_repository;
+pub mod settings_repository;
+pub mod temp_mailbox_repository;
+pub mod verification_repository;
