@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -23,6 +24,9 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
         cls.bundled_client = (
             DESKTOP / "src" / "api" / "bundledCoreClient.ts"
         ).read_text(encoding="utf-8")
+        cls.core_verify = (DESKTOP / "scripts" / "verify-core-bundle.mjs").read_text(
+            encoding="utf-8"
+        )
 
     def test_build_packages_the_same_service_base_core(self) -> None:
         scripts = self.package["scripts"]
@@ -50,6 +54,41 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
         ):
             self.assertIn(expected, self.host)
         self.assertNotIn("taskkill", self.host.lower())
+
+    def test_packaged_core_verify_opens_fake_provider_behind_auth(self) -> None:
+        for expected in (
+            'createHttpServer',
+            'server.listen(0, "127.0.0.1"',
+            'strictProviderMode: true',
+            'providerTypeKey: "cloudflare_temp_email"',
+            '/mail/mailboxes/open',
+            'authorization: `Bearer ${apiToken}`',
+            'unauthorizedOpen.status !== 401',
+            'request.url === "/health_check"',
+            'request.url === "/open_api/settings"',
+            'fakeProvider.healthProbeCount() < 1',
+            'fakeProvider.settingsProbeCount() < 1',
+            'totalRequestsBeforeUnauthorizedOpen',
+            'fakeProvider.totalRequestCount() !== totalRequestsBeforeUnauthorizedOpen',
+            'acceptedRequestsBeforeAuthenticatedOpen !== 0',
+            'fakeProvider.acceptedRequestCount() !== acceptedRequestsBeforeAuthenticatedOpen + 1',
+            'stdio: ["ignore", "pipe", "pipe"]',
+            'const sensitiveValues = [apiToken, fakeProviderAuth, fakeMailboxToken]',
+            'credentialLeakDetected ||= sensitiveValues.some',
+            'coreOutputTail = output.slice(-credentialScanTailLength)',
+            'child.exitCode !== null || child.signalCode !== null',
+            'childClosed = new Promise((resolveClose) => child.once("close", resolveClose))',
+            'if (childClosed)',
+            'if (credentialLeakDetected)',
+            'server.closeAllConnections()',
+        ):
+            self.assertIn(expected, self.core_verify)
+        self.assertIsNone(
+            re.search(
+                r"console\.log\([\s\S]*?(?:apiToken|fakeProviderAuth|fakeMailboxToken)",
+                self.core_verify,
+            )
+        )
 
     def test_react_startup_uses_canonical_http_not_legacy_health(self) -> None:
         self.assertIn("createBundledCoreClient(invoke)", self.app)

@@ -29,14 +29,17 @@ Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
   in the UI. Static transport tests prohibit regressions to the migrated `temp_*` commands;
   `temp_upgrade_mailbox` remains assigned to M7A.
 - **M1 slice validation:** 183 `service/base` tests, 112 frontend unit/contract tests,
-  234 desktop Rust tests, and 80 repository Python tests passed. The complete desktop `verify`
+  234 desktop Rust tests, and 81 repository Python tests passed. The complete desktop `verify`
   pipeline, TypeScript/Vite production build, Rust format/clippy/test/check, authenticated
-  bundled-core readiness smoke, and release contract validation also passed. This is not the M1
-  exit gate: packaged fake-provider open, controlled real-provider receive/code/release evidence,
-  and restart readback are still required.
-- **Next:** add packaged-host fake-provider mailbox-open acceptance with authenticated success and
-  unauthenticated 401, without deleting the legacy Rust temporary-mailbox repository until the M8
-  importer and rollback gate pass.
+  bundled-core readiness smoke, packaged fake-provider mailbox open, and release contract
+  validation also passed. The packaged smoke starts the bundled `service/base`, completes its
+  authenticated provider probes, proves an unauthenticated mailbox-open request returns 401
+  without reaching the provider, and proves the authenticated request returns the canonical open
+  result through the real Cloudflare Temp Email connector. This is not the M1 exit gate: controlled
+  real-provider receive/code/release evidence and restart readback are still required.
+- **Next:** run controlled real-provider create/receive/body-and-code/release/restart-readback
+  validation, without deleting the legacy Rust temporary-mailbox repository until the M8 importer
+  and rollback gate pass.
 
 本计划定义将已导入 `apps/desktop` 的 EasyEmailAM 从“React UI +
 过渡期 Rust 业务后端”收敛为“React UI + 随桌面程序启动的
@@ -638,8 +641,8 @@ M0 已通过，当前开发批次是 **M1：临时邮箱端到端 HTTP 迁移**�
    provider 错误脱敏和 partial failure UI；
 2. **已完成**：recovery、outcome report、update-session、release、auth-link 和 mailbox
    send 已有 UI 入口、类型化 bundled HTTP 调用和可操作错误语义；
-3. 增加打包宿主 fake-provider mailbox-open smoke，并同时证明鉴权成功与未鉴权
-   401；
+3. **已完成**：打包宿主 fake-provider mailbox-open smoke 已通过真实 `service/base`
+   provider connector 同时证明鉴权成功、未鉴权 401 且未鉴权请求不会触达 provider；
 4. 用受控真实 provider 验证创建、收信、正文/验证码、释放和重启读回，扫描
    日志确认无 credential；
 5. 运行完整 M1 门禁并审查 UI 无已迁移的 business `invoke`；
