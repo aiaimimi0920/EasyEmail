@@ -21,6 +21,7 @@ pub struct DesktopCoreRuntimeDto {
     pub status: String,
     pub base_url: String,
     pub api_token: String,
+    pub host_id: String,
 }
 
 pub struct DesktopCoreRuntime {
@@ -41,6 +42,7 @@ impl DesktopCoreRuntime {
         let state_dir = runtime_root.join("state");
         fs::create_dir_all(&state_dir)
             .map_err(|error| format!("Could not create EasyEmail core state: {error}"))?;
+        let host_id = load_or_create_host_id(application_data_dir)?;
 
         let api_token = format!(
             "{}{}",
@@ -77,6 +79,7 @@ impl DesktopCoreRuntime {
                             status: "ready".to_string(),
                             base_url,
                             api_token,
+                            host_id,
                         },
                         child: Mutex::new(Some(child)),
                     });
@@ -126,6 +129,63 @@ impl DesktopCoreRuntime {
         let _ = process.kill();
         let _ = process.wait();
     }
+}
+
+fn load_or_create_host_id(application_data_dir: &Path) -> Result<String, String> {
+    fs::create_dir_all(application_data_dir)
+        .map_err(|error| format!("Could not create EasyEmail application state: {error}"))?;
+    let host_id_path = application_data_dir.join("desktop-host-id");
+    if host_id_path.is_file() {
+        return read_host_id(&host_id_path);
+    }
+
+    let host_id = format!("easyemail-desktop-{}", uuid::Uuid::new_v4().simple());
+    let temporary_path = application_data_dir.join(format!(
+        "desktop-host-id.{}.tmp",
+        uuid::Uuid::new_v4().simple()
+    ));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary_path)
+        .map_err(|error| format!("Could not stage EasyEmail desktop host ID: {error}"))?;
+    if let Err(error) = file
+        .write_all(host_id.as_bytes())
+        .and_then(|()| file.sync_all())
+    {
+        drop(file);
+        let _ = fs::remove_file(&temporary_path);
+        return Err(format!(
+            "Could not persist EasyEmail desktop host ID: {error}"
+        ));
+    }
+    drop(file);
+
+    match fs::rename(&temporary_path, &host_id_path) {
+        Ok(()) => Ok(host_id),
+        Err(_) if host_id_path.is_file() => {
+            let _ = fs::remove_file(&temporary_path);
+            read_host_id(&host_id_path)
+        }
+        Err(error) => {
+            let _ = fs::remove_file(&temporary_path);
+            Err(format!(
+                "Could not install EasyEmail desktop host ID: {error}"
+            ))
+        }
+    }
+}
+
+fn read_host_id(path: &Path) -> Result<String, String> {
+    let host_id = fs::read_to_string(path)
+        .map_err(|error| format!("Could not read EasyEmail desktop host ID: {error}"))?;
+    let host_id = host_id.trim();
+    let uuid_part = host_id
+        .strip_prefix("easyemail-desktop-")
+        .ok_or_else(|| "EasyEmail desktop host ID has an invalid prefix.".to_string())?;
+    uuid::Uuid::parse_str(uuid_part)
+        .map_err(|_| "EasyEmail desktop host ID is invalid.".to_string())?;
+    Ok(host_id.to_string())
 }
 
 impl Drop for DesktopCoreRuntime {
@@ -351,6 +411,47 @@ mod tests {
         assert_ne!(port, 0);
         let listener = TcpListener::bind(("127.0.0.1", port)).unwrap();
         assert_eq!(listener.local_addr().unwrap().ip().to_string(), "127.0.0.1");
+    }
+
+    #[test]
+    fn desktop_host_id_is_stable_and_valid() {
+        let root = std::env::temp_dir().join(format!("easyemail-host-id-{}", uuid::Uuid::new_v4()));
+
+        let first = load_or_create_host_id(&root).unwrap();
+        let second = load_or_create_host_id(&root).unwrap();
+
+        assert_eq!(first, second);
+        assert!(first.starts_with("easyemail-desktop-"));
+        assert!(!first.contains(' '));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn desktop_host_id_rejects_corrupt_state() {
+        let root = std::env::temp_dir().join(format!("easyemail-host-id-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("desktop-host-id"), "not-a-host-id").unwrap();
+
+        let error = load_or_create_host_id(&root).unwrap_err();
+
+        assert!(error.contains("invalid prefix"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn desktop_host_id_ignores_abandoned_staging_file() {
+        let root = std::env::temp_dir().join(format!("easyemail-host-id-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("desktop-host-id.abandoned.tmp"), "partial").unwrap();
+
+        let host_id = load_or_create_host_id(&root).unwrap();
+
+        assert!(host_id.starts_with("easyemail-desktop-"));
+        assert_eq!(
+            read_host_id(&root.join("desktop-host-id")).unwrap(),
+            host_id
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(windows)]

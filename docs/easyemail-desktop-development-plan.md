@@ -1,6 +1,6 @@
 # EasyEmail Desktop 业务核心迁移与产品化开发计划
 
-Status: **execution in progress; M0 complete, M1 next**  
+Status: **execution in progress; M0 complete, M1 transport slice in progress**
 Created: **2026-09-01**  
 Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
 
@@ -16,8 +16,21 @@ Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
   and build passed; the complete desktop `verify` pipeline passed, including 231
   Rust tests and authenticated bundled-core readiness; the release contract
   passed.
-- **Next:** execute M1 without deleting the legacy Rust temporary-mailbox
-  repository until the M8 importer and rollback gate pass.
+- **M1 transport slice (2026-09-01):** the desktop now has typed HTTP contracts for
+  the complete existing temporary-mailbox API, preserves the full canonical open/access
+  response without a lossy transport DTO, uses a stable per-installation host ID, and routes create, list,
+  refresh, observed-message detail and verification polling through the authenticated
+  bundled-core client. Static transport tests prohibit regressions to the migrated
+  `temp_*` commands; `temp_upgrade_mailbox` remains assigned to M7A.
+- **M1 slice validation:** 110 frontend unit/contract tests passed, the TypeScript/Vite
+  production build passed, Rust format/clippy/check passed, 234 Rust tests passed, and
+  the bundled-core authenticated readiness smoke passed. This is not
+  the M1 exit gate: packaged fake-provider open, controlled real-provider receive/code/
+  release evidence, explicit refresh aggregation, recovery UI and restart readback are
+  still required.
+- **Next:** finish the server-owned refresh/recovery/release/send slice and packaged
+  runtime acceptance without deleting the legacy Rust temporary-mailbox repository
+  until the M8 importer and rollback gate pass.
 
 本计划定义将已导入 `apps/desktop` 的 EasyEmailAM 从“React UI +
 过渡期 Rust 业务后端”收敛为“React UI + 随桌面程序启动的
@@ -610,16 +623,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-all.ps1
 
 ## 10. 下一个可执行批次
 
-M0 已通过，下一个开发批次是 **M1：临时邮箱端到端 HTTP 迁移**。
+M0 已通过，当前开发批次是 **M1：临时邮箱端到端 HTTP 迁移**。
 
 建议精确交付顺序：
 
-1. 冻结 `temp_*` command 的 request/response、错误与恢复语义测试；
-2. 对齐已有 open/query/code/auth-link/update/release/send 路由，只为缺失语义
-   增加显式资源；
-3. 将 `easyEmailHttpClient.ts` 扩展为完整 typed temporary-mailbox transport；
-4. 逐项将 `App.tsx` 的创建、列表、刷新、读信、验证码、释放和发信
-   从 Tauri business command 切到 bundled-core HTTP；
-5. 增加 HTTP/UI contract 与打包宿主 fake-provider mailbox-open smoke；
-6. 运行 M1 门禁并审查 UI 无相应 business `invoke`；
-7. 将旧 Rust 临时邮箱代码冻结为 importer 源，但在 M8 前不物理删除。
+1. 为单邮箱和匿名批量刷新增加 server-owned 显式 HTTP 资源，避免 React
+   编排多个 session 同步；
+2. 完成 recovery、outcome report、update-session、release、auth-link 和 mailbox
+   send 的 UI 入口及错误语义；
+3. 增加打包宿主 fake-provider mailbox-open smoke，并同时证明鉴权成功与未鉴权
+   401；
+4. 用受控真实 provider 验证创建、收信、正文/验证码、释放和重启读回，扫描
+   日志确认无 credential；
+5. 运行完整 M1 门禁并审查 UI 无已迁移的 business `invoke`；
+6. 将旧 Rust 临时邮箱代码冻结为 importer 源，但在 M8 前不物理删除。

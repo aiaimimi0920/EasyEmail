@@ -12,6 +12,7 @@ test("loads the authenticated loopback runtime through the trusted host boundary
     status: "ready",
     base_url: "http://127.0.0.1:32123",
     api_token: "runtime-only-token",
+    host_id: "easyemail-desktop-00000000000000000000000000000001",
   };
   const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
   const invokeCommand: InvokeCommand = async <T>(command, args) => {

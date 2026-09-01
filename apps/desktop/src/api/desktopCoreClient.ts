@@ -4,6 +4,7 @@ export type DesktopCoreRuntimeDto = {
   status: "ready";
   base_url: string;
   api_token: string;
+  host_id: string;
 };
 
 export function createDesktopCoreClient(invokeCommand: InvokeCommand) {

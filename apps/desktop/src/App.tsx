@@ -12,6 +12,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { createBundledCoreClient } from "./api/bundledCoreClient";
 import {
+  EasyEmailHttpError,
+  type EasyEmailObservedMessage,
+} from "./api/easyEmailHttpClient";
+import {
   createAvatarSettingsClient,
   type AvatarSettingsDto,
 } from "./api/avatarSettingsClient";
@@ -90,6 +94,13 @@ import {
 import { formatMailListTime } from "./mail/mailDateUtils";
 import { renderLinkedMessageText } from "./mail/messageLinkRenderer";
 import {
+  temporaryMailboxRecordFromOpenResult,
+  temporaryMailboxViewFromSession,
+  temporaryObservedMessageView,
+  temporaryVerificationCodeView,
+  type TemporaryMailboxView,
+} from "./mail/temporaryMailboxAdapter";
+import {
   detectInlineVerificationCode,
   mailSearchMessageMatchesAdvancedFilters,
   visibleMailMessageSearchText,
@@ -136,18 +147,7 @@ const platformAccountClient = createPlatformAccountClient(invoke);
 const settingsClient = createSettingsClient(invoke);
 const sendQueueClient = createSendQueueClient(invoke);
 
-type TempMailboxDto = {
-  id: string;
-  email_address: string;
-  provider_id: string;
-  provider_label: string;
-  visibility_state: string;
-  lifecycle_state: string;
-  easyemail_mailbox_id: string | null;
-  lease_expires_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
+type TempMailboxDto = TemporaryMailboxView;
 
 type AccountDto = {
   id: string;
@@ -169,6 +169,12 @@ type TempRefreshDto = {
   skipped_count: number;
   refreshed_mailbox_ids: string[];
   skipped_mailbox_ids: string[];
+};
+
+type CoreTemporaryState = {
+  mailboxes: TempMailboxDto[];
+  messages: AnonymousMessageDto[];
+  codes: VerificationCodeDto[];
 };
 
 type NormalImapConnectionTestDto = {
@@ -306,11 +312,6 @@ type MessageBatchActionDto = {
   requested_count: number;
   changed_count: number;
   remote_applied_count: number;
-};
-
-type VerificationPollDto = {
-  refresh: TempRefreshDto;
-  detected_code: VerificationCodeDto | null;
 };
 
 type PromoteTempMailboxDto = {
@@ -511,6 +512,41 @@ type MailConversationSummary = MailConversationSummaryModel<
 >;
 
 function asErrorDto(value: unknown): ErrorDto {
+  if (value instanceof EasyEmailHttpError) {
+    const payload =
+      typeof value.payload === "object" && value.payload !== null
+        ? (value.payload as Record<string, unknown>)
+        : {};
+    const payloadCode =
+      typeof payload.code === "string"
+        ? payload.code
+        : typeof payload.error === "string"
+          ? payload.error
+          : `http_${value.status}`;
+    const userMessage =
+      value.status === 401
+        ? "The local EasyEmail core rejected its runtime credential. Restart NMail and try again."
+        : value.status === 404
+          ? "The requested mailbox or message no longer exists. Refresh the mailbox list."
+          : value.status >= 500
+            ? `The EasyEmail core or selected provider could not complete the request: ${value.message}`
+            : value.message;
+    return {
+      code: payloadCode,
+      user_message: userMessage,
+      correlation_id: "core-http",
+    };
+  }
+
+  if (value instanceof Error) {
+    const message = value.message.trim();
+    return {
+      code: message.toLowerCase().includes("core exited") ? "core_exited" : "request_failed",
+      user_message: message || "NMail could not complete the request.",
+      correlation_id: "desktop-runtime",
+    };
+  }
+
   if (typeof value === "object" && value !== null) {
     const candidate = value as Partial<ErrorDto>;
     return {
@@ -534,6 +570,20 @@ function asErrorDto(value: unknown): ErrorDto {
 function optionalValue(value: string): string | null {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function mergeByIdentity<T>(
+  preferred: T[],
+  existing: T[],
+  identity: (value: T) => string,
+): T[] {
+  const seen = new Set<string>();
+  return [...preferred, ...existing].filter((value) => {
+    const key = identity(value);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 type AvatarEditorState = {
@@ -709,6 +759,7 @@ function App() {
   const mountedRef = useRef(true);
   const messageDetailRequestRef = useRef(0);
   const initialLoadRequestRef = useRef(0);
+  const coreObservedMessagesRef = useRef(new Map<string, EasyEmailObservedMessage>());
   const [sendQueue, setSendQueue] = useState<SendQueueDto[]>([]);
   const [agentAccounts, setAgentAccounts] = useState<AccountDto[]>([]);
   const [agentServices, setAgentServices] = useState<AgentServiceDto[]>([]);
@@ -1123,6 +1174,70 @@ function App() {
     return { folders, labels };
   }
 
+  async function loadCoreTemporaryState(
+    syncSessionIds: ReadonlySet<string> = new Set(),
+  ): Promise<CoreTemporaryState> {
+    const hostId = await bundledCoreClient.getHostId();
+    const [{ sessions }, { instances }] = await Promise.all([
+      bundledCoreClient.queryMailboxSessions({
+        hostId,
+        newestFirst: true,
+        limit: 500,
+      }),
+      bundledCoreClient.queryProviderInstances(),
+    ]);
+    const instancesById = new Map(instances.map((instance) => [instance.id, instance]));
+    const mailboxes = sessions.map((session) =>
+      temporaryMailboxViewFromSession(session, instancesById.get(session.providerInstanceId)),
+    );
+    const mailboxesById = new Map(mailboxes.map((mailbox) => [mailbox.id, mailbox]));
+    for (const session of sessions) {
+      if (syncSessionIds.has(session.id)) {
+        await bundledCoreClient.queryObservedMessages({
+          sessionId: session.id,
+          sync: true,
+          newestFirst: true,
+          limit: 100,
+        });
+      }
+    }
+    const sessionIds = new Set(sessions.map((session) => session.id));
+    const observedMessages = (
+      await bundledCoreClient.queryObservedMessages({ newestFirst: true, limit: 5000 })
+    ).messages.filter((message) => sessionIds.has(message.sessionId));
+    coreObservedMessagesRef.current = new Map(
+      observedMessages.map((message) => [message.id, message]),
+    );
+    const messages = observedMessages.flatMap((message) => {
+      const mailbox = mailboxesById.get(message.sessionId);
+      return mailbox ? [temporaryObservedMessageView(message, mailbox)] : [];
+    });
+    const codes = observedMessages.flatMap((message) => {
+      const mailbox = mailboxesById.get(message.sessionId);
+      if (!mailbox || !message.extractedCode) return [];
+      return [
+        temporaryVerificationCodeView(
+          {
+            sessionId: message.sessionId,
+            providerInstanceId: message.providerInstanceId,
+            code: message.extractedCode,
+            source: message.codeSource ?? "text",
+            observedMessageId: message.id,
+            receivedAt: message.observedAt,
+            candidates: message.extractedCandidates,
+          },
+          mailbox,
+          message,
+        ),
+      ];
+    });
+    return {
+      mailboxes,
+      messages,
+      codes: codes.slice(0, 100),
+    };
+  }
+
   async function loadInitialState(isCurrent: () => boolean = () => true) {
     setBusy(true);
     try {
@@ -1130,13 +1245,13 @@ function App() {
         ,
         settingsResult,
         avatarSettingsResult,
-        mailboxesResult,
+        coreTemporaryState,
         platformSessionResult,
       ] = await Promise.all([
         bundledCoreClient.getCatalog(),
         settingsClient.getEasyEmailSettings(),
         avatarSettingsClient.getAvatarSettings(),
-        invoke<TempMailboxDto[]>("temp_list_mailboxes"),
+        loadCoreTemporaryState(),
         platformAccountClient.getPlatformAccountSession(),
       ]);
       if (!isCurrent()) {
@@ -1179,14 +1294,22 @@ function App() {
       setPlatformSession(platformSessionResult);
       setServiceUrl(settingsResult.service_url ?? "");
       setNormalAccounts(accountsResult);
-      setTempMailboxes(mailboxesResult);
-      setAnonymousMessages(messagesResult);
+      setTempMailboxes(coreTemporaryState.mailboxes);
+      setAnonymousMessages(
+        mergeByIdentity(
+          coreTemporaryState.messages,
+          messagesResult,
+          (message) => message.message_id,
+        ),
+      );
       setNormalMessagesByAccount(normalMessageCache);
       setPromotedMessagesByAccount(promotedMessageCache);
       setNewsletterSubscriptionsByAccount(newsletterSubscriptionCache);
       setMailFolders(taxonomyResult.folders);
       setMailLabels(taxonomyResult.labels);
-      setRecentCodes(codesResult);
+      setRecentCodes(
+        mergeByIdentity(coreTemporaryState.codes, codesResult, (code) => code.id),
+      );
       setSendQueue(sendQueueResult);
       setContacts(contactsResult);
       setAgentAccounts(agentAccountsResult);
@@ -1692,13 +1815,42 @@ function App() {
     const isCurrent = () => messageDetailRequestRef.current === requestId;
     setBusy(true);
     try {
-      let detail = await invoke<MessageDetailDto>("message_get_detail", {
-        request: { message_id: messageId },
-      });
+      const knownCoreMessage = coreObservedMessagesRef.current.get(messageId);
+      const coreMessage = knownCoreMessage
+        ? (await bundledCoreClient.getObservedMessage(messageId)).message ?? knownCoreMessage
+        : undefined;
+      const coreMailbox = coreMessage
+        ? tempMailboxes.find((mailbox) => mailbox.id === coreMessage.sessionId)
+        : undefined;
+      let detail: MessageDetailDto = coreMessage
+        ? {
+            message_id: coreMessage.id,
+            account_id: "",
+            thread_key: null,
+            received_address: coreMailbox?.email_address ?? "",
+            subject: coreMessage.subject ?? "(no subject)",
+            from_address: coreMessage.sender ?? "",
+            snippet: (coreMessage.textBody ?? coreMessage.subject ?? "").slice(0, 240),
+            observed_at: coreMessage.observedAt,
+            body_text: coreMessage.textBody ?? null,
+            body_html: coreMessage.htmlBody ?? null,
+            body_cache_state: "available",
+            draft_cc_addresses: [],
+            draft_bcc_addresses: [],
+            is_read: markRead,
+            is_starred: false,
+            is_archived: false,
+            is_important: false,
+            local_folder: "inbox",
+            labels: [],
+          }
+        : await invoke<MessageDetailDto>("message_get_detail", {
+            request: { message_id: messageId },
+          });
       if (!isCurrent()) {
         return;
       }
-      if (markRead && !detail.is_read) {
+      if (!coreMessage && markRead && !detail.is_read) {
         await setMessageLocalFlag(messageId, "read", true);
         await reloadMailListsAfterLocalAction();
         if (!isCurrent()) {
@@ -1729,7 +1881,7 @@ function App() {
         body_text: detail.body_text,
         account_id: detail.account_id,
       });
-      if (detailCodeCandidate) {
+      if (!coreMessage && detailCodeCandidate) {
         try {
           const code = await invoke<VerificationCodeDto | null>("verification_reclassify_message", {
             request: { message_id: messageId },
@@ -2938,33 +3090,38 @@ function App() {
   async function createTempMailbox() {
     setBusy(true);
     try {
-      const mailbox = await invoke<TempMailboxDto>("temp_create_mailbox", {
-        request: {
-          api_token: optionalValue(apiToken),
-          target_service: optionalValue(targetService),
-          provider_selection: null,
-          domain_selection: null,
-          local_part: null,
-          note: optionalValue(note),
-        },
+      const hostId = await bundledCoreClient.getHostId();
+      const metadata = {
+        source: "desktop-ui",
+        ...(optionalValue(targetService) ? { targetService: targetService.trim() } : {}),
+        ...(optionalValue(note) ? { note: note.trim() } : {}),
+      };
+      const { result } = await bundledCoreClient.openMailbox({
+        hostId,
+        provisionMode: "auto-create-if-missing",
+        bindingMode: "shared-instance",
+        metadata,
       });
-      const mailboxes = await invoke<TempMailboxDto[]>("temp_list_mailboxes");
-      const messages = await invoke<AnonymousMessageDto[]>("message_list", {
-        request: { scope: "anonymous", account_id: null, include_archived: true },
-      });
-      const codes = await loadRecentCodes();
+      const mailboxRecord = temporaryMailboxRecordFromOpenResult(result);
+      const coreState = await loadCoreTemporaryState();
       const accounts = await loadNormalAccounts();
-      setTempMailboxes(mailboxes);
-      setAnonymousMessages(messages);
-      setRecentCodes(codes);
+      setTempMailboxes(coreState.mailboxes);
+      setAnonymousMessages((current) =>
+        mergeByIdentity(coreState.messages, current, (message) => message.message_id),
+      );
+      setRecentCodes((current) =>
+        mergeByIdentity(coreState.codes, current, (code) => code.id),
+      );
       setNormalAccounts(accounts);
       setTargetService("");
       setNote("");
       if (waitForCode) {
-        setWaitingMailboxId(mailbox.id);
-        setStatusMessage(`Created ${mailbox.email_address}; waiting for a verification code.`);
+        setWaitingMailboxId(mailboxRecord.view.id);
+        setStatusMessage(
+          `Created ${mailboxRecord.view.email_address}; waiting for a verification code.`,
+        );
       } else {
-        setStatusMessage(`Created temporary mailbox ${mailbox.email_address}.`);
+        setStatusMessage(`Created temporary mailbox ${mailboxRecord.view.email_address}.`);
       }
       setError(null);
     } catch (caught: unknown) {
@@ -2974,22 +3131,49 @@ function App() {
     }
   }
 
+  async function refreshCoreMailboxes(
+    sessionIds: string[],
+    isCurrent: () => boolean = () => true,
+  ) {
+    const beforeMessageIds = new Set(coreObservedMessagesRef.current.keys());
+    const coreState = await loadCoreTemporaryState(new Set(sessionIds));
+    const refreshedSessionIds = new Set(sessionIds);
+    const refreshedMessages = coreState.messages.filter((message) =>
+      refreshedSessionIds.has(message.temp_mailbox_id),
+    );
+    const result: TempRefreshDto = {
+      fetched_count: refreshedMessages.length,
+      inserted_count: refreshedMessages.filter(
+        (message) => !beforeMessageIds.has(message.message_id),
+      ).length,
+      skipped_count: sessionIds.filter(
+        (sessionId) => !coreState.mailboxes.some((mailbox) => mailbox.id === sessionId),
+      ).length,
+      refreshed_mailbox_ids: sessionIds.filter((sessionId) =>
+        coreState.mailboxes.some((mailbox) => mailbox.id === sessionId),
+      ),
+      skipped_mailbox_ids: sessionIds.filter(
+        (sessionId) => !coreState.mailboxes.some((mailbox) => mailbox.id === sessionId),
+      ),
+    };
+    if (isCurrent()) {
+      setLastRefresh(result);
+      setTempMailboxes(coreState.mailboxes);
+      setAnonymousMessages((current) =>
+        mergeByIdentity(coreState.messages, current, (message) => message.message_id),
+      );
+      setRecentCodes((current) =>
+        mergeByIdentity(coreState.codes, current, (code) => code.id),
+      );
+    }
+    return { result, coreState };
+  }
+
   async function refreshAnonymousMailOnce() {
-    const result = await invoke<TempRefreshDto>("temp_refresh_anonymous", {
-      request: { api_token: optionalValue(apiToken) },
-    });
-    const [mailboxes, messages] = await Promise.all([
-      invoke<TempMailboxDto[]>("temp_list_mailboxes"),
-      invoke<AnonymousMessageDto[]>("message_list", {
-        request: { scope: "anonymous", account_id: null, include_archived: true },
-      }),
-    ]);
-    const codes = await loadRecentCodes();
-    setLastRefresh(result);
-    setTempMailboxes(mailboxes);
-    setAnonymousMessages(messages);
-    setRecentCodes(codes);
-    return result;
+    const activeSessionIds = tempMailboxes
+      .filter((mailbox) => mailbox.lifecycle_state === "active")
+      .map((mailbox) => mailbox.id);
+    return (await refreshCoreMailboxes(activeSessionIds)).result;
   }
 
   async function refreshAnonymousMail() {
@@ -3010,24 +3194,7 @@ function App() {
   async function refreshMailbox(tempMailboxId: string) {
     setBusy(true);
     try {
-      const result = await invoke<TempRefreshDto>("temp_refresh_mailbox", {
-        request: {
-          temp_mailbox_id: tempMailboxId,
-          api_token: optionalValue(apiToken),
-          force: false,
-        },
-      });
-      const [mailboxes, messages] = await Promise.all([
-        invoke<TempMailboxDto[]>("temp_list_mailboxes"),
-        invoke<AnonymousMessageDto[]>("message_list", {
-          request: { scope: "anonymous", account_id: null, include_archived: true },
-        }),
-      ]);
-      const codes = await loadRecentCodes();
-      setLastRefresh(result);
-      setTempMailboxes(mailboxes);
-      setAnonymousMessages(messages);
-      setRecentCodes(codes);
+      const { result } = await refreshCoreMailboxes([tempMailboxId]);
       setStatusMessage(
         `Mailbox refresh fetched ${result.fetched_count} messages and inserted ${result.inserted_count}.`,
       );
@@ -3044,37 +3211,32 @@ function App() {
     isCurrent: () => boolean,
   ): Promise<boolean> {
     try {
-      const result = await invoke<VerificationPollDto>("verification_poll_temp_mailbox", {
-        request: {
-          temp_mailbox_id: tempMailboxId,
-          api_token: optionalValue(apiToken),
-        },
-      });
-      const [mailboxes, messages, codes] = await Promise.all([
-        invoke<TempMailboxDto[]>("temp_list_mailboxes"),
-        invoke<AnonymousMessageDto[]>("message_list", {
-          request: { scope: "anonymous", account_id: null, include_archived: true },
-        }),
-        invoke<VerificationCodeDto[]>("verification_list_recent", {
-          request: { temp_mailbox_id: null, limit: 100 },
-        }),
-      ]);
-      const mailbox = mailboxes.find((item) => item.id === tempMailboxId);
+      const { result: refresh, coreState } = await refreshCoreMailboxes(
+        [tempMailboxId],
+        isCurrent,
+      );
+      if (!isCurrent()) {
+        return false;
+      }
+      const { code } = await bundledCoreClient.readVerificationCode(tempMailboxId);
+      const mailbox = coreState.mailboxes.find((item) => item.id === tempMailboxId);
       const mailboxStillReceives =
-        mailbox?.lifecycle_state === "active" || mailbox?.lifecycle_state === "expiring";
+        mailbox?.lifecycle_state === "active";
 
       if (!isCurrent()) {
         return false;
       }
 
-      setLastRefresh(result.refresh);
-      setTempMailboxes(mailboxes);
-      setAnonymousMessages(messages);
-      setRecentCodes(codes);
+      setLastRefresh(refresh);
 
-      if (result.detected_code) {
+      if (code && mailbox) {
+        const observedMessage = coreObservedMessagesRef.current.get(code.observedMessageId);
+        const detectedCode = temporaryVerificationCodeView(code, mailbox, observedMessage);
+        setRecentCodes((current) =>
+          mergeByIdentity([detectedCode], current, (item) => item.id),
+        );
         setStatusMessage(
-          `Detected verification code for ${result.detected_code.received_address}.`,
+          `Detected verification code for ${detectedCode.received_address}.`,
         );
         setError(null);
         return true;
@@ -3149,8 +3311,8 @@ function App() {
           confirm_lifecycle_ack: true,
         },
       });
-      const [mailboxes, anonymous, accounts, codes] = await Promise.all([
-        invoke<TempMailboxDto[]>("temp_list_mailboxes"),
+      const [coreState, anonymous, accounts, codes] = await Promise.all([
+        loadCoreTemporaryState(),
         invoke<AnonymousMessageDto[]>("message_list", {
           request: { scope: "anonymous", account_id: null, include_archived: true },
         }),
@@ -3161,10 +3323,12 @@ function App() {
       ]);
       const promoted = await loadPromotedMessages(result.account.id);
       setLastPromotion(result);
-      setTempMailboxes(mailboxes);
-      setAnonymousMessages(anonymous);
+      setTempMailboxes(coreState.mailboxes);
+      setAnonymousMessages(
+        mergeByIdentity(coreState.messages, anonymous, (message) => message.message_id),
+      );
       setNormalAccounts(accounts);
-      setRecentCodes(codes);
+      setRecentCodes(mergeByIdentity(coreState.codes, codes, (code) => code.id));
       setPromotedMessagesByAccount((current) => ({ ...current, [result.account.id]: promoted }));
       setMailSourceId(`promoted:${result.account.id}`);
       setStatusMessage(`Promoted ${result.account.display_name} without moving message history.`);
@@ -10424,7 +10588,8 @@ function App() {
                           >
                             Refresh
                           </button>
-                          {mailbox.visibility_state === "anonymous" ? (
+                          {mailbox.visibility_state === "anonymous" &&
+                          mailbox.easyemail_mailbox_id !== mailbox.id ? (
                             <button
                               type="button"
                               className="nt-mini-btn"
