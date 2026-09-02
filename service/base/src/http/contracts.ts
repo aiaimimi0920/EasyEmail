@@ -1,5 +1,12 @@
 import type { CredentialSetDefinition } from "../shared/index.js";
 import type {
+  MailAccount,
+  MailAccountCreateInput,
+  MailAccountDeleteInput,
+  MailAccountListQuery,
+  MailAccountUpdateInput,
+} from "../domain/account.js";
+import type {
   Contact,
   ContactCreateInput,
   ContactDeleteInput,
@@ -101,6 +108,13 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   taxonomyItem(itemId: string): string {
     return `/mail/taxonomy/${encodeURIComponent(itemId)}`;
   },
+  accounts: "/mail/accounts",
+  account(accountId: string): string {
+    return `/mail/accounts/${encodeURIComponent(accountId)}`;
+  },
+  disableAccount(accountId: string): string {
+    return `/mail/accounts/${encodeURIComponent(accountId)}/disable`;
+  },
   taxonomyUpsert(kind: "folder" | "label", key: string): string {
     return `/mail/taxonomy/${encodeURIComponent(kind)}/${encodeURIComponent(key)}`;
   },
@@ -181,6 +195,36 @@ export interface UpdateContactHttpResponse {
 
 export type DeleteContactHttpRequest = ContactDeleteInput;
 export interface DeleteContactHttpResponse {
+  deleted: { id: string };
+}
+
+export type ListMailAccountsHttpRequest = MailAccountListQuery;
+export interface ListMailAccountsHttpResponse {
+  accounts: MailAccount[];
+  nextCursor?: string;
+}
+
+export type CreateMailAccountHttpRequest = MailAccountCreateInput;
+export interface CreateMailAccountHttpResponse {
+  account: MailAccount;
+}
+
+export interface GetMailAccountHttpResponse {
+  account: MailAccount;
+}
+
+export type UpdateMailAccountHttpRequest = MailAccountUpdateInput;
+export interface UpdateMailAccountHttpResponse {
+  account: MailAccount;
+}
+
+export type DisableMailAccountHttpRequest = Pick<MailAccountDeleteInput, "expectedVersion">;
+export interface DisableMailAccountHttpResponse {
+  account: MailAccount;
+}
+
+export type DeleteMailAccountHttpRequest = MailAccountDeleteInput;
+export interface DeleteMailAccountHttpResponse {
   deleted: { id: string };
 }
 

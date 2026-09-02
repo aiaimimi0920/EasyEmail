@@ -184,6 +184,51 @@ case-insensitive name/email ordering. Pass `nextCursor` back unchanged.
 `version` as compare-and-swap protection. Delete is hard and does not mutate
 messages. A stale version or email collision returns 409.
 
+## Persistent account metadata
+
+Account metadata is stored in schema v3 of `easy-email-relational.sqlite3`.
+`GET /mail/accounts?scope=normal&limit=50&cursor=<opaque>` preserves the legacy
+normal-account view: it includes normal accounts plus the system-managed
+`acct_anonymous_virtual` account, while Agent accounts remain isolated. Cursors
+are bound to the requested scope and must be returned unchanged.
+
+Create normal long-lived or Agent-owned metadata with `POST /mail/accounts`.
+The current request accepts only `normal_long_lived` and `agent_owned`; promoted
+temporary accounts are created only by the later promotion workflow, and callers
+cannot create, update, disable, or delete the anonymous virtual account. Both
+creatable kinds require `primaryAddress`.
+
+```http
+POST /mail/accounts
+Authorization: Bearer <easyemail-api-key>
+Content-Type: application/json
+
+{
+  "kind": "normal_long_lived",
+  "displayName": "Work Mail",
+  "primaryAddress": "work@example.com",
+  "credentialRefs": [{
+    "secretBackend": "windows_credential_manager",
+    "secretKey": "ref:v1:account/work-imap",
+    "credentialKind": "imap_password",
+    "authMethod": "password"
+  }]
+}
+```
+
+`credentialRefs` contain metadata only. A new write must use an opaque
+`ref:v1:...` key; raw passwords, tokens, authorization codes, and secret blobs
+are rejected. The current metadata slice records new refs as `missing` until the
+desktop vault broker/resolver is implemented, so it does not yet test IMAP/SMTP
+credentials or switch the React account screen.
+
+Read with `GET /mail/accounts/{accountId}`. Metadata updates use
+`PATCH /mail/accounts/{accountId}` with `expectedVersion`; disable uses
+`POST /mail/accounts/{accountId}/disable` with `{ "expectedVersion": N }`;
+soft-delete uses `DELETE /mail/accounts/{accountId}?expectedVersion=N`. Address,
+credential-ref ownership, stale-version, or system-managed-account conflicts
+return 409.
+
 ## Persistent mail taxonomy
 
 Folders and labels are stored in schema v2 of the same separate relational
@@ -270,6 +315,12 @@ authorization tier.
 | `GET` | `/mail/contacts/{contactId}` | Read one contact. |
 | `PATCH` | `/mail/contacts/{contactId}` | Update one contact with version CAS. |
 | `DELETE` | `/mail/contacts/{contactId}?expectedVersion=N` | Hard-delete one contact with version CAS. |
+| `GET` | `/mail/accounts?scope=normal\|agent\|system` | List persistent account metadata with scope-bound keyset pagination. |
+| `POST` | `/mail/accounts` | Create normal long-lived or Agent-owned account metadata. |
+| `GET` | `/mail/accounts/{accountId}` | Read one account. |
+| `PATCH` | `/mail/accounts/{accountId}` | Update account metadata with version CAS. |
+| `POST` | `/mail/accounts/{accountId}/disable` | Disable receive/send state with version CAS. |
+| `DELETE` | `/mail/accounts/{accountId}?expectedVersion=N` | Soft-delete one account with version CAS. |
 | `GET` | `/mail/taxonomy?kind=folder\|label` | List persistent folders or labels with opaque keyset pagination. |
 | `PUT` | `/mail/taxonomy/{kind}/{key}` | Create or upsert a folder or label by normalized name. |
 | `GET` | `/mail/taxonomy/{itemId}` | Read one folder or label. |

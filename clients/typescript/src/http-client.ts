@@ -14,6 +14,11 @@ import type {
   MailTaxonomyMutationResult,
   MailTaxonomyUpdateInput,
   MailTaxonomyUpsertInput,
+  MailAccount,
+  MailAccountCreateInput,
+  MailAccountListQuery,
+  MailAccountListResult,
+  MailAccountUpdateInput,
   MailboxOutcomeReport,
   MailboxOutcomeReportResult,
   MailboxPlanResult,
@@ -41,6 +46,7 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   queryObservedMessages: "/mail/query/observed-messages",
   contacts: "/mail/contacts",
   taxonomy: "/mail/taxonomy",
+  accounts: "/mail/accounts",
   planMailbox: "/mail/mailboxes/plan",
   openMailbox: "/mail/mailboxes/open",
   sendMailboxMessage: "/mail/mailboxes/send",
@@ -67,6 +73,12 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   },
   taxonomyUpsert(kind: MailTaxonomyKind, key: string): string {
     return `/mail/taxonomy/${encodeURIComponent(kind)}/${encodeURIComponent(key)}`;
+  },
+  account(accountId: string): string {
+    return `/mail/accounts/${encodeURIComponent(accountId)}`;
+  },
+  disableAccount(accountId: string): string {
+    return `/mail/accounts/${encodeURIComponent(accountId)}/disable`;
   },
 } as const;
 
@@ -279,6 +291,12 @@ export interface EasyEmailClientApi {
     input: MailTaxonomyUpdateInput,
   ): Promise<MailTaxonomyMutationResult>;
   deleteMailTaxonomy(itemId: string, expectedVersion: number): Promise<MailTaxonomyDeleteResult>;
+  listMailAccounts(query?: MailAccountListQuery): Promise<MailAccountListResult>;
+  getMailAccount(accountId: string): Promise<MailAccount>;
+  createMailAccount(input: MailAccountCreateInput): Promise<MailAccount>;
+  updateMailAccount(accountId: string, input: MailAccountUpdateInput): Promise<MailAccount>;
+  disableMailAccount(accountId: string, expectedVersion: number): Promise<MailAccount>;
+  deleteMailAccount(accountId: string, expectedVersion: number): Promise<{ id: string }>;
   planMailbox(request: VerificationMailboxRequest): Promise<MailboxPlanResult>;
   openMailbox(request: VerificationMailboxRequest): Promise<VerificationMailboxOpenResult>;
   sendMailboxMessage(request: MailboxSendRequest): Promise<MailboxSendResult>;
@@ -394,6 +412,39 @@ export class EasyEmailClient implements EasyEmailClientApi {
       EASY_EMAIL_HTTP_ROUTES.taxonomyItem(itemId),
       { expectedVersion },
     );
+  }
+
+  public async listMailAccounts(query: MailAccountListQuery = {}): Promise<MailAccountListResult> {
+    return this.httpClient.get<MailAccountListResult>(EASY_EMAIL_HTTP_ROUTES.accounts, {
+      scope: query.scope,
+      limit: query.limit,
+      cursor: query.cursor,
+    });
+  }
+
+  public async getMailAccount(accountId: string): Promise<MailAccount> {
+    const response = await this.httpClient.get<{ account: MailAccount }>(EASY_EMAIL_HTTP_ROUTES.account(accountId));
+    return response.account;
+  }
+
+  public async createMailAccount(input: MailAccountCreateInput): Promise<MailAccount> {
+    const response = await this.httpClient.post<MailAccountCreateInput, { account: MailAccount }>(EASY_EMAIL_HTTP_ROUTES.accounts, input);
+    return response.account;
+  }
+
+  public async updateMailAccount(accountId: string, input: MailAccountUpdateInput): Promise<MailAccount> {
+    const response = await this.httpClient.patch<MailAccountUpdateInput, { account: MailAccount }>(EASY_EMAIL_HTTP_ROUTES.account(accountId), input);
+    return response.account;
+  }
+
+  public async disableMailAccount(accountId: string, expectedVersion: number): Promise<MailAccount> {
+    const response = await this.httpClient.post<{ expectedVersion: number }, { account: MailAccount }>(EASY_EMAIL_HTTP_ROUTES.disableAccount(accountId), { expectedVersion });
+    return response.account;
+  }
+
+  public async deleteMailAccount(accountId: string, expectedVersion: number): Promise<{ id: string }> {
+    const response = await this.httpClient.delete<{ deleted: { id: string } }>(EASY_EMAIL_HTTP_ROUTES.account(accountId), { expectedVersion });
+    return response.deleted;
   }
 
   public async planMailbox(request: VerificationMailboxRequest): Promise<MailboxPlanResult> {

@@ -34,7 +34,25 @@ await client.updateContact(contact.id, {
   expectedVersion: contact.version,
   note: "Project contact",
 });
+
+const account = await client.createMailAccount({
+  kind: "normal_long_lived",
+  displayName: "Work Mail",
+  primaryAddress: "work@example.com",
+  credentialRefs: [{
+    secretBackend: "windows_credential_manager",
+    secretKey: "ref:v1:account/work-imap",
+    credentialKind: "imap_password",
+    authMethod: "password",
+  }],
+});
+await client.disableMailAccount(account.id, account.version);
 ```
+
+Account requests accept only opaque `ref:v1:...` credential references, never
+passwords or tokens. The current account metadata slice does not resolve or test
+those references; vault broker and IMAP/SMTP operations remain server/desktop
+runtime responsibilities.
 
 The API key is a runtime input. Do not write it into source files, package
 metadata, browser bundles, or release artifacts.

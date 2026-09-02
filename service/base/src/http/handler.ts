@@ -5,11 +5,18 @@ import type {
   CleanupMoemailMailboxesHttpResponse,
   CreateContactHttpRequest,
   CreateContactHttpResponse,
+  CreateMailAccountHttpRequest,
+  CreateMailAccountHttpResponse,
+  DeleteMailAccountHttpRequest,
+  DeleteMailAccountHttpResponse,
+  DisableMailAccountHttpRequest,
+  DisableMailAccountHttpResponse,
   DeleteContactHttpRequest,
   DeleteContactHttpResponse,
   DeleteMailTaxonomyHttpRequest,
   DeleteMailTaxonomyHttpResponse,
   GetContactHttpResponse,
+  GetMailAccountHttpResponse,
   GetMailCatalogHttpResponse,
   GetMailTaxonomyHttpResponse,
   GetObservedMessageHttpResponse,
@@ -17,6 +24,8 @@ import type {
   GetMailSnapshotHttpResponse,
   ListContactsHttpRequest,
   ListContactsHttpResponse,
+  ListMailAccountsHttpRequest,
+  ListMailAccountsHttpResponse,
   ListMailTaxonomyHttpRequest,
   ListMailTaxonomyHttpResponse,
   ObserveMessageHttpRequest,
@@ -58,6 +67,8 @@ import type {
   RunMaintenanceHttpResponse,
   UpdateContactHttpRequest,
   UpdateContactHttpResponse,
+  UpdateMailAccountHttpRequest,
+  UpdateMailAccountHttpResponse,
   UpdateMailTaxonomyHttpRequest,
   UpdateMailTaxonomyHttpResponse,
   UpsertMailTaxonomyHttpRequest,
@@ -68,6 +79,7 @@ import type { MailboxSession } from "../domain/models.js";
 import { createEasyEmailService, type EasyEmailService } from "../service/easy-email-service.js";
 import type { MailStateQueryRepository } from "../persistence/contracts.js";
 import type { ContactService } from "../service/contacts.js";
+import type { MailAccountService } from "../service/accounts.js";
 import type { MailTaxonomyKind } from "../domain/mail-taxonomy.js";
 import {
   MAIL_TAXONOMY_CAPABILITIES,
@@ -87,6 +99,7 @@ export class EasyEmailHttpHandler {
     private readonly queryRepository?: MailStateQueryRepository,
     private readonly contacts?: ContactService,
     private readonly mailTaxonomy?: MailTaxonomyService,
+    private readonly accounts?: MailAccountService,
   ) {}
 
   private requireContacts(): ContactService {
@@ -107,6 +120,16 @@ export class EasyEmailHttpHandler {
       );
     }
     return this.mailTaxonomy;
+  }
+
+  private requireAccounts(): MailAccountService {
+    if (!this.accounts) {
+      throw new EasyEmailError(
+        "ACCOUNTS_PERSISTENCE_UNAVAILABLE",
+        "Persistent accounts are not available in this runtime.",
+      );
+    }
+    return this.accounts;
   }
 
   public getCatalog(): GetMailCatalogHttpResponse {
@@ -230,6 +253,43 @@ export class EasyEmailHttpHandler {
     request: DeleteContactHttpRequest,
   ): Promise<DeleteContactHttpResponse> {
     return { deleted: await this.requireContacts().deleteContact(contactId, request) };
+  }
+
+  public async listMailAccounts(
+    request: ListMailAccountsHttpRequest = {},
+  ): Promise<ListMailAccountsHttpResponse> {
+    return this.requireAccounts().listAccounts(request);
+  }
+
+  public async getMailAccount(accountId: string): Promise<GetMailAccountHttpResponse> {
+    return { account: await this.requireAccounts().getAccount(accountId) };
+  }
+
+  public async createMailAccount(
+    request: CreateMailAccountHttpRequest,
+  ): Promise<CreateMailAccountHttpResponse> {
+    return { account: await this.requireAccounts().createAccount(request) };
+  }
+
+  public async updateMailAccount(
+    accountId: string,
+    request: UpdateMailAccountHttpRequest,
+  ): Promise<UpdateMailAccountHttpResponse> {
+    return { account: await this.requireAccounts().updateAccount(accountId, request) };
+  }
+
+  public async disableMailAccount(
+    accountId: string,
+    request: DisableMailAccountHttpRequest,
+  ): Promise<DisableMailAccountHttpResponse> {
+    return { account: await this.requireAccounts().disableAccount(accountId, request.expectedVersion) };
+  }
+
+  public async deleteMailAccount(
+    accountId: string,
+    request: DeleteMailAccountHttpRequest,
+  ): Promise<DeleteMailAccountHttpResponse> {
+    return { deleted: await this.requireAccounts().deleteAccount(accountId, request) };
   }
 
   public async listMailTaxonomy(

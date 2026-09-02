@@ -118,6 +118,83 @@ test("contact resources use canonical methods, paths, bodies, and CAS query", as
   assert.ok(calls.every((call) => call.init.headers.authorization === "Bearer contacts-token"));
 });
 
+test("account resources use canonical CRUD, disable, scope pagination, and opaque refs", async () => {
+  const calls = [];
+  const account = {
+    id: "account/a",
+    scope: "normal",
+    kind: "normal_long_lived",
+    displayName: "Work",
+    primaryAddress: "work@example.com",
+    status: "configuring",
+    authStatus: "missing",
+    receiveStatus: "disabled",
+    sendStatus: "disabled",
+    listedInAllAccounts: true,
+    version: 1,
+    createdAt: "2026-09-02T00:00:00.000Z",
+    updatedAt: "2026-09-02T00:00:00.000Z",
+    credentialRefs: [],
+  };
+  const client = new EasyEmailClient({
+    baseUrl: "http://127.0.0.1:8080",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      if (init.method === "GET" && String(url).includes("?")) {
+        return jsonResponse({ accounts: [account], nextCursor: "next" });
+      }
+      if (init.method === "DELETE") return jsonResponse({ deleted: { id: account.id } });
+      return jsonResponse({ account });
+    },
+  });
+  const createRequest = {
+    kind: "normal_long_lived",
+    displayName: "Work",
+    primaryAddress: "work@example.com",
+    credentialRefs: [{
+      secretBackend: "fake-vault",
+      secretKey: "ref:v1:account/work",
+      credentialKind: "imap_password",
+      authMethod: "password",
+    }],
+  };
+
+  assert.deepEqual(await client.listMailAccounts({
+    scope: "normal",
+    limit: 10,
+    cursor: "opaque/cursor",
+  }), { accounts: [account], nextCursor: "next" });
+  assert.deepEqual(await client.getMailAccount(account.id), account);
+  assert.deepEqual(await client.createMailAccount(createRequest), account);
+  assert.deepEqual(await client.updateMailAccount(account.id, {
+    expectedVersion: 1,
+    displayName: "Work Renamed",
+  }), account);
+  assert.deepEqual(await client.disableMailAccount(account.id, 2), account);
+  assert.deepEqual(await client.deleteMailAccount(account.id, 3), { id: account.id });
+
+  assert.equal(
+    calls[0].url,
+    "http://127.0.0.1:8080/mail/accounts?scope=normal&limit=10&cursor=opaque%2Fcursor",
+  );
+  assert.deepEqual(
+    calls.map((call) => call.init.method),
+    ["GET", "GET", "POST", "PATCH", "POST", "DELETE"],
+  );
+  assert.equal(calls[1].url, "http://127.0.0.1:8080/mail/accounts/account%2Fa");
+  assert.deepEqual(JSON.parse(calls[2].init.body), createRequest);
+  assert.deepEqual(JSON.parse(calls[3].init.body), {
+    expectedVersion: 1,
+    displayName: "Work Renamed",
+  });
+  assert.equal(calls[4].url, "http://127.0.0.1:8080/mail/accounts/account%2Fa/disable");
+  assert.deepEqual(JSON.parse(calls[4].init.body), { expectedVersion: 2 });
+  assert.equal(
+    calls[5].url,
+    "http://127.0.0.1:8080/mail/accounts/account%2Fa?expectedVersion=3",
+  );
+});
+
 test("mail taxonomy resources preserve methods, encoded paths, CAS, and capability metadata", async () => {
   const calls = [];
   const capabilities = { messageReferencePropagation: false };

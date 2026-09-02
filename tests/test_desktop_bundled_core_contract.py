@@ -73,7 +73,7 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
             'acceptedRequestsBeforeAuthenticatedOpen !== 0',
             'fakeProvider.acceptedRequestCount() !== acceptedRequestsBeforeAuthenticatedOpen + 1',
             'stdio: ["ignore", "pipe", "pipe"]',
-            'const sensitiveValues = [apiToken, fakeProviderAuth, fakeMailboxToken]',
+            'const sensitiveValues = [apiToken, fakeProviderAuth, fakeMailboxToken, fakeAccountSecret]',
             'credentialLeakDetected ||= sensitiveValues.some',
             'coreOutputTail = output.slice(-credentialScanTailLength)',
             'child.exitCode !== null || child.signalCode !== null',

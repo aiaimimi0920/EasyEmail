@@ -188,6 +188,12 @@ export function createEasyEmailHttpServer(
           "MAIL_TAXONOMY_PARENT_UNSUPPORTED",
           "MAIL_TAXONOMY_PARENT_NOT_FOUND",
           "MAIL_TAXONOMY_PARENT_CYCLE",
+          "INVALID_ACCOUNT",
+          "INVALID_ACCOUNT_CURSOR",
+          "ACCOUNT_CREDENTIAL_REF_INVALID",
+          "ACCOUNT_CREDENTIAL_REF_SECRET_FORBIDDEN",
+          "ACCOUNT_SCOPE_UNSUPPORTED",
+          "ACCOUNT_KIND_UNSUPPORTED",
         ].includes(error.code)
       ) {
         writeEasyEmailError(response, 400, error);
@@ -209,6 +215,11 @@ export function createEasyEmailHttpServer(
         return;
       }
 
+      if (error instanceof EasyEmailError && error.code === "ACCOUNT_NOT_FOUND") {
+        writeEasyEmailError(response, 404, error);
+        return;
+      }
+
       if (
         error instanceof EasyEmailError
         && ["CONTACT_VERSION_CONFLICT", "CONTACT_EMAIL_CONFLICT"].includes(error.code)
@@ -219,7 +230,14 @@ export function createEasyEmailHttpServer(
 
       if (
         error instanceof EasyEmailError
-        && ["MAIL_TAXONOMY_VERSION_CONFLICT", "MAIL_TAXONOMY_NAME_CONFLICT"].includes(error.code)
+        && [
+          "MAIL_TAXONOMY_VERSION_CONFLICT",
+          "MAIL_TAXONOMY_NAME_CONFLICT",
+          "ACCOUNT_VERSION_CONFLICT",
+          "ACCOUNT_ADDRESS_CONFLICT",
+          "ACCOUNT_CREDENTIAL_REF_CONFLICT",
+          "ACCOUNT_SYSTEM_MANAGED",
+        ].includes(error.code)
       ) {
         writeEasyEmailError(response, 409, error);
         return;
@@ -234,6 +252,11 @@ export function createEasyEmailHttpServer(
         error instanceof EasyEmailError
         && error.code === "MAIL_TAXONOMY_PERSISTENCE_UNAVAILABLE"
       ) {
+        writeEasyEmailError(response, 503, error);
+        return;
+      }
+
+      if (error instanceof EasyEmailError && error.code === "ACCOUNTS_PERSISTENCE_UNAVAILABLE") {
         writeEasyEmailError(response, 503, error);
         return;
       }

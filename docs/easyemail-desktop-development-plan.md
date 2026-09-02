@@ -308,6 +308,15 @@ Newsletter 列表所需的账户与聚合消息来源仍归 M3/M4，因此 M2 �
 - 一个账户不能读取另一 account scope 的凭据或邮件；
 - 进程重启后凭据 ref 仍可解析，卸载/回滚不自动删除 OS vault 项。
 
+**当前进度（2026-09-02，首个纵向切片）**：schema v3、账户
+list/get/create/update/disable/delete、稳定 scope-bound pagination、CAS、软删除、
+固定 anonymous virtual 初始化、OpenAPI、TypeScript/desktop HTTP transport 已实现。
+`scope=normal` 保持旧 desktop 可见性语义，会包含 system scope 的 anonymous virtual，
+但隔离 Agent 账户。新写入只接受 `ref:v1:...` 不透明引用，并拒绝所有 raw secret
+字段；同一 backend/key 不能归属不同账户。此进度仅代表账户 metadata 边界：OS vault
+broker/resolver、`POST /mail/accounts/imap/test`、凭据可解析/重新认证错误、旧数据导入、
+React/Tauri account command 切换仍未完成，因此 M3 总体不得标记为完成。
+
 ### M4 - 聚合消息与验证记录
 
 **目标**：建立同时承载 temporary、normal、promotion、Agent 和 outgoing

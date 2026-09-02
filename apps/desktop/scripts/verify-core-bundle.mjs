@@ -21,7 +21,8 @@ const fakeProviderAuth = "desktop-core-smoke-custom-auth";
 const fakeProviderDomain = "smoke.example.test";
 const fakeMailboxAddress = `packaged-smoke@${fakeProviderDomain}`;
 const fakeMailboxToken = "desktop-core-smoke-mailbox-token";
-const sensitiveValues = [apiToken, fakeProviderAuth, fakeMailboxToken];
+const fakeAccountSecret = "desktop-core-smoke-raw-account-secret";
+const sensitiveValues = [apiToken, fakeProviderAuth, fakeMailboxToken, fakeAccountSecret];
 
 function reservePort() {
   return new Promise((resolvePort, reject) => {
@@ -183,6 +184,11 @@ try {
   if (unauthorizedTaxonomy.status !== 401) {
     throw new Error(`Expected unauthenticated taxonomy to return 401, got ${unauthorizedTaxonomy.status}.`);
   }
+  const unauthorizedAccounts = await fetch(`http://127.0.0.1:${port}/mail/accounts`);
+  await unauthorizedAccounts.arrayBuffer();
+  if (unauthorizedAccounts.status !== 401) {
+    throw new Error(`Expected unauthenticated accounts to return 401, got ${unauthorizedAccounts.status}.`);
+  }
   const contactCreate = await fetch(`http://127.0.0.1:${port}/mail/contacts`, {
     method: "POST",
     headers: {
@@ -215,6 +221,67 @@ try {
     || contactsPayload.contacts[0]?.id !== contactPayload.contact.id
   ) {
     throw new Error("Authenticated packaged-core contact list did not read the created contact.");
+  }
+  const rawSecretAccount = await fetch(`http://127.0.0.1:${port}/mail/accounts`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      kind: "normal_long_lived",
+      displayName: "Rejected account",
+      primaryAddress: "rejected-account@example.test",
+      password: fakeAccountSecret,
+    }),
+  });
+  const rawSecretPayload = await rawSecretAccount.json();
+  if (
+    rawSecretAccount.status !== 400
+    || rawSecretPayload?.code !== "ACCOUNT_CREDENTIAL_REF_SECRET_FORBIDDEN"
+    || JSON.stringify(rawSecretPayload).includes(fakeAccountSecret)
+  ) {
+    throw new Error("Packaged core did not reject raw account secret material safely.");
+  }
+  const accountCreate = await fetch(`http://127.0.0.1:${port}/mail/accounts`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      kind: "normal_long_lived",
+      displayName: "Packaged core account",
+      primaryAddress: "packaged-core-account@example.test",
+      credentialRefs: [{
+        secretBackend: "fake-vault",
+        secretKey: "ref:v1:packaged-core/imap",
+        credentialKind: "imap_password",
+        authMethod: "password",
+      }],
+    }),
+  });
+  if (!accountCreate.ok) {
+    throw new Error(`Authenticated packaged-core account create failed with status ${accountCreate.status}.`);
+  }
+  const accountPayload = await accountCreate.json();
+  if (
+    accountPayload?.account?.displayName !== "Packaged core account"
+    || accountPayload?.account?.credentialRefs?.[0]?.secretKey !== "ref:v1:packaged-core/imap"
+    || accountPayload?.account?.credentialRefs?.[0]?.status !== "missing"
+  ) {
+    throw new Error("Authenticated packaged-core account create returned an invalid canonical result.");
+  }
+  const accountsList = await fetch(`http://127.0.0.1:${port}/mail/accounts?scope=normal`, {
+    headers: { authorization: `Bearer ${apiToken}` },
+  });
+  const accountsPayload = await accountsList.json();
+  if (
+    !accountsList.ok
+    || !accountsPayload?.accounts?.some((account) => account.id === "acct_anonymous_virtual")
+    || !accountsPayload?.accounts?.some((account) => account.id === accountPayload.account.id)
+  ) {
+    throw new Error("Authenticated packaged-core account list did not preserve normal visibility semantics.");
   }
   const taxonomyCreate = await fetch(`http://127.0.0.1:${port}/mail/taxonomy/folder/packaged_core`, {
     method: "PUT",
@@ -318,5 +385,5 @@ if (credentialLeakDetected) {
   throw new Error("Bundled core output leaked a smoke credential.");
 }
 console.log(
-  "Bundled EasyEmail core authenticated readiness, contact/taxonomy persistence, unauthenticated 401, and fake-provider mailbox open passed.",
+  "Bundled EasyEmail core authenticated readiness, contact/taxonomy/account persistence, secret rejection, unauthenticated 401, and fake-provider mailbox open passed.",
 );

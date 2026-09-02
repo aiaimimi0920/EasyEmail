@@ -63,6 +63,84 @@ export interface ContactUpdateInput {
   note?: string | null;
 }
 
+export type MailAccountScope = "normal" | "agent" | "system";
+export type MailAccountKind =
+  | "normal_long_lived"
+  | "normal_upgraded_temp"
+  | "anonymous_virtual"
+  | "agent_owned";
+export type MailAccountCreatableKind = "normal_long_lived" | "agent_owned";
+export type MailAccountStatus = "ready" | "configuring" | "syncing" | "degraded" | "disabled" | "history_only" | "deleted";
+export type MailAccountAuthStatus = "not_required" | "valid" | "expired" | "invalid" | "missing" | "refreshing" | "reauthorization_required";
+export type MailAccountReceiveStatus = "enabled" | "syncing" | "backoff" | "auth_failed" | "provider_unavailable" | "expired" | "disabled" | "unsupported";
+export type MailAccountSendStatus = "enabled" | "sending" | "queued_only" | "auth_failed" | "smtp_unavailable" | "rate_limited" | "disabled" | "unsupported";
+
+export interface MailCredentialRef {
+  id: string;
+  ownerAccountId: string;
+  secretBackend: string;
+  secretKey: string;
+  credentialKind: string;
+  authMethod: string;
+  status: "active" | "missing" | "invalid" | "disabled";
+  createdAt: string;
+  updatedAt: string;
+  lastVerifiedAt?: string;
+}
+
+export interface MailAccount {
+  id: string;
+  scope: MailAccountScope;
+  kind: MailAccountKind;
+  displayName: string;
+  primaryAddress?: string;
+  providerLabel?: string;
+  status: MailAccountStatus;
+  authStatus: MailAccountAuthStatus;
+  receiveStatus: MailAccountReceiveStatus;
+  sendStatus: MailAccountSendStatus;
+  listedInAllAccounts: boolean;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  credentialRefs: MailCredentialRef[];
+}
+
+export interface MailAccountListQuery {
+  scope?: MailAccountScope;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface MailAccountListResult {
+  accounts: MailAccount[];
+  nextCursor?: string;
+}
+
+export interface MailAccountCredentialRefInput {
+  secretBackend: string;
+  secretKey: `ref:v1:${string}`;
+  credentialKind: string;
+  authMethod: string;
+}
+
+export interface MailAccountCreateInput {
+  scope?: Exclude<MailAccountScope, "system">;
+  kind: MailAccountCreatableKind;
+  displayName: string;
+  primaryAddress: string;
+  providerLabel?: string | null;
+  listedInAllAccounts?: boolean;
+  credentialRefs?: MailAccountCredentialRefInput[];
+}
+
+export interface MailAccountUpdateInput {
+  expectedVersion: number;
+  displayName?: string;
+  providerLabel?: string | null;
+  listedInAllAccounts?: boolean;
+}
+
 export type MailTaxonomyKind = "folder" | "label";
 
 export interface MailTaxonomyItem {

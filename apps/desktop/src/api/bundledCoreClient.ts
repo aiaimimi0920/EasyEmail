@@ -26,6 +26,11 @@ import {
   type EasyEmailMailTaxonomyMutationResponse,
   type EasyEmailMailTaxonomyUpdateRequest,
   type EasyEmailMailTaxonomyUpsertRequest,
+  type EasyEmailMailAccountCreateRequest,
+  type EasyEmailMailAccountListQuery,
+  type EasyEmailMailAccountResponse,
+  type EasyEmailMailAccountsResponse,
+  type EasyEmailMailAccountUpdateRequest,
   type EasyEmailObservedMessage,
   type EasyEmailObservedMessageResponse,
   type EasyEmailObservedMessagesResponse,
@@ -108,6 +113,24 @@ export function createBundledCoreClient(
       query: EasyEmailMailTaxonomyListQuery,
     ): Promise<EasyEmailMailTaxonomyListResponse> {
       return (await getHttpClient()).listMailTaxonomy(query);
+    },
+    async listMailAccounts(query: EasyEmailMailAccountListQuery = {}): Promise<EasyEmailMailAccountsResponse> {
+      return (await getHttpClient()).listMailAccounts(query);
+    },
+    async getMailAccount(accountId: string): Promise<EasyEmailMailAccountResponse> {
+      return (await getHttpClient()).getMailAccount(accountId);
+    },
+    async createMailAccount(request: EasyEmailMailAccountCreateRequest): Promise<EasyEmailMailAccountResponse> {
+      return (await getHttpClient()).createMailAccount(request);
+    },
+    async updateMailAccount(accountId: string, request: EasyEmailMailAccountUpdateRequest): Promise<EasyEmailMailAccountResponse> {
+      return (await getHttpClient()).updateMailAccount(accountId, request);
+    },
+    async disableMailAccount(accountId: string, expectedVersion: number): Promise<EasyEmailMailAccountResponse> {
+      return (await getHttpClient()).disableMailAccount(accountId, expectedVersion);
+    },
+    async deleteMailAccount(accountId: string, expectedVersion: number): Promise<{ deleted: { id: string } }> {
+      return (await getHttpClient()).deleteMailAccount(accountId, expectedVersion);
     },
     async getMailTaxonomy(itemId: string): Promise<EasyEmailMailTaxonomyMutationResponse> {
       return (await getHttpClient()).getMailTaxonomy(itemId);

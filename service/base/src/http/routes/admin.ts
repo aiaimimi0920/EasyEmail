@@ -77,6 +77,42 @@ function extractContactId(path: string): string | undefined {
   }
 }
 
+function extractMailAccountId(path: string): string | undefined {
+  const matched = path.match(/^\/mail\/accounts\/([^/]+)$/);
+  if (!matched?.[1]) return undefined;
+  try {
+    return decodeURIComponent(matched[1]);
+  } catch {
+    throw new EasyEmailError("INVALID_ACCOUNT", "Account id path encoding is invalid.");
+  }
+}
+
+function extractMailAccountDisableId(path: string): string | undefined {
+  const matched = path.match(/^\/mail\/accounts\/([^/]+)\/disable$/);
+  if (!matched?.[1]) return undefined;
+  try {
+    return decodeURIComponent(matched[1]);
+  } catch {
+    throw new EasyEmailError("INVALID_ACCOUNT", "Account id path encoding is invalid.");
+  }
+}
+
+function parseAccountScope(value: string | undefined): "normal" | "agent" | "system" | undefined {
+  if (value === undefined || value === "") return undefined;
+  if (value !== "normal" && value !== "agent" && value !== "system") {
+    throw new EasyEmailError("ACCOUNT_SCOPE_UNSUPPORTED", "Account scope is unsupported.");
+  }
+  return value;
+}
+
+function parseAccountLimit(value: string | undefined): number | undefined {
+  if (value === undefined || value === "") return undefined;
+  if (!/^[1-9]\d*$/.test(value)) {
+    throw new EasyEmailError("INVALID_QUERY", "Account limit must be a positive integer.");
+  }
+  return Number(value);
+}
+
 function decodeTaxonomyPathPart(value: string): string {
   try {
     return decodeURIComponent(value);
@@ -225,6 +261,26 @@ export async function handleAdminRoute(context: AdminRouteContext): Promise<unkn
     return handler.createContact(await readJsonBody());
   }
 
+  if (method === "POST" && path === EASY_EMAIL_HTTP_ROUTES.accounts) {
+    return handler.createMailAccount(await readJsonBody());
+  }
+
+  const accountDisableId = extractMailAccountDisableId(path);
+  if (method === "POST" && accountDisableId) {
+    return handler.disableMailAccount(accountDisableId, await readJsonBody());
+  }
+
+  const accountId = extractMailAccountId(path);
+  if (method === "PATCH" && accountId) {
+    return handler.updateMailAccount(accountId, await readJsonBody());
+  }
+
+  if (method === "DELETE" && accountId) {
+    return handler.deleteMailAccount(accountId, {
+      expectedVersion: parseExpectedVersion(query.expectedVersion),
+    });
+  }
+
   const taxonomyUpsertTarget = extractMailTaxonomyUpsertTarget(path);
   if (method === "PUT" && taxonomyUpsertTarget) {
     return handler.upsertMailTaxonomy(
@@ -276,8 +332,20 @@ export async function handleAdminRoute(context: AdminRouteContext): Promise<unkn
     });
   }
 
+  if (method === "GET" && path === EASY_EMAIL_HTTP_ROUTES.accounts) {
+    return handler.listMailAccounts({
+      scope: parseAccountScope(query.scope),
+      limit: parseAccountLimit(query.limit),
+      cursor: query.cursor || undefined,
+    });
+  }
+
   if (method === "GET" && contactId) {
     return handler.getContact(contactId);
+  }
+
+  if (method === "GET" && accountId) {
+    return handler.getMailAccount(accountId);
   }
 
   if (method === "GET" && path === EASY_EMAIL_HTTP_ROUTES.taxonomy) {

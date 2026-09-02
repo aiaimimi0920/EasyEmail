@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SERVER_CONTRACTS = ROOT / "service" / "base" / "src" / "http" / "contracts.ts"
 DOMAIN_MODELS = ROOT / "service" / "base" / "src" / "domain" / "models.ts"
 DOMAIN_CONTACT = ROOT / "service" / "base" / "src" / "domain" / "contact.ts"
+DOMAIN_ACCOUNT = ROOT / "service" / "base" / "src" / "domain" / "account.ts"
 DOMAIN_TAXONOMY = (
     ROOT / "service" / "base" / "src" / "domain" / "mail-taxonomy.ts"
 )
@@ -35,6 +36,12 @@ DYNAMIC_ROUTE_METHODS = {
         "patch": "updateContact",
         "delete": "deleteContact",
     },
+    "account": {
+        "get": "getMailAccount",
+        "patch": "updateMailAccount",
+        "delete": "deleteMailAccount",
+    },
+    "disableAccount": {"post": "disableMailAccount"},
     "taxonomyItem": {
         "get": "getMailTaxonomy",
         "patch": "updateMailTaxonomy",
@@ -316,6 +323,18 @@ class HttpApiContractTests(unittest.TestCase):
             "ObserveMessageInput": (DOMAIN_MODELS, "ObserveMessageInput"),
             "ContactCreateInput": (DOMAIN_CONTACT, "ContactCreateInput"),
             "ContactUpdateInput": (DOMAIN_CONTACT, "ContactUpdateInput"),
+            "MailCredentialRefInput": (
+                DOMAIN_ACCOUNT,
+                "MailCredentialRefInput",
+            ),
+            "MailAccountCreateInput": (
+                DOMAIN_ACCOUNT,
+                "MailAccountCreateInput",
+            ),
+            "MailAccountUpdateInput": (
+                DOMAIN_ACCOUNT,
+                "MailAccountUpdateInput",
+            ),
             "MailTaxonomyUpsertInput": (
                 DOMAIN_TAXONOMY,
                 "MailTaxonomyUpsertRequest",
@@ -401,6 +420,20 @@ class HttpApiContractTests(unittest.TestCase):
                 SERVER_CONTRACTS,
                 "DeleteContactHttpResponse",
             ),
+            "MailCredentialRef": (DOMAIN_ACCOUNT, "MailCredentialRef"),
+            "MailAccount": (DOMAIN_ACCOUNT, "MailAccount"),
+            "AccountsResponse": (
+                SERVER_CONTRACTS,
+                "ListMailAccountsHttpResponse",
+            ),
+            "AccountResponse": (
+                SERVER_CONTRACTS,
+                "CreateMailAccountHttpResponse",
+            ),
+            "DeleteAccountResponse": (
+                SERVER_CONTRACTS,
+                "DeleteMailAccountHttpResponse",
+            ),
             "MailTaxonomyItem": (DOMAIN_TAXONOMY, "MailTaxonomyItem"),
             "MailTaxonomyCapabilities": (
                 DOMAIN_TAXONOMY,
@@ -448,6 +481,12 @@ class HttpApiContractTests(unittest.TestCase):
             "createContact": "ContactResponse",
             "updateContact": "ContactResponse",
             "deleteContact": "DeleteContactResponse",
+            "listMailAccounts": "AccountsResponse",
+            "getMailAccount": "AccountResponse",
+            "createMailAccount": "AccountResponse",
+            "updateMailAccount": "AccountResponse",
+            "disableMailAccount": "AccountResponse",
+            "deleteMailAccount": "DeleteAccountResponse",
             "listMailTaxonomy": "MailTaxonomyListResponse",
             "getMailTaxonomy": "MailTaxonomyMutationResponse",
             "upsertMailTaxonomy": "MailTaxonomyMutationResponse",
@@ -478,6 +517,10 @@ class HttpApiContractTests(unittest.TestCase):
             "getContact",
             "updateContact",
             "deleteContact",
+            "getMailAccount",
+            "updateMailAccount",
+            "disableMailAccount",
+            "deleteMailAccount",
             "getMailTaxonomy",
             "updateMailTaxonomy",
             "deleteMailTaxonomy",
@@ -492,6 +535,25 @@ class HttpApiContractTests(unittest.TestCase):
         }
 
         self.assertEqual(documented_operation_ids, expected_operation_ids)
+
+    def test_account_contract_accepts_only_opaque_versioned_credential_refs(self) -> None:
+        schemas = self.openapi["components"]["schemas"]
+        account_create = schemas["MailAccountCreateInput"]
+        credential_input = schemas["MailCredentialRefInput"]
+
+        self.assertEqual(
+            account_create["properties"]["kind"]["enum"],
+            ["normal_long_lived", "agent_owned"],
+        )
+        self.assertEqual(
+            credential_input["properties"]["secretKey"]["pattern"],
+            "^ref:v1:[A-Za-z0-9._:/-]+$",
+        )
+        forbidden_fields = {"password", "token", "authorizationCode", "secret"}
+        self.assertTrue(
+            forbidden_fields.isdisjoint(credential_input["properties"])
+        )
+        self.assertFalse(credential_input.get("additionalProperties", True))
 
 
 if __name__ == "__main__":

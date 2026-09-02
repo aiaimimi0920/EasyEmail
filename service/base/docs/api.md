@@ -277,6 +277,12 @@ curl -X POST http://127.0.0.1:18081/mail/messages/observe \
 | `GET` | `/mail/contacts/{contactId}` | 读取单个联系人 |
 | `PATCH` | `/mail/contacts/{contactId}` | 使用 `expectedVersion` 更新联系人 |
 | `DELETE` | `/mail/contacts/{contactId}?expectedVersion=N` | 使用版本 CAS 硬删除联系人 |
+| `GET` | `/mail/accounts?scope=normal\|agent\|system` | 按 scope 稳定分页列出账户 metadata |
+| `POST` | `/mail/accounts` | 创建 normal long-lived 或 Agent-owned 账户 metadata |
+| `GET` | `/mail/accounts/{accountId}` | 读取单个账户 |
+| `PATCH` | `/mail/accounts/{accountId}` | 使用 `expectedVersion` 更新账户 metadata |
+| `POST` | `/mail/accounts/{accountId}/disable` | 使用版本 CAS 禁用账户收发状态 |
+| `DELETE` | `/mail/accounts/{accountId}?expectedVersion=N` | 使用版本 CAS 软删除账户 |
 | `GET` | `/mail/taxonomy?kind=folder\|label` | 按稳定顺序分页列出 folder 或 label |
 | `PUT` | `/mail/taxonomy/{kind}/{key}` | 按规范化名称创建或 upsert taxonomy item |
 | `GET` | `/mail/taxonomy/{itemId}` | 读取单个 taxonomy item |
@@ -300,6 +306,27 @@ camelCase 约定：`id`、`displayName`、`emailAddress`、可选 `note`、`vers
 - `DELETE` 是硬删除且必须带 `expectedVersion`。它不会删除或修改邮件。
 - 过期版本返回 409 `CONTACT_VERSION_CONFLICT`，重复邮箱更新冲突返回 409
   `CONTACT_EMAIL_CONFLICT`，不存在返回 404 `CONTACT_NOT_FOUND`。
+
+### 账户 metadata 资源
+
+账户由关系库 schema v3 持久化，统一字段包括 `scope`、`kind`、收发/认证状态、
+`version` 和 `credentialRefs`。`GET /mail/accounts?scope=normal` 为兼容旧 desktop
+语义，除 normal 账户外还会返回 system scope 的固定
+`acct_anonymous_virtual`；Agent 账户不会混入该列表。分页 cursor 与 scope 绑定，
+跨 scope 复用返回 400 `INVALID_ACCOUNT_CURSOR`。
+
+- `POST /mail/accounts` 当前只允许创建 `normal_long_lived` 和 `agent_owned`。
+  `normal_upgraded_temp` 必须由后续 promotion 流程创建；anonymous virtual 由服务启动
+  幂等初始化，普通调用不能创建或变更。两种可创建账户都必须提交
+  `primaryAddress`。
+- 新 credential ref 必须是 `ref:v1:...` 不透明标识。HTTP 和 SQLite 只保存
+  `secretBackend`、`secretKey`、`credentialKind`、`authMethod` 等非 secret metadata；
+  body 中出现 password/token/authorization code/raw secret 会被拒绝。
+- 本切片尚未实现 OS vault broker、ref resolver 或 IMAP/SMTP test；新 ref 状态为
+  `missing`，不得解读为凭据已验证。React account UI 也尚未切换到这些接口。
+- `PATCH`、`POST .../disable` 和 `DELETE ...?expectedVersion=N` 均使用版本 CAS；
+  delete 为软删除。重复邮箱、跨账户复用同一 backend/key ref、过期版本或尝试变更
+  system-managed anonymous account 均返回 409。
 
 ### Mail taxonomy 资源
 

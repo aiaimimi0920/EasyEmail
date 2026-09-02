@@ -259,6 +259,103 @@
         }
       }
     },
+    "/mail/accounts": {
+      "get": {
+        "operationId": "listMailAccounts",
+        "summary": "List persistent accounts with stable keyset pagination",
+        "description": "The normal scope preserves desktop compatibility by including the system-managed anonymous virtual account.",
+        "parameters": [
+          { "$ref": "#/components/parameters/AccountScope" },
+          { "$ref": "#/components/parameters/AccountLimit" },
+          { "$ref": "#/components/parameters/AccountCursor" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/AccountsResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "post": {
+        "operationId": "createMailAccount",
+        "summary": "Create normal or Agent-owned account metadata",
+        "description": "Accepts only versioned opaque credential references. Raw passwords, tokens, and authorization codes are rejected.",
+        "requestBody": { "$ref": "#/components/requestBodies/AccountCreateRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/AccountResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/accounts/{accountId}": {
+      "get": {
+        "operationId": "getMailAccount",
+        "summary": "Read one persistent account",
+        "parameters": [
+          { "$ref": "#/components/parameters/AccountId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/AccountResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "patch": {
+        "operationId": "updateMailAccount",
+        "summary": "Update account metadata using version compare-and-swap",
+        "parameters": [
+          { "$ref": "#/components/parameters/AccountId" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/AccountUpdateRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/AccountResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMailAccount",
+        "summary": "Soft-delete account metadata using version compare-and-swap",
+        "parameters": [
+          { "$ref": "#/components/parameters/AccountId" },
+          { "$ref": "#/components/parameters/ExpectedVersion" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/DeleteAccountResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/accounts/{accountId}/disable": {
+      "post": {
+        "operationId": "disableMailAccount",
+        "summary": "Disable account receive and send capabilities using version compare-and-swap",
+        "parameters": [
+          { "$ref": "#/components/parameters/AccountId" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/AccountDisableRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/AccountResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
     "/mail/taxonomy": {
       "get": {
         "operationId": "listMailTaxonomy",
@@ -609,6 +706,28 @@
         "description": "Opaque keyset cursor returned by the previous page.",
         "schema": { "type": "string", "minLength": 1 }
       },
+      "AccountId": {
+        "name": "accountId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "AccountScope": {
+        "name": "scope",
+        "in": "query",
+        "schema": { "type": "string", "enum": ["normal", "agent", "system"] }
+      },
+      "AccountLimit": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
+      },
+      "AccountCursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "Opaque scope-bound keyset cursor returned by the previous page.",
+        "schema": { "type": "string", "minLength": 1 }
+      },
       "TaxonomyKindQuery": {
         "name": "kind",
         "in": "query",
@@ -697,6 +816,30 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/ContactUpdateInput" }
+          }
+        }
+      },
+      "AccountCreateRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailAccountCreateInput" }
+          }
+        }
+      },
+      "AccountUpdateRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailAccountUpdateInput" }
+          }
+        }
+      },
+      "AccountDisableRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailAccountDisableInput" }
           }
         }
       },
@@ -811,6 +954,30 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/DeleteContactResponse" }
+          }
+        }
+      },
+      "AccountsResponse": {
+        "description": "Stable page of persistent account metadata",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/AccountsResponse" }
+          }
+        }
+      },
+      "AccountResponse": {
+        "description": "One persistent account and its opaque credential reference metadata",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/AccountResponse" }
+          }
+        }
+      },
+      "DeleteAccountResponse": {
+        "description": "Soft-deleted account identity",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/DeleteAccountResponse" }
           }
         }
       },
@@ -1021,6 +1188,139 @@
         "additionalProperties": false
       },
       "DeleteContactResponse": {
+        "type": "object",
+        "required": ["deleted"],
+        "properties": {
+          "deleted": {
+            "type": "object",
+            "required": ["id"],
+            "properties": { "id": { "type": "string" } },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "MailCredentialRef": {
+        "type": "object",
+        "required": ["id", "ownerAccountId", "secretBackend", "secretKey", "credentialKind", "authMethod", "status", "createdAt", "updatedAt"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "ownerAccountId": { "type": "string", "minLength": 1 },
+          "secretBackend": { "type": "string", "minLength": 1 },
+          "secretKey": {
+            "type": "string",
+            "pattern": "^ref:v1:[A-Za-z0-9._:/-]+$",
+            "description": "Opaque versioned reference. Callers must not parse it and it never contains secret material."
+          },
+          "credentialKind": { "type": "string", "minLength": 1 },
+          "authMethod": { "type": "string", "minLength": 1 },
+          "status": { "type": "string", "enum": ["active", "missing", "invalid", "disabled"] },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "lastVerifiedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      },
+      "MailCredentialRefInput": {
+        "type": "object",
+        "required": ["secretBackend", "secretKey", "credentialKind", "authMethod"],
+        "properties": {
+          "secretBackend": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "secretKey": { "type": "string", "pattern": "^ref:v1:[A-Za-z0-9._:/-]+$" },
+          "credentialKind": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "authMethod": { "type": "string", "minLength": 1, "maxLength": 256 }
+        },
+        "description": "Only opaque reference metadata is accepted; password, token, authorization code, and raw secret fields are forbidden.",
+        "additionalProperties": false
+      },
+      "MailAccount": {
+        "type": "object",
+        "required": ["id", "scope", "kind", "displayName", "status", "authStatus", "receiveStatus", "sendStatus", "listedInAllAccounts", "version", "createdAt", "updatedAt", "credentialRefs"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "scope": { "type": "string", "enum": ["normal", "agent", "system"] },
+          "kind": { "type": "string", "enum": ["normal_long_lived", "normal_upgraded_temp", "anonymous_virtual", "agent_owned"] },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "primaryAddress": { "type": "string", "format": "email" },
+          "providerLabel": { "type": "string", "maxLength": 128 },
+          "status": { "type": "string", "enum": ["ready", "configuring", "syncing", "degraded", "disabled", "history_only", "deleted"] },
+          "authStatus": { "type": "string", "enum": ["not_required", "valid", "expired", "invalid", "missing", "refreshing", "reauthorization_required"] },
+          "receiveStatus": { "type": "string", "enum": ["enabled", "syncing", "backoff", "auth_failed", "provider_unavailable", "expired", "disabled", "unsupported"] },
+          "sendStatus": { "type": "string", "enum": ["enabled", "sending", "queued_only", "auth_failed", "smtp_unavailable", "rate_limited", "disabled", "unsupported"] },
+          "listedInAllAccounts": { "type": "boolean" },
+          "version": { "type": "integer", "minimum": 1 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "credentialRefs": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MailCredentialRef" }
+          }
+        },
+        "additionalProperties": false
+      },
+      "MailAccountCreateInput": {
+        "type": "object",
+        "required": ["kind", "displayName", "primaryAddress"],
+        "properties": {
+          "scope": { "type": "string", "enum": ["normal", "agent"] },
+          "kind": { "type": "string", "enum": ["normal_long_lived", "agent_owned"] },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "primaryAddress": { "type": "string", "format": "email" },
+          "providerLabel": { "type": ["string", "null"], "maxLength": 128 },
+          "listedInAllAccounts": { "type": "boolean" },
+          "credentialRefs": {
+            "type": "array",
+            "maxItems": 16,
+            "items": { "$ref": "#/components/schemas/MailCredentialRefInput" }
+          }
+        },
+        "additionalProperties": false
+      },
+      "MailAccountUpdateInput": {
+        "type": "object",
+        "required": ["expectedVersion"],
+        "properties": {
+          "expectedVersion": { "type": "integer", "minimum": 1 },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "providerLabel": { "type": ["string", "null"], "maxLength": 128 },
+          "listedInAllAccounts": { "type": "boolean" }
+        },
+        "anyOf": [
+          { "required": ["displayName"] },
+          { "required": ["providerLabel"] },
+          { "required": ["listedInAllAccounts"] }
+        ],
+        "additionalProperties": false
+      },
+      "MailAccountDisableInput": {
+        "type": "object",
+        "required": ["expectedVersion"],
+        "properties": {
+          "expectedVersion": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": false
+      },
+      "AccountsResponse": {
+        "type": "object",
+        "required": ["accounts"],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MailAccount" }
+          },
+          "nextCursor": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "AccountResponse": {
+        "type": "object",
+        "required": ["account"],
+        "properties": {
+          "account": { "$ref": "#/components/schemas/MailAccount" }
+        },
+        "additionalProperties": false
+      },
+      "DeleteAccountResponse": {
         "type": "object",
         "required": ["deleted"],
         "properties": {

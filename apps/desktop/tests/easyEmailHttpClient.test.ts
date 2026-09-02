@@ -284,6 +284,81 @@ test("uses authenticated canonical contact resources", async () => {
   assert.equal(calls[4]?.init?.method, "DELETE");
 });
 
+test("uses canonical account resources with scope pagination and CAS", async () => {
+  const calls: CapturedRequest[] = [];
+  const account = {
+    id: "account/a",
+    scope: "normal" as const,
+    kind: "normal_long_lived" as const,
+    displayName: "Work",
+    primaryAddress: "work@example.com",
+    status: "configuring" as const,
+    authStatus: "missing" as const,
+    receiveStatus: "disabled" as const,
+    sendStatus: "disabled" as const,
+    listedInAllAccounts: true,
+    version: 1,
+    createdAt: "2026-09-02T00:00:00.000Z",
+    updatedAt: "2026-09-02T00:00:00.000Z",
+    credentialRefs: [],
+  };
+  const client = createEasyEmailHttpClient({
+    baseUrl: "http://127.0.0.1:18081",
+    bearerToken: " runtime-account-token ",
+    fetch: async (input, init) => {
+      calls.push({ url: String(input), init });
+      if ((init?.method ?? "GET") === "GET" && String(input).includes("?")) {
+        return jsonResponse({ accounts: [account], nextCursor: "next" });
+      }
+      if (init?.method === "DELETE") return jsonResponse({ deleted: { id: account.id } });
+      return jsonResponse({ account });
+    },
+  });
+  const createRequest = {
+    kind: "normal_long_lived" as const,
+    displayName: "Work",
+    primaryAddress: "work@example.com",
+    credentialRefs: [{
+      secretBackend: "fake-vault",
+      secretKey: "ref:v1:account/work" as const,
+      credentialKind: "imap_password",
+      authMethod: "password",
+    }],
+  };
+
+  await client.listMailAccounts({ scope: "normal", limit: 10, cursor: "opaque/cursor" });
+  await client.getMailAccount(account.id);
+  await client.createMailAccount(createRequest);
+  await client.updateMailAccount(account.id, { expectedVersion: 1, displayName: "Work Renamed" });
+  await client.disableMailAccount(account.id, 2);
+  await client.deleteMailAccount(account.id, 3);
+
+  assert.equal(
+    calls[0]?.url,
+    "http://127.0.0.1:18081/mail/accounts?scope=normal&limit=10&cursor=opaque%2Fcursor",
+  );
+  assert.deepEqual(
+    calls.map(({ url, init }) => [new URL(url).pathname, init?.method ?? "GET"]),
+    [
+      ["/mail/accounts", "GET"],
+      ["/mail/accounts/account%2Fa", "GET"],
+      ["/mail/accounts", "POST"],
+      ["/mail/accounts/account%2Fa", "PATCH"],
+      ["/mail/accounts/account%2Fa/disable", "POST"],
+      ["/mail/accounts/account%2Fa", "DELETE"],
+    ],
+  );
+  assert.deepEqual(JSON.parse(String(calls[2]?.init?.body)), createRequest);
+  assert.deepEqual(JSON.parse(String(calls[4]?.init?.body)), { expectedVersion: 2 });
+  assert.equal(
+    calls[5]?.url,
+    "http://127.0.0.1:18081/mail/accounts/account%2Fa?expectedVersion=3",
+  );
+  assert.ok(calls.every(({ init }) => (
+    new Headers(init?.headers).get("authorization") === "Bearer runtime-account-token"
+  )));
+});
+
 test("uses canonical mail taxonomy resources and preserves capability metadata", async () => {
   const calls: CapturedRequest[] = [];
   const capabilities = { messageReferencePropagation: false };

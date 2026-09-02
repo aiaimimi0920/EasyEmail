@@ -183,6 +183,65 @@ export type EasyEmailContactDeleteResponse = {
   deleted: { id: string };
 };
 
+export type EasyEmailMailAccountScope = "normal" | "agent" | "system";
+export type EasyEmailMailAccountKind = "normal_long_lived" | "normal_upgraded_temp" | "anonymous_virtual" | "agent_owned";
+export type EasyEmailMailAccountCreatableKind = "normal_long_lived" | "agent_owned";
+export type EasyEmailMailAccountStatus = "ready" | "configuring" | "syncing" | "degraded" | "disabled" | "history_only" | "deleted";
+export type EasyEmailMailAccountAuthStatus = "not_required" | "valid" | "expired" | "invalid" | "missing" | "refreshing" | "reauthorization_required";
+export type EasyEmailMailAccountReceiveStatus = "enabled" | "syncing" | "backoff" | "auth_failed" | "provider_unavailable" | "expired" | "disabled" | "unsupported";
+export type EasyEmailMailAccountSendStatus = "enabled" | "sending" | "queued_only" | "auth_failed" | "smtp_unavailable" | "rate_limited" | "disabled" | "unsupported";
+export type EasyEmailMailAccount = {
+  id: string;
+  scope: EasyEmailMailAccountScope;
+  kind: EasyEmailMailAccountKind;
+  displayName: string;
+  primaryAddress?: string;
+  providerLabel?: string;
+  status: EasyEmailMailAccountStatus;
+  authStatus: EasyEmailMailAccountAuthStatus;
+  receiveStatus: EasyEmailMailAccountReceiveStatus;
+  sendStatus: EasyEmailMailAccountSendStatus;
+  listedInAllAccounts: boolean;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  credentialRefs: Array<{
+    id: string;
+    ownerAccountId: string;
+    secretBackend: string;
+    secretKey: string;
+    credentialKind: string;
+    authMethod: string;
+    status: "active" | "missing" | "invalid" | "disabled";
+    createdAt: string;
+    updatedAt: string;
+    lastVerifiedAt?: string;
+  }>;
+};
+export type EasyEmailMailAccountListQuery = { scope?: EasyEmailMailAccountScope; limit?: number; cursor?: string };
+export type EasyEmailMailAccountCreateRequest = {
+  scope?: Exclude<EasyEmailMailAccountScope, "system">;
+  kind: EasyEmailMailAccountCreatableKind;
+  displayName: string;
+  primaryAddress: string;
+  providerLabel?: string | null;
+  listedInAllAccounts?: boolean;
+  credentialRefs?: Array<{
+    secretBackend: string;
+    secretKey: `ref:v1:${string}`;
+    credentialKind: string;
+    authMethod: string;
+  }>;
+};
+export type EasyEmailMailAccountUpdateRequest = {
+  expectedVersion: number;
+  displayName?: string;
+  providerLabel?: string | null;
+  listedInAllAccounts?: boolean;
+};
+export type EasyEmailMailAccountsResponse = { accounts: EasyEmailMailAccount[]; nextCursor?: string };
+export type EasyEmailMailAccountResponse = { account: EasyEmailMailAccount };
+
 export type EasyEmailMailTaxonomyKind = "folder" | "label";
 
 export type EasyEmailMailTaxonomyItem = {
@@ -493,6 +552,7 @@ export const EASY_EMAIL_CORE_ROUTES = {
   sendMailboxMessage: "/mail/mailboxes/send",
   contacts: "/mail/contacts",
   taxonomy: "/mail/taxonomy",
+  accounts: "/mail/accounts",
   verificationCode(sessionId: string): string {
     return `/mail/mailboxes/${encodeURIComponent(sessionId)}/code`;
   },
@@ -513,6 +573,12 @@ export const EASY_EMAIL_CORE_ROUTES = {
   },
   taxonomyUpsert(kind: EasyEmailMailTaxonomyKind, key: string): string {
     return `/mail/taxonomy/${encodeURIComponent(kind)}/${encodeURIComponent(key)}`;
+  },
+  account(accountId: string): string {
+    return `/mail/accounts/${encodeURIComponent(accountId)}`;
+  },
+  disableAccount(accountId: string): string {
+    return `/mail/accounts/${encodeURIComponent(accountId)}/disable`;
   },
 } as const;
 
@@ -583,6 +649,7 @@ export class EasyEmailHttpError extends Error {
 
 export function createEasyEmailHttpClient(options: EasyEmailHttpClientOptions) {
   const baseUrl = normalizeEasyEmailHttpBaseUrl(options.baseUrl);
+  const bearerToken = options.bearerToken?.trim();
   const fetchRequest = options.fetch ?? globalThis.fetch;
   if (typeof fetchRequest !== "function") {
     throw new Error("EasyEmail HTTP transport requires fetch.");
@@ -592,8 +659,8 @@ export function createEasyEmailHttpClient(options: EasyEmailHttpClientOptions) {
     const hasBody = requestOptions.body !== undefined;
     const headers = new Headers({ accept: "application/json" });
     if (hasBody) headers.set("content-type", "application/json");
-    if (options.bearerToken) {
-      headers.set("authorization", `Bearer ${options.bearerToken}`);
+    if (bearerToken) {
+      headers.set("authorization", `Bearer ${bearerToken}`);
     }
 
     const response = await fetchRequest(
@@ -712,6 +779,24 @@ export function createEasyEmailHttpClient(options: EasyEmailHttpClientOptions) {
         path: EASY_EMAIL_CORE_ROUTES.taxonomyItem(itemId),
         query: { expectedVersion },
       });
+    },
+    listMailAccounts(query: EasyEmailMailAccountListQuery = {}): Promise<EasyEmailMailAccountsResponse> {
+      return request({ path: EASY_EMAIL_CORE_ROUTES.accounts, query });
+    },
+    getMailAccount(accountId: string): Promise<EasyEmailMailAccountResponse> {
+      return request({ path: EASY_EMAIL_CORE_ROUTES.account(accountId) });
+    },
+    createMailAccount(accountRequest: EasyEmailMailAccountCreateRequest): Promise<EasyEmailMailAccountResponse> {
+      return request({ method: "POST", path: EASY_EMAIL_CORE_ROUTES.accounts, body: accountRequest });
+    },
+    updateMailAccount(accountId: string, accountRequest: EasyEmailMailAccountUpdateRequest): Promise<EasyEmailMailAccountResponse> {
+      return request({ method: "PATCH", path: EASY_EMAIL_CORE_ROUTES.account(accountId), body: accountRequest });
+    },
+    disableMailAccount(accountId: string, expectedVersion: number): Promise<EasyEmailMailAccountResponse> {
+      return request({ method: "POST", path: EASY_EMAIL_CORE_ROUTES.disableAccount(accountId), body: { expectedVersion } });
+    },
+    deleteMailAccount(accountId: string, expectedVersion: number): Promise<{ deleted: { id: string } }> {
+      return request({ method: "DELETE", path: EASY_EMAIL_CORE_ROUTES.account(accountId), query: { expectedVersion } });
     },
     planMailbox<TResult = unknown>(
       mailboxRequest: EasyEmailOpenMailboxRequest,
