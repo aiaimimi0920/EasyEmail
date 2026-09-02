@@ -136,9 +136,11 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Enable Corepack
+      - name: Install and Enable Corepack
         shell: bash
-        run: corepack enable
+        run: |
+          npm install --global corepack@0.34.6
+          corepack enable
 
       - name: Detect Relevant Changes
         id: change_gate
