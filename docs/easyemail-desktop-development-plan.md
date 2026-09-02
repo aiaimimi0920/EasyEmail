@@ -1,6 +1,6 @@
 # EasyEmail Desktop 业务核心迁移与产品化开发计划
 
-Status: **execution in progress; M0 and M1 complete, M2 contact slice implemented**
+Status: **execution in progress; M0 and M1 complete, M2 and M3 staged slices implemented**
 Created: **2026-09-01**  
 Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
 
@@ -57,9 +57,18 @@ Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
   desktop Rust tests and 87 repository Python tests passed. The complete desktop `verify` pipeline
   also proved the production frontend build, Rust fmt/clippy/check, a self-contained bundled core,
   authenticated contact persistence, unauthenticated 401 and fake-provider mailbox open.
-- **Next:** complete the M2 taxonomy/folder/label slice. Newsletter durable overrides and the
-  derived subscription view must respect the M3/M4 account/message ownership boundary rather than
-  fabricating subscription data before those sources exist.
+- **M2 taxonomy slice:** schema v2, folder/label HTTP resources, CAS, stable pagination and
+  TypeScript transport are implemented. React intentionally retains the legacy taxonomy commands
+  until M4 can preserve message-reference propagation; newsletter durable overrides remain
+  dependent on the M3/M4 account/message ownership boundary.
+- **M3 account UI slice (2026-09-02):** React lists, creates, tests, disables and deletes normal
+  accounts through the authenticated bundled HTTP client. Raw IMAP secrets cross only the narrow
+  Tauri OS-vault command and are replaced with opaque refs before the account HTTP request. The UI
+  no longer calls the legacy normal-account list/create/test/sync commands and explicitly defers
+  normal-message synchronization and SMTP to M6/M5 rather than sending canonical core account IDs
+  into the transitional Rust database.
+- **Next:** complete the controlled real-IMAP and restart-resolution gates, then implement the
+  compatibility-safe old-account importer. M3 remains incomplete until those proofs pass.
 
 本计划定义将已导入 `apps/desktop` 的 EasyEmailAM 从“React UI +
 过渡期 Rust 业务后端”收敛为“React UI + 随桌面程序启动的
@@ -308,7 +317,7 @@ Newsletter 列表所需的账户与聚合消息来源仍归 M3/M4，因此 M2 �
 - 一个账户不能读取另一 account scope 的凭据或邮件；
 - 进程重启后凭据 ref 仍可解析，卸载/回滚不自动删除 OS vault 项。
 
-**当前进度（2026-09-02，第三个纵向切片）**：schema v4、账户
+**当前进度（2026-09-02，第四个纵向切片）**：schema v4、账户
 list/get/create/update/disable/delete、稳定 scope-bound pagination、CAS、软删除、
 固定 anonymous virtual 初始化、OpenAPI、TypeScript/desktop HTTP transport 已实现。
 `scope=normal` 保持旧 desktop 可见性语义，会包含 system scope 的 anonymous virtual，
@@ -321,9 +330,14 @@ Credential Manager 并只返回 `ref:v1:desktop/...`；Tauri 同时启动独立�
 `127.0.0.1` broker/token，将它仅注入精确 Node child。Broker 会通过 canonical account
 GET 复核 account/ref/backend/key/kind/auth 全字段归属后才读取 vault。默认 runtime
 已注入该 resolver 与生产 ImapFlow tester，后者强制 TLS/STARTTLS、关闭协议日志并限制
-连接与退出清理时长。Standalone CLI 当前仍未配置 server-side account secret resolver，
-所以这一路径继续 503 fail closed。旧数据导入、受控真实 IMAP 验收、React/Tauri
-account command 切换仍未完成，因此 M3 总体不得标记为完成。
+连接与退出清理时长。React 现通过 authenticated bundled HTTP 完成 normal account
+list/create/test/disable/delete；raw IMAP secret 只进入窄 Tauri vault bridge，HTTP 只接收
+opaque ref。旧 `account_list_normal`、`normal_account_add_manual_imap`、
+`normal_account_test_imap` 和 `normal_account_sync_recent` 已从 React normal-account 路径
+移除；M5/M6 完成前 SMTP 与 normal message sync 显式不可用，避免把 canonical core
+account ID 传给旧 Rust 数据库。Standalone CLI 当前仍未配置 server-side account secret
+resolver，所以这一路径继续 503 fail closed。旧数据导入、重启凭据解析和受控真实 IMAP
+验收仍未完成，因此 M3 总体不得标记为完成。
 
 ### M4 - 聚合消息与验证记录
 

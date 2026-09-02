@@ -73,8 +73,9 @@ queries the canonical `/mail/catalog` resource. Most extended business features
 are still owned by the transitional Rust backend, so this remains an explicitly
 temporary, non-release state. In particular:
 
-- `src/App.tsx` uses HTTP for bundled-core startup readiness but still calls the
-  Tauri command surface for mailbox and extended client operations;
+- `src/App.tsx` uses authenticated bundled-core HTTP for startup readiness,
+  temporary-mailbox operations, contacts, and normal-account list/create/test/
+  disable/delete. Other extended client operations remain transitional;
 - `src-tauri/src/commands.rs` still maps UI requests to Rust services;
 - the Rust services and SQLite repositories still implement the extended mail
   client behavior;
@@ -85,7 +86,11 @@ temporary, non-release state. In particular:
   renderer only opaque refs, and lets the exact Node child resolve only a
   canonical account-owned ref for an allowlisted operation;
 - `service/base` now owns the production ImapFlow account connection tester, but
-  the React account workflow has not yet switched from transitional commands;
+  React now reaches it through the canonical account HTTP API. New IMAP secrets
+  enter only the Tauri OS-vault bridge; the account request carries only an opaque
+  reference. Normal-account message synchronization and SMTP remain explicitly
+  unavailable in the UI until M6 and M5, so core account IDs are never passed to
+  the legacy Rust account database;
 - the manual desktop candidate workflow uploads only unsigned migration
   evidence; no desktop release is added to the coordinated release workflow.
 

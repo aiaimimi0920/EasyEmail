@@ -22,6 +22,13 @@ import {
 } from "./api/avatarSettingsClient";
 import { preprocessContactAvatarFile } from "./avatar/contactAvatarImage";
 import { createContactClient, type ContactDto } from "./api/contactClient";
+import { createDesktopCredentialClient } from "./api/desktopCredentialClient";
+import {
+  createMailAccountClient,
+  type AccountDto,
+  type ManualImapAccountCreateRequest,
+  type NormalImapConnectionTestDto,
+} from "./api/mailAccountClient";
 import {
   createMailTaxonomyClient,
   type MailTaxonomyDeleteDto,
@@ -145,6 +152,8 @@ import "./App.css";
 const bundledCoreClient = createBundledCoreClient(invoke);
 const avatarSettingsClient = createAvatarSettingsClient(invoke);
 const contactClient = createContactClient(bundledCoreClient);
+const desktopCredentialClient = createDesktopCredentialClient(invoke);
+const mailAccountClient = createMailAccountClient(bundledCoreClient, desktopCredentialClient);
 const mailTaxonomyClient = createMailTaxonomyClient(invoke);
 const newsletterClient = createNewsletterClient(invoke);
 const platformAccountClient = createPlatformAccountClient(invoke);
@@ -152,20 +161,6 @@ const settingsClient = createSettingsClient(invoke);
 const sendQueueClient = createSendQueueClient(invoke);
 
 type TempMailboxDto = TemporaryMailboxView;
-
-type AccountDto = {
-  id: string;
-  scope: string;
-  kind: string;
-  display_name: string;
-  primary_address: string | null;
-  provider_label: string | null;
-  status: string;
-  auth_status: string;
-  receive_status: string;
-  send_status: string;
-  listed_in_all_accounts: boolean;
-};
 
 type TempRefreshDto = TemporaryMailboxRefreshView;
 
@@ -175,22 +170,7 @@ type CoreTemporaryState = {
   codes: VerificationCodeDto[];
 };
 
-type NormalImapConnectionTestDto = {
-  authenticated: boolean;
-  capability_summary: string;
-};
-
-type NormalAccountAddDto = {
-  account: AccountDto;
-  credential_ref_id: string;
-};
-
-type NormalAccountSyncDto = {
-  account_id: string;
-  fetched_count: number;
-  inserted_count: number;
-  folder_id: string;
-};
+type LegacyAccountDto = Omit<AccountDto, "version" | "credential_refs">;
 
 type SendMessageDto = {
   message_id: string;
@@ -313,7 +293,7 @@ type MessageBatchActionDto = {
 };
 
 type PromoteTempMailboxDto = {
-  account: AccountDto;
+  account: LegacyAccountDto;
   mailbox: TempMailboxDto;
 };
 
@@ -478,8 +458,6 @@ type MailSource = {
   meta: string;
   tone: "signal" | "cyan" | "info";
 };
-
-type MessageScope = "normal_account" | "promoted_account";
 
 type MessageCache = Record<string, AnonymousMessageDto[]>;
 type NewsletterSubscriptionCache = Record<string, NewsletterSubscriptionDto[]>;
@@ -755,6 +733,7 @@ function App() {
         : window.localStorage.getItem("nmail.platformAccountAvatarDataUrl"),
   );
   const [normalAccounts, setNormalAccounts] = useState<AccountDto[]>([]);
+  const canonicalNormalAccountIdsRef = useRef(new Set<string>());
   const [tempMailboxes, setTempMailboxes] = useState<TempMailboxDto[]>([]);
   const [anonymousMessages, setAnonymousMessages] = useState<AnonymousMessageDto[]>([]);
   const [normalMessagesByAccount, setNormalMessagesByAccount] = useState<MessageCache>({});
@@ -789,7 +768,7 @@ function App() {
   const initialLoadRequestRef = useRef(0);
   const coreObservedMessagesRef = useRef(new Map<string, EasyEmailObservedMessage>());
   const [sendQueue, setSendQueue] = useState<SendQueueDto[]>([]);
-  const [agentAccounts, setAgentAccounts] = useState<AccountDto[]>([]);
+  const [agentAccounts, setAgentAccounts] = useState<LegacyAccountDto[]>([]);
   const [agentServices, setAgentServices] = useState<AgentServiceDto[]>([]);
   const [agentThreads, setAgentThreads] = useState<AgentThreadDto[]>([]);
   const [selectedNormalAccountId, setSelectedNormalAccountId] = useState<string | null>(null);
@@ -820,7 +799,6 @@ function App() {
   const [lastAuthenticationLink, setLastAuthenticationLink] =
     useState<EasyEmailAuthenticationLinkResult | null>(null);
   const [lastPromotion, setLastPromotion] = useState<PromoteTempMailboxDto | null>(null);
-  const [lastNormalSync, setLastNormalSync] = useState<NormalAccountSyncDto | null>(null);
   const [normalImapTest, setNormalImapTest] = useState<NormalImapConnectionTestDto | null>(null);
   const [lastSend, setLastSend] = useState<SendMessageDto | null>(null);
   const [lastSendWorkerRun, setLastSendWorkerRun] = useState<SendQueueWorkerRunResult | null>(null);
@@ -831,14 +809,10 @@ function App() {
   const [normalEmailAddress, setNormalEmailAddress] = useState("");
   const [normalImapHost, setNormalImapHost] = useState("");
   const [normalImapPort, setNormalImapPort] = useState("993");
-  const [normalImapSecurity, setNormalImapSecurity] = useState("tls");
+  const [normalImapSecurity, setNormalImapSecurity] =
+    useState<ManualImapAccountCreateRequest["imap_security"]>("tls");
   const [normalImapUsername, setNormalImapUsername] = useState("");
   const [normalImapPassword, setNormalImapPassword] = useState("");
-  const [normalSmtpHost, setNormalSmtpHost] = useState("");
-  const [normalSmtpPort, setNormalSmtpPort] = useState("465");
-  const [normalSmtpSecurity, setNormalSmtpSecurity] = useState("tls");
-  const [normalSmtpUsername, setNormalSmtpUsername] = useState("");
-  const [normalSmtpPassword, setNormalSmtpPassword] = useState("");
   const [sendTargetAddress, setSendTargetAddress] = useState("");
   const [sendSubject, setSendSubject] = useState("");
   const [sendBodyText, setSendBodyText] = useState("");
@@ -1142,25 +1116,6 @@ function App() {
     }
   }
 
-  async function loadMessageMapForAccounts(
-    accounts: AccountDto[],
-    scope: MessageScope,
-  ): Promise<MessageCache> {
-    const entries = await Promise.all(
-      accounts.map(async (account) => {
-        const messages = await invoke<AnonymousMessageDto[]>("message_list", {
-          request: { scope, account_id: account.id, include_archived: true },
-        });
-        return [account.id, messages] as const;
-      }),
-    );
-    const cache: MessageCache = {};
-    for (const [accountId, messages] of entries) {
-      cache[accountId] = messages;
-    }
-    return cache;
-  }
-
   async function loadNewsletterSubscriptions(
     accountId: string | null,
     isCurrent: () => boolean = () => true,
@@ -1179,24 +1134,6 @@ function App() {
       [accountId]: subscriptions,
     }));
     return subscriptions;
-  }
-
-  async function loadNewsletterSubscriptionMapForAccounts(
-    accounts: AccountDto[],
-  ): Promise<NewsletterSubscriptionCache> {
-    const entries = await Promise.all(
-      accounts.map(async (account) => {
-        const subscriptions = await newsletterClient.listNewsletterSubscriptions({
-          account_id: account.id,
-        });
-        return [account.id, subscriptions] as const;
-      }),
-    );
-    const cache: NewsletterSubscriptionCache = {};
-    for (const [accountId, subscriptions] of entries) {
-      cache[accountId] = subscriptions;
-    }
-    return cache;
   }
 
   async function loadMailTaxonomyItems(isCurrent: () => boolean = () => true) {
@@ -1283,7 +1220,7 @@ function App() {
       if (!isCurrent()) {
         return;
       }
-      const accountsResult = await invoke<AccountDto[]>("account_list_normal");
+      const accountsResult = await mailAccountClient.listNormalAccounts();
       const messagesResult = await invoke<AnonymousMessageDto[]>("message_list", {
         request: { scope: "anonymous", account_id: null, include_archived: true },
       });
@@ -1293,23 +1230,16 @@ function App() {
       const sendQueueResult = await sendQueueClient.listSendQueue({ limit: 25 });
       const contactsResult = await contactClient.listContacts();
       const [agentAccountsResult, agentServicesResult, agentThreadsResult] = await Promise.all([
-        invoke<AccountDto[]>("agent_list_accounts"),
+        invoke<LegacyAccountDto[]>("agent_list_accounts"),
         invoke<AgentServiceDto[]>("agent_list_services"),
         invoke<AgentThreadDto[]>("agent_list_threads"),
       ]);
       const taxonomyResult = await loadMailTaxonomyItems(isCurrent);
-      const normalImapAccountsResult = accountsResult.filter(
-        (account) => account.kind === "normal_long_lived",
-      );
-      const promotedAccountsResult = accountsResult.filter(
-        (account) => account.kind === "normal_upgraded_temp",
-      );
-      const [normalMessageCache, promotedMessageCache, newsletterSubscriptionCache] =
-        await Promise.all([
-          loadMessageMapForAccounts(normalImapAccountsResult, "normal_account"),
-          loadMessageMapForAccounts(promotedAccountsResult, "promoted_account"),
-          loadNewsletterSubscriptionMapForAccounts(normalImapAccountsResult),
-        ]);
+      // Normal-account messages and derived newsletters remain owned by the M4/M6
+      // migration. Do not cross-read the legacy Rust database using core account IDs.
+      const normalMessageCache: MessageCache = {};
+      const promotedMessageCache: MessageCache = {};
+      const newsletterSubscriptionCache: NewsletterSubscriptionCache = {};
 
       if (!isCurrent()) {
         return;
@@ -1319,6 +1249,7 @@ function App() {
       setAvatarSettings(avatarSettingsResult);
       setPlatformSession(platformSessionResult);
       setServiceUrl(settingsResult.service_url ?? "");
+      canonicalNormalAccountIdsRef.current = new Set(accountsResult.map((account) => account.id));
       setNormalAccounts(accountsResult);
       setTempMailboxes(coreTemporaryState.mailboxes);
       setAnonymousMessages(
@@ -1633,9 +1564,15 @@ function App() {
   }
 
   async function loadNormalAccounts() {
-    const accounts = await invoke<AccountDto[]>("account_list_normal");
+    const accounts = await mailAccountClient.listNormalAccounts();
+    canonicalNormalAccountIdsRef.current = new Set(accounts.map((account) => account.id));
     setNormalAccounts(accounts);
     return accounts;
+  }
+
+  function isCanonicalNormalAccountId(accountId: string): boolean {
+    return canonicalNormalAccountIdsRef.current.has(accountId)
+      || normalAccounts.some((account) => account.id === accountId);
   }
 
   async function loadSendQueue(isCurrent: () => boolean = () => true) {
@@ -1654,7 +1591,7 @@ function App() {
   }
 
   async function loadAgentAccounts() {
-    const accounts = await invoke<AccountDto[]>("agent_list_accounts");
+    const accounts = await invoke<LegacyAccountDto[]>("agent_list_accounts");
     setAgentAccounts(accounts);
     return accounts;
   }
@@ -1671,22 +1608,15 @@ function App() {
     return threads;
   }
 
-  function normalImapCommandRequest() {
-    const loginUsername = mailboxLoginUsername();
-    const authorizationCode = mailboxAuthorizationCode();
+  function normalImapAccountRequest(): ManualImapAccountCreateRequest {
     return {
       display_name: normalDisplayName,
       email_address: normalEmailAddress,
       imap_host: normalImapHost,
       imap_port: positivePort(normalImapPort),
       imap_security: normalImapSecurity,
-      imap_username: normalImapUsername.trim() || loginUsername,
-      imap_password: authorizationCode,
-      smtp_host: normalSmtpHost,
-      smtp_port: positivePort(normalSmtpPort, 465),
-      smtp_security: normalSmtpSecurity,
-      smtp_username: normalSmtpUsername.trim() || loginUsername,
-      smtp_password: normalSmtpPassword.trim() || authorizationCode,
+      imap_username: normalImapUsername.trim() || mailboxLoginUsername(),
+      imap_password: normalImapPassword,
     };
   }
 
@@ -1694,13 +1624,8 @@ function App() {
     return normalEmailAddress.trim().toLowerCase();
   }
 
-  function mailboxAuthorizationCode() {
-    return normalImapPassword.trim() || normalSmtpPassword.trim();
-  }
-
   function updateMailboxAuthorizationCode(value: string) {
     setNormalImapPassword(value);
-    setNormalSmtpPassword(value);
   }
 
   function updateNormalEmailAddress(value: string) {
@@ -1713,14 +1638,6 @@ function App() {
         normalImapHost === "imap.qq.com")
     ) {
       setNormalImapUsername(normalizedAddress);
-    }
-    if (
-      normalizedAddress.length > 0 &&
-      (normalSmtpUsername.trim().length === 0 ||
-        normalSmtpUsername === normalEmailAddress ||
-        normalSmtpHost === "smtp.qq.com")
-    ) {
-      setNormalSmtpUsername(normalizedAddress);
     }
     applyMailboxProviderDefaults(normalizedAddress);
   }
@@ -1736,13 +1653,9 @@ function App() {
     setNormalImapHost("imap.qq.com");
     setNormalImapPort("993");
     setNormalImapSecurity("tls");
-    setNormalSmtpHost("smtp.qq.com");
-    setNormalSmtpPort("465");
-    setNormalSmtpSecurity("tls");
     if (address.length > 0) {
       setNormalEmailAddress(address);
       setNormalImapUsername(address);
-      setNormalSmtpUsername(address);
     }
   }
 
@@ -1752,19 +1665,11 @@ function App() {
     setStatusMessage("已应用 QQ 邮箱预设。请使用 QQ 邮箱授权码，而不是 QQ 登录密码。");
   }
 
-  async function testNormalImap() {
+  async function testNormalImap(account: AccountDto) {
     setBusy(true);
     try {
-      const request = normalImapCommandRequest();
-      const result = await invoke<NormalImapConnectionTestDto>("normal_account_test_imap", {
-        request: {
-          imap_host: request.imap_host,
-          imap_port: request.imap_port,
-          imap_security: request.imap_security,
-          imap_username: request.imap_username,
-          imap_password: request.imap_password,
-        },
-      });
+      const result = await mailAccountClient.testImap(account);
+      setSelectedNormalAccountId(account.id);
       setNormalImapTest(result);
       setStatusMessage(`IMAP connection test: ${result.capability_summary}.`);
       setError(null);
@@ -1779,24 +1684,71 @@ function App() {
   async function addManualImapAccount() {
     setBusy(true);
     try {
-      const result = await invoke<NormalAccountAddDto>("normal_account_add_manual_imap", {
-        request: normalImapCommandRequest(),
-      });
-      const accounts = await loadNormalAccounts();
+      const result = await mailAccountClient.addManualImapAccount(normalImapAccountRequest());
+      await loadNormalAccounts();
       setSelectedNormalAccountId(result.account.id);
       setMailSourceId(`account:${result.account.id}`);
       setMailAccountPanelOpen(false);
+      try {
+        const testResult = await mailAccountClient.testImap(result.account);
+        setNormalImapTest(testResult);
+        setStatusMessage(
+          `Added ${result.account.display_name}; IMAP authenticated (${testResult.capability_summary}). SMTP and synchronization remain unavailable until M5/M6.`,
+        );
+        setError(null);
+      } catch (testError: unknown) {
+        setNormalImapTest(null);
+        setStatusMessage(
+          `Added ${result.account.display_name}, but its IMAP connection test failed. The account remains available for review or deletion.`,
+        );
+        setError(asErrorDto(testError));
+      }
+    } catch (caught: unknown) {
+      setError(asErrorDto(caught));
+    } finally {
       setNormalImapPassword("");
-      setNormalSmtpPassword("");
+      setBusy(false);
+    }
+  }
+
+  async function disableNormalAccount(account: AccountDto) {
+    setBusy(true);
+    try {
+      const updated = await mailAccountClient.disableAccount(account);
+      canonicalNormalAccountIdsRef.current.add(updated.id);
+      setNormalAccounts((current) => current.map((candidate) =>
+        candidate.id === updated.id ? updated : candidate,
+      ));
+      setNormalImapTest(null);
+      setStatusMessage(`${updated.display_name} is disabled.`);
+      setError(null);
+    } catch (caught: unknown) {
+      setError(asErrorDto(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteNormalAccount(account: AccountDto) {
+    if (!window.confirm(`Delete ${account.display_name}? Existing messages remain history-only.`)) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await mailAccountClient.deleteAccount(account);
+      const accounts = await loadNormalAccounts();
+      if (selectedNormalAccountId === account.id) {
+        const nextAccount = accounts.find((candidate) => candidate.kind === "normal_long_lived") ?? null;
+        setSelectedNormalAccountId(nextAccount?.id ?? null);
+        setMailSourceId(nextAccount ? `account:${nextAccount.id}` : "all");
+        setNormalImapTest(null);
+      }
       setStatusMessage(
-        result.account.send_status === "enabled"
-          ? `Added ${result.account.display_name}; receiving and sending are enabled.`
-          : `Added ${result.account.display_name}; receiving is enabled, sending needs SMTP attention (${result.account.send_status}).`,
+        result.credential_cleanup_complete
+          ? `${account.display_name} was deleted and its desktop credential was removed.`
+          : `${account.display_name} was deleted, but one desktop credential could not be removed.`,
       );
       setError(null);
-      if (accounts.some((account) => account.id === result.account.id)) {
-        await loadNormalMessages(result.account.id);
-      }
     } catch (caught: unknown) {
       setError(asErrorDto(caught));
     } finally {
@@ -1814,6 +1766,13 @@ function App() {
       return [];
     }
 
+    if (isCanonicalNormalAccountId(accountId)) {
+      if (isCurrent()) {
+        setNormalMessagesByAccount((current) => ({ ...current, [accountId]: [] }));
+      }
+      return [];
+    }
+
     const [messages] = await Promise.all([
       invoke<AnonymousMessageDto[]>("message_list", {
         request: { scope: "normal_account", account_id: accountId, include_archived: true },
@@ -1825,32 +1784,6 @@ function App() {
     }
     setNormalMessagesByAccount((current) => ({ ...current, [accountId]: messages }));
     return messages;
-  }
-
-  async function syncNormalAccountOnce(accountId: string) {
-    const result = await invoke<NormalAccountSyncDto>("normal_account_sync_recent", {
-      request: { account_id: accountId, limit: 25 },
-    });
-    setLastNormalSync(result);
-    await loadNormalMessages(accountId);
-    return result;
-  }
-
-  async function syncNormalAccount(accountId: string) {
-    setBusy(true);
-    try {
-      const result = await syncNormalAccountOnce(accountId);
-      const codes = await loadRecentCodes();
-      setRecentCodes(codes);
-      setStatusMessage(
-        `Normal IMAP sync fetched ${result.fetched_count} headers and inserted ${result.inserted_count}.`,
-      );
-      setError(null);
-    } catch (caught: unknown) {
-      setError(asErrorDto(caught));
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function loadMessageDetail(messageId: string, markRead = false) {
@@ -2751,6 +2684,14 @@ function App() {
       });
       return false;
     }
+    if (selectedNormalAccountId !== null && isCanonicalNormalAccountId(selectedNormalAccountId)) {
+      setError({
+        code: "canonical_smtp_unavailable",
+        user_message: "Sending from canonical accounts becomes available in M5.",
+        correlation_id: "desktop-migration-boundary",
+      });
+      return false;
+    }
 
     setBusy(true);
     try {
@@ -2875,7 +2816,7 @@ function App() {
   async function addAgentAccount() {
     setBusy(true);
     try {
-      const account = await invoke<AccountDto>("agent_add_account", {
+      const account = await invoke<LegacyAccountDto>("agent_add_account", {
         request: {
           display_name: agentDisplayName,
           email_address: agentEmailAddress,
@@ -3171,6 +3112,7 @@ function App() {
       const coreState = await loadCoreTemporaryState();
       const accounts = await loadNormalAccounts();
       applyCoreTemporaryState(coreState);
+      canonicalNormalAccountIdsRef.current = new Set(accounts.map((account) => account.id));
       setNormalAccounts(accounts);
       setSelectedTempMailboxId(mailboxRecord.view.id);
       setTargetService("");
@@ -3566,7 +3508,7 @@ function App() {
         invoke<AnonymousMessageDto[]>("message_list", {
           request: { scope: "anonymous", account_id: null, include_archived: true },
         }),
-        invoke<AccountDto[]>("account_list_normal"),
+        mailAccountClient.listNormalAccounts(),
         invoke<VerificationCodeDto[]>("verification_list_recent", {
           request: { temp_mailbox_id: null, limit: 100 },
         }),
@@ -3577,6 +3519,7 @@ function App() {
       setAnonymousMessages(
         mergeByIdentity(coreState.messages, anonymous, (message) => message.message_id),
       );
+      canonicalNormalAccountIdsRef.current = new Set(accounts.map((account) => account.id));
       setNormalAccounts(accounts);
       setRecentCodes(mergeByIdentity(coreState.codes, codes, (code) => code.id));
       setPromotedMessagesByAccount((current) => ({ ...current, [result.account.id]: promoted }));
@@ -3598,19 +3541,13 @@ function App() {
     () => normalAccounts.filter((account) => account.kind === "normal_long_lived"),
     [normalAccounts],
   );
-  const sendEnabledAccounts = useMemo(
-    () => normalImapAccounts.filter((account) => account.send_status === "enabled"),
-    [normalImapAccounts],
-  );
+  // Normal accounts now come from the canonical core. The legacy Rust SMTP
+  // pipeline cannot safely consume those IDs; M5 will expose canonical send.
+  const sendEnabledAccounts: AccountDto[] = [];
   const sendEnabledAgentAccounts = useMemo(
     () => agentAccounts.filter((account) => account.send_status === "enabled"),
     [agentAccounts],
   );
-  const normalImapAccountIds = useMemo(
-    () => normalImapAccounts.map((account) => account.id).join("|"),
-    [normalImapAccounts],
-  );
-
   const scheduledSendWorkerTask = useEventCallback(async (isCurrent: () => boolean) => {
       try {
         const result = await sendQueueClient.runSendQueueDueBatch({ limit: 10 });
@@ -3620,12 +3557,6 @@ function App() {
         if (result.processed_count > 0) {
           setLastSendWorkerRun(result);
           await loadSendQueue(isCurrent);
-          if (!isCurrent()) {
-            return;
-          }
-          await Promise.all(
-            normalImapAccounts.map((account) => loadNormalMessages(account.id, isCurrent)),
-          );
           if (!isCurrent()) {
             return;
           }
@@ -3656,7 +3587,7 @@ function App() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [normalImapAccountIds, runScheduledSendWorker]);
+  }, [runScheduledSendWorker]);
 
   const selectedAgentService =
     agentServices.find((service) => service.id === selectedAgentServiceId) ?? null;
@@ -3755,7 +3686,7 @@ function App() {
     if (sourceId.startsWith("account:")) {
       const accountId = sourceId.slice("account:".length);
       setSelectedNormalAccountId(accountId);
-      void loadNormalMessages(accountId);
+      setStatusMessage("This account is HTTP-owned. Message synchronization becomes available in M6.");
       return;
     }
     if (sourceId.startsWith("promoted:")) {
@@ -3806,21 +3737,13 @@ function App() {
     try {
       if (mailSourceId === "all") {
         const tempResult = await refreshAnonymousMailOnce();
-        const normalResults: NormalAccountSyncDto[] = [];
-
-        for (const account of normalImapAccounts) {
-          normalResults.push(await syncNormalAccountOnce(account.id));
-        }
-
         await Promise.all(promotedAccounts.map((account) => loadPromotedMessages(account.id)));
         const codes = await loadRecentCodes();
         setRecentCodes(codes);
 
-        const normalFetched = normalResults.reduce((total, result) => total + result.fetched_count, 0);
-        const normalInserted = normalResults.reduce((total, result) => total + result.inserted_count, 0);
         publishSyncStatus(
           temporaryMailboxRefreshFailureMessage(tempResult) ??
-            `Synced all mail: temp fetched ${tempResult.fetched_count}, inserted ${tempResult.inserted_count}; normal fetched ${normalFetched}, inserted ${normalInserted}.`,
+            `Synced available mail: temp fetched ${tempResult.fetched_count}, inserted ${tempResult.inserted_count}; normal-account messages remain unavailable until M6.`,
         );
         const refreshError = temporaryRefreshError(tempResult);
         if (refreshError || !silent) {
@@ -3843,12 +3766,8 @@ function App() {
       }
 
       if (mailSourceId.startsWith("account:")) {
-        const accountId = mailSourceId.slice("account:".length);
-        const result = await syncNormalAccountOnce(accountId);
-        const codes = await loadRecentCodes();
-        setRecentCodes(codes);
         publishSyncStatus(
-          `Synced ${selectedMailSource.label}: fetched ${result.fetched_count}, inserted ${result.inserted_count}.`,
+          `${selectedMailSource.label} account metadata is current; message synchronization becomes available in M6.`,
         );
         if (!silent) {
           setError(null);
@@ -3903,7 +3822,6 @@ function App() {
     const autoSyncableSource =
       mailSourceId === "all" ||
       mailSourceId === "temp" ||
-      mailSourceId.startsWith("account:") ||
       mailSourceId.startsWith("promoted:");
     if (!autoSyncableSource) {
       return undefined;
@@ -3922,7 +3840,7 @@ function App() {
       disposed = true;
       window.clearInterval(intervalId);
     };
-  }, [activeView, mailSourceId, normalImapAccountIds, syncCurrentMailSourceEvent]);
+  }, [activeView, mailSourceId, syncCurrentMailSourceEvent]);
 
   const {
     visibleMailMessages,
@@ -5722,6 +5640,10 @@ function App() {
     setComposeDraftDirty(false);
 
     if (!snapshot.senderAccountId || !composeDraftHasUserContent(snapshot)) {
+      return;
+    }
+    if (isCanonicalNormalAccountId(snapshot.senderAccountId)) {
+      setStatusMessage("Draft saved in this browser; canonical draft persistence becomes available in M4.");
       return;
     }
 
@@ -9179,7 +9101,7 @@ function App() {
                     >
                       QQ 邮箱预设
                     </button>
-                    <span>QQ 邮箱 / IMAP 993 / SMTP 465 / TLS / 使用一个授权码</span>
+                    <span>QQ 邮箱 / IMAP 993 / TLS / 使用授权码（SMTP 在 M5）</span>
                   </div>
 
                   <div className="nt-scroll-pane nt-mail-account-panel__body">
@@ -9218,9 +9140,7 @@ function App() {
                           {normalImapHost || "imap.qq.com"}:{normalImapPort || "993"}
                         </strong>
                         <span>发送</span>
-                        <strong>
-                          {normalSmtpHost || "smtp.qq.com"}:{normalSmtpPort || "465"}
-                        </strong>
+                        <strong>SMTP 将在 M5 迁移</strong>
                       </div>
                       <button
                         type="button"
@@ -9249,22 +9169,20 @@ function App() {
                             />
                           </label>
                           <label>
-                            SMTP 主机
-                            <input
-                              value={normalSmtpHost}
-                              placeholder="smtp.qq.com"
-                              onChange={(event) => setNormalSmtpHost(event.currentTarget.value)}
-                            />
+                            IMAP 安全模式
+                            <select
+                              value={normalImapSecurity}
+                              onChange={(event) => setNormalImapSecurity(
+                                event.currentTarget.value as ManualImapAccountCreateRequest["imap_security"],
+                              )}
+                            >
+                              <option value="tls">TLS</option>
+                              <option value="starttls">STARTTLS</option>
+                            </select>
                           </label>
-                          <label>
-                            SMTP 端口
-                            <input
-                              value={normalSmtpPort}
-                              inputMode="numeric"
-                              placeholder="465"
-                              onChange={(event) => setNormalSmtpPort(event.currentTarget.value)}
-                            />
-                          </label>
+                          <p className="nt-form-note nt-wide-field">
+                            当前 M3 只保存 IMAP 配置。SMTP 主机、端口和发信凭据将在 M5 发送队列切片中迁移。
+                          </p>
                         </>
                       ) : null}
                     </div>
@@ -9273,19 +9191,11 @@ function App() {
                   <div className="nt-mail-account-panel__foot">
                     <button
                       type="button"
-                      className="nt-btn nt-btn--secondary"
-                      onClick={() => void testNormalImap()}
-                      disabled={busy}
-                    >
-                      测试 IMAP
-                    </button>
-                    <button
-                      type="button"
                       className="nt-btn nt-btn--primary"
                       onClick={() => void addManualImapAccount()}
                       disabled={busy}
                     >
-                      添加邮箱账户
+                      保存并测试 IMAP
                     </button>
                   </div>
                 </aside>
@@ -10557,7 +10467,7 @@ function App() {
                       onChange={(event) => {
                         const accountId = event.currentTarget.value || null;
                         setSelectedNormalAccountId(accountId);
-                        void loadNormalMessages(accountId);
+                        setStatusMessage("Canonical SMTP and message history become available in M5/M6.");
                       }}
                     >
                       <option value="">Select send-enabled account</option>
@@ -11073,9 +10983,7 @@ function App() {
                       {normalImapHost || "imap.qq.com"}:{normalImapPort || "993"}
                     </strong>
                     <span>Send</span>
-                    <strong>
-                      {normalSmtpHost || "smtp.qq.com"}:{normalSmtpPort || "465"}
-                    </strong>
+                    <strong>SMTP migrates in M5</strong>
                   </div>
                   <button
                     type="button"
@@ -11104,51 +11012,37 @@ function App() {
                         />
                       </label>
                       <label>
-                        SMTP host
-                        <input
-                          value={normalSmtpHost}
-                          placeholder="smtp.example.com"
-                          onChange={(event) => setNormalSmtpHost(event.currentTarget.value)}
-                        />
+                        IMAP security
+                        <select
+                          value={normalImapSecurity}
+                          onChange={(event) => setNormalImapSecurity(
+                            event.currentTarget.value as ManualImapAccountCreateRequest["imap_security"],
+                          )}
+                        >
+                          <option value="tls">TLS</option>
+                          <option value="starttls">STARTTLS</option>
+                        </select>
                       </label>
-                      <label>
-                        SMTP port
-                        <input
-                          value={normalSmtpPort}
-                          inputMode="numeric"
-                          placeholder="465"
-                          onChange={(event) => setNormalSmtpPort(event.currentTarget.value)}
-                        />
-                      </label>
+                      <p className="nt-form-note nt-wide-field">
+                        This M3 slice stores IMAP only. SMTP settings and send credentials move with the M5 queue slice.
+                      </p>
                     </>
                   ) : null}
                 </div>
                 <div className="nt-result">
                   <strong>QQ Mail</strong>
-                  <span>IMAP imap.qq.com:993 TLS / SMTP smtp.qq.com:465 TLS.</span>
-                  <small>Enable IMAP/SMTP in QQ Mail web settings and paste the generated authorization code.</small>
+                  <span>IMAP imap.qq.com:993 TLS. SMTP setup is deferred to M5.</span>
+                  <small>Enable IMAP in QQ Mail web settings and paste the generated authorization code.</small>
                 </div>
                 <div className="nt-actions">
-                  <button type="button" className="nt-btn nt-btn--secondary" onClick={() => void testNormalImap()} disabled={busy}>
-                    Test IMAP
-                  </button>
                   <button type="button" className="nt-btn nt-btn--primary" onClick={() => void addManualImapAccount()} disabled={busy}>
-                    Add mail account
+                    Save and test IMAP
                   </button>
                 </div>
                 {normalImapTest ? (
                   <div className="nt-result">
                     <strong>{normalImapTest.authenticated ? "Authenticated" : "Not authenticated"}</strong>
                     <span>{normalImapTest.capability_summary}</span>
-                  </div>
-                ) : null}
-                {lastNormalSync ? (
-                  <div className="nt-result">
-                    <strong>Last normal sync</strong>
-                    <span>
-                      Account {lastNormalSync.account_id}: fetched {lastNormalSync.fetched_count},
-                      inserted {lastNormalSync.inserted_count}.
-                    </span>
                   </div>
                 ) : null}
                 <div className="nt-scroll-pane nt-scroll-pane--short">
@@ -11167,7 +11061,7 @@ function App() {
                             onClick={() => {
                               setSelectedNormalAccountId(account.id);
                               setMailSourceId(`account:${account.id}`);
-                              void loadNormalMessages(account.id);
+                              setStatusMessage("Message synchronization becomes available in M6.");
                             }}
                             disabled={busy}
                           >
@@ -11176,10 +11070,28 @@ function App() {
                           <button
                             type="button"
                             className="nt-mini-btn"
-                            onClick={() => void syncNormalAccount(account.id)}
+                            onClick={() => void testNormalImap(account)}
                             disabled={busy}
                           >
-                            Sync
+                            Test IMAP
+                          </button>
+                          {account.status !== "disabled" ? (
+                            <button
+                              type="button"
+                              className="nt-mini-btn"
+                              onClick={() => void disableNormalAccount(account)}
+                              disabled={busy}
+                            >
+                              Disable
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="nt-mini-btn"
+                            onClick={() => void deleteNormalAccount(account)}
+                            disabled={busy}
+                          >
+                            Delete
                           </button>
                         </div>
                       </article>
