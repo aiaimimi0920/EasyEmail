@@ -44,7 +44,7 @@ function account(overrides: Partial<EasyEmailMailAccount> = {}): EasyEmailMailAc
       secretKey: credentialRef.secret_key,
       credentialKind: credentialRef.credential_kind,
       authMethod: credentialRef.auth_method,
-      status: "active",
+      status: "missing",
       createdAt: "2026-09-02T00:00:00Z",
       updatedAt: "2026-09-02T00:00:00Z",
     }],
@@ -120,7 +120,7 @@ test("maps normal account list and IMAP test through the canonical HTTP contract
         secret_key: credentialRef.secret_key,
         credential_kind: "imap_password",
         auth_method: "password",
-        status: "active",
+        status: "missing",
       }],
     },
   ]);
@@ -303,19 +303,64 @@ test("reports partial credential cleanup after an account has been deleted", asy
   assert.deepEqual(credentials.deleted, [credentialRef.secret_key]);
 });
 
-test("refuses IMAP tests without an active password credential", async () => {
+test("allows the first IMAP test for a newly stored missing-status reference", async () => {
+  const transport = createTransport();
+  const client = createMailAccountClient(transport, createCredentials());
+  const created = await client.addManualImapAccount({
+    display_name: "Work",
+    email_address: "work@example.com",
+    imap_host: "imap.example.com",
+    imap_port: 993,
+    imap_security: "tls",
+    imap_username: "work@example.com",
+    imap_password: "first-test-canary",
+  });
+
+  assert.equal(created.account.credential_refs[0]?.status, "missing");
+  await assert.doesNotReject(client.testImap(created.account));
+  assert.deepEqual(transport.calls, [
+    `create:${credentialRef.secret_key}`,
+    "test:acct_v1_work:cred_v1_work",
+  ]);
+});
+
+test("prefers an active IMAP password reference over an older missing reference", async () => {
   const transport = createTransport();
   transport.listMailAccounts = async () => ({
     accounts: [account({
-      credentialRefs: account().credentialRefs.map((credential) => ({
-        ...credential,
-        status: "missing",
-      })),
+      credentialRefs: [
+        ...account().credentialRefs,
+        {
+          ...account().credentialRefs[0]!,
+          id: "cred_v1_active",
+          secretKey: "ref:v1:desktop/00000000000000000000000000000002",
+          status: "active",
+        },
+      ],
     })],
   });
   const client = createMailAccountClient(transport, createCredentials());
   const listed = (await client.listNormalAccounts())[0] as AccountDto;
 
-  await assert.rejects(client.testImap(listed), /no active IMAP password reference/);
-  assert.deepEqual(transport.calls, []);
+  await assert.doesNotReject(client.testImap(listed));
+  assert.deepEqual(transport.calls, ["test:acct_v1_work:cred_v1_active"]);
+});
+
+test("refuses IMAP tests for invalid or disabled password references", async () => {
+  for (const status of ["invalid", "disabled"] as const) {
+    const transport = createTransport();
+    transport.listMailAccounts = async () => ({
+      accounts: [account({
+        credentialRefs: account().credentialRefs.map((credential) => ({
+          ...credential,
+          status,
+        })),
+      })],
+    });
+    const client = createMailAccountClient(transport, createCredentials());
+    const listed = (await client.listNormalAccounts())[0] as AccountDto;
+
+    await assert.rejects(client.testImap(listed), /no testable IMAP password reference/);
+    assert.deepEqual(transport.calls, []);
+  }
 });

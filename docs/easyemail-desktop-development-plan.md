@@ -67,8 +67,15 @@ Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
   no longer calls the legacy normal-account list/create/test/sync commands and explicitly defers
   normal-message synchronization and SMTP to M6/M5 rather than sending canonical core account IDs
   into the transitional Rust database.
-- **Next:** complete the controlled real-IMAP and restart-resolution gates, then implement the
-  compatibility-safe old-account importer. M3 remains incomplete until those proofs pass.
+- **M3 first-test and restart hardening (2026-09-03):** the desktop account adapter now treats a
+  newly stored `missing` credential ref as eligible for its first broker-backed IMAP test while
+  continuing to reject `invalid` and `disabled` refs. Automated gates prove that the same opaque ref
+  is resolved before and after a `service/base` restart, across fresh broker instances, and across
+  fresh Windows Credential Manager adapter instances; the Windows test uses and removes an isolated
+  canary credential.
+- **Next:** complete the packaged desktop-process restart and controlled real-IMAP gates, then
+  implement the compatibility-safe old-account importer. M3 remains incomplete until those proofs
+  pass.
 
 本计划定义将已导入 `apps/desktop` 的 EasyEmailAM 从“React UI +
 过渡期 Rust 业务后端”收敛为“React UI + 随桌面程序启动的
@@ -336,7 +343,9 @@ opaque ref。旧 `account_list_normal`、`normal_account_add_manual_imap`、
 `normal_account_test_imap` 和 `normal_account_sync_recent` 已从 React normal-account 路径
 移除；M5/M6 完成前 SMTP 与 normal message sync 显式不可用，避免把 canonical core
 account ID 传给旧 Rust 数据库。Standalone CLI 当前仍未配置 server-side account secret
-resolver，所以这一路径继续 503 fail closed。旧数据导入、重启凭据解析和受控真实 IMAP
+resolver，所以这一路径继续 503 fail closed。桌面 adapter 已修复首次测试对新建
+`missing` ref 的错误拒绝；自动测试分别证明 core 重启、broker 重建和 Windows vault
+adapter 重建后仍能解析同一 ref。打包桌面进程级重启、旧数据导入和受控真实 IMAP
 验收仍未完成，因此 M3 总体不得标记为完成。
 
 ### M4 - 聚合消息与验证记录

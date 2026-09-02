@@ -134,14 +134,21 @@ The current Windows implementation:
 - routes React normal-account list/create/test/disable/delete through the
   authenticated bundled HTTP client, while raw IMAP secrets use only the narrow
   Tauri vault bridge and account HTTP bodies contain opaque references;
+- allows a newly created `missing` credential ref to reach its first
+  broker-backed IMAP test, while rejecting refs already marked `invalid` or
+  `disabled`;
+- proves the opaque-ref restart layers independently: `service/base` resolves the
+  persisted ref after restart, a fresh broker resolves the same vault entry, and
+  a fresh Windows Credential Manager adapter reads and then removes an isolated
+  canary credential;
 - disables transitional normal-account message sync and SMTP entry points for
   canonical core accounts until M6/M5 rather than crossing the two databases;
 - provides a manual, read-only-permission candidate Action that builds unsigned
   MSI/NSIS installers plus a non-release manifest and SHA-256 checksums.
 
 This evidence does not yet prove graceful shutdown, a clean-machine installer,
-restart credential resolution, collision/crash recovery, a controlled real IMAP
-connection, or a real mailbox flow through the UI HTTP path. The React account
+the composed packaged desktop-process restart path, collision/crash recovery, a
+controlled real IMAP connection, or a real mailbox flow through the UI HTTP path. The React account
 screen now uses the canonical HTTP account resources, but old-account import and
 most other extended EasyEmailAM operations still use transitional Tauri commands.
 

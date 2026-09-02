@@ -564,6 +564,36 @@ mod tests {
     }
 
     #[test]
+    fn broker_resolves_the_same_opaque_ref_after_restart() {
+        let vault = Arc::new(FakeSecretVaultAdapter::default());
+        let key = request_body()["secretKey"].as_str().unwrap().to_string();
+        vault.save_secret(&key, "broker-restart-canary").unwrap();
+
+        let first = DesktopCredentialBroker::start_with_dependencies(
+            vault.clone(),
+            Arc::new(FixedAuthorizer(ScopeDecision::Allowed)),
+        )
+        .unwrap();
+        let (first_status, first_response) = post_broker(&first, Some(first.bearer_token()));
+        first.stop();
+
+        let restarted = DesktopCredentialBroker::start_with_dependencies(
+            vault,
+            Arc::new(FixedAuthorizer(ScopeDecision::Allowed)),
+        )
+        .unwrap();
+        let (restarted_status, restarted_response) =
+            post_broker(&restarted, Some(restarted.bearer_token()));
+        restarted.stop();
+
+        assert_eq!(first_status, 200);
+        assert_eq!(restarted_status, 200);
+        assert_eq!(first_response["status"], "resolved");
+        assert_eq!(restarted_response["status"], "resolved");
+        assert_eq!(first_response["secret"], restarted_response["secret"]);
+    }
+
+    #[test]
     fn parser_rejects_ambiguous_http_message_lengths() {
         assert_eq!(
             parse_content_length("POST / HTTP/1.1\r\nContent-Length: 12\r\n").unwrap(),

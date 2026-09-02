@@ -210,9 +210,46 @@ mod platform {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(windows)]
+    use zeroize::Zeroizing;
 
     #[test]
     fn windows_credential_manager_adapter_exists() {
         let _adapter = WindowsCredentialManagerVault;
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn credential_survives_fresh_adapter_instances() {
+        let key = format!("ref:v1:desktop/test-{}", uuid::Uuid::new_v4().simple());
+        let secret = Zeroizing::new(format!(
+            "credential-restart-canary-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        let stored = {
+            let vault = WindowsCredentialManagerVault;
+            vault.save_secret(&key, secret.as_str()).is_ok()
+        };
+        let loaded = {
+            let vault = WindowsCredentialManagerVault;
+            Zeroizing::new(vault.load_secret(&key).ok().flatten().unwrap_or_default())
+        };
+        let persisted = stored && loaded.as_str() == secret.as_str();
+        let cleanup = WindowsCredentialManagerVault;
+        let deleted = cleanup.delete_secret(&key).is_ok();
+
+        assert!(
+            stored,
+            "Windows Credential Manager rejected the isolated test credential."
+        );
+        assert!(
+            persisted,
+            "A fresh vault adapter could not resolve the stored credential."
+        );
+        assert!(
+            deleted,
+            "The isolated test credential could not be removed."
+        );
+        assert!(!cleanup.exists(&key).unwrap_or(true));
     }
 }

@@ -97,15 +97,16 @@ function toAccountDto(account: EasyEmailMailAccount): AccountDto {
   };
 }
 
-function activeImapCredential(account: AccountDto): AccountCredentialRefDto {
-  const credential = account.credential_refs.find(
+function testableImapCredential(account: AccountDto): AccountCredentialRefDto {
+  const candidates = account.credential_refs.filter(
     (candidate) =>
       candidate.credential_kind === "imap_password"
-      && candidate.auth_method === "password"
-      && candidate.status === "active",
+      && candidate.auth_method === "password",
   );
+  const credential = candidates.find((candidate) => candidate.status === "active")
+    ?? candidates.find((candidate) => candidate.status === "missing");
   if (!credential) {
-    throw new Error("The account has no active IMAP password reference.");
+    throw new Error("The account has no testable IMAP password reference.");
   }
   return credential;
 }
@@ -180,7 +181,10 @@ export function createMailAccountClient(
     },
 
     async testImap(account: AccountDto): Promise<NormalImapConnectionTestDto> {
-      const credential = activeImapCredential(account);
+      // Newly stored refs are intentionally persisted as `missing` until the
+      // broker proves that the secret exists. The first connection test must
+      // therefore reach the core instead of being rejected in the renderer.
+      const credential = testableImapCredential(account);
       const response = await transport.testMailAccountImap({
         accountId: account.id,
         credentialRefId: credential.id,
