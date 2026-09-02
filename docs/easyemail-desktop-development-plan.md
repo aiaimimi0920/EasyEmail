@@ -72,10 +72,12 @@ Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
   continuing to reject `invalid` and `disabled` refs. Automated gates prove that the same opaque ref
   is resolved before and after a `service/base` restart, across fresh broker instances, and across
   fresh Windows Credential Manager adapter instances; the Windows test uses and removes an isolated
-  canary credential.
-- **Next:** complete the packaged desktop-process restart and controlled real-IMAP gates, then
-  implement the compatibility-safe old-account importer. M3 remains incomplete until those proofs
-  pass.
+  canary credential. The packaged host smoke also launches the built desktop twice against the same
+  isolated data directory and proves stable host identity, persistent core state, preserved 401
+  boundaries, normal close, and exact core-child reaping on both runs.
+- **Next:** prove composed credential-ref resolution through the restarted packaged desktop process
+  and pass a controlled real-IMAP gate, then implement the compatibility-safe old-account importer.
+  M3 remains incomplete until those proofs pass.
 
 本计划定义将已导入 `apps/desktop` 的 EasyEmailAM 从“React UI +
 过渡期 Rust 业务后端”收敛为“React UI + 随桌面程序启动的
@@ -345,8 +347,10 @@ opaque ref。旧 `account_list_normal`、`normal_account_add_manual_imap`、
 account ID 传给旧 Rust 数据库。Standalone CLI 当前仍未配置 server-side account secret
 resolver，所以这一路径继续 503 fail closed。桌面 adapter 已修复首次测试对新建
 `missing` ref 的错误拒绝；自动测试分别证明 core 重启、broker 重建和 Windows vault
-adapter 重建后仍能解析同一 ref。打包桌面进程级重启、旧数据导入和受控真实 IMAP
-验收仍未完成，因此 M3 总体不得标记为完成。
+adapter 重建后仍能解析同一 ref。打包宿主 smoke 已在同一隔离数据目录上完成两次真实
+桌面进程启动，证明 host ID 与 core state 延续、两条未鉴权边界保持 401，且两次正常关闭
+都会回收精确 core child。通过重启后打包进程完成的组合式 credential-ref 解析、旧数据
+导入和受控真实 IMAP 验收仍未完成，因此 M3 总体不得标记为完成。
 
 ### M4 - 聚合消息与验证记录
 

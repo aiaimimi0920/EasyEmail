@@ -86,9 +86,25 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
         self.assertIn('const DESKTOP_CREDENTIAL_REF_PREFIX: &str = "ref:v1:desktop/"', self.desktop_credentials)
         self.assertIn('credential_kind != "imap_password"', self.desktop_credentials)
         self.assertIn('auth_method != "password"', self.desktop_credentials)
-        self.assertIn("-OwningProcess $desktopProcess.Id", self.host_smoke)
+        self.assertIn("-OwningProcess $process.Id", self.host_smoke)
         self.assertIn("/v1/credentials/resolve", self.host_smoke)
         self.assertIn("BROKER_UNAUTHENTICATED_STATUS=401", self.host_smoke)
+
+    def test_host_smoke_restarts_the_same_isolated_runtime(self) -> None:
+        for expected in (
+            "function Start-IsolatedDesktopRuntime",
+            "function Stop-IsolatedDesktopRuntime",
+            "[int]$StartupTimeoutSeconds = 55",
+            ".AddSeconds($StartupTimeoutSeconds)",
+            "$restartedRuntime = Start-IsolatedDesktopRuntime -Executable $executable",
+            "$restartedHostId -ne $firstHostId",
+            "RESTART_HOST_ID_STABLE=True",
+            "RESTART_CORE_STATE_PERSISTED=True",
+            "RESTART_AUTH_BOUNDARIES=True",
+            "RESTART_NORMAL_CLOSE=True",
+            "RESTART_CORE_EXITED_WITH_UI=True",
+        ):
+            self.assertIn(expected, self.host_smoke)
 
     def test_packaged_core_verify_opens_fake_provider_behind_auth(self) -> None:
         for expected in (

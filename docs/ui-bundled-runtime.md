@@ -141,16 +141,20 @@ The current Windows implementation:
   persisted ref after restart, a fresh broker resolves the same vault entry, and
   a fresh Windows Credential Manager adapter reads and then removes an isolated
   canary credential;
+- launches the built desktop twice against the same isolated data directory and
+  proves stable host identity, persisted core state, preserved unauthenticated
+  401 boundaries, normal close, and exact core-child reaping on both runs;
 - disables transitional normal-account message sync and SMTP entry points for
   canonical core accounts until M6/M5 rather than crossing the two databases;
 - provides a manual, read-only-permission candidate Action that builds unsigned
   MSI/NSIS installers plus a non-release manifest and SHA-256 checksums.
 
 This evidence does not yet prove graceful shutdown, a clean-machine installer,
-the composed packaged desktop-process restart path, collision/crash recovery, a
-controlled real IMAP connection, or a real mailbox flow through the UI HTTP path. The React account
-screen now uses the canonical HTTP account resources, but old-account import and
-most other extended EasyEmailAM operations still use transitional Tauri commands.
+the composed credential-resolution flow through a restarted packaged desktop
+process, collision/crash recovery, a controlled real IMAP connection, or a real
+mailbox flow through the UI HTTP path. The React account screen now uses the
+canonical HTTP account resources, but old-account import and most other extended
+EasyEmailAM operations still use transitional Tauri commands.
 
 ## HTTP usage
 
