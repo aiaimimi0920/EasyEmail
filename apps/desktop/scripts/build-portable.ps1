@@ -7,6 +7,20 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Get-Sha256Hex {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $stream = [System.IO.File]::OpenRead($Path)
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $algorithm.ComputeHash($stream)
+        return ([System.BitConverter]::ToString($hash)).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $algorithm.Dispose()
+        $stream.Dispose()
+    }
+}
+
 function Assert-DirectChildPath {
     param(
         [Parameter(Mandatory = $true)][string]$Child,
@@ -173,10 +187,10 @@ try {
         portableDataLauncher = 'Run-EasyEmail-Portable.cmd'
         coreSourceRevision = [string]$runtimeManifest.sourceRevision
         payload = [ordered]@{
-            executableSha256 = (Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash.ToLowerInvariant()
-            runtimeSha256 = (Get-FileHash -LiteralPath $runtimePath -Algorithm SHA256).Hash.ToLowerInvariant()
-            entrySha256 = (Get-FileHash -LiteralPath $entryPath -Algorithm SHA256).Hash.ToLowerInvariant()
-            coreManifestSha256 = (Get-FileHash -LiteralPath $runtimeManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            executableSha256 = Get-Sha256Hex -Path $executable
+            runtimeSha256 = Get-Sha256Hex -Path $runtimePath
+            entrySha256 = Get-Sha256Hex -Path $entryPath
+            coreManifestSha256 = Get-Sha256Hex -Path $runtimeManifestPath
         }
     }
     [System.IO.File]::WriteAllText(
@@ -188,10 +202,10 @@ try {
     $portableRuntimePath = Join-Path $stagePackage ('core/' + [string]$runtimeManifest.runtime)
     $portableEntryPath = Join-Path $stagePackage ('core/' + [string]$runtimeManifest.entry)
     $checksums = @(
-        "$((Get-FileHash -LiteralPath (Join-Path $stagePackage 'EasyEmail.exe') -Algorithm SHA256).Hash.ToLowerInvariant())  EasyEmail.exe",
-        "$((Get-FileHash -LiteralPath $portableRuntimePath -Algorithm SHA256).Hash.ToLowerInvariant())  core/$($runtimeManifest.runtime)",
-        "$((Get-FileHash -LiteralPath $portableEntryPath -Algorithm SHA256).Hash.ToLowerInvariant())  core/$($runtimeManifest.entry)",
-        "$((Get-FileHash -LiteralPath (Join-Path $stagePackage 'core/runtime-manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant())  core/runtime-manifest.json"
+        "$(Get-Sha256Hex -Path (Join-Path $stagePackage 'EasyEmail.exe'))  EasyEmail.exe",
+        "$(Get-Sha256Hex -Path $portableRuntimePath)  core/$($runtimeManifest.runtime)",
+        "$(Get-Sha256Hex -Path $portableEntryPath)  core/$($runtimeManifest.entry)",
+        "$(Get-Sha256Hex -Path (Join-Path $stagePackage 'core/runtime-manifest.json'))  core/runtime-manifest.json"
     ) -join "`n"
     [System.IO.File]::WriteAllText(
         (Join-Path $stagePackage 'SHA256SUMS'),
@@ -230,7 +244,7 @@ try {
         $archive.Dispose()
     }
 
-    $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $archiveHash = Get-Sha256Hex -Path $archivePath
     [System.IO.File]::WriteAllText(
         $archiveChecksumPath,
         "$archiveHash  $([System.IO.Path]::GetFileName($archivePath))`n",

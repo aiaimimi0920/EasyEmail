@@ -56,6 +56,7 @@ class DesktopCandidateWorkflowContractTests(unittest.TestCase):
             "portable-manifest.json",
             "desktop-portable-candidate",
             "releaseEligible = $false",
+            "[System.Security.Cryptography.SHA256]::Create()",
             "CreateFromDirectory",
             "PORTABLE_SHA256",
         ):
