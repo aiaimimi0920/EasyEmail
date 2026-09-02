@@ -50,10 +50,23 @@ jobs:
         working-directory: apps/desktop
         run: npm run tauri -- build --ci --no-sign --bundles msi nsis
 
-      - name: Verify Release Host Lifecycle
+      - name: Build Portable Windows Candidate
         shell: pwsh
         working-directory: apps/desktop
-        run: npm run host:smoke -- -ExecutablePath src-tauri/target/release/easyemailam.exe
+        run: npm run portable:bundle
+
+      - name: Verify Portable Host Lifecycle
+        shell: pwsh
+        working-directory: apps/desktop
+        run: |
+          $portableExecutables = @(
+            Get-ChildItem -LiteralPath 'src-tauri/target/release/bundle/portable' `
+              -Filter 'EasyEmail.exe' -Recurse -File
+          )
+          if ($portableExecutables.Count -ne 1) {
+            throw "Expected one portable EasyEmail.exe, found $($portableExecutables.Count)."
+          }
+          npm run host:smoke -- -ExecutablePath $portableExecutables[0].FullName
 
       - name: Assemble Candidate Evidence
         shell: pwsh
@@ -63,13 +76,21 @@ jobs:
           $bundleRoot = 'apps/desktop/src-tauri/target/release/bundle'
           New-Item -ItemType Directory -Path $candidateRoot -Force | Out-Null
 
-          $installers = Get-ChildItem -LiteralPath $bundleRoot -Recurse -File |
-            Where-Object { $_.Extension -in @('.msi', '.exe') }
+          $installers = @(
+            Get-ChildItem -LiteralPath (Join-Path $bundleRoot 'msi') -Filter '*.msi' -File
+            Get-ChildItem -LiteralPath (Join-Path $bundleRoot 'nsis') -Filter '*.exe' -File
+          )
           if (-not $installers) {
             throw 'Tauri produced no MSI or NSIS candidate installers.'
           }
-          foreach ($installer in $installers) {
-            Copy-Item -LiteralPath $installer.FullName -Destination $candidateRoot
+          $portableArchives = @(
+            Get-ChildItem -LiteralPath (Join-Path $bundleRoot 'portable') -Filter '*.zip' -File
+          )
+          if ($portableArchives.Count -ne 1) {
+            throw "Expected one portable ZIP candidate, found $($portableArchives.Count)."
+          }
+          foreach ($artifact in @($installers) + $portableArchives) {
+            Copy-Item -LiteralPath $artifact.FullName -Destination $candidateRoot
           }
 
           $sourceSnapshot = Get-Content -LiteralPath 'apps/desktop/SOURCE_SNAPSHOT.json' -Raw |
@@ -85,6 +106,7 @@ jobs:
             desktopVersion = $desktopPackage.version
             importedSourceProject = $sourceSnapshot.sourceProject
             importedSourceCommit = $sourceSnapshot.sourceCommit
+            portableArchive = $portableArchives[0].Name
           } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $candidateRoot 'candidate-manifest.json') -Encoding utf8
 
           Get-ChildItem -LiteralPath $candidateRoot -File |

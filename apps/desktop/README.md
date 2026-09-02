@@ -69,6 +69,20 @@ Build the desktop application with:
 npm run tauri -- build
 ```
 
+Build an unsigned Windows portable candidate with:
+
+```powershell
+npm run portable:build
+```
+
+The command produces both an immediately runnable directory and a ZIP under
+`src-tauri/target/release/bundle/portable/`. Keep `EasyEmail.exe` beside the
+complete `core/` directory. Running `EasyEmail.exe` uses the normal per-user
+application data directory; running `Run-EasyEmail-Portable.cmd` keeps
+non-secret state in the package's `data/` directory. Mail credentials remain in
+Windows Credential Manager and therefore stay machine-specific. The portable
+candidate is unsigned and still requires Microsoft Edge WebView2 Runtime.
+
 For a faster compile-oriented desktop check without packaging installers:
 
 ```powershell

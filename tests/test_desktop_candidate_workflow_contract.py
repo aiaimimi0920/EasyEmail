@@ -6,12 +6,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "build-desktop-candidate.yml"
+DESKTOP_PACKAGE = ROOT / "apps" / "desktop" / "package.json"
+PORTABLE_SCRIPT = ROOT / "apps" / "desktop" / "scripts" / "build-portable.ps1"
 
 
 class DesktopCandidateWorkflowContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.text = WORKFLOW.read_text(encoding="utf-8")
+        cls.package_text = DESKTOP_PACKAGE.read_text(encoding="utf-8")
+        cls.portable_text = PORTABLE_SCRIPT.read_text(encoding="utf-8")
 
     def test_candidate_is_manual_windows_only_and_read_only(self) -> None:
         self.assertIn("workflow_dispatch:", self.text)
@@ -28,12 +32,34 @@ class DesktopCandidateWorkflowContractTests(unittest.TestCase):
             self.text,
         )
         self.assertIn(
-            "npm run host:smoke -- -ExecutablePath "
-            "src-tauri/target/release/easyemailam.exe",
+            "run: npm run portable:bundle",
             self.text,
         )
+        self.assertIn(
+            "npm run host:smoke -- -ExecutablePath $portableExecutables[0].FullName",
+            self.text,
+        )
+        self.assertIn("portableArchive = $portableArchives[0].Name", self.text)
         self.assertIn("Get-FileHash", self.text)
         self.assertIn("SHA256SUMS", self.text)
+
+    def test_portable_bundle_contains_the_host_and_private_core(self) -> None:
+        self.assertIn('"portable:bundle"', self.package_text)
+        self.assertIn('"portable:build"', self.package_text)
+        for expected in (
+            "target/release/easyemailam.exe",
+            "src-tauri/resources/core",
+            "EasyEmail.exe",
+            "core/runtime-manifest.json",
+            "Run-EasyEmail-Portable.cmd",
+            "EASYEMAILAM_DATA_DIR=%~dp0data",
+            "portable-manifest.json",
+            "desktop-portable-candidate",
+            "releaseEligible = $false",
+            "CreateFromDirectory",
+            "PORTABLE_SHA256",
+        ):
+            self.assertIn(expected, self.portable_text)
 
     def test_candidate_cannot_be_mistaken_for_a_public_release(self) -> None:
         self.assertIn("artifactKind = 'desktop-migration-candidate'", self.text)

@@ -147,7 +147,8 @@ The current Windows implementation:
 - disables transitional normal-account message sync and SMTP entry points for
   canonical core accounts until M6/M5 rather than crossing the two databases;
 - provides a manual, read-only-permission candidate Action that builds unsigned
-  MSI/NSIS installers plus a non-release manifest and SHA-256 checksums.
+  MSI/NSIS installers and an unsigned portable ZIP, proves the portable host
+  lifecycle, and publishes a non-release manifest plus SHA-256 checksums.
 
 This evidence does not yet prove graceful shutdown, a clean-machine installer,
 the composed credential-resolution flow through a restarted packaged desktop
