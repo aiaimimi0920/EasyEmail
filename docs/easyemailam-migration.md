@@ -80,6 +80,12 @@ temporary, non-release state. In particular:
   client behavior;
 - normal close reaps the exact child process, but the core does not yet expose a
   graceful shutdown API;
+- the host now owns a second, separately authenticated loopback credential
+  broker. It stores new IMAP secrets in Windows Credential Manager, gives the
+  renderer only opaque refs, and lets the exact Node child resolve only a
+  canonical account-owned ref for an allowlisted operation;
+- `service/base` now owns the production ImapFlow account connection tester, but
+  the React account workflow has not yet switched from transitional commands;
 - the manual desktop candidate workflow uploads only unsigned migration
   evidence; no desktop release is added to the coordinated release workflow.
 
@@ -167,10 +173,13 @@ application or as a bundled private Node runtime plus compiled service assets.
 Requiring a separately installed Node.js remains forbidden.
 
 The current migration packages a private Node runtime, compiled `service/base`
-assets, and the runtime `yaml` dependency under Tauri resources. The host owns a
+assets, and locked production dependencies including `yaml` and `imapflow` under
+Tauri resources. The host owns a
 single exact child, selects an ephemeral loopback port, generates a runtime-only
 bearer token, waits for authenticated catalog readiness, and reaps the child on
-normal UI exit. `build-desktop-candidate.yml` can build unsigned MSI/NSIS
+normal UI exit. It also starts a separate ephemeral credential broker/token,
+passes them only to that child, and stops the broker after the child exits.
+`build-desktop-candidate.yml` can build unsigned MSI/NSIS
 candidates and upload a manifest plus SHA-256 checksums, but it deliberately does
 not create a tag or GitHub Release.
 

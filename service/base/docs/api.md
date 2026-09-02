@@ -328,9 +328,13 @@ camelCase 约定：`id`、`displayName`、`emailAddress`、可选 `note`、`vers
   `POST /mail/accounts/imap/test` 只接受 `accountId` 与 `credentialRefId`，并要求 ref
   归属该账户且类型为 `imap_password/password`。缺失或失效的 ref 返回 409 可机读重新
   认证错误，远端拒绝凭据返回 422，resolver/tester/远端 IMAP 不可用返回 503。
-- 本切片尚未实现 OS vault broker 或生产 IMAP adapter；默认 packaged core 因此会明确
-  503 fail closed，而不会从 SQLite、环境变量或请求 body 读取 secret。新 ref 状态为
-  `missing`，不得解读为凭据已验证。React account UI 也尚未切换到这些接口。
+- Bundled desktop 启动的 core 会从宿主注入的、独立鉴权的 `127.0.0.1` broker
+  按需解析 ref。Broker 使用 canonical account GET 复核 account/ref/backend/key/kind/auth
+  的精确归属后才读取 Windows Credential Manager；没有 list 或任意 key 接口。
+  生产 IMAP tester 使用 ImapFlow，强制 TLS 或 STARTTLS、最低 TLS 1.2、关闭协议日志，
+  并限制连接、socket、greeting 与退出清理时间。Standalone CLI 当前没有默认的
+  server-side account secret resolver，仍会明确 503 fail closed，不会从 SQLite、环境
+  变量或请求 body 猜测 secret。React account UI 尚未切换到这些接口。
 - `PATCH`、`POST .../disable` 和 `DELETE ...?expectedVersion=N` 均使用版本 CAS；
   delete 为软删除。重复邮箱、跨账户复用同一 backend/key ref、过期版本或尝试变更
   system-managed anonymous account 均返回 409。

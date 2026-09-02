@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::Manager;
 
+use crate::credential_broker::DesktopCredentialBroker;
 use crate::redaction::redact_text;
 
 const START_ATTEMPTS: usize = 3;
@@ -27,6 +28,7 @@ pub struct DesktopCoreRuntimeDto {
 pub struct DesktopCoreRuntime {
     descriptor: DesktopCoreRuntimeDto,
     child: Mutex<Option<Child>>,
+    credential_broker: Mutex<Option<DesktopCredentialBroker>>,
 }
 
 struct CoreCommandPaths {
@@ -56,15 +58,26 @@ impl DesktopCoreRuntime {
             let base_url = format!("http://127.0.0.1:{port}");
             let config_path = runtime_root.join("runtime-config.yaml");
             write_runtime_config(&config_path, &state_dir, port, &api_token)?;
+            let credential_broker = match DesktopCredentialBroker::start(&base_url, &api_token) {
+                Ok(broker) => broker,
+                Err(error) => {
+                    let _ = fs::remove_file(&config_path);
+                    last_error = error;
+                    continue;
+                }
+            };
 
             let mut child = match spawn_core(
                 &command_paths,
                 &config_path,
                 &state_dir,
                 &runtime_root.join("core.log"),
+                credential_broker.base_url(),
+                credential_broker.bearer_token(),
             ) {
                 Ok(child) => child,
                 Err(error) => {
+                    credential_broker.stop();
                     let _ = fs::remove_file(&config_path);
                     last_error = error;
                     continue;
@@ -82,12 +95,14 @@ impl DesktopCoreRuntime {
                             host_id,
                         },
                         child: Mutex::new(Some(child)),
+                        credential_broker: Mutex::new(Some(credential_broker)),
                     });
                 }
                 Err(error) => {
                     last_error = error;
                     let _ = child.kill();
                     let _ = child.wait();
+                    credential_broker.stop();
                     let _ = fs::remove_file(&config_path);
                 }
             }
@@ -109,6 +124,8 @@ impl DesktopCoreRuntime {
             .map_err(|error| format!("Could not inspect EasyEmail core process: {error}"))?
         {
             *child = None;
+            drop(child);
+            self.stop_credential_broker();
             return Err(format!(
                 "EasyEmail core exited unexpectedly with status {status}."
             ));
@@ -117,17 +134,23 @@ impl DesktopCoreRuntime {
     }
 
     pub fn stop(&self) {
-        let Ok(mut child) = self.child.lock() else {
-            return;
-        };
-        let Some(mut process) = child.take() else {
-            return;
-        };
+        if let Ok(mut child) = self.child.lock() {
+            if let Some(mut process) = child.take() {
+                // The Node core does not yet expose a graceful local shutdown endpoint.
+                // Kill only the exact child created by this host and always reap it.
+                let _ = process.kill();
+                let _ = process.wait();
+            }
+        }
+        self.stop_credential_broker();
+    }
 
-        // The Node core does not yet expose a graceful local shutdown endpoint.
-        // Kill only the exact child created by this host and always reap it.
-        let _ = process.kill();
-        let _ = process.wait();
+    fn stop_credential_broker(&self) {
+        if let Ok(mut broker) = self.credential_broker.lock() {
+            if let Some(broker) = broker.take() {
+                broker.stop();
+            }
+        }
     }
 }
 
@@ -320,6 +343,8 @@ fn spawn_core(
     config_path: &Path,
     state_dir: &Path,
     log_path: &Path,
+    credential_broker_url: &str,
+    credential_broker_token: &str,
 ) -> Result<Child, String> {
     let mut stdout = OpenOptions::new()
         .create(true)
@@ -344,6 +369,14 @@ fn spawn_core(
         .env("EASY_EMAIL_CONFIG_PATH", config_path)
         .env("EASY_EMAIL_STATE_DIR", state_dir)
         .env("EASY_EMAIL_RESET_STORE_ON_BOOT", "false")
+        .env(
+            "EASY_EMAIL_DESKTOP_CREDENTIAL_BROKER_URL",
+            credential_broker_url,
+        )
+        .env(
+            "EASY_EMAIL_DESKTOP_CREDENTIAL_BROKER_TOKEN",
+            credential_broker_token,
+        )
         .stdin(Stdio::null())
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr))
@@ -385,6 +418,21 @@ fn wait_until_ready(child: &mut Child, base_url: &str, api_token: &str) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn renderer_descriptor_never_contains_credential_broker_access() {
+        let descriptor = DesktopCoreRuntimeDto {
+            status: "ready".to_string(),
+            base_url: "http://127.0.0.1:32123".to_string(),
+            api_token: "renderer-core-token".to_string(),
+            host_id: "easyemail-desktop-00000000000000000000000000000001".to_string(),
+        };
+
+        let serialized = serde_json::to_string(&descriptor).unwrap();
+
+        assert!(!serialized.contains("credential_broker"));
+        assert!(!serialized.contains("EASY_EMAIL_DESKTOP_CREDENTIAL_BROKER"));
+    }
 
     #[test]
     fn generated_runtime_config_is_loopback_authenticated_and_persistent() {

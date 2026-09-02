@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createTcpServer } from "node:net";
 import { join, resolve } from "node:path";
@@ -11,8 +11,22 @@ import { randomUUID } from "node:crypto";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const coreRoot = resolve(scriptDir, "..", "src-tauri", "resources", "core");
 const manifest = JSON.parse(readFileSync(join(coreRoot, "runtime-manifest.json"), "utf8"));
+const expectedRuntime = process.platform === "win32" ? "node.exe" : "node";
+if (
+  manifest.schemaVersion !== 1
+  || manifest.component !== "easyemail-service-base-desktop-core"
+  || manifest.platform !== process.platform
+  || manifest.architecture !== process.arch
+  || manifest.runtime !== expectedRuntime
+  || manifest.entry !== "dist/src/runtime/main.js"
+) {
+  throw new Error("Bundled core manifest does not match this host or the supported runtime contract.");
+}
 const runtime = join(coreRoot, manifest.runtime);
 const entry = join(coreRoot, manifest.entry);
+if (!statSync(runtime).isFile() || !statSync(entry).isFile()) {
+  throw new Error("Bundled core runtime or entry is not a regular file.");
+}
 const temporaryRoot = mkdtempSync(join(tmpdir(), "easyemail-desktop-core-"));
 const stateDir = join(temporaryRoot, "state");
 const configPath = join(temporaryRoot, "config.yaml");

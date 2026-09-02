@@ -20,6 +20,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "imapflow": "1.7.8",
     "yaml": "^2.8.1"
   }
 }

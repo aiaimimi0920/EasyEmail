@@ -40,6 +40,24 @@ Only the minimal container environment variables remain canonical:
 - `EASY_EMAIL_STATE_DIR`
 - `EASY_EMAIL_RESET_STORE_ON_BOOT`
 
+### Bundled desktop credential resolution
+
+The Tauri desktop package starts this same runtime as an exact private child. It
+also provides two child-only environment variables:
+
+- `EASY_EMAIL_DESKTOP_CREDENTIAL_BROKER_URL`
+- `EASY_EMAIL_DESKTOP_CREDENTIAL_BROKER_TOKEN`
+
+They must be configured together. The URL is restricted to an authenticated
+`127.0.0.1` endpoint. The resolver submits account/ref metadata only; the Tauri
+broker verifies exact ownership through the canonical account API before reading
+Windows Credential Manager. The production IMAP connection test uses the pinned
+ImapFlow dependency with TLS/STARTTLS and protocol logging disabled.
+
+These variables are a bundled-desktop host contract, not a general standalone
+secret format. Standalone deployments must inject an explicit server-side
+`MailCredentialResolver`; without one, account IMAP tests fail closed with 503.
+
 ## Provider Naming
 
 The formal provider key is:

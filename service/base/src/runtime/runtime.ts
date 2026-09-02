@@ -62,6 +62,8 @@ import type {
   MailCredentialResolver,
   MailImapConnectionTester,
 } from "../service/account-connectivity.js";
+import { ImapFlowConnectionTester } from "../service/imapflow-connection-tester.js";
+import { createDesktopCredentialBrokerResolverFromEnvironment } from "./desktop-credential-broker.js";
 
 export interface EasyEmailServiceRuntimeOptions extends EasyEmailBootstrapOptions {
   config?: EasyEmailServiceRuntimeConfig;
@@ -234,6 +236,10 @@ export async function startEasyEmailServiceRuntime(
   let maintenanceLoop: MailMaintenanceLoop | undefined;
   let persistenceLoop: MailStatePersistenceLoop | undefined;
   try {
+    const mailCredentialResolver = options.mailCredentialResolver
+      ?? createDesktopCredentialBrokerResolverFromEnvironment(process.env);
+    const mailImapConnectionTester = options.mailImapConnectionTester
+      ?? new ImapFlowConnectionTester();
     handler = new EasyEmailHttpHandler(
       service,
       queryRepository,
@@ -241,8 +247,8 @@ export async function startEasyEmailServiceRuntime(
       mailTaxonomyRepository ? createMailTaxonomyService(mailTaxonomyRepository) : undefined,
       mailAccountRepository
         ? createMailAccountService(mailAccountRepository, undefined, {
-            credentialResolver: options.mailCredentialResolver,
-            imapTester: options.mailImapConnectionTester,
+            credentialResolver: mailCredentialResolver,
+            imapTester: mailImapConnectionTester,
           })
         : undefined,
     );

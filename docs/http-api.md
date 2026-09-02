@@ -232,10 +232,15 @@ Test a stored profile and account-owned reference with `POST
 "..." }`. This request also rejects all raw-secret fields. A missing or invalid
 reference returns a machine-readable 409 reauthentication error, rejected remote
 credentials return 422, and an unavailable resolver, tester, or remote IMAP
-service returns 503. The packaged core does not yet install the private desktop
-vault resolver or a production IMAP adapter, so it deliberately returns 503
-instead of reading a secret through an unsafe fallback. The React account screen
-has not yet switched to this route.
+service returns 503. In bundled desktop mode, Tauri supplies the exact Node child
+with a separately authenticated `127.0.0.1` credential broker. The broker first
+reads the canonical account through this HTTP API and requires the requested ref
+to match its account owner, backend, key, kind, and authentication method before
+loading Windows Credential Manager. The production tester uses ImapFlow with TLS
+or forced STARTTLS, TLS 1.2 minimum, protocol logging disabled, and bounded
+connection and cleanup time. A standalone CLI runtime with no configured
+server-side account resolver still returns 503 rather than using an unsafe
+fallback. The React account screen has not yet switched to this route.
 
 Read with `GET /mail/accounts/{accountId}`. Metadata updates use
 `PATCH /mail/accounts/{accountId}` with `expectedVersion`; disable uses
@@ -336,6 +341,7 @@ authorization tier.
 | `PATCH` | `/mail/accounts/{accountId}` | Update account metadata with version CAS. |
 | `POST` | `/mail/accounts/{accountId}/disable` | Disable receive/send state with version CAS. |
 | `DELETE` | `/mail/accounts/{accountId}?expectedVersion=N` | Soft-delete one account with version CAS. |
+| `POST` | `/mail/accounts/imap/test` | Test a stored IMAP profile using an account-owned opaque credential reference. |
 | `GET` | `/mail/taxonomy?kind=folder\|label` | List persistent folders or labels with opaque keyset pagination. |
 | `PUT` | `/mail/taxonomy/{kind}/{key}` | Create or upsert a folder or label by normalized name. |
 | `GET` | `/mail/taxonomy/{itemId}` | Read one folder or label. |

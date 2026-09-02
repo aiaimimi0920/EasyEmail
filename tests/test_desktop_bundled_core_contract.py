@@ -20,6 +20,12 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
         cls.host = (DESKTOP / "src-tauri" / "src" / "core_runtime.rs").read_text(
             encoding="utf-8"
         )
+        cls.credential_broker = (
+            DESKTOP / "src-tauri" / "src" / "credential_broker.rs"
+        ).read_text(encoding="utf-8")
+        cls.desktop_credentials = (
+            DESKTOP / "src-tauri" / "src" / "desktop_credentials.rs"
+        ).read_text(encoding="utf-8")
         cls.app = (DESKTOP / "src" / "App.tsx").read_text(encoding="utf-8")
         cls.bundled_client = (
             DESKTOP / "src" / "api" / "bundledCoreClient.ts"
@@ -27,6 +33,9 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
         cls.core_verify = (DESKTOP / "scripts" / "verify-core-bundle.mjs").read_text(
             encoding="utf-8"
         )
+        cls.host_smoke = (
+            DESKTOP / "scripts" / "verify-desktop-host-smoke.ps1"
+        ).read_text(encoding="utf-8")
 
     def test_build_packages_the_same_service_base_core(self) -> None:
         scripts = self.package["scripts"]
@@ -42,6 +51,8 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
             DESKTOP / "scripts" / "bundle-core-runtime.mjs"
         ).read_text(encoding="utf-8")
         self.assertIn('writeFileSync(join(outputRoot, ".gitkeep")', bundle_script)
+        self.assertIn('"ci", "--omit=dev", "--ignore-scripts"', bundle_script)
+        self.assertIn('"node_modules", "imapflow"', bundle_script)
 
     def test_host_uses_authenticated_loopback_and_owns_exact_child(self) -> None:
         for expected in (
@@ -54,6 +65,30 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
         ):
             self.assertIn(expected, self.host)
         self.assertNotIn("taskkill", self.host.lower())
+
+    def test_host_injects_a_separate_scoped_credential_broker(self) -> None:
+        for expected in (
+            "DesktopCredentialBroker::start(&base_url, &api_token)",
+            '"EASY_EMAIL_DESKTOP_CREDENTIAL_BROKER_URL"',
+            '"EASY_EMAIL_DESKTOP_CREDENTIAL_BROKER_TOKEN"',
+            "credential_broker: Mutex<Option<DesktopCredentialBroker>>",
+            "self.stop_credential_broker()",
+        ):
+            self.assertIn(expected, self.host)
+        for expected in (
+            'TcpListener::bind(("127.0.0.1", 0))',
+            'const RESOLVE_PATH: &str = "/v1/credentials/resolve"',
+            'request.use_case != "imap-test"',
+            'credential.owner_account_id == request.account_id',
+            "Cache-Control: no-store",
+        ):
+            self.assertIn(expected, self.credential_broker)
+        self.assertIn('const DESKTOP_CREDENTIAL_REF_PREFIX: &str = "ref:v1:desktop/"', self.desktop_credentials)
+        self.assertIn('credential_kind != "imap_password"', self.desktop_credentials)
+        self.assertIn('auth_method != "password"', self.desktop_credentials)
+        self.assertIn("-OwningProcess $desktopProcess.Id", self.host_smoke)
+        self.assertIn("/v1/credentials/resolve", self.host_smoke)
+        self.assertIn("BROKER_UNAUTHENTICATED_STATUS=401", self.host_smoke)
 
     def test_packaged_core_verify_opens_fake_provider_behind_auth(self) -> None:
         for expected in (
@@ -86,6 +121,10 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
             'if (childClosed)',
             'if (credentialLeakDetected)',
             'server.closeAllConnections()',
+            'manifest.platform !== process.platform',
+            'manifest.architecture !== process.arch',
+            '!statSync(runtime).isFile()',
+            '!statSync(entry).isFile()',
         ):
             self.assertIn(expected, self.core_verify)
         self.assertIsNone(

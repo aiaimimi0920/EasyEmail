@@ -32,17 +32,28 @@ execFileSync(npmCommand, ["run", "build"], {
 });
 
 const serviceDist = join(serviceRoot, "dist");
-const yamlPackage = join(serviceRoot, "node_modules", "yaml");
+const servicePackageLock = join(serviceRoot, "package-lock.json");
 requirePath(serviceDist, "Compiled service/base output");
-requirePath(yamlPackage, "service/base runtime dependency (run npm ci in service/base)");
+requirePath(servicePackageLock, "service/base dependency lock");
 requirePath(process.execPath, "Node.js runtime");
 
 rmSync(outputRoot, { recursive: true, force: true });
-mkdirSync(join(outputRoot, "node_modules"), { recursive: true });
+mkdirSync(outputRoot, { recursive: true });
 writeFileSync(join(outputRoot, ".gitkeep"), "", "utf8");
 cpSync(serviceDist, join(outputRoot, "dist"), { recursive: true });
-cpSync(yamlPackage, join(outputRoot, "node_modules", "yaml"), { recursive: true });
 cpSync(join(serviceRoot, "package.json"), join(outputRoot, "package.json"));
+cpSync(servicePackageLock, join(outputRoot, "package-lock.json"));
+execFileSync(
+  npmCommand,
+  ["ci", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"],
+  {
+    cwd: outputRoot,
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  },
+);
+requirePath(join(outputRoot, "node_modules", "yaml"), "bundled yaml dependency");
+requirePath(join(outputRoot, "node_modules", "imapflow"), "bundled IMAP dependency");
 cpSync(process.execPath, join(outputRoot, process.platform === "win32" ? "node.exe" : "node"));
 
 const manifest = {

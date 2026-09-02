@@ -308,16 +308,22 @@ Newsletter 列表所需的账户与聚合消息来源仍归 M3/M4，因此 M2 �
 - 一个账户不能读取另一 account scope 的凭据或邮件；
 - 进程重启后凭据 ref 仍可解析，卸载/回滚不自动删除 OS vault 项。
 
-**当前进度（2026-09-02，第二个纵向切片）**：schema v4、账户
+**当前进度（2026-09-02，第三个纵向切片）**：schema v4、账户
 list/get/create/update/disable/delete、稳定 scope-bound pagination、CAS、软删除、
 固定 anonymous virtual 初始化、OpenAPI、TypeScript/desktop HTTP transport 已实现。
 `scope=normal` 保持旧 desktop 可见性语义，会包含 system scope 的 anonymous virtual，
 但隔离 Agent 账户。新写入只接受 `ref:v1:...` 不透明引用，并拒绝所有 raw secret
 字段；同一 backend/key 不能归属不同账户。账户现可持久化非敏感 IMAP profile，且
 `POST /mail/accounts/imap/test` 已建立只接收 account/ref ID 的 fail-closed 服务边界，
-覆盖账户归属、重新认证、远端拒绝与 capability unavailable 错误。默认 packaged core
-尚未注入 resolver/tester，因而会明确返回 503。OS vault 私有 broker、生产 IMAP adapter、
-旧数据导入、React/Tauri account command 切换仍未完成，因此 M3 总体不得标记为完成。
+覆盖账户归属、重新认证、远端拒绝与 capability unavailable 错误。Bundled desktop
+现提供只接受 `imap_password/password` 的窄 Tauri 写入命令，将 secret 存入 Windows
+Credential Manager 并只返回 `ref:v1:desktop/...`；Tauri 同时启动独立的随机
+`127.0.0.1` broker/token，将它仅注入精确 Node child。Broker 会通过 canonical account
+GET 复核 account/ref/backend/key/kind/auth 全字段归属后才读取 vault。默认 runtime
+已注入该 resolver 与生产 ImapFlow tester，后者强制 TLS/STARTTLS、关闭协议日志并限制
+连接与退出清理时长。Standalone CLI 当前仍未配置 server-side account secret resolver，
+所以这一路径继续 503 fail closed。旧数据导入、受控真实 IMAP 验收、React/Tauri
+account command 切换仍未完成，因此 M3 总体不得标记为完成。
 
 ### M4 - 聚合消息与验证记录
 

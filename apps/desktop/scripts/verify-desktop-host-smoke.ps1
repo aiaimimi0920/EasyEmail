@@ -26,6 +26,7 @@ try {
     $desktopProcess = Start-Process -FilePath $executable -PassThru -WindowStyle Hidden
     $deadline = (Get-Date).AddSeconds(25)
     $corePort = $null
+    $brokerPort = $null
 
     do {
         Start-Sleep -Milliseconds 250
@@ -43,8 +44,16 @@ try {
                 Select-Object -First 1
             if ($listener) {
                 $corePort = [int]$listener.LocalPort
-                break
             }
+        }
+        $brokerListener = Get-NetTCPConnection -OwningProcess $desktopProcess.Id -State Listen -ErrorAction SilentlyContinue |
+            Where-Object { $_.LocalAddress -eq '127.0.0.1' } |
+            Select-Object -First 1
+        if ($brokerListener) {
+            $brokerPort = [int]$brokerListener.LocalPort
+        }
+        if ($corePort -and $brokerPort) {
+            break
         }
     } while ((Get-Date) -lt $deadline)
 
@@ -54,6 +63,9 @@ try {
 
     if (-not $corePort) {
         throw 'EasyEmail core did not expose a loopback listener.'
+    }
+    if (-not $brokerPort) {
+        throw 'Desktop host did not expose its private loopback credential broker.'
     }
     $baseUrl = "http://127.0.0.1:$corePort"
 
@@ -72,6 +84,22 @@ try {
         throw "Unauthenticated catalog returned $unauthenticatedStatus instead of 401."
     }
 
+    $unauthenticatedBrokerStatus = $null
+    try {
+        Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$brokerPort/v1/credentials/resolve" `
+            -Method Post -ContentType 'application/json' -Body '{}' -TimeoutSec 5 | Out-Null
+        $unauthenticatedBrokerStatus = 200
+    } catch {
+        if ($_.Exception.Response) {
+            $unauthenticatedBrokerStatus = [int]$_.Exception.Response.StatusCode
+        } else {
+            throw
+        }
+    }
+    if ($unauthenticatedBrokerStatus -ne 401) {
+        throw "Unauthenticated credential broker returned $unauthenticatedBrokerStatus instead of 401."
+    }
+
     $database = Join-Path $dataDir 'easyemailam.sqlite'
     $stateFile = Join-Path $dataDir 'core/state/easy-email-state.json'
     if (-not (Test-Path -LiteralPath $database -PathType Leaf)) {
@@ -85,6 +113,8 @@ try {
     Write-Output "CORE_PID=$corePid"
     Write-Output 'CORE_LOOPBACK=True'
     Write-Output 'UNAUTHENTICATED_STATUS=401'
+    Write-Output 'BROKER_LOOPBACK=True'
+    Write-Output 'BROKER_UNAUTHENTICATED_STATUS=401'
     Write-Output "DESKTOP_DB_BYTES=$((Get-Item -LiteralPath $database).Length)"
     Write-Output "CORE_STATE_BYTES=$((Get-Item -LiteralPath $stateFile).Length)"
 

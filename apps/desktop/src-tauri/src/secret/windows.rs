@@ -31,6 +31,7 @@ mod platform {
         CredDeleteW, CredFree, CredReadW, CredWriteW, CREDENTIALW, CRED_PERSIST_LOCAL_MACHINE,
         CRED_TYPE_GENERIC,
     };
+    use zeroize::Zeroizing;
 
     use super::*;
 
@@ -39,7 +40,7 @@ mod platform {
     pub fn save_secret(key: &str, value: &str) -> Result<(), AppError> {
         let mut target = wide_target_name(key);
         let mut username = wide_string("EasyEmailAM");
-        let mut blob = value.as_bytes().to_vec();
+        let mut blob = Zeroizing::new(value.as_bytes().to_vec());
         let credential = CREDENTIALW {
             Type: CRED_TYPE_GENERIC,
             TargetName: target.as_mut_ptr(),
@@ -100,14 +101,17 @@ mod platform {
                 credential_ref.CredentialBlob,
                 credential_ref.CredentialBlobSize as usize,
             );
-            String::from_utf8(bytes.to_vec()).map_err(|error| {
-                credential_error(
-                    "windows_credential_decode_failed",
-                    "The stored password could not be decoded.",
-                    Some(error.to_string()),
-                    false,
-                )
-            })
+            let copied = Zeroizing::new(bytes.to_vec());
+            std::str::from_utf8(copied.as_slice())
+                .map(str::to_owned)
+                .map_err(|error| {
+                    credential_error(
+                        "windows_credential_decode_failed",
+                        "The stored password could not be decoded.",
+                        Some(error.to_string()),
+                        false,
+                    )
+                })
         };
         unsafe { CredFree(credential.cast()) };
 

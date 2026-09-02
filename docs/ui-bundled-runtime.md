@@ -36,17 +36,27 @@ The UI host must perform this sequence:
    running instance.
 2. Select an available loopback port without exposing the service on LAN
    interfaces.
-3. Generate or securely load a per-installation API token.
-4. Start the packaged `service/base` core with explicit configuration, state
+3. Generate the runtime API token and a separate per-start credential-broker
+   bearer token.
+4. Start a private credential broker on an ephemeral `127.0.0.1` port. It may
+   resolve only allowlisted, account-owned opaque references and must never expose
+   its token or resolved values to the renderer.
+5. Start the packaged `service/base` core with explicit configuration, state
    directory, loopback host, port, and API token.
-5. Wait until an authenticated `GET /mail/catalog` request succeeds before
+   Pass the broker URL/token only to that exact child process.
+6. Wait until an authenticated `GET /mail/catalog` request succeeds before
    enabling UI operations. The current core has no dedicated health route, so
    the catalog request is the readiness boundary.
-6. Send every UI operation through the same HTTP API documented in
+7. Send every UI operation through the same HTTP API documented in
    [`http-api.md`](./http-api.md).
-7. On normal UI exit, request graceful core shutdown and wait for process exit.
-8. If graceful shutdown times out, terminate only the child process created by
-   this UI instance. Never kill an unrelated standalone EasyEmail server.
+8. On normal UI exit, stop and reap only the child process created by this UI
+   instance. The current core has no graceful shutdown endpoint, so the host
+   terminates that exact child directly and waits for it to exit.
+9. After a graceful shutdown endpoint is added, request it first and terminate
+   the exact child only if that request times out. Never kill an unrelated
+   standalone EasyEmail server.
+10. Stop the credential broker after the child has exited; an unexpected child
+    exit also invalidates the broker token and stops the listener.
 
 The host must surface startup and runtime failures to the user. It must not
 silently fall back to copying provider logic into the UI.
@@ -82,6 +92,9 @@ host is an implementation choice. It must still be built from the same
   UI framework exposes a webview.
 - Ensure a second local process cannot cause the UI to connect to a fake service
   merely by occupying the preferred port.
+- Keep the credential-broker token separate from the core API token. It may exist
+  only in the host and exact child process memory/environment and must never be
+  returned by the Tauri runtime descriptor.
 
 ## Process and recovery behavior
 
@@ -104,21 +117,28 @@ must not continuously respawn the core or hide the original failure.
 
 The current Windows implementation:
 
-- packages the current Node runtime, compiled `service/base` assets, and its
-  runtime YAML dependency as private Tauri resources;
+- packages the current Node runtime, compiled `service/base` assets, and locked
+  production dependencies including YAML and ImapFlow as private Tauri resources;
 - starts exactly one child on an ephemeral `127.0.0.1` port with a generated
   bearer token and application-data persistence;
 - waits for authenticated `GET /mail/catalog` readiness and makes the React
   startup path repeat that semantic HTTP request;
 - rejects an unauthenticated catalog request and reaps the exact child when the
   UI closes normally;
+- stores new IMAP passwords through a narrow Tauri OS-vault command and returns
+  only versioned opaque refs;
+- starts a separate authenticated credential broker, injects it only into the
+  exact Node child, scope-checks each lookup through the canonical account API,
+  and stops it with that child;
+- installs the production ImapFlow connection tester in the packaged core;
 - provides a manual, read-only-permission candidate Action that builds unsigned
   MSI/NSIS installers plus a non-release manifest and SHA-256 checksums.
 
 This evidence does not yet prove graceful shutdown, a clean-machine installer,
-restart persistence, collision/crash recovery, or a real mailbox flow through
-the UI HTTP path. Most extended EasyEmailAM operations still use transitional
-Tauri commands.
+restart credential resolution, collision/crash recovery, a controlled real IMAP
+connection, or a real mailbox flow through the UI HTTP path. The React account
+screen and most extended EasyEmailAM operations still use transitional Tauri
+commands.
 
 ## HTTP usage
 

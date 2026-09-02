@@ -4,6 +4,8 @@ pub mod app_state;
 pub mod avatar;
 pub mod commands;
 pub mod core_runtime;
+pub mod credential_broker;
+pub mod desktop_credentials;
 pub mod diagnostics;
 pub mod domain;
 pub mod easyemail;
@@ -44,6 +46,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::health_check,
             core_runtime::desktop_core_runtime,
+            desktop_credentials::desktop_credential_store,
+            desktop_credentials::desktop_credential_delete,
             commands::platform_account_get_session,
             commands::platform_account_query_data,
             commands::settings_get_easyemail,

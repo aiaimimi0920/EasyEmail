@@ -45,6 +45,34 @@ standalone server cannot depend on a Tauri process.
    proxy, a strong API key, and network ACLs. Secrets are never accepted in URL
    query parameters.
 
+### Bundled desktop broker protocol
+
+- On every desktop-core start, the Tauri host binds a fresh broker listener to
+  an ephemeral `127.0.0.1` port and generates an independent high-entropy bearer
+  token. The URL and token are passed only to the exact Node child through its
+  environment; they are not part of the renderer runtime descriptor.
+- The Node resolver may call only `POST /v1/credentials/resolve`. Its JSON body
+  contains account ID, credential-ref ID, backend/key metadata, credential kind,
+  authentication method, and use case; it never contains a raw secret.
+- Before reading the vault, the broker calls the authenticated canonical
+  `GET /mail/accounts/{accountId}` route and requires an exact match for account
+  ownership and every credential-ref metadata field. The initial allowlist is
+  limited to `imap-test` with `imap_password/password`.
+- Successful replies contain the one resolved secret and use `Cache-Control:
+  no-store`. The broker has no list operation, rejects ambiguous HTTP message
+  framing, applies three-second I/O/scope timeouts, and clears temporary secret
+  buffers on a best-effort basis after the response is written.
+- The broker token is rotated on each desktop-core start. It is a bounded-lived
+  bearer capability, not a replay-proof protocol; loopback binding, token
+  confidentiality, exact-ref authorization, and shutdown with the child are all
+  required together.
+
+The production account connection tester is implemented in `service/base` with
+ImapFlow. It resolves the secret only at operation time, requires TLS or forced
+STARTTLS with TLS 1.2 or newer, disables protocol logging and automatic IDLE, and
+bounds connect, socket, greeting, and logout cleanup time. Standalone runtimes
+use the same resolver/tester interfaces but do not start the desktop broker.
+
 ## Rejected Alternatives
 
 ### Store encrypted credential blobs in SQLite
@@ -65,7 +93,8 @@ resolver contract portable.
 
 ## Migration And Rollback
 
-- M3 introduces the resolver/broker interface and fake-vault contract tests.
+- M3 introduces the resolver/broker interface, production ImapFlow connection
+  tester, and fake-vault/broker contract tests.
 - During migration, reads accept existing opaque keys; writes use the new
   versioned reference format.
 - M8 imports only reference metadata and verifies that each OS-vault entry
@@ -83,4 +112,3 @@ resolver contract portable.
 - Restart resolves valid references; missing references fail closed.
 - Fake-vault tests run on every platform; Windows Credential Manager integration
   runs in the protected Windows validation environment.
-
