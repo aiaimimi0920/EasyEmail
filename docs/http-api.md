@@ -186,7 +186,7 @@ messages. A stale version or email collision returns 409.
 
 ## Persistent account metadata
 
-Account metadata is stored in schema v3 of `easy-email-relational.sqlite3`.
+Account metadata is stored in schema v4 of `easy-email-relational.sqlite3`.
 `GET /mail/accounts?scope=normal&limit=50&cursor=<opaque>` preserves the legacy
 normal-account view: it includes normal accounts plus the system-managed
 `acct_anonymous_virtual` account, while Agent accounts remain isolated. Cursors
@@ -207,6 +207,12 @@ Content-Type: application/json
   "kind": "normal_long_lived",
   "displayName": "Work Mail",
   "primaryAddress": "work@example.com",
+  "imap": {
+    "host": "imap.example.com",
+    "port": 993,
+    "security": "tls",
+    "username": "work@example.com"
+  },
   "credentialRefs": [{
     "secretBackend": "windows_credential_manager",
     "secretKey": "ref:v1:account/work-imap",
@@ -218,9 +224,18 @@ Content-Type: application/json
 
 `credentialRefs` contain metadata only. A new write must use an opaque
 `ref:v1:...` key; raw passwords, tokens, authorization codes, and secret blobs
-are rejected. The current metadata slice records new refs as `missing` until the
-desktop vault broker/resolver is implemented, so it does not yet test IMAP/SMTP
-credentials or switch the React account screen.
+are rejected. `imap` stores only non-secret connection metadata. `security:
+"ssl"` is accepted on input and canonicalized to `"tls"`.
+
+Test a stored profile and account-owned reference with `POST
+/mail/accounts/imap/test` and body `{ "accountId": "...", "credentialRefId":
+"..." }`. This request also rejects all raw-secret fields. A missing or invalid
+reference returns a machine-readable 409 reauthentication error, rejected remote
+credentials return 422, and an unavailable resolver, tester, or remote IMAP
+service returns 503. The packaged core does not yet install the private desktop
+vault resolver or a production IMAP adapter, so it deliberately returns 503
+instead of reading a secret through an unsafe fallback. The React account screen
+has not yet switched to this route.
 
 Read with `GET /mail/accounts/{accountId}`. Metadata updates use
 `PATCH /mail/accounts/{accountId}` with `expectedVersion`; disable uses

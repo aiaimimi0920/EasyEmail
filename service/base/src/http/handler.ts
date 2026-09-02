@@ -34,6 +34,8 @@ import type {
   OpenMailboxHttpResponse,
   SendMailboxMessageHttpRequest,
   SendMailboxMessageHttpResponse,
+  TestMailAccountImapHttpRequest,
+  TestMailAccountImapHttpResponse,
   UpdateMailboxSessionHttpRequest,
   UpdateMailboxSessionHttpResponse,
   RecoverMailboxByEmailHttpRequest,
@@ -290,6 +292,12 @@ export class EasyEmailHttpHandler {
     request: DeleteMailAccountHttpRequest,
   ): Promise<DeleteMailAccountHttpResponse> {
     return { deleted: await this.requireAccounts().deleteAccount(accountId, request) };
+  }
+
+  public async testMailAccountImap(
+    request: TestMailAccountImapHttpRequest,
+  ): Promise<TestMailAccountImapHttpResponse> {
+    return { result: await this.requireAccounts().testImapConnection(request) };
   }
 
   public async listMailTaxonomy(

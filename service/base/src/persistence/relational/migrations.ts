@@ -118,6 +118,48 @@ CREATE INDEX idx_mail_account_credential_refs_owner
 ON mail_account_credential_refs(owner_account_id, created_at, id);
 `,
   },
+  {
+    version: 4,
+    name: "mail-account-imap-profile",
+    sql: `
+ALTER TABLE mail_accounts ADD COLUMN imap_host TEXT CHECK(imap_host IS NULL OR (length(trim(imap_host)) >= 1 AND length(imap_host) <= 253));
+ALTER TABLE mail_accounts ADD COLUMN imap_port INTEGER CHECK(imap_port IS NULL OR (imap_port >= 1 AND imap_port <= 65535));
+ALTER TABLE mail_accounts ADD COLUMN imap_security TEXT CHECK(imap_security IS NULL OR imap_security IN ('tls', 'starttls'));
+ALTER TABLE mail_accounts ADD COLUMN imap_username TEXT CHECK(imap_username IS NULL OR (length(trim(imap_username)) >= 1 AND length(imap_username) <= 320));
+
+CREATE TRIGGER validate_mail_account_imap_profile_insert
+BEFORE INSERT ON mail_accounts
+WHEN NOT (
+  (NEW.imap_host IS NULL AND NEW.imap_port IS NULL AND NEW.imap_security IS NULL AND NEW.imap_username IS NULL)
+  OR (
+    NEW.kind != 'anonymous_virtual'
+    AND NEW.imap_host IS NOT NULL
+    AND NEW.imap_port IS NOT NULL
+    AND NEW.imap_security IS NOT NULL
+    AND NEW.imap_username IS NOT NULL
+  )
+)
+BEGIN
+  SELECT RAISE(ABORT, 'INVALID_MAIL_ACCOUNT_IMAP_PROFILE');
+END;
+
+CREATE TRIGGER validate_mail_account_imap_profile_update
+BEFORE UPDATE OF kind, imap_host, imap_port, imap_security, imap_username ON mail_accounts
+WHEN NOT (
+  (NEW.imap_host IS NULL AND NEW.imap_port IS NULL AND NEW.imap_security IS NULL AND NEW.imap_username IS NULL)
+  OR (
+    NEW.kind != 'anonymous_virtual'
+    AND NEW.imap_host IS NOT NULL
+    AND NEW.imap_port IS NOT NULL
+    AND NEW.imap_security IS NOT NULL
+    AND NEW.imap_username IS NOT NULL
+  )
+)
+BEGIN
+  SELECT RAISE(ABORT, 'INVALID_MAIL_ACCOUNT_IMAP_PROFILE');
+END;
+`,
+  },
 ] as const;
 
 export const EASY_EMAIL_RELATIONAL_SCHEMA_VERSION = RELATIONAL_MIGRATIONS.at(-1)?.version ?? 0;

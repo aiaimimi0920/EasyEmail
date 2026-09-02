@@ -6,10 +6,11 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
 import { SqliteRelationalDatabase } from "../../src/persistence/relational/database.js";
+import { RELATIONAL_MIGRATIONS } from "../../src/persistence/relational/migrations.js";
 import { MailAccountService } from "../../src/service/accounts.js";
 
 describe("mail account relational persistence", () => {
-  it("creates schema v3, persists opaque refs, paginates, disables, and reads after restart", async () => {
+  it("creates schema v4, persists IMAP metadata and opaque refs, paginates, disables, and reads after restart", async () => {
     const root = await mkdtemp(join(tmpdir(), "easy-email-accounts-"));
     const databasePath = join(root, "easy-email-relational.sqlite3");
     try {
@@ -22,6 +23,12 @@ describe("mail account relational persistence", () => {
         kind: "normal_long_lived",
         displayName: "Work",
         primaryAddress: "work@example.com",
+        imap: {
+          host: "imap.example.com",
+          port: 993,
+          security: "tls",
+          username: "work@example.com",
+        },
         credentialRefs: [{
           secretBackend: "windows_credential_manager",
           secretKey: "ref:v1:work-imap",
@@ -57,12 +64,18 @@ describe("mail account relational persistence", () => {
       const inspector = new DatabaseSync(databasePath);
       try {
         expect(inspector.prepare("SELECT MAX(version) AS version FROM schema_migrations").get())
-          .toEqual({ version: 3 });
+          .toEqual({ version: 4 });
         expect(inspector.prepare("SELECT COUNT(*) AS count FROM mail_account_credential_refs").get())
           .toEqual({ count: 1 });
         expect(inspector.prepare(
           "SELECT COUNT(*) AS count FROM mail_accounts WHERE kind = 'anonymous_virtual' AND deleted_at IS NULL",
         ).get()).toEqual({ count: 1 });
+        expect(() => inspector.prepare(
+          "UPDATE mail_accounts SET imap_host = 'partial.example.com' WHERE id = 'acct_anonymous_virtual'",
+        ).run()).toThrow();
+        expect(() => inspector.prepare(
+          "UPDATE mail_accounts SET imap_host = '' WHERE id = ?",
+        ).run(first.id)).toThrow();
       } finally {
         inspector.close();
       }
@@ -72,6 +85,13 @@ describe("mail account relational persistence", () => {
         const restarted = new MailAccountService(restartedDatabase);
         await expect(restarted.getAccount(first.id)).resolves.toMatchObject({
           id: first.id,
+          imap: {
+            protocol: "imap",
+            host: "imap.example.com",
+            port: 993,
+            security: "tls",
+            username: "work@example.com",
+          },
           credentialRefs: [{ secretKey: "ref:v1:work-imap" }],
         });
         await expect(restarted.getAccount(second.id)).resolves.toMatchObject({ status: "disabled" });
@@ -123,6 +143,53 @@ describe("mail account relational persistence", () => {
       })).rejects.toMatchObject({ code: "ACCOUNT_CREDENTIAL_REF_CONFLICT" });
     } finally {
       database.close();
+    }
+  });
+
+  it("upgrades an existing schema v3 account without inventing an IMAP profile", async () => {
+    const root = await mkdtemp(join(tmpdir(), "easy-email-accounts-v3-"));
+    const databasePath = join(root, "easy-email-relational.sqlite3");
+    try {
+      const versionThree = new SqliteRelationalDatabase({
+        databasePath,
+        migrations: RELATIONAL_MIGRATIONS.slice(0, 3),
+      });
+      versionThree.close();
+      const writer = new DatabaseSync(databasePath);
+      try {
+        writer.prepare(`
+          INSERT INTO mail_accounts (
+            id, scope, kind, display_name, primary_address, provider_label,
+            status, auth_status, receive_status, send_status,
+            listed_in_all_accounts, version, created_at, updated_at, deleted_at
+          ) VALUES (?, 'normal', 'normal_long_lived', ?, ?, NULL,
+                    'configuring', 'missing', 'disabled', 'disabled',
+                    1, 1, ?, ?, NULL)
+        `).run(
+          "acct_v3_existing",
+          "Existing v3 account",
+          "existing-v3@example.com",
+          "2026-09-02T00:00:00.000Z",
+          "2026-09-02T00:00:00.000Z",
+        );
+      } finally {
+        writer.close();
+      }
+
+      const upgraded = new SqliteRelationalDatabase({ databasePath });
+      try {
+        const account = await upgraded.getMailAccount("acct_v3_existing");
+        expect(account).toMatchObject({
+          id: "acct_v3_existing",
+          primaryAddress: "existing-v3@example.com",
+        });
+        expect(account?.imap).toBeUndefined();
+        expect(upgraded.backupPath && existsSync(upgraded.backupPath)).toBe(true);
+      } finally {
+        upgraded.close();
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
     }
   });
 });

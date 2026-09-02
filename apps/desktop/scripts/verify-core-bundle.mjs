@@ -253,6 +253,12 @@ try {
       kind: "normal_long_lived",
       displayName: "Packaged core account",
       primaryAddress: "packaged-core-account@example.test",
+      imap: {
+        host: "imap.example.test",
+        port: 993,
+        security: "tls",
+        username: "packaged-core-account@example.test",
+      },
       credentialRefs: [{
         secretBackend: "fake-vault",
         secretKey: "ref:v1:packaged-core/imap",
@@ -267,6 +273,8 @@ try {
   const accountPayload = await accountCreate.json();
   if (
     accountPayload?.account?.displayName !== "Packaged core account"
+    || accountPayload?.account?.imap?.protocol !== "imap"
+    || accountPayload?.account?.imap?.host !== "imap.example.test"
     || accountPayload?.account?.credentialRefs?.[0]?.secretKey !== "ref:v1:packaged-core/imap"
     || accountPayload?.account?.credentialRefs?.[0]?.status !== "missing"
   ) {
@@ -282,6 +290,25 @@ try {
     || !accountsPayload?.accounts?.some((account) => account.id === accountPayload.account.id)
   ) {
     throw new Error("Authenticated packaged-core account list did not preserve normal visibility semantics.");
+  }
+  const imapTest = await fetch(`http://127.0.0.1:${port}/mail/accounts/imap/test`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      accountId: accountPayload.account.id,
+      credentialRefId: accountPayload.account.credentialRefs[0].id,
+    }),
+  });
+  const imapTestPayload = await imapTest.json();
+  if (
+    imapTest.status !== 503
+    || imapTestPayload?.code !== "ACCOUNT_CREDENTIAL_UNAVAILABLE"
+    || JSON.stringify(imapTestPayload).includes(fakeAccountSecret)
+  ) {
+    throw new Error("Packaged core IMAP test did not fail closed without a credential resolver.");
   }
   const taxonomyCreate = await fetch(`http://127.0.0.1:${port}/mail/taxonomy/folder/packaged_core`, {
     method: "PUT",
@@ -385,5 +412,5 @@ if (credentialLeakDetected) {
   throw new Error("Bundled core output leaked a smoke credential.");
 }
 console.log(
-  "Bundled EasyEmail core authenticated readiness, contact/taxonomy/account persistence, secret rejection, unauthenticated 401, and fake-provider mailbox open passed.",
+  "Bundled EasyEmail core authenticated readiness, contact/taxonomy/account persistence, secret rejection, fail-closed IMAP credential resolution, unauthenticated 401, and fake-provider mailbox open passed.",
 );

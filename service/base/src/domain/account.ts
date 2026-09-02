@@ -8,6 +8,23 @@ export type MailAccountKind =
 
 export type MailAccountCreatableKind = "normal_long_lived" | "agent_owned";
 
+export type MailAccountImapSecurity = "tls" | "starttls";
+
+export interface MailAccountImapProfile {
+  protocol: "imap";
+  host: string;
+  port: number;
+  security: MailAccountImapSecurity;
+  username: string;
+}
+
+export interface MailAccountImapProfileInput {
+  host: string;
+  port: number;
+  security: MailAccountImapSecurity | "ssl";
+  username: string;
+}
+
 export type MailAccountStatus =
   | "ready"
   | "configuring"
@@ -73,6 +90,7 @@ export interface MailAccount {
   displayName: string;
   primaryAddress?: string;
   providerLabel?: string;
+  imap?: MailAccountImapProfile;
   status: MailAccountStatus;
   authStatus: MailAccountAuthStatus;
   receiveStatus: MailAccountReceiveStatus;
@@ -101,6 +119,7 @@ export interface MailAccountCreateInput {
   displayName: string;
   primaryAddress: string;
   providerLabel?: string | null;
+  imap?: MailAccountImapProfileInput;
   listedInAllAccounts?: boolean;
   credentialRefs?: MailCredentialRefInput[];
 }
@@ -109,6 +128,7 @@ export interface MailAccountUpdateInput {
   expectedVersion: number;
   displayName?: string;
   providerLabel?: string | null;
+  imap?: MailAccountImapProfileInput | null;
   listedInAllAccounts?: boolean;
 }
 
@@ -140,6 +160,7 @@ export interface MailAccountRepositoryCreateInput {
   displayName: string;
   primaryAddress?: string;
   providerLabel?: string;
+  imap?: MailAccountImapProfile;
   status: MailAccountStatus;
   authStatus: MailAccountAuthStatus;
   receiveStatus: MailAccountReceiveStatus;
@@ -154,6 +175,7 @@ export interface MailAccountRepositoryUpdateInput {
   expectedVersion: number;
   displayName: string;
   providerLabel?: string;
+  imap?: MailAccountImapProfile;
   listedInAllAccounts: boolean;
   now: string;
 }

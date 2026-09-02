@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "EasyEmail Local Server HTTP API",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Authoritative HTTP contract for service/base. Any HTTP-capable program may call this API directly; a published client SDK is not required."
   },
   "servers": [
@@ -287,6 +287,23 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "409": { "$ref": "#/components/responses/Conflict" },
           "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/accounts/imap/test": {
+      "post": {
+        "operationId": "testMailAccountImap",
+        "summary": "Test an account IMAP profile through an opaque credential reference",
+        "description": "The request never accepts raw credentials. The local runtime resolves the account-owned credential reference through its private credential capability and fails closed when that capability is unavailable.",
+        "requestBody": { "$ref": "#/components/requestBodies/AccountImapTestRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/TestMailAccountImapResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
         }
       }
     },
@@ -835,6 +852,14 @@
           }
         }
       },
+      "AccountImapTestRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailAccountImapTestInput" }
+          }
+        }
+      },
       "AccountDisableRequest": {
         "required": true,
         "content": {
@@ -973,6 +998,14 @@
           }
         }
       },
+      "TestMailAccountImapResponse": {
+        "description": "Authenticated IMAP connectivity result",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/TestMailAccountImapResponse" }
+          }
+        }
+      },
       "DeleteAccountResponse": {
         "description": "Soft-deleted account identity",
         "content": {
@@ -1087,6 +1120,22 @@
       },
       "Conflict": {
         "description": "Unique or version compare-and-swap conflict",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "UnprocessableEntity": {
+        "description": "The request is valid, but the referenced credential was rejected by the remote service",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "A required local capability or remote service is unavailable",
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/Error" }
@@ -1233,6 +1282,29 @@
         "description": "Only opaque reference metadata is accepted; password, token, authorization code, and raw secret fields are forbidden.",
         "additionalProperties": false
       },
+      "MailAccountImapProfile": {
+        "type": "object",
+        "required": ["protocol", "host", "port", "security", "username"],
+        "properties": {
+          "protocol": { "type": "string", "const": "imap" },
+          "host": { "type": "string", "minLength": 1, "maxLength": 253 },
+          "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+          "security": { "type": "string", "enum": ["tls", "starttls"] },
+          "username": { "type": "string", "minLength": 1, "maxLength": 320 }
+        },
+        "additionalProperties": false
+      },
+      "MailAccountImapProfileInput": {
+        "type": "object",
+        "required": ["host", "port", "security", "username"],
+        "properties": {
+          "host": { "type": "string", "minLength": 1, "maxLength": 253 },
+          "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+          "security": { "type": "string", "enum": ["tls", "ssl", "starttls"] },
+          "username": { "type": "string", "minLength": 1, "maxLength": 320 }
+        },
+        "additionalProperties": false
+      },
       "MailAccount": {
         "type": "object",
         "required": ["id", "scope", "kind", "displayName", "status", "authStatus", "receiveStatus", "sendStatus", "listedInAllAccounts", "version", "createdAt", "updatedAt", "credentialRefs"],
@@ -1243,6 +1315,7 @@
           "displayName": { "type": "string", "minLength": 1, "maxLength": 128 },
           "primaryAddress": { "type": "string", "format": "email" },
           "providerLabel": { "type": "string", "maxLength": 128 },
+          "imap": { "$ref": "#/components/schemas/MailAccountImapProfile" },
           "status": { "type": "string", "enum": ["ready", "configuring", "syncing", "degraded", "disabled", "history_only", "deleted"] },
           "authStatus": { "type": "string", "enum": ["not_required", "valid", "expired", "invalid", "missing", "refreshing", "reauthorization_required"] },
           "receiveStatus": { "type": "string", "enum": ["enabled", "syncing", "backoff", "auth_failed", "provider_unavailable", "expired", "disabled", "unsupported"] },
@@ -1267,6 +1340,7 @@
           "displayName": { "type": "string", "minLength": 1, "maxLength": 128 },
           "primaryAddress": { "type": "string", "format": "email" },
           "providerLabel": { "type": ["string", "null"], "maxLength": 128 },
+          "imap": { "$ref": "#/components/schemas/MailAccountImapProfileInput" },
           "listedInAllAccounts": { "type": "boolean" },
           "credentialRefs": {
             "type": "array",
@@ -1283,11 +1357,18 @@
           "expectedVersion": { "type": "integer", "minimum": 1 },
           "displayName": { "type": "string", "minLength": 1, "maxLength": 128 },
           "providerLabel": { "type": ["string", "null"], "maxLength": 128 },
+          "imap": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/MailAccountImapProfileInput" },
+              { "type": "null" }
+            ]
+          },
           "listedInAllAccounts": { "type": "boolean" }
         },
         "anyOf": [
           { "required": ["displayName"] },
           { "required": ["providerLabel"] },
+          { "required": ["imap"] },
           { "required": ["listedInAllAccounts"] }
         ],
         "additionalProperties": false
@@ -1297,6 +1378,25 @@
         "required": ["expectedVersion"],
         "properties": {
           "expectedVersion": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": false
+      },
+      "MailAccountImapTestInput": {
+        "type": "object",
+        "required": ["accountId", "credentialRefId"],
+        "properties": {
+          "accountId": { "type": "string", "minLength": 1 },
+          "credentialRefId": { "type": "string", "minLength": 1 }
+        },
+        "description": "Only account and opaque credential-reference identifiers are accepted. Raw passwords and other secret material are forbidden.",
+        "additionalProperties": false
+      },
+      "MailImapConnectionTestResult": {
+        "type": "object",
+        "required": ["authenticated", "capabilitySummary"],
+        "properties": {
+          "authenticated": { "type": "boolean", "const": true },
+          "capabilitySummary": { "type": "string" }
         },
         "additionalProperties": false
       },
@@ -1317,6 +1417,14 @@
         "required": ["account"],
         "properties": {
           "account": { "$ref": "#/components/schemas/MailAccount" }
+        },
+        "additionalProperties": false
+      },
+      "TestMailAccountImapResponse": {
+        "type": "object",
+        "required": ["result"],
+        "properties": {
+          "result": { "$ref": "#/components/schemas/MailImapConnectionTestResult" }
         },
         "additionalProperties": false
       },

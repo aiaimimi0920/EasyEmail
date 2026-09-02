@@ -7,6 +7,10 @@ import type {
   MailAccountUpdateInput,
 } from "../domain/account.js";
 import type {
+  MailAccountImapTestRequest,
+  MailImapConnectionTestResult,
+} from "../service/account-connectivity.js";
+import type {
   Contact,
   ContactCreateInput,
   ContactDeleteInput,
@@ -109,6 +113,7 @@ export const EASY_EMAIL_HTTP_ROUTES = {
     return `/mail/taxonomy/${encodeURIComponent(itemId)}`;
   },
   accounts: "/mail/accounts",
+  testAccountImap: "/mail/accounts/imap/test",
   account(accountId: string): string {
     return `/mail/accounts/${encodeURIComponent(accountId)}`;
   },
@@ -226,6 +231,11 @@ export interface DisableMailAccountHttpResponse {
 export type DeleteMailAccountHttpRequest = MailAccountDeleteInput;
 export interface DeleteMailAccountHttpResponse {
   deleted: { id: string };
+}
+
+export type TestMailAccountImapHttpRequest = MailAccountImapTestRequest;
+export interface TestMailAccountImapHttpResponse {
+  result: MailImapConnectionTestResult;
 }
 
 export type ListMailTaxonomyHttpRequest = MailTaxonomyListQuery;

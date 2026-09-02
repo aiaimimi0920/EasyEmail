@@ -4,6 +4,7 @@ import type {
   MailAccount,
   MailAccountCreateInput,
   MailAccountDeleteInput,
+  MailAccountImapProfile,
   MailAccountKind,
   MailAccountAuthStatus,
   MailAccountListPosition,
@@ -16,6 +17,11 @@ import type {
   MailAccountSendStatus,
   MailAccountUpdateInput,
 } from "../domain/account.js";
+import type {
+  MailAccountConnectivityDependencies,
+  MailAccountImapTestRequest,
+  MailImapConnectionTestResult,
+} from "./account-connectivity.js";
 
 const DEFAULT_ACCOUNT_PAGE_SIZE = 50;
 const MAX_ACCOUNT_PAGE_SIZE = 100;
@@ -36,6 +42,7 @@ const ACCOUNT_CREATE_FIELDS = new Set([
   "displayName",
   "primaryAddress",
   "providerLabel",
+  "imap",
   "listedInAllAccounts",
   "credentialRefs",
 ]);
@@ -43,6 +50,7 @@ const ACCOUNT_UPDATE_FIELDS = new Set([
   "expectedVersion",
   "displayName",
   "providerLabel",
+  "imap",
   "listedInAllAccounts",
 ]);
 const ACCOUNT_DELETE_FIELDS = new Set(["expectedVersion"]);
@@ -52,6 +60,8 @@ const CREDENTIAL_REF_FIELDS = new Set([
   "credentialKind",
   "authMethod",
 ]);
+const IMAP_PROFILE_FIELDS = new Set(["host", "port", "security", "username"]);
+const IMAP_TEST_FIELDS = new Set(["accountId", "credentialRefId"]);
 
 function asciiLower(value: string): string {
   return value.replace(/[A-Z]/g, (character) => character.toLowerCase());
@@ -126,6 +136,37 @@ function normalizeOptionalBoolean(value: unknown, field: string): boolean | unde
     throw new EasyEmailError("INVALID_ACCOUNT", `${field} must be a boolean.`);
   }
   return value;
+}
+
+function normalizeImapProfile(value: unknown, allowNull = false): MailAccountImapProfile | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) {
+    if (allowNull) return undefined;
+    throw new EasyEmailError("INVALID_ACCOUNT", "imap must be an object.");
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new EasyEmailError("INVALID_ACCOUNT", "imap must be an object or null.");
+  }
+  assertNoRawSecretFields(value);
+  const record = value as Record<string, unknown>;
+  assertOnlyKnownFields(record, IMAP_PROFILE_FIELDS, "imap");
+  const host = typeof record.host === "string" ? asciiLower(record.host.trim()) : "";
+  if (!host || host.length > 253 || /[\s\u0000-\u001f\u007f]/u.test(host)) {
+    throw new EasyEmailError("INVALID_ACCOUNT", "imap.host must be a valid non-empty host name.");
+  }
+  if (typeof record.port !== "number" || !Number.isSafeInteger(record.port) || record.port < 1 || record.port > 65535) {
+    throw new EasyEmailError("INVALID_ACCOUNT", "imap.port must be an integer from 1 to 65535.");
+  }
+  const rawSecurity = typeof record.security === "string" ? asciiLower(record.security.trim()) : "";
+  const security = rawSecurity === "ssl" ? "tls" : rawSecurity;
+  if (security !== "tls" && security !== "starttls") {
+    throw new EasyEmailError("INVALID_ACCOUNT", "imap.security must be tls, ssl, or starttls.");
+  }
+  const username = typeof record.username === "string" ? record.username.trim() : "";
+  if (!username || username.length > 320 || /[\u0000-\u001f\u007f]/u.test(username)) {
+    throw new EasyEmailError("INVALID_ACCOUNT", "imap.username must contain from 1 to 320 safe characters.");
+  }
+  return { protocol: "imap", host, port: record.port, security, username };
 }
 
 function assertNoRawSecretFields(value: unknown, seen = new Set<object>()): void {
@@ -287,6 +328,7 @@ export class MailAccountService {
   public constructor(
     private readonly repository: MailAccountRepository,
     private readonly now: () => Date = () => new Date(),
+    private readonly connectivity: MailAccountConnectivityDependencies = {},
   ) {}
 
   public async listAccounts(query: MailAccountListQuery = {}): Promise<MailAccountListResult> {
@@ -348,6 +390,7 @@ export class MailAccountService {
         displayName: normalizeDisplayName(input.displayName),
         primaryAddress,
         providerLabel: normalizeOptionalLabel(input.providerLabel, "providerLabel"),
+        imap: normalizeImapProfile(input.imap),
         status: state.status,
         authStatus: state.authStatus,
         receiveStatus: state.receiveStatus,
@@ -391,6 +434,7 @@ export class MailAccountService {
     if (
       input.displayName === undefined
       && input.providerLabel === undefined
+      && input.imap === undefined
       && input.listedInAllAccounts === undefined
     ) {
       throw new EasyEmailError("INVALID_ACCOUNT", "At least one account field must be updated.");
@@ -404,6 +448,7 @@ export class MailAccountService {
       providerLabel: input.providerLabel === undefined
         ? existing.providerLabel
         : normalizeOptionalLabel(input.providerLabel, "providerLabel"),
+      imap: input.imap === undefined ? existing.imap : normalizeImapProfile(input.imap, true),
       listedInAllAccounts: normalizeOptionalBoolean(
         input.listedInAllAccounts,
         "listedInAllAccounts",
@@ -455,11 +500,100 @@ export class MailAccountService {
     }
     return { id: existing.id };
   }
+
+  public async testImapConnection(
+    input: MailAccountImapTestRequest,
+  ): Promise<MailImapConnectionTestResult> {
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+      throw new EasyEmailError("INVALID_ACCOUNT", "IMAP test request must be an object.");
+    }
+    assertNoRawSecretFields(input);
+    assertOnlyKnownFields(input as unknown as Record<string, unknown>, IMAP_TEST_FIELDS, "IMAP test");
+    const accountId = typeof input.accountId === "string" ? input.accountId.trim() : "";
+    const credentialRefId = typeof input.credentialRefId === "string" ? input.credentialRefId.trim() : "";
+    if (!accountId || accountId.length > 256 || !credentialRefId || credentialRefId.length > 256) {
+      throw new EasyEmailError("INVALID_ACCOUNT", "accountId and credentialRefId must be non-empty strings.");
+    }
+    const account = await this.getAccount(accountId);
+    if (account.kind === "anonymous_virtual" || account.status === "disabled") {
+      throw new EasyEmailError("ACCOUNT_IMAP_TEST_UNSUPPORTED", "This account cannot test IMAP connectivity.");
+    }
+    if (!account.imap) {
+      throw new EasyEmailError("ACCOUNT_IMAP_CONFIG_REQUIRED", "The account has no IMAP connection profile.");
+    }
+    const credentialRef = account.credentialRefs.find((item) => item.id === credentialRefId);
+    if (
+      !credentialRef
+      || credentialRef.ownerAccountId !== account.id
+      || credentialRef.credentialKind !== "imap_password"
+      || credentialRef.authMethod !== "password"
+      || credentialRef.status === "disabled"
+      || credentialRef.status === "invalid"
+    ) {
+      throw new EasyEmailError(
+        "ACCOUNT_REAUTHENTICATION_REQUIRED",
+        "The account IMAP credential must be provided again.",
+      );
+    }
+    const { credentialResolver, imapTester } = this.connectivity;
+    if (!credentialResolver) {
+      throw new EasyEmailError(
+        "ACCOUNT_CREDENTIAL_UNAVAILABLE",
+        "The credential resolver is unavailable in this runtime.",
+      );
+    }
+    if (!imapTester) {
+      throw new EasyEmailError("ACCOUNT_IMAP_TEST_UNAVAILABLE", "IMAP testing is unavailable in this runtime.");
+    }
+    let resolution;
+    try {
+      resolution = await credentialResolver.resolveCredential({
+        account,
+        credentialRef,
+        useCase: "imap-test",
+      });
+    } catch {
+      throw new EasyEmailError(
+        "ACCOUNT_CREDENTIAL_UNAVAILABLE",
+        "The credential resolver could not be reached.",
+      );
+    }
+    if (resolution.status === "missing") {
+      throw new EasyEmailError(
+        "ACCOUNT_REAUTHENTICATION_REQUIRED",
+        "The account IMAP credential must be provided again.",
+      );
+    }
+    if (resolution.status !== "resolved" || typeof resolution.secret !== "string" || !resolution.secret) {
+      throw new EasyEmailError("ACCOUNT_CREDENTIAL_UNAVAILABLE", "The account credential is unavailable.");
+    }
+    try {
+      const result = await imapTester.testConnection(account.imap, resolution.secret);
+      if (result.authenticated !== true || typeof result.capabilitySummary !== "string") {
+        throw new Error("invalid IMAP test result");
+      }
+      const capabilitySummary = result.capabilitySummary
+        .slice(0, 4096)
+        .split(resolution.secret).join("[redacted]")
+        .replace(/[\u0000-\u001f\u007f]+/gu, " ")
+        .slice(0, 1024);
+      return {
+        authenticated: true,
+        capabilitySummary,
+      };
+    } catch (error) {
+      if (error instanceof EasyEmailError && error.code === "IMAP_AUTH_FAILED") {
+        throw error;
+      }
+      throw new EasyEmailError("ACCOUNT_IMAP_UNAVAILABLE", "The IMAP server could not be reached.");
+    }
+  }
 }
 
 export function createMailAccountService(
   repository: MailAccountRepository,
   now?: () => Date,
+  connectivity?: MailAccountConnectivityDependencies,
 ): MailAccountService {
-  return new MailAccountService(repository, now);
+  return new MailAccountService(repository, now, connectivity);
 }

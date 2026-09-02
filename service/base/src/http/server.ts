@@ -237,6 +237,9 @@ export function createEasyEmailHttpServer(
           "ACCOUNT_ADDRESS_CONFLICT",
           "ACCOUNT_CREDENTIAL_REF_CONFLICT",
           "ACCOUNT_SYSTEM_MANAGED",
+          "ACCOUNT_REAUTHENTICATION_REQUIRED",
+          "ACCOUNT_IMAP_CONFIG_REQUIRED",
+          "ACCOUNT_IMAP_TEST_UNSUPPORTED",
         ].includes(error.code)
       ) {
         writeEasyEmailError(response, 409, error);
@@ -258,6 +261,23 @@ export function createEasyEmailHttpServer(
 
       if (error instanceof EasyEmailError && error.code === "ACCOUNTS_PERSISTENCE_UNAVAILABLE") {
         writeEasyEmailError(response, 503, error);
+        return;
+      }
+
+      if (
+        error instanceof EasyEmailError
+        && [
+          "ACCOUNT_CREDENTIAL_UNAVAILABLE",
+          "ACCOUNT_IMAP_TEST_UNAVAILABLE",
+          "ACCOUNT_IMAP_UNAVAILABLE",
+        ].includes(error.code)
+      ) {
+        writeEasyEmailError(response, 503, error);
+        return;
+      }
+
+      if (error instanceof EasyEmailError && error.code === "IMAP_AUTH_FAILED") {
+        writeEasyEmailError(response, 422, error);
         return;
       }
 

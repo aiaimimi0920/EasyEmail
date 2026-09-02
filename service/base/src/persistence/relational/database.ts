@@ -86,6 +86,10 @@ interface MailAccountSqlRow {
   display_name: string;
   primary_address: string | null;
   provider_label: string | null;
+  imap_host: string | null;
+  imap_port: number | null;
+  imap_security: "tls" | "starttls" | null;
+  imap_username: string | null;
   status: MailAccount["status"];
   auth_status: MailAccount["authStatus"];
   receive_status: MailAccount["receiveStatus"];
@@ -202,6 +206,15 @@ function mapMailAccount(row: MailAccountSqlRow, credentialRefs: MailCredentialRe
     displayName: row.display_name,
     primaryAddress: row.primary_address ?? undefined,
     providerLabel: row.provider_label ?? undefined,
+    imap: row.imap_host && row.imap_port && row.imap_security && row.imap_username
+      ? {
+          protocol: "imap",
+          host: row.imap_host,
+          port: row.imap_port,
+          security: row.imap_security,
+          username: row.imap_username,
+        }
+      : undefined,
     status: row.status,
     authStatus: row.auth_status,
     receiveStatus: row.receive_status,
@@ -583,6 +596,7 @@ export class SqliteRelationalDatabase implements ContactRepository, MailTaxonomy
     params.push(query.limit + 1);
     const rows = this.database.prepare(`
       SELECT id, scope, kind, display_name, primary_address, provider_label,
+             imap_host, imap_port, imap_security, imap_username,
              status, auth_status, receive_status, send_status,
              listed_in_all_accounts, version, created_at, updated_at
       FROM mail_accounts
@@ -603,6 +617,7 @@ export class SqliteRelationalDatabase implements ContactRepository, MailTaxonomy
   public async getMailAccount(id: string): Promise<MailAccount | undefined> {
     const row = this.database.prepare(`
       SELECT id, scope, kind, display_name, primary_address, provider_label,
+             imap_host, imap_port, imap_security, imap_username,
              status, auth_status, receive_status, send_status,
              listed_in_all_accounts, version, created_at, updated_at
       FROM mail_accounts
@@ -617,9 +632,10 @@ export class SqliteRelationalDatabase implements ContactRepository, MailTaxonomy
       this.database.prepare(`
         INSERT INTO mail_accounts (
           id, scope, kind, display_name, primary_address, provider_label,
+          imap_host, imap_port, imap_security, imap_username,
           status, auth_status, receive_status, send_status,
           listed_in_all_accounts, version, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
       `).run(
         input.id,
         input.scope,
@@ -627,6 +643,10 @@ export class SqliteRelationalDatabase implements ContactRepository, MailTaxonomy
         input.displayName,
         input.primaryAddress ?? null,
         input.providerLabel ?? null,
+        input.imap?.host ?? null,
+        input.imap?.port ?? null,
+        input.imap?.security ?? null,
+        input.imap?.username ?? null,
         input.status,
         input.authStatus,
         input.receiveStatus,
@@ -667,15 +687,22 @@ export class SqliteRelationalDatabase implements ContactRepository, MailTaxonomy
   ): Promise<MailAccount | undefined> {
     const row = this.database.prepare(`
       UPDATE mail_accounts
-      SET display_name = ?, provider_label = ?, listed_in_all_accounts = ?,
+      SET display_name = ?, provider_label = ?,
+          imap_host = ?, imap_port = ?, imap_security = ?, imap_username = ?,
+          listed_in_all_accounts = ?,
           version = version + 1, updated_at = ?
       WHERE id = ? AND version = ? AND deleted_at IS NULL
       RETURNING id, scope, kind, display_name, primary_address, provider_label,
+                imap_host, imap_port, imap_security, imap_username,
                 status, auth_status, receive_status, send_status,
                 listed_in_all_accounts, version, created_at, updated_at
     `).get(
       input.displayName,
       input.providerLabel ?? null,
+      input.imap?.host ?? null,
+      input.imap?.port ?? null,
+      input.imap?.security ?? null,
+      input.imap?.username ?? null,
       input.listedInAllAccounts ? 1 : 0,
       input.now,
       input.id,
@@ -695,6 +722,7 @@ export class SqliteRelationalDatabase implements ContactRepository, MailTaxonomy
           version = version + 1, updated_at = ?
       WHERE id = ? AND version = ? AND deleted_at IS NULL
       RETURNING id, scope, kind, display_name, primary_address, provider_label,
+                imap_host, imap_port, imap_security, imap_username,
                 status, auth_status, receive_status, send_status,
                 listed_in_all_accounts, version, created_at, updated_at
     `).get(now, id, expectedVersion) as unknown as MailAccountSqlRow | undefined;

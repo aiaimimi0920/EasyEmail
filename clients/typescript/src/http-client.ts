@@ -16,6 +16,8 @@ import type {
   MailTaxonomyUpsertInput,
   MailAccount,
   MailAccountCreateInput,
+  MailAccountImapTestRequest,
+  MailAccountImapTestResult,
   MailAccountListQuery,
   MailAccountListResult,
   MailAccountUpdateInput,
@@ -47,6 +49,7 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   contacts: "/mail/contacts",
   taxonomy: "/mail/taxonomy",
   accounts: "/mail/accounts",
+  testAccountImap: "/mail/accounts/imap/test",
   planMailbox: "/mail/mailboxes/plan",
   openMailbox: "/mail/mailboxes/open",
   sendMailboxMessage: "/mail/mailboxes/send",
@@ -297,6 +300,7 @@ export interface EasyEmailClientApi {
   updateMailAccount(accountId: string, input: MailAccountUpdateInput): Promise<MailAccount>;
   disableMailAccount(accountId: string, expectedVersion: number): Promise<MailAccount>;
   deleteMailAccount(accountId: string, expectedVersion: number): Promise<{ id: string }>;
+  testMailAccountImap(input: MailAccountImapTestRequest): Promise<MailAccountImapTestResult>;
   planMailbox(request: VerificationMailboxRequest): Promise<MailboxPlanResult>;
   openMailbox(request: VerificationMailboxRequest): Promise<VerificationMailboxOpenResult>;
   sendMailboxMessage(request: MailboxSendRequest): Promise<MailboxSendResult>;
@@ -445,6 +449,16 @@ export class EasyEmailClient implements EasyEmailClientApi {
   public async deleteMailAccount(accountId: string, expectedVersion: number): Promise<{ id: string }> {
     const response = await this.httpClient.delete<{ deleted: { id: string } }>(EASY_EMAIL_HTTP_ROUTES.account(accountId), { expectedVersion });
     return response.deleted;
+  }
+
+  public async testMailAccountImap(
+    input: MailAccountImapTestRequest,
+  ): Promise<MailAccountImapTestResult> {
+    const response = await this.httpClient.post<
+      MailAccountImapTestRequest,
+      { result: MailAccountImapTestResult }
+    >(EASY_EMAIL_HTTP_ROUTES.testAccountImap, input);
+    return response.result;
   }
 
   public async planMailbox(request: VerificationMailboxRequest): Promise<MailboxPlanResult> {

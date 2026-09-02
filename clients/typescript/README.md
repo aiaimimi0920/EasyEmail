@@ -39,6 +39,12 @@ const account = await client.createMailAccount({
   kind: "normal_long_lived",
   displayName: "Work Mail",
   primaryAddress: "work@example.com",
+  imap: {
+    host: "imap.example.com",
+    port: 993,
+    security: "tls",
+    username: "work@example.com",
+  },
   credentialRefs: [{
     secretBackend: "windows_credential_manager",
     secretKey: "ref:v1:account/work-imap",
@@ -46,13 +52,18 @@ const account = await client.createMailAccount({
     authMethod: "password",
   }],
 });
+await client.testMailAccountImap({
+  accountId: account.id,
+  credentialRefId: account.credentialRefs[0].id,
+});
 await client.disableMailAccount(account.id, account.version);
 ```
 
 Account requests accept only opaque `ref:v1:...` credential references, never
-passwords or tokens. The current account metadata slice does not resolve or test
-those references; vault broker and IMAP/SMTP operations remain server/desktop
-runtime responsibilities.
+passwords or tokens. `testMailAccountImap` sends only account/reference IDs; it
+never accepts the secret. Resolution and network testing remain trusted
+server/desktop runtime responsibilities. A runtime without a configured resolver
+or IMAP tester fails closed with HTTP 503.
 
 The API key is a runtime input. Do not write it into source files, package
 metadata, browser bundles, or release artifacts.

@@ -27,6 +27,8 @@ import {
   type EasyEmailMailTaxonomyUpdateRequest,
   type EasyEmailMailTaxonomyUpsertRequest,
   type EasyEmailMailAccountCreateRequest,
+  type EasyEmailMailAccountImapTestRequest,
+  type EasyEmailMailAccountImapTestResponse,
   type EasyEmailMailAccountListQuery,
   type EasyEmailMailAccountResponse,
   type EasyEmailMailAccountsResponse,
@@ -131,6 +133,9 @@ export function createBundledCoreClient(
     },
     async deleteMailAccount(accountId: string, expectedVersion: number): Promise<{ deleted: { id: string } }> {
       return (await getHttpClient()).deleteMailAccount(accountId, expectedVersion);
+    },
+    async testMailAccountImap(request: EasyEmailMailAccountImapTestRequest): Promise<EasyEmailMailAccountImapTestResponse> {
+      return (await getHttpClient()).testMailAccountImap(request);
     },
     async getMailTaxonomy(itemId: string): Promise<EasyEmailMailTaxonomyMutationResponse> {
       return (await getHttpClient()).getMailTaxonomy(itemId);

@@ -126,6 +126,13 @@ test("account resources use canonical CRUD, disable, scope pagination, and opaqu
     kind: "normal_long_lived",
     displayName: "Work",
     primaryAddress: "work@example.com",
+    imap: {
+      protocol: "imap",
+      host: "imap.example.com",
+      port: 993,
+      security: "tls",
+      username: "work@example.com",
+    },
     status: "configuring",
     authStatus: "missing",
     receiveStatus: "disabled",
@@ -144,6 +151,9 @@ test("account resources use canonical CRUD, disable, scope pagination, and opaqu
         return jsonResponse({ accounts: [account], nextCursor: "next" });
       }
       if (init.method === "DELETE") return jsonResponse({ deleted: { id: account.id } });
+      if (String(url).endsWith("/mail/accounts/imap/test")) {
+        return jsonResponse({ result: { authenticated: true, capabilitySummary: "IMAP4rev1" } });
+      }
       return jsonResponse({ account });
     },
   });
@@ -151,6 +161,7 @@ test("account resources use canonical CRUD, disable, scope pagination, and opaqu
     kind: "normal_long_lived",
     displayName: "Work",
     primaryAddress: "work@example.com",
+    imap: { host: "imap.example.com", port: 993, security: "tls", username: "work@example.com" },
     credentialRefs: [{
       secretBackend: "fake-vault",
       secretKey: "ref:v1:account/work",
@@ -172,6 +183,10 @@ test("account resources use canonical CRUD, disable, scope pagination, and opaqu
   }), account);
   assert.deepEqual(await client.disableMailAccount(account.id, 2), account);
   assert.deepEqual(await client.deleteMailAccount(account.id, 3), { id: account.id });
+  assert.deepEqual(await client.testMailAccountImap({
+    accountId: account.id,
+    credentialRefId: "cred/a",
+  }), { authenticated: true, capabilitySummary: "IMAP4rev1" });
 
   assert.equal(
     calls[0].url,
@@ -179,7 +194,7 @@ test("account resources use canonical CRUD, disable, scope pagination, and opaqu
   );
   assert.deepEqual(
     calls.map((call) => call.init.method),
-    ["GET", "GET", "POST", "PATCH", "POST", "DELETE"],
+    ["GET", "GET", "POST", "PATCH", "POST", "DELETE", "POST"],
   );
   assert.equal(calls[1].url, "http://127.0.0.1:8080/mail/accounts/account%2Fa");
   assert.deepEqual(JSON.parse(calls[2].init.body), createRequest);
@@ -193,6 +208,11 @@ test("account resources use canonical CRUD, disable, scope pagination, and opaqu
     calls[5].url,
     "http://127.0.0.1:8080/mail/accounts/account%2Fa?expectedVersion=3",
   );
+  assert.equal(calls[6].url, "http://127.0.0.1:8080/mail/accounts/imap/test");
+  assert.deepEqual(JSON.parse(calls[6].init.body), {
+    accountId: "account/a",
+    credentialRefId: "cred/a",
+  });
 });
 
 test("mail taxonomy resources preserve methods, encoded paths, CAS, and capability metadata", async () => {

@@ -292,6 +292,13 @@ test("uses canonical account resources with scope pagination and CAS", async () 
     kind: "normal_long_lived" as const,
     displayName: "Work",
     primaryAddress: "work@example.com",
+    imap: {
+      protocol: "imap" as const,
+      host: "imap.example.com",
+      port: 993,
+      security: "tls" as const,
+      username: "work@example.com",
+    },
     status: "configuring" as const,
     authStatus: "missing" as const,
     receiveStatus: "disabled" as const,
@@ -311,6 +318,9 @@ test("uses canonical account resources with scope pagination and CAS", async () 
         return jsonResponse({ accounts: [account], nextCursor: "next" });
       }
       if (init?.method === "DELETE") return jsonResponse({ deleted: { id: account.id } });
+      if (String(input).endsWith("/mail/accounts/imap/test")) {
+        return jsonResponse({ result: { authenticated: true, capabilitySummary: "IMAP4rev1" } });
+      }
       return jsonResponse({ account });
     },
   });
@@ -318,6 +328,7 @@ test("uses canonical account resources with scope pagination and CAS", async () 
     kind: "normal_long_lived" as const,
     displayName: "Work",
     primaryAddress: "work@example.com",
+    imap: { host: "imap.example.com", port: 993, security: "tls" as const, username: "work@example.com" },
     credentialRefs: [{
       secretBackend: "fake-vault",
       secretKey: "ref:v1:account/work" as const,
@@ -332,6 +343,7 @@ test("uses canonical account resources with scope pagination and CAS", async () 
   await client.updateMailAccount(account.id, { expectedVersion: 1, displayName: "Work Renamed" });
   await client.disableMailAccount(account.id, 2);
   await client.deleteMailAccount(account.id, 3);
+  await client.testMailAccountImap({ accountId: account.id, credentialRefId: "cred/a" });
 
   assert.equal(
     calls[0]?.url,
@@ -346,6 +358,7 @@ test("uses canonical account resources with scope pagination and CAS", async () 
       ["/mail/accounts/account%2Fa", "PATCH"],
       ["/mail/accounts/account%2Fa/disable", "POST"],
       ["/mail/accounts/account%2Fa", "DELETE"],
+      ["/mail/accounts/imap/test", "POST"],
     ],
   );
   assert.deepEqual(JSON.parse(String(calls[2]?.init?.body)), createRequest);
@@ -354,6 +367,10 @@ test("uses canonical account resources with scope pagination and CAS", async () 
     calls[5]?.url,
     "http://127.0.0.1:18081/mail/accounts/account%2Fa?expectedVersion=3",
   );
+  assert.deepEqual(JSON.parse(String(calls[6]?.init?.body)), {
+    accountId: "account/a",
+    credentialRefId: "cred/a",
+  });
   assert.ok(calls.every(({ init }) => (
     new Headers(init?.headers).get("authorization") === "Bearer runtime-account-token"
   )));

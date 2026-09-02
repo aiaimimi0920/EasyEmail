@@ -12,6 +12,9 @@ SERVER_CONTRACTS = ROOT / "service" / "base" / "src" / "http" / "contracts.ts"
 DOMAIN_MODELS = ROOT / "service" / "base" / "src" / "domain" / "models.ts"
 DOMAIN_CONTACT = ROOT / "service" / "base" / "src" / "domain" / "contact.ts"
 DOMAIN_ACCOUNT = ROOT / "service" / "base" / "src" / "domain" / "account.ts"
+ACCOUNT_CONNECTIVITY = (
+    ROOT / "service" / "base" / "src" / "service" / "account-connectivity.ts"
+)
 DOMAIN_TAXONOMY = (
     ROOT / "service" / "base" / "src" / "domain" / "mail-taxonomy.ts"
 )
@@ -327,6 +330,10 @@ class HttpApiContractTests(unittest.TestCase):
                 DOMAIN_ACCOUNT,
                 "MailCredentialRefInput",
             ),
+            "MailAccountImapProfileInput": (
+                DOMAIN_ACCOUNT,
+                "MailAccountImapProfileInput",
+            ),
             "MailAccountCreateInput": (
                 DOMAIN_ACCOUNT,
                 "MailAccountCreateInput",
@@ -334,6 +341,10 @@ class HttpApiContractTests(unittest.TestCase):
             "MailAccountUpdateInput": (
                 DOMAIN_ACCOUNT,
                 "MailAccountUpdateInput",
+            ),
+            "MailAccountImapTestInput": (
+                ACCOUNT_CONNECTIVITY,
+                "MailAccountImapTestRequest",
             ),
             "MailTaxonomyUpsertInput": (
                 DOMAIN_TAXONOMY,
@@ -421,6 +432,10 @@ class HttpApiContractTests(unittest.TestCase):
                 "DeleteContactHttpResponse",
             ),
             "MailCredentialRef": (DOMAIN_ACCOUNT, "MailCredentialRef"),
+            "MailAccountImapProfile": (
+                DOMAIN_ACCOUNT,
+                "MailAccountImapProfile",
+            ),
             "MailAccount": (DOMAIN_ACCOUNT, "MailAccount"),
             "AccountsResponse": (
                 SERVER_CONTRACTS,
@@ -429,6 +444,14 @@ class HttpApiContractTests(unittest.TestCase):
             "AccountResponse": (
                 SERVER_CONTRACTS,
                 "CreateMailAccountHttpResponse",
+            ),
+            "MailImapConnectionTestResult": (
+                ACCOUNT_CONNECTIVITY,
+                "MailImapConnectionTestResult",
+            ),
+            "TestMailAccountImapResponse": (
+                SERVER_CONTRACTS,
+                "TestMailAccountImapHttpResponse",
             ),
             "DeleteAccountResponse": (
                 SERVER_CONTRACTS,
@@ -487,6 +510,7 @@ class HttpApiContractTests(unittest.TestCase):
             "updateMailAccount": "AccountResponse",
             "disableMailAccount": "AccountResponse",
             "deleteMailAccount": "DeleteAccountResponse",
+            "testMailAccountImap": "TestMailAccountImapResponse",
             "listMailTaxonomy": "MailTaxonomyListResponse",
             "getMailTaxonomy": "MailTaxonomyMutationResponse",
             "upsertMailTaxonomy": "MailTaxonomyMutationResponse",
@@ -521,6 +545,7 @@ class HttpApiContractTests(unittest.TestCase):
             "updateMailAccount",
             "disableMailAccount",
             "deleteMailAccount",
+            "testMailAccountImap",
             "getMailTaxonomy",
             "updateMailTaxonomy",
             "deleteMailTaxonomy",
@@ -540,6 +565,7 @@ class HttpApiContractTests(unittest.TestCase):
         schemas = self.openapi["components"]["schemas"]
         account_create = schemas["MailAccountCreateInput"]
         credential_input = schemas["MailCredentialRefInput"]
+        imap_test_input = schemas["MailAccountImapTestInput"]
 
         self.assertEqual(
             account_create["properties"]["kind"]["enum"],
@@ -554,6 +580,14 @@ class HttpApiContractTests(unittest.TestCase):
             forbidden_fields.isdisjoint(credential_input["properties"])
         )
         self.assertFalse(credential_input.get("additionalProperties", True))
+        self.assertEqual(
+            set(imap_test_input["properties"]), {"accountId", "credentialRefId"}
+        )
+        self.assertEqual(
+            set(imap_test_input["required"]), {"accountId", "credentialRefId"}
+        )
+        self.assertTrue(forbidden_fields.isdisjoint(imap_test_input["properties"]))
+        self.assertFalse(imap_test_input.get("additionalProperties", True))
 
 
 if __name__ == "__main__":

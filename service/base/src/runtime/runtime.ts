@@ -58,6 +58,10 @@ import {
 import { createContactService } from "../service/contacts.js";
 import { createMailTaxonomyService } from "../service/mail-taxonomy.js";
 import { createMailAccountService } from "../service/accounts.js";
+import type {
+  MailCredentialResolver,
+  MailImapConnectionTester,
+} from "../service/account-connectivity.js";
 
 export interface EasyEmailServiceRuntimeOptions extends EasyEmailBootstrapOptions {
   config?: EasyEmailServiceRuntimeConfig;
@@ -67,6 +71,8 @@ export interface EasyEmailServiceRuntimeOptions extends EasyEmailBootstrapOption
   contactRepository?: ContactRepository;
   mailTaxonomyRepository?: MailTaxonomyRepository;
   mailAccountRepository?: MailAccountRepository;
+  mailCredentialResolver?: MailCredentialResolver;
+  mailImapConnectionTester?: MailImapConnectionTester;
 }
 
 export interface StartedEasyEmailServiceRuntime {
@@ -233,7 +239,12 @@ export async function startEasyEmailServiceRuntime(
       queryRepository,
       contactRepository ? createContactService(contactRepository) : undefined,
       mailTaxonomyRepository ? createMailTaxonomyService(mailTaxonomyRepository) : undefined,
-      mailAccountRepository ? createMailAccountService(mailAccountRepository) : undefined,
+      mailAccountRepository
+        ? createMailAccountService(mailAccountRepository, undefined, {
+            credentialResolver: options.mailCredentialResolver,
+            imapTester: options.mailImapConnectionTester,
+          })
+        : undefined,
     );
     server = await createEasyEmailHttpServer(handler, {
       hostname: config.hostname,

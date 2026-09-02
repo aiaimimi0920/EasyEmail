@@ -265,6 +265,10 @@ export async function handleAdminRoute(context: AdminRouteContext): Promise<unkn
     return handler.createMailAccount(await readJsonBody());
   }
 
+  if (method === "POST" && path === EASY_EMAIL_HTTP_ROUTES.testAccountImap) {
+    return handler.testMailAccountImap(await readJsonBody());
+  }
+
   const accountDisableId = extractMailAccountDisableId(path);
   if (method === "POST" && accountDisableId) {
     return handler.disableMailAccount(accountDisableId, await readJsonBody());

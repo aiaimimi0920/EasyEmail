@@ -146,6 +146,7 @@ test("delegates temporary-mailbox operations through the cached authenticated HT
     displayName: "Work",
     primaryAddress: "work@example.com",
   });
+  await client.testMailAccountImap({ accountId: "account-1", credentialRefId: "credential-1" });
 
   assert.deepEqual(invokeCalls, ["desktop_core_runtime"]);
   assert.deepEqual(
@@ -167,6 +168,7 @@ test("delegates temporary-mailbox operations through the cached authenticated HT
       ["/mail/contacts", "POST"],
       ["/mail/accounts?scope=normal&limit=25", "GET"],
       ["/mail/accounts", "POST"],
+      ["/mail/accounts/imap/test", "POST"],
     ],
   );
   assert.ok(httpCalls.every((call) => call.authorization === "Bearer runtime-only-token"));

@@ -1,4 +1,5 @@
 export * from "./bootstrap.js";
+export * from "./account-connectivity.js";
 export * from "./catalog.js";
 export * from "./credentials.js";
 export * from "./easy-email-service.js";

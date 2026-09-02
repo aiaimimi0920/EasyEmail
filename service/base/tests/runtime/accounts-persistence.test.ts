@@ -25,6 +25,7 @@ describe("runtime account persistence", () => {
     try {
       const first = await startEasyEmailServiceRuntime({ config });
       let accountId = "";
+      let credentialRefId = "";
       try {
         const created = await fetch(`${first.server.baseUrl}/mail/accounts`, {
           method: "POST",
@@ -33,6 +34,12 @@ describe("runtime account persistence", () => {
             kind: "normal_long_lived",
             displayName: "Restart proof",
             primaryAddress: "restart-proof@example.test",
+            imap: {
+              host: "imap.restart-proof.example.test",
+              port: 993,
+              security: "tls",
+              username: "restart-proof@example.test",
+            },
             credentialRefs: [{
               secretBackend: "fake-vault",
               secretKey: "ref:v1:restart-proof/imap",
@@ -42,7 +49,11 @@ describe("runtime account persistence", () => {
           }),
         });
         expect(created.status).toBe(200);
-        accountId = ((await created.json()) as { account: { id: string } }).account.id;
+        const account = ((await created.json()) as {
+          account: { id: string; credentialRefs: Array<{ id: string }> };
+        }).account;
+        accountId = account.id;
+        credentialRefId = account.credentialRefs[0]!.id;
       } finally {
         await first.close();
       }
@@ -62,12 +73,28 @@ describe("runtime account persistence", () => {
             id: accountId,
             kind: "normal_long_lived",
             primaryAddress: "restart-proof@example.test",
+            imap: {
+              protocol: "imap",
+              host: "imap.restart-proof.example.test",
+              port: 993,
+              security: "tls",
+              username: "restart-proof@example.test",
+            },
             credentialRefs: [{
               secretKey: "ref:v1:restart-proof/imap",
               status: "missing",
             }],
           },
         });
+        const unavailable = await fetch(`${restarted.server.baseUrl}/mail/accounts/imap/test`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ accountId, credentialRefId }),
+        });
+        expect(unavailable.status).toBe(503);
+        const unavailablePayload = await unavailable.json();
+        expect(unavailablePayload).toMatchObject({ code: "ACCOUNT_CREDENTIAL_UNAVAILABLE" });
+        expect(JSON.stringify(unavailablePayload)).not.toContain("ref:v1:restart-proof/imap");
       } finally {
         await restarted.close();
       }

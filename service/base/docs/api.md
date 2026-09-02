@@ -279,6 +279,7 @@ curl -X POST http://127.0.0.1:18081/mail/messages/observe \
 | `DELETE` | `/mail/contacts/{contactId}?expectedVersion=N` | 使用版本 CAS 硬删除联系人 |
 | `GET` | `/mail/accounts?scope=normal\|agent\|system` | 按 scope 稳定分页列出账户 metadata |
 | `POST` | `/mail/accounts` | 创建 normal long-lived 或 Agent-owned 账户 metadata |
+| `POST` | `/mail/accounts/imap/test` | 使用账户归属的不透明 credential ref 测试已保存的 IMAP profile |
 | `GET` | `/mail/accounts/{accountId}` | 读取单个账户 |
 | `PATCH` | `/mail/accounts/{accountId}` | 使用 `expectedVersion` 更新账户 metadata |
 | `POST` | `/mail/accounts/{accountId}/disable` | 使用版本 CAS 禁用账户收发状态 |
@@ -309,8 +310,9 @@ camelCase 约定：`id`、`displayName`、`emailAddress`、可选 `note`、`vers
 
 ### 账户 metadata 资源
 
-账户由关系库 schema v3 持久化，统一字段包括 `scope`、`kind`、收发/认证状态、
-`version` 和 `credentialRefs`。`GET /mail/accounts?scope=normal` 为兼容旧 desktop
+账户由关系库 schema v4 持久化，统一字段包括 `scope`、`kind`、收发/认证状态、
+`version`、可选的非敏感 `imap` profile 和 `credentialRefs`。`GET
+/mail/accounts?scope=normal` 为兼容旧 desktop
 语义，除 normal 账户外还会返回 system scope 的固定
 `acct_anonymous_virtual`；Agent 账户不会混入该列表。分页 cursor 与 scope 绑定，
 跨 scope 复用返回 400 `INVALID_ACCOUNT_CURSOR`。
@@ -322,7 +324,12 @@ camelCase 约定：`id`、`displayName`、`emailAddress`、可选 `note`、`vers
 - 新 credential ref 必须是 `ref:v1:...` 不透明标识。HTTP 和 SQLite 只保存
   `secretBackend`、`secretKey`、`credentialKind`、`authMethod` 等非 secret metadata；
   body 中出现 password/token/authorization code/raw secret 会被拒绝。
-- 本切片尚未实现 OS vault broker、ref resolver 或 IMAP/SMTP test；新 ref 状态为
+- `imap` 只保存 host、port、security 和 username；输入 `ssl` 会规范化为 `tls`。
+  `POST /mail/accounts/imap/test` 只接受 `accountId` 与 `credentialRefId`，并要求 ref
+  归属该账户且类型为 `imap_password/password`。缺失或失效的 ref 返回 409 可机读重新
+  认证错误，远端拒绝凭据返回 422，resolver/tester/远端 IMAP 不可用返回 503。
+- 本切片尚未实现 OS vault broker 或生产 IMAP adapter；默认 packaged core 因此会明确
+  503 fail closed，而不会从 SQLite、环境变量或请求 body 读取 secret。新 ref 状态为
   `missing`，不得解读为凭据已验证。React account UI 也尚未切换到这些接口。
 - `PATCH`、`POST .../disable` 和 `DELETE ...?expectedVersion=N` 均使用版本 CAS；
   delete 为软删除。重复邮箱、跨账户复用同一 backend/key ref、过期版本或尝试变更
