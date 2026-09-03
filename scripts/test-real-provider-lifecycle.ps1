@@ -781,8 +781,16 @@ try {
         throw 'Restart readback lost the controlled observed message.'
     }
 
-    $containerLogs = (& docker logs $containerName 2>&1 | Out-String)
-    if ($LASTEXITCODE -ne 0) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    $containerLogsExitCode = 1
+    try {
+        $ErrorActionPreference = 'Continue'
+        $containerLogs = (& docker logs $containerName 2>&1 | Out-String)
+        $containerLogsExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($containerLogsExitCode -ne 0) {
         throw 'Failed to read isolated service logs for redaction validation.'
     }
     $launchLogs = if (Test-Path -LiteralPath $launchLogPath) { Get-Content -LiteralPath $launchLogPath -Raw } else { '' }

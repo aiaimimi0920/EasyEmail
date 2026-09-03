@@ -256,6 +256,7 @@ export async function startEasyEmailServiceRuntime(
       hostname: config.hostname,
       port: config.port,
       apiKey: config.apiKey,
+      corsOrigins: config.corsOrigins,
     });
 
     maintenanceLoop = config.maintenance.enabled

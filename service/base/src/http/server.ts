@@ -9,6 +9,7 @@ export interface EasyEmailHttpServerOptions {
   hostname?: string;
   port?: number;
   apiKey?: string;
+  corsOrigins?: readonly string[];
 }
 
 export interface StartedEasyEmailHttpServer {
@@ -57,6 +58,18 @@ function writeEasyEmailError(response: ServerResponse, statusCode: number, error
     error: error.message,
     message: error.message,
   });
+}
+
+function appendVaryHeader(response: ServerResponse, value: string): void {
+  const current = response.getHeader("vary");
+  const values = Array.isArray(current)
+    ? current
+    : typeof current === "string"
+      ? current.split(",")
+      : [];
+  if (!values.some((entry) => entry.trim().toLowerCase() === value.toLowerCase())) {
+    response.setHeader("vary", [...values, value].join(", "));
+  }
 }
 
 function checkApiKey(apiKey: string | undefined, request: IncomingMessage, response: ServerResponse): boolean {
@@ -129,11 +142,45 @@ export function createEasyEmailHttpServer(
   const hostname = options.hostname ?? "127.0.0.1";
   const requestedPort = options.port ?? 0;
   const { apiKey } = options;
+  const corsOrigins = new Set(
+    (options.corsOrigins ?? []).map((origin) => origin.trim()).filter(Boolean),
+  );
 
   const server = createServer(async (request, response) => {
     const method = request.method ?? "GET";
     const url = request.url ?? "/";
     const path = url.split("?")[0] ?? "/";
+    const origin = request.headers.origin;
+    const isCorsRequest = corsOrigins.size > 0 && typeof origin === "string";
+    const isAllowedOrigin = isCorsRequest && corsOrigins.has(origin);
+
+    if (isCorsRequest) {
+      appendVaryHeader(response, "Origin");
+      if (isAllowedOrigin) {
+        response.setHeader("access-control-allow-origin", origin);
+      }
+    }
+
+    if (
+      corsOrigins.size > 0
+      && method === "OPTIONS"
+      && request.headers["access-control-request-method"] !== undefined
+    ) {
+      if (!isAllowedOrigin) {
+        writeJson(response, 403, {
+          error: "CORS_ORIGIN_DENIED",
+          message: "The request origin is not allowed.",
+        });
+        return;
+      }
+
+      response.statusCode = 204;
+      response.setHeader("access-control-allow-methods", "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS");
+      response.setHeader("access-control-allow-headers", "Authorization, Content-Type");
+      response.setHeader("access-control-max-age", "600");
+      response.end();
+      return;
+    }
 
     if (!checkApiKey(apiKey, request, response)) {
       return;

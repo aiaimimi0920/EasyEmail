@@ -147,6 +147,7 @@ export interface EasyEmailServiceRuntimeConfig {
   routingProfiles: MailRoutingProfileDescriptor[];
   port: number;
   apiKey: string | undefined;
+  corsOrigins?: string[];
   enabledProviders?: string[];
   strictProviderMode: boolean;
   maintenance: {
@@ -183,6 +184,7 @@ export interface EasyEmailServiceConfigDocument {
     hostname?: unknown;
     port?: unknown;
     apiKey?: unknown;
+    corsOrigins?: unknown;
   };
   aliasEmail?: {
     providers?: unknown;
@@ -634,6 +636,7 @@ export function parseEasyEmailServiceRuntimeConfig(
     routingProfiles,
     port: parsePositiveInteger(server.port, 8080, "server.port"),
     apiKey: asNonEmptyString(server.apiKey),
+    corsOrigins: parseStringList(server.corsOrigins),
     enabledProviders: parseStringList(providers.enabledProviders),
     aliasEmail: {
       providers: parseAliasProviderConfigs(aliasEmail.providers, stateDir),

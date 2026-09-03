@@ -33,6 +33,7 @@ describe("runtime YAML config contract", () => {
     await writeFile(configPath, `server:
   host: 127.0.0.1
   port: 9090
+  corsOrigins: [http://tauri.localhost, http://localhost:1420]
 strategy:
   providerStrategyModeId: available-first
 providers:
@@ -51,6 +52,7 @@ providers:
 
     expect(loaded.hostname).toBe("127.0.0.1");
     expect(loaded.port).toBe(9090);
+    expect(loaded.corsOrigins).toEqual(["http://tauri.localhost", "http://localhost:1420"]);
     expect(loaded.mail2925.account).toBe("demo@2925.com");
     expect(loaded.mail2925.password).toBe("super-secret");
     expect(loaded.cloudflareTempEmail.baseUrl).toBe("https://mail.example");

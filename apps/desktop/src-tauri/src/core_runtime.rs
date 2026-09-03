@@ -328,7 +328,7 @@ fn write_runtime_config(
         .replace('\\', "/")
         .replace('"', "\\\"");
     let config = format!(
-        "server:\n  host: 127.0.0.1\n  port: {port}\n  apiKey: \"{api_token}\"\n\
+        "server:\n  host: 127.0.0.1\n  port: {port}\n  apiKey: \"{api_token}\"\n  corsOrigins: [http://tauri.localhost, https://tauri.localhost, http://localhost:1420]\n\
          maintenance:\n  enabled: true\n  intervalMs: 30000\n  keepRecentCount: 5\n  keepRecentSessionCount: 5000\n  activeProbeEnabled: false\n\
          persistence:\n  enabled: true\n  driver: file\n  intervalMs: 5000\n  filePath: \"{state_path}/easy-email-state.json\"\n"
     );
@@ -448,6 +448,9 @@ mod tests {
         assert!(config.contains("host: 127.0.0.1"));
         assert!(config.contains("port: 32123"));
         assert!(config.contains("apiKey: \"test-token\""));
+        assert!(config.contains(
+            "corsOrigins: [http://tauri.localhost, https://tauri.localhost, http://localhost:1420]"
+        ));
         assert!(config.contains("driver: file"));
         assert!(config.contains("activeProbeEnabled: false"));
         fs::remove_dir_all(root).unwrap();

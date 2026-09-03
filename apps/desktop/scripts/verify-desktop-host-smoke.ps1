@@ -151,6 +151,25 @@ try {
         throw "Unauthenticated catalog returned $unauthenticatedStatus instead of 401."
     }
 
+    $desktopOrigin = 'http://tauri.localhost'
+    $preflight = Invoke-WebRequest -UseBasicParsing -Method Options -Uri "$baseUrl/mail/mailboxes/open" -Headers @{
+        Origin = $desktopOrigin
+        'Access-Control-Request-Method' = 'POST'
+        'Access-Control-Request-Headers' = 'authorization, content-type'
+    } -TimeoutSec 5
+    if ($preflight.StatusCode -ne 204) {
+        throw "Desktop CORS preflight returned $($preflight.StatusCode) instead of 204."
+    }
+    if ($preflight.Headers['Access-Control-Allow-Origin'] -ne $desktopOrigin) {
+        throw 'Desktop CORS preflight did not allow the Tauri production origin.'
+    }
+    if ($preflight.Headers['Access-Control-Allow-Headers'] -notmatch '(?i)authorization') {
+        throw 'Desktop CORS preflight did not allow the bearer authorization header.'
+    }
+    if ($preflight.Headers['Access-Control-Allow-Headers'] -notmatch '(?i)content-type') {
+        throw 'Desktop CORS preflight did not allow JSON request bodies.'
+    }
+
     $unauthenticatedBrokerStatus = Get-UnauthenticatedStatus `
         -Uri "http://127.0.0.1:$brokerPort/v1/credentials/resolve" -PostJson
     if ($unauthenticatedBrokerStatus -ne 401) {
@@ -170,6 +189,7 @@ try {
     Write-Output "CORE_PID=$corePid"
     Write-Output 'CORE_LOOPBACK=True'
     Write-Output 'UNAUTHENTICATED_STATUS=401'
+    Write-Output 'DESKTOP_CORS_PREFLIGHT=True'
     Write-Output 'BROKER_LOOPBACK=True'
     Write-Output 'BROKER_UNAUTHENTICATED_STATUS=401'
     Write-Output "DESKTOP_DB_BYTES=$((Get-Item -LiteralPath $database).Length)"
