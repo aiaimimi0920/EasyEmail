@@ -67,7 +67,11 @@ The package contains ESM JavaScript and TypeScript declarations. Credentials are
 
 ## Userscript boundary
 
-The published `.user.js` file is a distributable template. It contains the tracked `__LOCAL_SECRET_*__` placeholders and does not contain repository secrets.
+The published `.user.js` file is a distributable template assembled from the
+tracked Userscript manifest and source modules. It contains the tracked
+`__LOCAL_SECRET_*__` placeholders and does not contain repository secrets.
+Install this release asset rather than the repository's build-only
+`easy_email_proxy.user.js` entry.
 
 The Userscript remains a standalone provider runtime. It directly implements
 provider access in the browser, does not call `service/base`, and does not share

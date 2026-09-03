@@ -13,6 +13,7 @@ from userscript_release import (
     userscript_version,
     validate_template,
 )
+from userscript_template import assemble_userscript
 
 
 ROOT = Path(__file__).resolve().parents[1]

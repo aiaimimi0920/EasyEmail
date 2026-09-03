@@ -13,10 +13,22 @@ mailbox orchestration, persistence, or message-processing implementation.
 
 ## Main Files
 
-- `easy_email_proxy.user.js`: the tracked template userscript
+- `easy_email_proxy.user.js`: the compatibility entry used by existing config
+- `userscript-template.json`: the deterministic source-order manifest
+- `src/`: the reviewed runtime metadata and responsibility-based source modules
 - `generate_local_userscript.ps1`: legacy local wrapper, now routed through
   `scripts/compile-userscript.ps1`
 - `easy_email_proxy.local.user.js`: generated local output, ignored by Git
+
+The local and release builders assemble the entry manifest into one standalone
+Userscript before injecting local settings or rewriting release metadata. The
+published `.user.js` remains a single IIFE and does not load repository modules
+at browser runtime.
+
+`easy_email_proxy.user.js` is a build entry, not an installable raw Userscript.
+Install the `.user.js` asset from a public release, or generate the configured
+local file with `scripts/compile-userscript.ps1`. Installing the raw build entry
+would provide no runtime code.
 
 ## Local Development Flow
 
@@ -35,8 +47,8 @@ pwsh .\scripts\compile-userscript.ps1 -CopyToClipboard
 
 ## Remote Import-Code Flow
 
-The tracked userscript template now also supports a remote import-code
-bootstrap path.
+The assembled userscript template also supports a remote import-code bootstrap
+path.
 
 That path is designed for trusted machines that should receive provider
 configuration from the same private R2 distribution manifest used by
@@ -63,7 +75,7 @@ Runtime entry points:
 
 - never commit `easy_email_proxy.local.user.js`
 - keep the root `config.yaml` as the single source of operator secrets
-- keep the tracked template free of live secrets
+- keep the tracked source modules and assembled template free of live secrets
 
 ## Runtime Positioning
 
@@ -84,7 +96,7 @@ make one runtime an implementation dependency of the other.
 
 ## Provider Scope
 
-The template userscript currently carries a provider set aligned with the main
+The assembled userscript currently carries a provider set aligned with the main
 EasyEmail ecosystem, including:
 
 - `cloudflare_temp_email`

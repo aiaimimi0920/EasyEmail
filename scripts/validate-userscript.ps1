@@ -13,7 +13,9 @@ $ErrorActionPreference = "Stop"
 $resolvedConfigPath = Resolve-EasyEmailPath -Path $ConfigPath
 $resolvedSourcePath = Resolve-EasyEmailPath -Path $SourcePath
 $resolvedOutputPath = Resolve-EasyEmailPath -Path $OutputPath
+$resolvedTemplateOutputPath = Resolve-EasyEmailPath -Path '.tmp/easy_email_proxy.template.validation.user.js'
 $compileScriptPath = Join-Path $PSScriptRoot 'compile-userscript.ps1'
+$templateAssemblerPath = Join-Path $PSScriptRoot 'userscript_template.py'
 $powerShellCommand = Get-EasyEmailPowerShellCommand
 
 function Invoke-UserscriptCompile {
@@ -39,6 +41,11 @@ function Test-JavaScriptSyntax {
     }
 }
 
+& python $templateAssemblerPath --source $resolvedSourcePath --output $resolvedTemplateOutputPath
+if ($LASTEXITCODE -ne 0) {
+    throw "Userscript template assembly failed: $resolvedSourcePath"
+}
+
 Invoke-UserscriptCompile
 
 if (-not (Test-Path -LiteralPath $resolvedOutputPath)) {
@@ -55,11 +62,14 @@ if ($generatedUserscript -match '__LOCAL_SECRET_[A-Z0-9_]+__') {
     throw "Generated userscript still contains unreplaced local secret placeholders: $resolvedOutputPath"
 }
 
-Test-JavaScriptSyntax -Path $resolvedSourcePath
+Test-JavaScriptSyntax -Path $resolvedTemplateOutputPath
 Test-JavaScriptSyntax -Path $resolvedOutputPath
 
 Write-Host "Validated userscript template and generated build: $resolvedOutputPath"
 
 if (-not $KeepOutput -and (Test-Path -LiteralPath $resolvedOutputPath)) {
     Remove-Item -LiteralPath $resolvedOutputPath -Force
+}
+if (Test-Path -LiteralPath $resolvedTemplateOutputPath) {
+    Remove-Item -LiteralPath $resolvedTemplateOutputPath -Force
 }

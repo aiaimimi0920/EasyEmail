@@ -41,7 +41,7 @@ class UserscriptReleaseTests(unittest.TestCase):
             self.module.userscript_version("service-base-20260830-001")
 
     def test_build_changes_only_the_metadata_version(self) -> None:
-        source_text = TEMPLATE_PATH.read_text(encoding="utf-8")
+        source_text = self.module.assemble_userscript(TEMPLATE_PATH)
         with tempfile.TemporaryDirectory() as temp_dir:
             output = Path(temp_dir) / "easy-email.user.js"
             version = self.module.build_userscript(
@@ -64,7 +64,7 @@ class UserscriptReleaseTests(unittest.TestCase):
         )
 
     def test_unknown_secret_placeholder_fails_closed(self) -> None:
-        source_text = TEMPLATE_PATH.read_text(encoding="utf-8")
+        source_text = self.module.assemble_userscript(TEMPLATE_PATH)
         with tempfile.TemporaryDirectory() as temp_dir:
             source = Path(temp_dir) / "template.user.js"
             output = Path(temp_dir) / "release.user.js"
@@ -79,7 +79,7 @@ class UserscriptReleaseTests(unittest.TestCase):
                 self.module.build_userscript(source, output, "v1.2.3")
 
     def test_sensitive_defaults_must_remain_placeholders(self) -> None:
-        source_text = TEMPLATE_PATH.read_text(encoding="utf-8")
+        source_text = self.module.assemble_userscript(TEMPLATE_PATH)
         modified = source_text.replace(
             "gptmail_apiKey: '__LOCAL_SECRET_GPTMAIL_API_KEY__',",
             "gptmail_apiKey: 'accidental-live-value',\n    // __LOCAL_SECRET_GPTMAIL_API_KEY__",
@@ -88,7 +88,7 @@ class UserscriptReleaseTests(unittest.TestCase):
             self.module.validate_template(modified)
 
     def test_high_confidence_live_secret_patterns_fail_closed(self) -> None:
-        source_text = TEMPLATE_PATH.read_text(encoding="utf-8")
+        source_text = self.module.assemble_userscript(TEMPLATE_PATH)
         modified = source_text + "\n// ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ123456\n"
         with self.assertRaisesRegex(ValueError, "possible live GitHub token"):
             self.module.validate_template(modified)

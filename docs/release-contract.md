@@ -79,7 +79,8 @@ rules; the names alone do not make environments protected.
 
 ## Security boundaries
 
-- The public Userscript is generated from the tracked template and contains only the known `__LOCAL_SECRET_*__` placeholders. The release builder fails closed if that placeholder set changes.
+- The public Userscript is deterministically assembled from the tracked manifest and source modules, then generated with only the known `__LOCAL_SECRET_*__` placeholders. The release builder fails closed if the module manifest or placeholder set is invalid.
+- The repository `easy_email_proxy.user.js` path is a build entry retained for configuration compatibility, not the public install artifact; the published release asset is the installable single-file IIFE.
 - A Userscript generated locally from `config.yaml` may contain operator credentials and must never be uploaded by the public release workflow.
 - Standalone callers use the documented HTTP API directly and supply
   authorization at runtime. The TypeScript helper is optional and never owns the

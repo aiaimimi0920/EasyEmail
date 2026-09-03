@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "metadata": "src/metadata.user.js",
+  "runtimeParts": [
+    "src/config-state.js",
+    "src/settings-ui-state.js",
+    "src/provider-health.js",
+    "src/network-bridge.js",
+    "src/remote-import.js",
+    "src/provider-response.js",
+    "src/providers/im215.js",
+    "src/mail-mime-parser.js",
+    "src/message-content.js",
+    "src/providers/cloudflare.js",
+    "src/providers/im215-resolution.js",
+    "src/providers/mailtm.js",
+    "src/providers/mail2925.js",
+    "src/providers/duckmail.js",
+    "src/providers/tempmail-lol.js",
+    "src/providers/temporam.js",
+    "src/providers/etempmail.js",
+    "src/providers/guerrillamail.js",
+    "src/providers/moemail.js",
+    "src/providers/m2u.js",
+    "src/providers/gptmail.js",
+    "src/provider-registry-selection.js",
+    "src/ui-rendering.js",
+    "src/form-targets-actions.js",
+    "src/mailbox-orchestration.js",
+    "src/ui-shell.js",
+    "src/startup.js"
+  ]
+}

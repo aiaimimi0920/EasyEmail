@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 from release_tag import classify_tag
+from userscript_template import assemble_userscript
 
 
 VERSION_LINE = re.compile(r"^// @version\s+\S+\s*$", re.MULTILINE)
@@ -82,9 +83,9 @@ def build_userscript(source: Path, output: Path, release_tag: str) -> str:
     source = source.resolve()
     output = output.resolve()
     if source == output:
-        raise ValueError("Userscript release output must not overwrite the tracked template.")
+        raise ValueError("Userscript release output must not overwrite the tracked source entry.")
 
-    source_text = source.read_text(encoding="utf-8")
+    source_text = assemble_userscript(source)
     validate_template(source_text)
     version = userscript_version(release_tag)
     release_text = VERSION_LINE.sub(f"// @version      {version}", source_text, count=1)

@@ -1,0 +1,33 @@
+  async function moemailRequest(baseUrl, apiKey, method, path, body, cursor) { const url = new URL(path, normalizeUrl(baseUrl).endsWith('/') ? normalizeUrl(baseUrl) : `${normalizeUrl(baseUrl)}/`); if (cursor) url.searchParams.set('cursor', cursor); return requestJsonAbsolute(method, url.toString(), { Accept: 'application/json', 'X-API-Key': apiKey, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body); }
+  async function moemailGetConfig(cfg) {
+    const cfgResult = await moemailRequest(cfg.baseUrl, cfg.apiKey, 'GET', '/api/config');
+    if (cfgResult.status !== 200) throw new Error(`MoEmail config failed: HTTP ${cfgResult.status}`);
+    const payload = typeof cfgResult.data === 'string' ? {} : cfgResult.data;
+    const domains = extractDomainsFromBody(payload);
+    setCachedProviderDomains('moemail', domains);
+    return payload;
+  }
+  async function moemailOpenMailbox(cfg) { const configPayload = await moemailGetConfig(cfg); let domain = String(cfg.preferredDomain || '').trim().toLowerCase(); if (!domain) { const domains = extractDomainsFromBody(configPayload); domain = nextProviderDomain('moemail', domains); } const result = await moemailRequest(cfg.baseUrl, cfg.apiKey, 'POST', '/api/emails/generate', { name: createLocalPart('mo'), expiryTime: Number.parseInt(cfg.expiryTimeMs || '3600000', 10) || 3600000, ...(domain ? { domain } : {}) }); if (![200, 201].includes(result.status)) throw new Error(`MoEmail open failed: HTTP ${result.status}${result.data && result.data.error ? `. ${result.data.error}` : ''}`); const payload = typeof result.data === 'string' ? {} : result.data; const candidates = [payload, payload.data || {}, payload.email || {}, payload.mailbox || {}]; let emailId = ''; let email = ''; for (const item of candidates) { emailId = emailId || String(item.emailId || item.id || item._id || item.mailboxId || '').trim(); email = email || String(item.emailAddress || item.address || item.email || item.mailbox || '').trim().toLowerCase(); } if (!emailId || !email || !email.includes('@')) throw new Error('MoEmail open returned incomplete mailbox payload.'); return { email, mailboxData: { emailId, email }, metadata: { selectedDomain: email.split('@')[1] || domain || '' } }; }
+  async function moemailResolveMailboxByEmail(cfg, email) {
+    const normalized = normalizeEmailAddress(email);
+    if (!normalized) throw new Error('Invalid MoEmail address.');
+    let cursor = '';
+    for (let page = 0; page < 8; page += 1) {
+      const result = await moemailRequest(cfg.baseUrl, cfg.apiKey, 'GET', '/api/emails', undefined, cursor || undefined);
+      if (result.status !== 200) throw new Error(`MoEmail mailbox query failed: HTTP ${result.status}`);
+      const body = typeof result.data === 'string' ? {} : result.data;
+      const container = [body, body.data || {}, body.result || {}].find((item) => Array.isArray(item.emails || item.items || item.list)) || body;
+      const rows = Array.isArray(container.emails) ? container.emails : Array.isArray(container.items) ? container.items : Array.isArray(container.list) ? container.list : [];
+      const matched = rows.map((item) => readValueRecord(item)).find((item) => normalizeEmailAddress(readValueString(item.emailAddress) || readValueString(item.address) || readValueString(item.email) || readValueString(item.mailbox)) === normalized);
+      if (matched) {
+        const emailId = readValueString(matched.emailId) || readValueString(matched.id) || readValueString(matched._id) || readValueString(matched.mailboxId);
+        if (!emailId) throw new Error('MoEmail matched mailbox is missing emailId.');
+        return { email: normalized, mailboxData: { emailId, email: normalized }, metadata: { manualLookup: true, selectedDomain: normalized.split('@')[1] || '' } };
+      }
+      cursor = String(container.nextCursor || container.cursor || '').trim();
+      if (!cursor) break;
+    }
+    throw new Error(`MoEmail 未找到邮箱 ${normalized}。`);
+  }
+  async function moemailListMessages(cfg, mailbox) { let cursor = ''; const messages = []; for (let page = 0; page < 3; page += 1) { const result = await moemailRequest(cfg.baseUrl, cfg.apiKey, 'GET', `/api/emails/${encodeURIComponent(mailbox.mailboxData.emailId)}`, undefined, cursor || undefined); if (result.status === 404) break; if (result.status !== 200) throw new Error(`MoEmail list failed: HTTP ${result.status}`); const body = typeof result.data === 'string' ? {} : result.data; const container = [body, body.data || {}, body.result || {}].find((item) => Array.isArray(item.messages || item.items || item.list)) || body; const rows = Array.isArray(container.messages) ? container.messages : Array.isArray(container.items) ? container.items : Array.isArray(container.list) ? container.list : []; for (const row of rows) { const id = String(row.messageId || row.id || row._id || row.mailId || '').trim(); if (!id) continue; const detail = await moemailRequest(cfg.baseUrl, cfg.apiKey, 'GET', `/api/emails/${encodeURIComponent(mailbox.mailboxData.emailId)}/${encodeURIComponent(id)}`); const detailBody = detail.status === 200 && typeof detail.data !== 'string' ? detail.data : row; const info = [detailBody, detailBody.data || {}, detailBody.result || {}, detailBody.message || {}, (detailBody.data || {}).message || {}, (detailBody.result || {}).message || {}].find((item) => item && typeof item === 'object' && Object.keys(item).length) || row; const from = info.from && typeof info.from === 'object' ? (info.from.address || info.from.email || info.from.name || info.from.from || '') : (info.from || info.sender || info.fromAddress || info.senderAddress || info.from_address || row.from || row.sender || row.fromAddress || row.senderAddress || row.from_address || ''); messages.push(normalizeObservedMessage({ id: `moemail:${id}`, sender: from, subject: info.subject || info.title || row.subject || row.title || '', textBody: info.text || info.textBody || info.body || info.content || info.preview || info.snippet || row.text || row.textBody || row.body || row.content || row.preview || row.snippet || '', htmlBody: info.html || info.htmlBody || info.htmlContent || info.rawHtml || row.html || row.htmlBody || row.htmlContent || row.rawHtml || '', observedAt: chooseObservedAt(info.receivedAt, info.received_at, info.createdAt, info.created_at, info.updatedAt, info.updated_at, info.sentAt, info.sent_at, info.timestamp, row.receivedAt, row.received_at, row.createdAt, row.created_at, row.updatedAt, row.updated_at, row.sentAt, row.sent_at, row.timestamp) })); } cursor = String(container.nextCursor || container.cursor || '').trim(); if (!cursor) break; } return messages.filter(Boolean); }
+

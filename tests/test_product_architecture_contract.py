@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import unittest
 from pathlib import Path
 
@@ -9,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PRODUCT_CONTRACT = ROOT / "product-contract.json"
 USERSCRIPT = ROOT / "runtimes" / "userscript" / "easy_email_proxy.user.js"
 DESKTOP = ROOT / "apps" / "desktop"
+sys.path.insert(0, str(ROOT / "scripts"))
+from userscript_template import assemble_userscript  # noqa: E402
 
 
 class ProductArchitectureContractTests(unittest.TestCase):
@@ -51,7 +54,7 @@ class ProductArchitectureContractTests(unittest.TestCase):
 
     def test_userscript_remains_an_independent_direct_provider_runtime(self) -> None:
         userscript = self.contract["products"]["userscript"]
-        source = USERSCRIPT.read_text(encoding="utf-8")
+        source = assemble_userscript(USERSCRIPT)
 
         self.assertEqual(userscript["implementation"], "independent-direct-provider-runtime")
         self.assertFalse(userscript["dependsOnServiceBase"])

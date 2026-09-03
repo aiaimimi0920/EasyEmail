@@ -62,7 +62,19 @@ if (-not (Test-Path -LiteralPath $sourcePath)) {
     throw "Source userscript not found: $sourcePath"
 }
 
-$source = Get-Content -Raw -LiteralPath $sourcePath
+$templateAssemblerPath = Join-Path $PSScriptRoot 'userscript_template.py'
+$assembledTemplatePath = [System.IO.Path]::GetTempFileName()
+try {
+    & python $templateAssemblerPath --source $sourcePath --output $assembledTemplatePath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Userscript template assembly failed: $sourcePath"
+    }
+    $source = Get-Content -Raw -LiteralPath $assembledTemplatePath -Encoding UTF8
+} finally {
+    if (Test-Path -LiteralPath $assembledTemplatePath) {
+        Remove-Item -LiteralPath $assembledTemplatePath -Force
+    }
+}
 $secretMap = @{
     cloudflare_customAuth = Get-SecretText -Secrets $secrets -Name 'cloudflare_customAuth'
     cloudflare_adminAuth  = Get-SecretText -Secrets $secrets -Name 'cloudflare_adminAuth'
@@ -107,11 +119,15 @@ $banner = @(
     '// LOCAL DEV BUILD',
     '// Generated from config.yaml + userscript secrets',
     '// Do not commit this file.'
-) -join "`r`n"
+) -join "`n"
 
-$output = $banner + "`r`n" + $source
+$output = $banner + "`n" + $source
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $outputPath) | Out-Null
-Set-Content -LiteralPath $outputPath -Value $output -Encoding UTF8
+[System.IO.File]::WriteAllText(
+    $outputPath,
+    $output,
+    [System.Text.UTF8Encoding]::new($false)
+)
 
 if ($shouldCopyToClipboard) {
     Set-Clipboard -Value $output

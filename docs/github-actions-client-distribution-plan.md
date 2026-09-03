@@ -342,8 +342,8 @@ building or importing the EasyEmail server.
 
 ### Phase 3 - Secret-free Userscript distribution
 
-- add a release builder that copies the tracked template, writes release
-  metadata, verifies recognized placeholders, and runs syntax checks;
+- add a release builder that assembles the tracked template sources, writes
+  release metadata, verifies recognized placeholders, and runs syntax checks;
 - keep `compile-userscript.ps1` as the private local configured path;
 - add tests proving public artifacts contain no configured credentials;
 - document standalone and future server-client modes explicitly.

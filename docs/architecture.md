@@ -100,9 +100,10 @@ the OpenAPI-described HTTP interface directly.
 
 ### `runtimes/userscript`
 
-This directory owns the independent userscript template, provider runtime,
-local configuration compiler flow, and public secret-free userscript artifact.
-Its independence is intentional rather than a transitional client design.
+This directory owns the independent modular userscript template, its
+deterministic single-file assembly, provider runtime, local configuration
+compiler flow, and public secret-free userscript artifact. Its independence is
+intentional rather than a transitional client design.
 
 ### `upstreams/cloudflare_temp_email`
 
