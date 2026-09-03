@@ -42,10 +42,13 @@ const readCssBundle = (entryPath, ancestors = new Set()) => {
     .join("");
 };
 
-const componentSources = filesUnder("src/components", ".tsx").map(readText);
+const appComponentSources = [
+  ...filesUnder("src/app", ".tsx"),
+  ...filesUnder("src/components", ".tsx"),
+].map(readText);
 
 export const senderAvatarIcon = readText("src/components/SenderAvatarIcon.tsx");
-export const app = [readText("src/App.tsx"), ...componentSources].join("\n");
+export const app = [readText("src/App.tsx"), ...appComponentSources].join("\n");
 export const cssRaw = readCssBundle("src/App.css");
 export const canonicalCssRaw = readCssBundle("src/styles/neuro-canonical.css");
 

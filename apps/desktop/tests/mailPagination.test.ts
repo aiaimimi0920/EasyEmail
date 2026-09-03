@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { paginateMailConversations } from "../src/mail/mailPagination.ts";
+import { readAppImplementationSource } from "./desktopSourceFixture.ts";
 
 type Msg = { message_id: string };
 type Conv = { key: string; messages: Msg[] };
@@ -62,19 +62,13 @@ test("flattens every message of the paged conversations, not just the latest", (
   );
 });
 
-// The mail derivation pipeline in App.tsx is split across three memos so that a
+// The mail derivation pipeline is split across three memos so that a
 // checkbox click or a page turn does not re-run filter -> sort -> conversation
 // grouping. That only holds while the pipeline memo's dependency array stays
 // free of selection and pagination state, so assert it directly: a regression
 // here is invisible in behavior but restores the full recompute.
 test("mail derivation memo does not depend on selection or pagination state", () => {
-  // Line endings are normalized because the markers below are \n-delimited, and a
-  // fresh checkout on Windows yields CRLF. Without this the test fails on a clean
-  // clone while passing in a working tree that happens to hold LF.
-  const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8").replace(
-    /\r\n/g,
-    "\n",
-  );
+  const app = readAppImplementationSource();
   const marker = "  const {\n    visibleMailMessages,";
   const start = app.indexOf(marker);
   assert.notEqual(start, -1, "could not locate the mail derivation memo");

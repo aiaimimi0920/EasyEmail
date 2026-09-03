@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const appSourceUrl = new URL("../src/App.tsx", import.meta.url);
+import { readAppImplementationSource } from "./desktopSourceFixture.ts";
 
 test("every migrated temporary-mailbox action uses the bundled HTTP client", async () => {
-  const source = await readFile(appSourceUrl, "utf8");
+  const source = readAppImplementationSource();
 
   for (const command of [
     "temp_create_mailbox",
@@ -60,7 +59,7 @@ test("every migrated temporary-mailbox action uses the bundled HTTP client", asy
 });
 
 test("temporary-mailbox HTTP transport never reads the one-shot settings token", async () => {
-  const source = await readFile(appSourceUrl, "utf8");
+  const source = readAppImplementationSource();
   const createStart = source.indexOf("async function createTempMailbox");
   const createEnd = source.indexOf("async function refreshCoreMailboxes", createStart);
   const refreshEnd = source.indexOf("const pollWaitingMailboxEvent", createEnd);
@@ -71,7 +70,7 @@ test("temporary-mailbox HTTP transport never reads the one-shot settings token",
 });
 
 test("temporary-mailbox failures keep actionable auth, timeout, offline, and recovery semantics", async () => {
-  const source = await readFile(appSourceUrl, "utf8");
+  const source = readAppImplementationSource();
 
   for (const errorCode of [
     "request_timeout",
