@@ -1,0 +1,328 @@
+/* Screenshot-audit corrections for the 1024x768 desktop baseline. */
+:root {
+  --nt-mail-list-card-target-height: 62px;
+}
+
+.nt-mail-topbar {
+  display: grid;
+  grid-template-columns: minmax(360px, 500px) minmax(259px, 1fr);
+  gap: 8px;
+  align-items: center;
+  justify-content: start;
+  min-height: 54px;
+  padding: 7px 10px;
+}
+
+.nt-mail-topbar .nt-mail-search-region {
+  width: 100%;
+  max-width: 500px;
+  min-width: 0;
+  justify-self: start;
+}
+
+.nt-mail-search-bar {
+  grid-template-columns: minmax(190px, 1fr) auto;
+  gap: 7px;
+}
+
+.nt-mail-top-search {
+  min-height: 42px;
+  border-color: rgba(223, 255, 61, 0.2);
+  border-radius: 9px;
+  padding: 0 10px;
+  color: var(--nt-fog);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.078), rgba(255, 255, 255, 0.03)),
+    rgba(5, 8, 12, 0.84);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+.nt-mail-top-search--active {
+  border-color: rgba(223, 255, 61, 0.54);
+  box-shadow:
+    0 0 0 2px rgba(223, 255, 61, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.065);
+}
+
+.nt-mail-top-search input {
+  min-height: 40px;
+  color: var(--nt-fog);
+  font-size: 0.9rem;
+}
+
+.nt-mail-top-search input::placeholder {
+  color: rgba(246, 248, 238, 0.55);
+}
+
+.nt-mail-top-search__icon {
+  color: rgba(223, 255, 61, 0.76);
+}
+
+.nt-mail-search-actions {
+  gap: 6px;
+}
+
+.nt-mail-search-code-switch,
+.nt-mail-search-sync-button {
+  min-width: 72px;
+  min-height: 42px;
+  border-color: rgba(223, 255, 61, 0.2);
+  border-radius: 9px;
+  padding: 0 10px;
+  color: var(--nt-fog);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.03)),
+    rgba(5, 8, 12, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  font-size: 0.78rem;
+  letter-spacing: 0.07em;
+}
+
+.nt-mail-search-code-switch:hover:not(:disabled),
+.nt-mail-search-sync-button:hover:not(:disabled) {
+  color: #faffd8;
+  border-color: rgba(223, 255, 61, 0.52);
+  background: rgba(223, 255, 61, 0.12);
+  box-shadow:
+    0 0 0 2px rgba(223, 255, 61, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.075);
+  transform: none;
+}
+
+.nt-mail-search-code-switch--active,
+.nt-mail-search-sync-button--syncing {
+  color: var(--nt-action-primary-ink);
+  border-color: transparent;
+  background: linear-gradient(
+    135deg,
+    var(--nt-action-primary),
+    var(--nt-action-primary-pressed)
+  );
+  box-shadow: 0 0 0 2px rgba(223, 255, 61, 0.16);
+}
+
+.nt-mail-topbar__actions {
+  display: flex;
+  gap: 7px;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: min(100%, 312px);
+  justify-self: end;
+  z-index: 18;
+}
+
+.nt-mail-topbar__action {
+  min-height: 42px;
+  min-width: 78px;
+  border-radius: 9px;
+  padding: 0 11px;
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+}
+
+.nt-mail-topbar__action--expand {
+  min-width: 76px;
+}
+
+.nt-mail-source-selector {
+  width: 176px;
+}
+
+.nt-mail-source-selector__trigger {
+  min-height: 42px;
+  border-radius: 9px;
+  padding: 6px 10px;
+}
+
+.nt-mail-source-selector__kicker {
+  font-size: 0.58rem;
+  letter-spacing: 0.07em;
+}
+
+.nt-mail-source-selector__trigger strong {
+  font-size: 0.82rem;
+}
+
+.nt-mail-search-overlay,
+.nt-mail-source-selector__menu {
+  border-color: rgba(223, 255, 61, 0.22);
+  color: var(--nt-fog);
+  background:
+    linear-gradient(180deg, rgba(18, 27, 38, 0.98), rgba(7, 10, 15, 0.99)),
+    var(--nt-graphite-strong);
+  box-shadow:
+    0 24px 54px rgba(0, 0, 0, 0.44),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+.nt-mail-search-overlay__header strong,
+.nt-mail-search-label,
+.nt-mail-search-overlay__row--fulltext strong,
+.nt-mail-source-selector__option strong {
+  color: var(--nt-fog);
+}
+
+.nt-mail-search-overlay__row--fulltext span,
+.nt-mail-search-overlay__footer,
+.nt-mail-source-selector__option span {
+  color: var(--nt-muted);
+}
+
+.nt-mail-search-scope-chip,
+.nt-mail-search-secondary,
+.nt-mail-search-overlay__footer button,
+.nt-mail-source-selector__option,
+.nt-mail-source-selector__action {
+  border-color: rgba(223, 255, 61, 0.16);
+  color: var(--nt-fog);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.nt-mail-search-scope-chip:hover,
+.nt-mail-search-scope-chip--active,
+.nt-mail-source-selector__option:hover,
+.nt-mail-source-selector__option--active {
+  border-color: rgba(223, 255, 61, 0.5);
+  color: #faffd8;
+  background: rgba(223, 255, 61, 0.12);
+  box-shadow: inset 3px 0 0 var(--nt-signal);
+}
+
+.nt-mail-search-submit,
+.nt-mail-source-selector__action--primary {
+  color: var(--nt-action-primary-ink);
+  background: linear-gradient(
+    135deg,
+    var(--nt-action-primary),
+    var(--nt-action-primary-pressed)
+  );
+}
+
+.nt-mail-list-toolbar {
+  min-height: 52px;
+  padding: 7px 14px;
+}
+
+.nt-scroll-pane {
+  gap: 7px;
+}
+
+.nt-list-pane .nt-scroll-pane {
+  gap: 6px;
+  padding-right: 4px;
+}
+
+.nt-message-card--compact {
+  min-height: var(--nt-mail-list-card-target-height);
+  gap: 2px;
+  border-radius: 10px;
+  padding: 7px 8px;
+}
+
+.nt-message-card--compact.nt-message-card--selectable {
+  grid-template-columns: 24px minmax(0, 1fr);
+  column-gap: 6px;
+}
+
+.nt-message-card--compact .nt-message-card__content {
+  gap: 2px;
+}
+
+.nt-message-card--compact .nt-message-card__mainline {
+  gap: 5px;
+}
+
+.nt-message-card--compact .nt-sender-avatar--compact {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+}
+
+.nt-message-card__mainline strong,
+.nt-message-card__content span,
+.nt-message-card__content small {
+  line-height: 1.12;
+}
+
+.nt-message-card__time {
+  font-size: 0.64rem;
+}
+
+.nt-label-chip,
+.nt-folder-chip,
+.nt-code-chip,
+.nt-more-chip,
+.nt-read-chip,
+.nt-unread-chip {
+  min-height: 16px;
+  padding: 0 6px;
+  font-size: 0.58rem;
+}
+
+.nt-compose-popover {
+  right: clamp(128px, 15vw, 190px);
+  width: min(640px, calc(100vw - 220px));
+  max-width: calc(100vw - 220px);
+}
+
+.nt-compose-popover--expanded {
+  right: clamp(96px, 12vw, 160px);
+  width: min(760px, calc(100vw - 190px));
+  max-width: calc(100vw - 190px);
+}
+
+.nt-compose-popover--minimized {
+  right: clamp(128px, 15vw, 190px);
+}
+
+.nt-compose-popover__titlebar {
+  color: #faffd8;
+  background:
+    linear-gradient(90deg, rgba(223, 255, 61, 0.16), rgba(54, 215, 242, 0.06)),
+    linear-gradient(180deg, rgba(17, 24, 33, 0.98), rgba(7, 10, 15, 0.99));
+}
+
+.nt-compose-popover__titlebar strong {
+  letter-spacing: 0.02em;
+}
+
+.nt-compose-popover__grabber,
+.nt-compose-popover__window-controls button {
+  color: rgba(250, 255, 216, 0.86);
+}
+
+.nt-compose-popover__grabber:hover,
+.nt-compose-popover__window-controls button:hover {
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-signal);
+}
+
+.nt-compose-popover__toolbar button:hover,
+.nt-compose-popover__formatbar button:hover,
+.nt-compose-popover__utility-actions button:hover {
+  color: var(--nt-action-primary-ink);
+  background: rgba(223, 255, 61, 0.18);
+}
+
+.nt-compose-format-button--active,
+.nt-compose-popover__formatbar .nt-compose-format-button--active:hover,
+.nt-compose-popover__utility-actions button[aria-pressed="true"],
+.nt-compose-popover__utility-actions button[aria-expanded="true"] {
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-signal) !important;
+}
+
+.nt-compose-popover__send,
+.nt-compose-popover__send-menu {
+  color: var(--nt-action-primary-ink);
+  background: linear-gradient(
+    135deg,
+    var(--nt-action-primary),
+    var(--nt-action-primary-pressed)
+  );
+}
+
+.nt-compose-popover__send-menu {
+  border-left-color: rgba(17, 24, 33, 0.18);
+}
+

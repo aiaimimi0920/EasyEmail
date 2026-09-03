@@ -1,0 +1,248 @@
+/* Canonical Neuro theme mapping.
+   Product structure stays intact; this layer assigns visual roles to shared surfaces. */
+
+::selection {
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+.nt-app-shell::before {
+  background: none;
+  opacity: 0;
+}
+
+.nt-brand {
+  border-color: transparent;
+  border-radius: var(--nt-radius-sm);
+  background: transparent;
+}
+
+.nt-nav__item,
+.nt-rail-footer-action,
+.nt-platform-account-name-button,
+.nt-platform-account-login-button {
+  border-color: transparent;
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-text-muted);
+  background: transparent;
+}
+
+.nt-nav__item:not(.nt-nav__item--active) .nt-nav__icon,
+.nt-rail-footer-action:not(.nt-rail-footer-action--active) .nt-rail-footer-action__icon {
+  color: var(--nt-text-muted);
+}
+
+.nt-nav__item:hover,
+.nt-rail-footer-action:hover,
+.nt-platform-account-name-button:hover,
+.nt-platform-account-login-button:hover {
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control-hover);
+}
+
+.nt-app-shell--edge-rail .nt-nav__item--active,
+.nt-rail-footer-action--active {
+  border-color: var(--nt-yellow-line);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-selected);
+  box-shadow: inset 3px 0 0 var(--nt-action-primary);
+}
+
+.nt-app-shell--edge-rail .nt-nav__item--active .nt-nav__icon,
+.nt-rail-footer-action--active .nt-rail-footer-action__icon {
+  color: var(--nt-action-primary);
+}
+
+.nt-mode-popover,
+.nt-platform-account-popover,
+.nt-avatar-popover,
+.nt-mail-search-overlay,
+.nt-mail-source-selector__menu,
+.nt-mail-list-toolbar__menu,
+.nt-mail-list-toolbar__panel,
+.nt-proton-message-more-menu {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-md);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-panel);
+  box-shadow: 0 18px 48px var(--nt-shadow-panel);
+}
+
+.nt-mode-popover__item {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-text-muted);
+  background: var(--nt-surface-control);
+}
+
+.nt-mode-popover__item:hover,
+.nt-mode-popover__item--active {
+  border-color: var(--nt-yellow-line);
+  color: var(--nt-action-primary);
+  background: var(--nt-yellow-soft);
+}
+
+.nt-mode-option--active::after,
+.nt-mode-current::after,
+.nt-mode-popover__item--active::after {
+  background: var(--nt-action-primary);
+  box-shadow: none;
+}
+
+input,
+select,
+textarea,
+.nt-mail-top-search,
+.nt-mail-search,
+.nt-mail-search__bar,
+.nt-search-box,
+.nt-mail-source-selector__trigger,
+.nt-source-trigger,
+.nt-mail-topbar__action {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control);
+  box-shadow: none;
+}
+
+input::placeholder,
+textarea::placeholder,
+.nt-mail-top-search input::placeholder {
+  color: var(--nt-text-muted);
+  opacity: 0.8;
+}
+
+input:hover,
+select:hover,
+textarea:hover,
+.nt-mail-top-search:hover,
+.nt-mail-source-selector__trigger:hover,
+.nt-source-trigger:hover,
+.nt-mail-topbar__action:hover {
+  border-color: color-mix(in srgb, var(--nt-text-primary) 22%, var(--nt-border-default));
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control-hover);
+  box-shadow: none;
+}
+
+.nt-mail-top-search--active {
+  border-color: var(--nt-border-focus);
+  box-shadow: 0 0 0 2px var(--nt-yellow-soft);
+}
+
+.nt-mail-top-search__icon {
+  color: var(--nt-text-muted);
+}
+
+.nt-btn,
+.nt-switch,
+.nt-mini-btn,
+.nt-mail-search-code-switch,
+.nt-mail-search-sync-button,
+.nt-mail-topbar__action,
+.nt-mail-source-selector__trigger {
+  border-radius: var(--nt-radius-sm);
+  letter-spacing: 0;
+  box-shadow: none;
+}
+
+.nt-btn:hover,
+.nt-switch:hover,
+.nt-resource-row:hover {
+  transform: none;
+}
+
+.nt-btn--primary,
+.nt-mail-source-selector__action--primary,
+.nt-mail-list-toolbar__apply,
+.nt-proton-primary-reply {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  box-shadow: none;
+}
+
+.nt-btn--primary:hover:not(:disabled),
+.nt-mail-source-selector__action--primary:hover:not(:disabled),
+.nt-mail-list-toolbar__apply:hover:not(:disabled),
+.nt-proton-primary-reply:hover:not(:disabled) {
+  border-color: var(--nt-action-primary-hover);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary-hover);
+}
+
+.nt-btn--primary:active:not(:disabled),
+.nt-mail-source-selector__action--primary:active:not(:disabled),
+.nt-mail-list-toolbar__apply:active:not(:disabled),
+.nt-proton-primary-reply:active:not(:disabled) {
+  background: var(--nt-action-primary-pressed);
+}
+
+.nt-btn--secondary {
+  border-color: var(--nt-info-line);
+  color: var(--nt-info-text);
+  background: var(--nt-info-soft);
+}
+
+.nt-btn--secondary:hover:not(:disabled) {
+  border-color: var(--nt-action-info);
+  color: var(--nt-text-primary);
+  background: color-mix(in srgb, var(--nt-action-info) 18%, var(--nt-surface-panel));
+}
+
+.nt-btn--outline,
+.nt-switch,
+.nt-mini-btn {
+  border-color: var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control);
+}
+
+.nt-btn--outline:hover:not(:disabled),
+.nt-switch:hover:not(:disabled),
+.nt-mini-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--nt-text-primary) 22%, var(--nt-border-default));
+  background: var(--nt-surface-control-hover);
+}
+
+.nt-switch--active {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+}
+
+.nt-mail-search-code-switch,
+.nt-mail-search-sync-button {
+  border-color: var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control);
+}
+
+.nt-mail-search-code-switch:hover:not(:disabled),
+.nt-mail-search-sync-button:hover:not(:disabled) {
+  border-color: var(--nt-info-line);
+  color: var(--nt-info-text);
+  background: var(--nt-info-soft);
+  box-shadow: none;
+  transform: none;
+}
+
+.nt-mail-search-code-switch--active {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  box-shadow: none;
+}
+
+.nt-mail-search-sync-button--syncing {
+  border-color: var(--nt-action-info);
+  color: var(--nt-text-primary);
+  background: var(--nt-info-soft);
+  box-shadow: none;
+}
+

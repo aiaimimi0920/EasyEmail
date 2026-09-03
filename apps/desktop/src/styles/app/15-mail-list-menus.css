@@ -1,0 +1,393 @@
+.nt-mail-list-toolbar__panel--move,
+.nt-mail-list-toolbar__panel--label,
+.nt-mail-list-toolbar__panel--snooze {
+  min-width: 230px;
+}
+
+.nt-mail-list-toolbar__panel--snooze {
+  width: min(322px, calc(100vw - 40px));
+}
+
+.nt-mail-list-toolbar__panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nt-mail-list-toolbar__panel-head strong,
+.nt-mail-list-toolbar__snooze-head strong {
+  color: #111821;
+  font-size: 0.98rem;
+  font-weight: 850;
+}
+
+.nt-mail-list-toolbar__create {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  border: 0;
+  border-radius: 9px;
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  font-weight: 900;
+}
+
+.nt-mail-list-toolbar__panel-search {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(17, 24, 33, 0.18);
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #656b74;
+  background: #ffffff;
+}
+
+.nt-mail-list-toolbar__panel-search svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nt-mail-list-toolbar__panel-search input {
+  min-width: 0;
+  flex: 1 1 auto;
+  border: 0;
+  outline: 0;
+  color: #111821;
+  background: transparent;
+  font: inherit;
+}
+
+.nt-mail-list-toolbar__panel-options {
+  display: grid;
+  gap: 2px;
+}
+
+.nt-mail-list-toolbar__panel-option,
+.nt-mail-list-toolbar__snooze-row,
+.nt-mail-list-toolbar__snooze-custom {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 0;
+  color: #2b3139;
+  background: transparent;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.nt-mail-list-toolbar__panel-option:hover,
+.nt-mail-list-toolbar__panel-option--active,
+.nt-mail-list-toolbar__snooze-row:hover,
+.nt-mail-list-toolbar__snooze-custom:hover {
+  background: #f6f6f8;
+}
+
+.nt-mail-list-toolbar__radio,
+.nt-mail-list-toolbar__checkbox {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(17, 24, 33, 0.22);
+  color: #ffffff;
+  background: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.nt-mail-list-toolbar__radio {
+  border-radius: 999px;
+}
+
+.nt-mail-list-toolbar__checkbox {
+  border-radius: 4px;
+}
+
+.nt-mail-list-toolbar__panel-option--active .nt-mail-list-toolbar__radio,
+.nt-mail-list-toolbar__panel-option--active .nt-mail-list-toolbar__checkbox {
+  border-color: var(--nt-action-primary);
+  background: var(--nt-action-primary);
+}
+
+.nt-mail-list-toolbar__option-check {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 10px;
+  color: var(--nt-text-muted);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.nt-mail-list-toolbar__option-check {
+  color: #3b414a;
+}
+
+.nt-mail-list-toolbar__option-check input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+.nt-mail-list-toolbar__apply {
+  min-height: 34px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  font-weight: 800;
+}
+
+.nt-mail-list-toolbar__apply:disabled {
+  color: #b8bbc2;
+  background: #f0f0f2;
+  cursor: not-allowed;
+}
+
+.nt-mail-list-toolbar__empty {
+  min-height: 34px;
+  color: #8b9099;
+  font-size: 0.84rem;
+}
+
+.nt-mail-list-toolbar__snooze-head {
+  display: grid;
+  gap: 3px;
+}
+
+.nt-mail-list-toolbar__snooze-head span {
+  color: #656b74;
+  font-size: 0.86rem;
+}
+
+.nt-mail-list-toolbar__snooze-row {
+  justify-content: space-between;
+  padding: 0 0;
+}
+
+.nt-mail-list-toolbar__snooze-row span:last-child {
+  color: #656b74;
+}
+
+.nt-mail-list-toolbar__snooze-custom {
+  justify-content: space-between;
+  border-top: 1px solid rgba(17, 24, 33, 0.1);
+  border-radius: 0;
+  padding-top: 12px;
+}
+
+.nt-mail-list-toolbar__snooze-plus {
+  display: inline-flex;
+  min-width: 32px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--nt-info-line);
+  border-radius: 6px;
+  color: var(--nt-action-info);
+  background: var(--nt-info-soft);
+  font-weight: 900;
+}
+
+.nt-scroll-pane {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  align-content: start;
+  gap: 10px;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: auto;
+  padding-right: 5px;
+}
+
+.nt-scroll-pane > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.nt-scroll-pane--short {
+  max-height: 224px;
+}
+
+.nt-scroll-pane::-webkit-scrollbar,
+.nt-source-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.nt-scroll-pane::-webkit-scrollbar-thumb,
+.nt-source-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(217, 255, 56, 0.26);
+}
+
+.nt-message-card,
+.nt-thread-card,
+.nt-code-card,
+.nt-resource-row,
+.nt-result,
+.nt-alert {
+  border: 1px solid var(--nt-line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nt-message-card,
+.nt-thread-card {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  padding: 14px;
+  overflow-x: hidden;
+  overflow-x: clip;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease;
+}
+
+.nt-message-card--selectable {
+  grid-template-columns: 30px minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: start;
+}
+
+.nt-message-card--code.nt-message-card--selectable {
+  grid-template-columns: 30px 96px 32px minmax(0, 1fr);
+}
+
+.nt-message-card--compact {
+  min-height: var(--nt-mail-list-card-target-height);
+  gap: 4px;
+  border-radius: 14px;
+  padding: 9px 10px;
+}
+
+.nt-message-card--compact.nt-message-card--selectable {
+  grid-template-columns: 26px minmax(0, 1fr);
+  column-gap: 7px;
+}
+
+.nt-message-card--compact.nt-message-card--code.nt-message-card--selectable {
+  grid-template-columns: 26px 78px 24px minmax(0, 1fr);
+}
+
+.nt-message-card strong,
+.nt-thread-card strong,
+.nt-resource-row strong {
+  color: var(--nt-fog);
+}
+
+.nt-message-card:hover,
+.nt-message-card--active {
+  border-color: rgba(217, 255, 56, 0.58);
+  background:
+    linear-gradient(135deg, rgba(217, 255, 56, 0.14), transparent 45%),
+    rgba(255, 255, 255, 0.06);
+}
+
+.nt-message-card--unread {
+  border-color: rgba(217, 255, 56, 0.46);
+  background:
+    linear-gradient(90deg, rgba(217, 255, 56, 0.13), transparent 34%),
+    rgba(255, 255, 255, 0.055);
+}
+
+.nt-message-card--unread > strong,
+.nt-message-card--unread .nt-message-card__content > strong,
+.nt-message-card--unread .nt-message-card__subject-line strong {
+  color: #ffffff;
+  font-weight: 950;
+}
+
+.nt-message-card--active {
+  box-shadow:
+    inset 3px 0 0 var(--nt-signal),
+    0 0 0 1px rgba(217, 255, 56, 0.14),
+    0 18px 42px rgba(0, 0, 0, 0.2);
+}
+
+.nt-message-card span,
+.nt-thread-card span,
+.nt-message-card__content,
+.nt-resource-row span,
+.nt-result span,
+.nt-message-card small,
+.nt-thread-card small,
+.nt-resource-row small,
+.nt-result small {
+  color: var(--nt-muted);
+}
+
+.nt-message-card--code {
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+}
+
+.nt-message-code {
+  display: inline-grid;
+  min-height: 48px;
+  place-items: center;
+  border: 1px solid rgba(217, 255, 56, 0.56);
+  border-radius: 16px;
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-signal);
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 1.1rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.nt-message-card--compact .nt-message-code {
+  min-height: 36px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+}
+
+.nt-message-code-copy {
+  width: 100%;
+  padding: 0 10px;
+  cursor: copy;
+}
+
+.nt-message-code-copy:hover {
+  filter: brightness(1.08);
+}
+
+.nt-message-card__content {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.nt-message-card__open {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+

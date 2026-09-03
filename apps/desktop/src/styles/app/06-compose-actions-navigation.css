@@ -1,0 +1,406 @@
+.nt-compose-popover__utility-actions button {
+  min-width: 32px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 8px;
+  color: rgba(17, 24, 33, 0.74);
+  background: transparent;
+  font-weight: 800;
+}
+
+.nt-compose-popover__utility-actions button:hover,
+.nt-compose-popover__utility-actions button[aria-pressed="true"],
+.nt-compose-popover__utility-actions button[aria-expanded="true"] {
+  color: #111821;
+  background: var(--nt-reading-hover);
+}
+
+.nt-compose-action-control,
+.nt-compose-send-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.nt-compose-send-control__schedule-summary {
+  max-width: 210px;
+  margin-right: 10px;
+  overflow: hidden;
+  color: rgba(17, 24, 33, 0.58);
+  font-size: 0.82rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-compose-popover__bottom-menu,
+.nt-compose-schedule-popover {
+  position: absolute;
+  z-index: 80;
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 220px;
+  border: 1px solid rgba(17, 24, 33, 0.12);
+  border-radius: 12px;
+  padding: 8px;
+  color: #111821;
+  background: #ffffff;
+  box-shadow: 0 18px 44px rgba(17, 24, 33, 0.16);
+}
+
+.nt-compose-popover__bottom-menu button,
+.nt-compose-schedule-popover button {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #111821;
+  background: transparent;
+  font: inherit;
+  font-weight: 750;
+  text-align: left;
+}
+
+.nt-compose-popover__bottom-menu button:hover,
+.nt-compose-schedule-popover button:hover {
+  background: var(--nt-reading-hover);
+}
+
+.nt-compose-popover__bottom-menu p {
+  margin: 6px 8px 2px;
+  color: rgba(17, 24, 33, 0.58);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.nt-compose-schedule-popover {
+  right: 0;
+  left: auto;
+  min-width: 330px;
+  padding: 0;
+}
+
+.nt-compose-schedule-popover header {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid rgba(17, 24, 33, 0.08);
+}
+
+.nt-compose-schedule-popover header span,
+.nt-compose-schedule-popover button em {
+  color: rgba(17, 24, 33, 0.54);
+  font-style: normal;
+  font-weight: 700;
+}
+
+.nt-compose-schedule-popover button {
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 0;
+}
+
+.nt-compose-schedule-custom {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 6px 16px 10px;
+  border-top: 1px solid rgba(17, 24, 33, 0.08);
+}
+
+.nt-compose-schedule-custom__label {
+  flex: 0 0 auto;
+  color: #111821;
+  font-weight: 850;
+}
+
+.nt-compose-schedule-custom input {
+  width: 184px;
+  min-height: 34px;
+  border: 1px solid rgba(17, 24, 33, 0.14);
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #111821;
+  background: #ffffff;
+  font: inherit;
+  font-size: 0.84rem;
+}
+
+.nt-compose-schedule-custom input:focus {
+  border-color: var(--nt-border-focus);
+  outline: 3px solid var(--nt-focus-ring);
+}
+
+.nt-compose-attachments {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 24px;
+  border-top: 1px solid rgba(17, 24, 33, 0.07);
+  color: rgba(17, 24, 33, 0.72);
+  background: #fbfcf7;
+  font-size: 0.86rem;
+}
+
+.nt-compose-attachments {
+  flex-wrap: wrap;
+}
+
+.nt-compose-attachments span {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid rgba(17, 24, 33, 0.1);
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: #ffffff;
+}
+
+.nt-compose-attachments em {
+  color: rgba(17, 24, 33, 0.48);
+  font-style: normal;
+}
+
+.nt-compose-popover__saved-state {
+  color: rgba(17, 24, 33, 0.46);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.nt-compose-popover__send {
+  display: inline-flex;
+  min-width: 108px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 9px;
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  font-weight: 900;
+}
+
+.nt-compose-popover__send:hover {
+  filter: brightness(1.06);
+}
+
+.nt-compose-popover__send-menu {
+  width: 36px;
+  min-height: 36px;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 0 9px 9px 0;
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary-pressed);
+  font-weight: 900;
+}
+
+.nt-compose-send-control .nt-compose-popover__send {
+  border-radius: 9px 0 0 9px;
+}
+
+.nt-nav {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.nt-nav-shell {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.nt-app-shell--edge-rail .nt-nav {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  gap: 2px;
+}
+
+.nt-nav-scroll-hint {
+  position: absolute;
+  right: 2px;
+  left: 2px;
+  z-index: 3;
+  display: grid;
+  height: 34px;
+  place-items: center;
+  pointer-events: none;
+}
+
+.nt-nav-scroll-hint::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  opacity: 0.95;
+}
+
+.nt-nav-scroll-hint::after {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 24px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid rgba(217, 255, 56, 0.42);
+  border-radius: 999px;
+  color: var(--nt-signal);
+  background: rgba(9, 13, 18, 0.9);
+  box-shadow:
+    0 0 18px rgba(217, 255, 56, 0.38),
+    inset 0 0 0 1px rgba(6, 182, 212, 0.2);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.nt-nav-scroll-hint--top {
+  top: 0;
+}
+
+.nt-nav-scroll-hint--top::before {
+  border-top: 1px solid rgba(217, 255, 56, 0.28);
+  background:
+    linear-gradient(180deg, rgba(217, 255, 56, 0.2), rgba(9, 13, 18, 0.5), transparent);
+}
+
+.nt-nav-scroll-hint--top::after {
+  content: "▲";
+}
+
+.nt-nav-scroll-hint--bottom {
+  bottom: 0;
+}
+
+.nt-nav-scroll-hint--bottom::before {
+  border-bottom: 1px solid rgba(217, 255, 56, 0.28);
+  background:
+    linear-gradient(0deg, rgba(217, 255, 56, 0.2), rgba(9, 13, 18, 0.5), transparent);
+}
+
+.nt-nav-scroll-hint--bottom::after {
+  content: "▼";
+}
+
+.nt-app-shell--edge-rail .nt-nav::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.nt-app-shell--rail-collapsed .nt-nav {
+  width: var(--nt-rail-icon-lane);
+}
+
+.nt-nav__item,
+.nt-source-card,
+.nt-message-card,
+.nt-thread-card,
+.nt-code-copy {
+  color: inherit;
+  text-align: left;
+  background: transparent;
+}
+
+.nt-nav__item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 14px 14px 14px 12px;
+  border: 1px solid var(--nt-line);
+  border-radius: 18px;
+  color: var(--nt-muted);
+  background: rgba(255, 255, 255, 0.035);
+  transition:
+    border-color 180ms ease,
+    transform 180ms ease,
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.nt-app-shell--edge-rail .nt-nav__item {
+  grid-template-columns: var(--nt-rail-icon-lane) minmax(0, 1fr);
+  grid-template-rows: 40px;
+  gap: 0 8px;
+  align-items: center;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 8px 0 0;
+  border-color: transparent;
+  border-radius: 14px;
+  background: transparent;
+}
+
+.nt-app-shell--rail-collapsed .nt-nav__item {
+  grid-template-columns: var(--nt-rail-icon-lane) minmax(0, 1fr);
+  grid-template-rows: 40px;
+  align-items: center;
+  justify-items: center;
+  width: var(--nt-rail-icon-lane);
+  height: 40px;
+  min-height: 40px;
+  overflow: hidden;
+  padding: 0;
+}
+
+.nt-nav__item:hover,
+.nt-source-card:hover,
+.nt-message-card:hover,
+.nt-thread-card:hover,
+.nt-resource-row:hover {
+  border-color: var(--nt-line-strong);
+  transform: translateY(-2px);
+}
+
+.nt-app-shell--edge-rail .nt-nav__item:hover {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.055);
+  transform: none;
+}
+
+.nt-nav__icon {
+  position: relative;
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  color: var(--nt-signal);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.nt-nav__icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nt-app-shell--edge-rail .nt-nav__icon {
+  justify-self: center;
+}
+
+.nt-nav__label {
+  align-self: center;
+  min-width: 0;
+  color: var(--nt-fog);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+

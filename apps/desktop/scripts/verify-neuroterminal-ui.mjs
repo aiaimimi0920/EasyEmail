@@ -1,119 +1,15 @@
-import { readFileSync, readdirSync } from "node:fs";
-
-// `app` is App.tsx followed by every extracted component, concatenated, so that
-// moving JSX into a component file does not fail checks that only ask whether
-// something exists. Read in a fixed order - App.tsx first, then components
-// sorted by name - so the result does not depend on directory enumeration order.
-//
-// This preserves the ~941 `app.includes(...)` checks, the `app.match(...)` counts
-// and the `app.split(...)` counts unchanged. It does NOT make the position-based
-// checks safe on its own: concatenation only guarantees order *within* a file, so
-// an anchor group (see the note by the render-index constants below) must move
-// into a component whole rather than being split across files.
-const COMPONENT_DIR = "src/components";
-const componentSources = (() => {
-  let entries;
-  try {
-    entries = readdirSync(COMPONENT_DIR);
-  } catch {
-    return [];
-  }
-  return entries
-    .filter((name) => name.endsWith(".tsx"))
-    .sort()
-    .map((name) => readFileSync(`${COMPONENT_DIR}/${name}`, "utf8"));
-})();
-const senderAvatarIcon = readFileSync("src/components/SenderAvatarIcon.tsx", "utf8").replace(
-  /\r\n/g,
-  "\n",
-);
-// Line endings are normalized to \n. Many of the checks below embed exact \n, and
-// a fresh checkout on Windows produces CRLF, so without this the gate fails on a
-// clean clone while passing in a working tree that holds LF. The CSS matchers
-// already tolerate this via whitespace collapsing; these string checks did not.
-const app = [readFileSync("src/App.tsx", "utf8"), ...componentSources]
-  .join("\n")
-  .replace(/\r\n/g, "\n");
-
-// Raw stylesheet text. Only the block helpers below use this directly, because
-// they need exact byte offsets to locate a selector.
-const cssRaw = readFileSync("src/App.css", "utf8").replace(/\r\n/g, "\n");
-const canonicalCssRaw = readFileSync("src/styles/neuro-canonical.css", "utf8").replace(
-  /\r\n/g,
-  "\n",
-);
-
-// Collapse runs of whitespace to a single space so reindenting, reordering
-// declarations, or running a formatter cannot fail a check that is really about
-// which declarations exist. Without this, the ~288 `css.includes(...)` checks
-// below pin the stylesheet's exact whitespace and block any formatter.
-const collapseWhitespace = (value) => value.replace(/\s+/g, " ");
-
-/**
- * Wraps stylesheet text so `.includes()` ignores whitespace differences while
- * `.indexOf()` and `.slice()` still operate on the exact original, keeping the
- * offset-anchored helpers correct.
- */
-const whitespaceTolerantCss = (raw) => {
-  const collapsed = collapseWhitespace(raw);
-  return {
-    includes: (needle) => collapsed.includes(collapseWhitespace(needle)),
-    indexOf: (needle, from) => raw.indexOf(needle, from),
-    slice: (start, end) => raw.slice(start, end),
-  };
-};
-
-const css = whitespaceTolerantCss(cssRaw);
-const canonicalCss = whitespaceTolerantCss(canonicalCssRaw);
-const invokeCommand = readFileSync("src/api/invokeCommand.ts", "utf8");
-const avatarSettingsClient = readFileSync("src/api/avatarSettingsClient.ts", "utf8");
-const contactAvatarImage = readFileSync("src/avatar/contactAvatarImage.ts", "utf8");
-const contactClient = readFileSync("src/api/contactClient.ts", "utf8");
-const desktopCredentialClient = readFileSync("src/api/desktopCredentialClient.ts", "utf8");
-const mailAccountClient = readFileSync("src/api/mailAccountClient.ts", "utf8");
-const mailTaxonomyClient = readFileSync("src/api/mailTaxonomyClient.ts", "utf8");
-const newsletterClient = readFileSync("src/api/newsletterClient.ts", "utf8");
-const platformAccountClient = readFileSync("src/api/platformAccountClient.ts", "utf8");
-const bundledCoreClient = readFileSync("src/api/bundledCoreClient.ts", "utf8");
-const desktopCoreClient = readFileSync("src/api/desktopCoreClient.ts", "utf8");
-const easyEmailHttpClient = readFileSync("src/api/easyEmailHttpClient.ts", "utf8");
-const settingsClient = readFileSync("src/api/settingsClient.ts", "utf8");
-const sendQueueClient = readFileSync("src/api/sendQueueClient.ts", "utf8");
-const composeData = readFileSync("src/compose/composeData.ts", "utf8");
-const composeDateUtils = readFileSync("src/compose/composeDateUtils.ts", "utf8");
-const composeImage = readFileSync("src/compose/composeImage.ts", "utf8");
-const composeHtmlSanitizer = readFileSync("src/compose/composeHtmlSanitizer.ts", "utf8");
-const composeLink = readFileSync("src/compose/composeLink.ts", "utf8");
-const layerAccessibility = readFileSync("src/hooks/useLayerAccessibility.ts", "utf8");
-const mailDateUtils = readFileSync("src/mail/mailDateUtils.ts", "utf8");
-const messageLinkRenderer = readFileSync("src/mail/messageLinkRenderer.ts", "utf8");
-const senderAvatar = readFileSync("src/mail/senderAvatar.ts", "utf8");
-const mailSelectors = readFileSync("src/mail/mailSelectors.ts", "utf8");
-const mailSearch = readFileSync("src/mail/mailSearch.ts", "utf8");
-const mailTaxonomy = readFileSync("src/mail/mailTaxonomy.ts", "utf8");
-const imapModels = readFileSync("src-tauri/src/imap/models.rs", "utf8");
-const imapNative = readFileSync("src-tauri/src/imap/native.rs", "utf8");
-const smtpNative = readFileSync("src-tauri/src/smtp/native.rs", "utf8");
-const normalAccountService = readFileSync("src-tauri/src/services/normal_account_service.rs", "utf8");
-const verificationDomain = readFileSync("src-tauri/src/domain/verification.rs", "utf8");
-const platformAccountService = readFileSync("src-tauri/src/services/platform_account_service.rs", "utf8");
-const commands = readFileSync("src-tauri/src/commands.rs", "utf8");
-const sendService = readFileSync("src-tauri/src/services/send_service.rs", "utf8");
-const sendQueueRepository = readFileSync("src-tauri/src/storage/send_queue_repository.rs", "utf8");
-const messageRepository = readFileSync("src-tauri/src/storage/message_repository.rs", "utf8");
-const contactRepository = readFileSync("src-tauri/src/storage/contact_repository.rs", "utf8");
-const migrations = readFileSync("src-tauri/src/storage/migrations.rs", "utf8");
-const smtpModels = readFileSync("src-tauri/src/smtp/models.rs", "utf8");
-const tauriLib = readFileSync("src-tauri/src/lib.rs", "utf8");
-const tauriCapability = readFileSync("src-tauri/capabilities/default.json", "utf8");
-const avatarBackend = readFileSync("src-tauri/src/avatar.rs", "utf8");
-const tauriConfig = readFileSync("src-tauri/tauri.conf.json", "utf8");
-const readme = readFileSync("README.md", "utf8");
-const designRules = readFileSync("docs/design/easyemailam-design-rules.md", "utf8");
-const platformAccountApi = readFileSync("docs/design/nmail-platform-account-api.md", "utf8");
-const indexHtml = readFileSync("index.html", "utf8");
-const packageJson = readFileSync("package.json", "utf8");
-const appIconSvg = readFileSync("public/easyemailam-mail-icon.svg", "utf8");
+import {
+  app, appIconSvg, avatarBackend, avatarSettingsClient, bundledCoreClient, canonicalCss,
+  canonicalCssRaw, commands, composeData, composeDateUtils, composeHtmlSanitizer, composeImage,
+  composeLink, contactAvatarImage, contactClient, contactRepository, css, cssRaw, designRules,
+  desktopCoreClient, desktopCredentialClient, easyEmailHttpClient, imapModels, imapNative, indexHtml,
+  invokeCommand, layerAccessibility, mailAccountClient, mailDateUtils, mailSearch, mailSelectors,
+  mailTaxonomy, mailTaxonomyClient, messageLinkRenderer, messageRepository, migrations, newsletterClient,
+  normalAccountService, packageJson, platformAccountApi, platformAccountClient, platformAccountService,
+  readme, senderAvatar, senderAvatarIcon, sendQueueClient, sendQueueRepository, sendService, settingsClient,
+  smtpModels, smtpNative, tauriCapability, tauriConfig, tauriLib, verificationDomain,
+  whitespaceTolerantCss,
+} from "./neuroterminal-source-fixtures.mjs";
 
 const cssBlock = (selector) => {
   const lineStartNeedle = `\n${selector} {`;

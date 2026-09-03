@@ -1,0 +1,395 @@
+.nt-contact-modal__actions button {
+  min-height: 36px;
+  border-color: rgba(17, 24, 33, 0.12);
+  color: #171923;
+  background: #ffffff;
+}
+
+.nt-contact-modal__actions .nt-contact-modal__primary {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  box-shadow: 0 12px 28px var(--nt-yellow-soft);
+}
+
+.nt-compose-popover__body {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  background: #fbfcf7;
+  overflow-x: hidden;
+}
+
+.nt-compose-popover__body--no-ai {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.nt-compose-popover__toolbar {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  min-height: 42px;
+  align-items: center;
+  padding: 0 24px;
+}
+
+.nt-compose-popover__toolbar--ai {
+  border-bottom: 1px solid rgba(17, 24, 33, 0.06);
+}
+
+.nt-compose-toolbar-note,
+.nt-compose-modal-note {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border: 1px solid rgba(217, 255, 56, 0.28);
+  border-radius: 999px;
+  padding: 0.18rem 0.52rem;
+  color: #44502d;
+  background: rgba(217, 255, 56, 0.14);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.nt-compose-popover__toolbar button,
+.nt-compose-popover__formatbar button,
+.nt-compose-popover__utility-actions button {
+  min-height: 28px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 9px;
+  color: rgba(17, 24, 33, 0.72);
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.nt-compose-popover__toolbar button:hover,
+.nt-compose-popover__formatbar button:hover,
+.nt-compose-popover__utility-actions button:hover {
+  color: var(--nt-action-info);
+  background: var(--nt-reading-hover);
+}
+
+.nt-compose-popover__more-menu {
+  position: absolute;
+  z-index: 82;
+  display: grid;
+  min-width: 170px;
+  border: 1px solid rgba(17, 24, 33, 0.12);
+  border-radius: 12px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 40px rgba(17, 24, 33, 0.16);
+}
+
+.nt-compose-popover__more-menu--toolbar {
+  top: 36px;
+  right: 24px;
+}
+
+.nt-compose-format-more-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.nt-compose-ai-more-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.nt-compose-ai-more-menu {
+  top: calc(100% + 8px);
+  right: 0;
+}
+
+.nt-compose-popover__more-menu--formatbar {
+  right: 0;
+  bottom: calc(100% + 8px);
+}
+
+.nt-compose-popover__more-menu button {
+  justify-content: start;
+  width: 100%;
+  min-height: 34px;
+  text-align: left;
+}
+
+.nt-compose-format-button--active,
+.nt-compose-popover__formatbar .nt-compose-format-button--active:hover {
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-action-primary) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.nt-compose-format-button svg {
+  display: block;
+}
+
+.nt-compose-rich-editor {
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 16px 24px;
+  color: #111821;
+  background: #fbfcf7;
+  box-shadow: none;
+  resize: none;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.94rem;
+  line-height: 1.6;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  outline: none;
+}
+
+.nt-compose-rich-editor:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(17, 24, 33, 0.38);
+  pointer-events: none;
+}
+
+.nt-compose-rich-editor blockquote {
+  margin: 8px 0;
+  border-left: 3px solid var(--nt-yellow-line);
+  padding-left: 12px;
+  color: rgba(17, 24, 33, 0.68);
+}
+
+.nt-compose-rich-editor ul,
+.nt-compose-rich-editor ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.nt-compose-rich-editor a {
+  color: var(--nt-action-info);
+  text-decoration: underline;
+}
+
+.nt-compose-rich-editor img {
+  display: block;
+  max-width: 100%;
+  border-radius: 10px;
+  margin: 8px 0;
+}
+
+.nt-compose-popover__formatbar {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  min-height: 42px;
+  margin: 0 24px;
+  border: 1px solid rgba(17, 24, 33, 0.08);
+  border-radius: 10px;
+  padding: 0 8px;
+  color: rgba(17, 24, 33, 0.78);
+  background: rgba(255, 255, 255, 0.74);
+  font-size: 0.82rem;
+}
+
+.nt-compose-format-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.nt-compose-format-select,
+.nt-compose-color-button {
+  min-width: 72px;
+  border-right: 1px solid rgba(17, 24, 33, 0.09) !important;
+  border-radius: 0 !important;
+  justify-content: flex-start;
+  color: #171923 !important;
+  background: transparent !important;
+  font-weight: 650 !important;
+}
+
+.nt-compose-format-select--size {
+  min-width: 52px;
+}
+
+.nt-compose-color-button {
+  display: inline-grid;
+  min-width: 38px;
+  place-items: center;
+}
+
+.nt-compose-color-button span {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border: 3px solid #111821;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 3px #ffffff;
+}
+
+.nt-compose-format-menu,
+.nt-compose-color-popover,
+.nt-compose-alignment-menu {
+  position: absolute;
+  z-index: 84;
+  bottom: calc(100% + 8px);
+  left: -8px;
+  overflow: hidden;
+  border: 1px solid rgba(17, 24, 33, 0.12);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(17, 24, 33, 0.18);
+}
+
+.nt-compose-format-menu {
+  display: grid;
+  min-width: 140px;
+  padding: 6px 0;
+}
+
+.nt-compose-alignment-menu {
+  display: grid;
+  min-width: 138px;
+  padding: 6px;
+}
+
+.nt-compose-alignment-menu button {
+  justify-content: start;
+  width: 100%;
+  min-height: 34px !important;
+  border-radius: 6px !important;
+  text-align: left;
+}
+
+.nt-compose-format-menu--size {
+  min-width: 112px;
+}
+
+.nt-compose-format-menu__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  border-radius: 0 !important;
+  padding: 0 10px !important;
+  color: #171923 !important;
+  background: transparent !important;
+  text-align: left;
+}
+
+.nt-compose-format-menu__item:hover,
+.nt-compose-format-menu__item--active {
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-action-primary) !important;
+}
+
+.nt-compose-format-menu__item em {
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: var(--nt-action-primary-ink);
+  background: #ffffff;
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.nt-compose-color-popover {
+  left: -92px;
+  display: grid;
+  width: 276px;
+  padding: 14px 16px 16px;
+}
+
+.nt-compose-color-tabs {
+  display: flex;
+  gap: 18px;
+  border-bottom: 1px solid rgba(17, 24, 33, 0.1);
+  margin-bottom: 12px;
+}
+
+.nt-compose-color-tabs button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 0 !important;
+  padding: 0 0 8px !important;
+  color: rgba(17, 24, 33, 0.72) !important;
+  background: transparent !important;
+  font-weight: 850;
+}
+
+.nt-compose-color-tabs button.is-active {
+  border-bottom: 2px solid var(--nt-border-focus);
+  color: #171923 !important;
+}
+
+.nt-compose-color-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 28px);
+  gap: 8px;
+}
+
+.nt-compose-color-swatch {
+  width: 28px;
+  height: 28px;
+  min-height: 28px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  padding: 0 !important;
+  box-shadow: inset 0 0 0 1px rgba(17, 24, 33, 0.08);
+}
+
+.nt-compose-color-swatch--active {
+  outline: 3px solid var(--nt-border-focus);
+  outline-offset: 2px;
+}
+
+.nt-compose-emoji-popover {
+  position: absolute;
+  z-index: 86;
+  bottom: calc(100% + 8px);
+  right: 46px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  width: 320px;
+  height: 360px;
+  overflow: hidden;
+  border: 1px solid rgba(17, 24, 33, 0.14);
+  border-radius: 8px;
+  padding: 0;
+  color: #111821;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(17, 24, 33, 0.18);
+}
+
+.nt-compose-emoji-tabs {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 0;
+  align-items: center;
+  border-bottom: 1px solid rgba(17, 24, 33, 0.14);
+  padding: 0 8px;
+  color: rgba(17, 24, 33, 0.72);
+  text-align: center;
+}
+
+.nt-compose-emoji-tab {
+  display: inline-grid;
+  height: 44px;
+  min-height: 44px !important;
+  place-items: center;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  color: rgba(17, 24, 33, 0.74) !important;
+  background: transparent !important;
+  font-size: 1.05rem !important;
+  line-height: 1;
+}
+

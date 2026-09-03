@@ -1,0 +1,366 @@
+/* Industrial-terminal visual tuning layer.
+   Keep JSX structure and interaction hooks unchanged; these selectors only refine color, shape and depth. */
+
+.nt-nav__item,
+.nt-rail-toggle,
+.nt-mini-btn,
+.nt-btn,
+.nt-switch {
+  border-radius: 10px;
+}
+
+.nt-mail-topbar {
+  border-bottom-color: rgba(223, 255, 61, 0.16);
+  background:
+    linear-gradient(180deg, rgba(17, 24, 33, 0.98), rgba(7, 10, 15, 0.99)),
+    radial-gradient(circle at 18% 0%, rgba(223, 255, 61, 0.08), transparent 18rem);
+}
+
+.nt-mail-search,
+.nt-mail-search__bar,
+.nt-search-box,
+.nt-mail-source-selector__trigger,
+.nt-source-trigger,
+.nt-mail-topbar__action {
+  border-color: rgba(223, 255, 61, 0.18);
+  color: var(--nt-fog);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.028)),
+    rgba(5, 8, 12, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+.nt-mail-source-selector__trigger strong,
+.nt-mail-source-selector__kicker,
+.nt-mail-source-selector__chevron {
+  color: var(--nt-fog);
+}
+
+.nt-mail-source-selector__kicker {
+  color: rgba(223, 255, 61, 0.72);
+}
+
+.nt-mail-source-selector__trigger:hover,
+.nt-source-trigger:hover,
+.nt-mail-topbar__action:hover {
+  border-color: rgba(223, 255, 61, 0.46);
+  background:
+    linear-gradient(180deg, rgba(223, 255, 61, 0.11), rgba(255, 255, 255, 0.035)),
+    rgba(8, 12, 18, 0.88);
+}
+
+.nt-mail-source-selector__menu,
+.nt-mail-list-toolbar__menu,
+.nt-mail-list-toolbar__panel,
+.nt-proton-message-more-menu {
+  border-color: rgba(223, 255, 61, 0.18);
+  color: var(--nt-fog);
+  background:
+    linear-gradient(180deg, rgba(20, 29, 40, 0.96), rgba(8, 12, 18, 0.98)),
+    rgba(8, 11, 16, 0.94);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    0 24px 64px rgba(0, 0, 0, 0.46);
+}
+
+.nt-mail-source-selector__option,
+.nt-mail-source-selector__action,
+.nt-mail-list-toolbar__menu button,
+.nt-mail-list-toolbar__panel-option,
+.nt-mail-list-toolbar__snooze-row,
+.nt-mail-list-toolbar__snooze-custom,
+.nt-proton-message-more-menu button {
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--nt-fog);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.nt-mail-source-selector__option strong,
+.nt-mail-source-selector__option span,
+.nt-mail-list-toolbar__menu strong,
+.nt-mail-list-toolbar__panel-head strong,
+.nt-mail-list-toolbar__snooze-head strong {
+  color: var(--nt-fog);
+}
+
+.nt-mail-source-selector__option span,
+.nt-mail-list-toolbar__snooze-row span:last-child {
+  color: var(--nt-muted);
+}
+
+.nt-mail-source-selector__option:hover,
+.nt-mail-source-selector__action:hover:not(:disabled),
+.nt-mail-list-toolbar__menu button:hover,
+.nt-mail-list-toolbar__panel-option:hover,
+.nt-mail-list-toolbar__panel-option--active,
+.nt-mail-list-toolbar__snooze-row:hover,
+.nt-mail-list-toolbar__snooze-custom:hover,
+.nt-proton-message-more-menu button:hover {
+  border-color: rgba(223, 255, 61, 0.36);
+  color: #fbffd7;
+  background: rgba(223, 255, 61, 0.105);
+}
+
+.nt-mail-source-selector__option--active,
+.nt-mail-source-selector__action--primary,
+.nt-mail-list-toolbar__apply,
+.nt-proton-primary-reply {
+  color: var(--nt-action-primary-ink);
+  border-color: rgba(223, 255, 61, 0.76);
+  background: linear-gradient(
+    135deg,
+    var(--nt-action-primary),
+    var(--nt-action-primary-pressed)
+  );
+  box-shadow:
+    inset 0 -1px 0 rgba(0, 0, 0, 0.24),
+    0 12px 28px rgba(223, 255, 61, 0.14);
+}
+
+.nt-mail-source-selector__option--active strong,
+.nt-mail-source-selector__option--active span,
+.nt-mail-source-selector__action--primary,
+.nt-mail-list-toolbar__apply,
+.nt-proton-primary-reply {
+  color: var(--nt-action-primary-ink);
+}
+
+.nt-mail-list-toolbar__action--more[aria-expanded="true"],
+.nt-mail-list-toolbar__action[aria-expanded="true"],
+.nt-mail-list-toolbar__filter[aria-expanded="true"],
+.nt-mail-list-select--partial {
+  border-color: rgba(223, 255, 61, 0.62);
+  color: var(--nt-action-primary-ink);
+  background: linear-gradient(135deg, rgba(223, 255, 61, 0.96), rgba(54, 215, 242, 0.38));
+  box-shadow: 0 0 0 2px rgba(223, 255, 61, 0.14);
+}
+
+.nt-mail-adaptive {
+  background:
+    linear-gradient(180deg, rgba(11, 16, 23, 0.88), rgba(6, 9, 13, 0.94)),
+    radial-gradient(circle at 0 0, rgba(223, 255, 61, 0.055), transparent 16rem);
+}
+
+.nt-mail-list-toolbar {
+  color: var(--nt-fog);
+  border-bottom-color: rgba(223, 255, 61, 0.16);
+  background:
+    linear-gradient(180deg, rgba(18, 27, 38, 0.98), rgba(9, 13, 19, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.052),
+    0 1px 0 rgba(0, 0, 0, 0.38);
+}
+
+.nt-mail-list-toolbar__mailbox-title {
+  border-left-color: rgba(223, 255, 61, 0.18);
+  color: var(--nt-muted);
+}
+
+.nt-mail-list-toolbar__mailbox-title strong,
+.nt-mail-list-toolbar__pager span,
+.nt-mail-list-toolbar__chip,
+.nt-mail-list-toolbar__unread-toggle {
+  color: var(--nt-fog);
+}
+
+.nt-mail-list-toolbar__mailbox-count,
+.nt-message-card__count {
+  color: var(--nt-action-primary-ink);
+  background: linear-gradient(
+    135deg,
+    var(--nt-action-primary),
+    var(--nt-action-primary-hover)
+  );
+}
+
+.nt-mail-list-select,
+.nt-mail-list-toolbar__trigger,
+.nt-mail-list-toolbar__action,
+.nt-mail-list-toolbar__filter,
+.nt-mail-list-toolbar__pager button,
+.nt-message-card__select,
+.nt-mail-list-toolbar__chip,
+.nt-mail-list-toolbar__unread-toggle {
+  border-color: rgba(223, 255, 61, 0.18);
+  color: var(--nt-fog);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.028)),
+    rgba(5, 8, 12, 0.76);
+}
+
+.nt-mail-list-select:hover,
+.nt-mail-list-toolbar__trigger:hover,
+.nt-mail-list-toolbar__action:hover,
+.nt-mail-list-toolbar__filter:hover,
+.nt-mail-list-toolbar__pager button:hover,
+.nt-message-card__select:hover,
+.nt-mail-list-toolbar__unread-toggle:hover {
+  border-color: rgba(223, 255, 61, 0.46);
+  background: rgba(223, 255, 61, 0.1);
+}
+
+.nt-mail-list-select--checked,
+.nt-message-card__select[aria-pressed="true"],
+.nt-mail-list-toolbar__unread-toggle--active {
+  border-color: var(--nt-signal);
+  color: var(--nt-action-primary-ink);
+  background: linear-gradient(
+    135deg,
+    var(--nt-action-primary),
+    var(--nt-action-primary-pressed)
+  );
+  box-shadow: 0 0 0 2px rgba(223, 255, 61, 0.16);
+}
+
+.nt-mail-list-select--checked .nt-mail-list-select__box,
+.nt-message-card__select[aria-pressed="true"] .nt-message-card__checkbox {
+  color: var(--nt-signal);
+  border-color: rgba(5, 8, 12, 0.94);
+  background: rgba(5, 8, 12, 0.94);
+  box-shadow:
+    inset 0 0 0 1px rgba(223, 255, 61, 0.18),
+    0 0 0 1px rgba(5, 8, 12, 0.28);
+  text-shadow: 0 0 5px rgba(223, 255, 61, 0.46);
+}
+
+.nt-list-pane {
+  background:
+    linear-gradient(180deg, rgba(12, 18, 26, 0.96), rgba(7, 10, 15, 0.98));
+}
+
+.nt-scroll-pane {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 28px),
+    rgba(5, 8, 12, 0.52);
+}
+
+.nt-message-card {
+  border-color: rgba(223, 255, 61, 0.13);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.058), rgba(255, 255, 255, 0.026)),
+    rgba(8, 12, 18, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.nt-message-card--compact {
+  border-radius: 10px;
+}
+
+.nt-message-card:hover {
+  border-color: rgba(223, 255, 61, 0.4);
+  background:
+    linear-gradient(90deg, rgba(223, 255, 61, 0.1), rgba(54, 215, 242, 0.035)),
+    rgba(11, 16, 23, 0.9);
+}
+
+.nt-message-card--active {
+  border-color: rgba(223, 255, 61, 0.66);
+  background:
+    linear-gradient(90deg, rgba(223, 255, 61, 0.16), rgba(54, 215, 242, 0.045)),
+    rgba(13, 19, 27, 0.95);
+  box-shadow:
+    inset 3px 0 0 var(--nt-signal),
+    0 0 0 1px rgba(223, 255, 61, 0.18),
+    0 18px 44px rgba(0, 0, 0, 0.28);
+}
+
+.nt-message-card--unread {
+  border-color: rgba(223, 255, 61, 0.48);
+  background:
+    linear-gradient(90deg, rgba(223, 255, 61, 0.135), rgba(54, 215, 242, 0.035)),
+    rgba(11, 16, 23, 0.9);
+}
+
+.nt-message-card strong,
+.nt-message-card__content strong,
+.nt-message-card__subject-line strong {
+  color: #fbffd9;
+}
+
+.nt-message-card span,
+.nt-message-card__content,
+.nt-message-card small {
+  color: rgba(246, 248, 238, 0.66);
+}
+
+.nt-message-card__time {
+  color: rgba(223, 255, 61, 0.72);
+}
+
+.nt-label-chip,
+.nt-folder-chip,
+.nt-code-chip,
+.nt-more-chip,
+.nt-read-chip,
+.nt-unread-chip {
+  border-color: rgba(223, 255, 61, 0.16);
+  color: rgba(246, 248, 238, 0.78);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.nt-unread-chip,
+.nt-code-chip {
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-signal);
+}
+
+.nt-reading-pane {
+  background:
+    linear-gradient(135deg, rgba(223, 255, 61, 0.14), transparent 32%),
+    radial-gradient(circle at 88% 0%, rgba(54, 215, 242, 0.12), transparent 18rem),
+    var(--nt-board);
+}
+
+.nt-proton-message-card {
+  border-color: rgba(17, 24, 33, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(250, 252, 245, 0.94)),
+    #f4f7e9;
+}
+
+.nt-proton-icon-btn,
+.nt-proton-star,
+.nt-proton-action-menu button {
+  border-color: rgba(17, 24, 33, 0.14);
+  color: #14202a;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(239, 244, 223, 0.82));
+}
+
+.nt-proton-icon-btn:hover,
+.nt-proton-star:hover,
+.nt-proton-action-menu button:hover {
+  border-color: rgba(108, 127, 17, 0.45);
+  background: #fbfff0;
+}
+
+.nt-proton-action-menu {
+  border-color: rgba(17, 24, 33, 0.14);
+  background: rgba(244, 248, 230, 0.92);
+}
+
+.nt-proton-message-body-wrap {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(244, 248, 230, 0.74));
+}
+
+.nt-proton-conversation-stack {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.nt-proton-conversation-summary {
+  color: #3c4614;
+  background: rgba(223, 255, 61, 0.2);
+}
+
+.nt-proton-conversation-message {
+  border-color: rgba(17, 24, 33, 0.13);
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.nt-proton-conversation-message--expanded .nt-proton-conversation-message__header {
+  background:
+    linear-gradient(90deg, rgba(223, 255, 61, 0.22), rgba(54, 215, 242, 0.08));
+}
+

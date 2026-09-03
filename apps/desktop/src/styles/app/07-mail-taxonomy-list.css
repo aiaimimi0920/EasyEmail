@@ -1,0 +1,395 @@
+.nt-nav__badge {
+  position: absolute;
+  top: -4px;
+  right: -5px;
+  z-index: 2;
+  display: inline-grid;
+  min-width: 14px;
+  height: 14px;
+  place-items: center;
+  padding: 0 4px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 999px;
+  color: #ffffff;
+  background: #ff3b5c;
+  box-shadow:
+    0 0 0 1px rgba(8, 11, 16, 0.8),
+    0 0 12px rgba(255, 59, 92, 0.55);
+  font-size: 0.56rem;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.nt-nav__item--active {
+  color: var(--nt-fog);
+  border-color: rgba(217, 255, 56, 0.56);
+  background:
+    linear-gradient(90deg, rgba(217, 255, 56, 0.16), rgba(217, 255, 56, 0.035)),
+    rgba(255, 255, 255, 0.04);
+}
+
+.nt-app-shell--edge-rail .nt-nav__item--active {
+  border-color: transparent;
+  background: rgba(217, 255, 56, 0.12);
+}
+
+.nt-nav__item--active::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: -1px;
+  width: 3px;
+  background: var(--nt-signal);
+}
+
+.nt-app-shell--edge-rail .nt-nav__item--active::before {
+  top: 9px;
+  right: auto;
+  bottom: 9px;
+  left: 2px;
+  width: 3px;
+  height: auto;
+  border-radius: 999px;
+  background: var(--nt-signal);
+  box-shadow: 0 0 12px rgba(217, 255, 56, 0.44);
+}
+
+.nt-app-shell--rail-collapsed .nt-nav__item--active::before {
+  top: 9px;
+  right: auto;
+  bottom: 9px;
+  left: 2px;
+  width: 3px;
+  height: auto;
+  border-radius: 999px;
+  background: var(--nt-signal);
+  box-shadow: 0 0 12px rgba(217, 255, 56, 0.44);
+}
+
+.nt-mail-taxonomy {
+  display: grid;
+  gap: 2px;
+  padding: 0;
+}
+
+.nt-mail-taxonomy__section {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.nt-mail-taxonomy__head {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--nt-rail-icon-lane) minmax(0, 1fr);
+  grid-template-rows: 40px;
+  align-items: center;
+  height: 40px;
+  min-height: 40px;
+  overflow: hidden;
+  gap: 8px;
+  color: var(--nt-signal);
+}
+
+.nt-mail-taxonomy__icon-toggle,
+.nt-mail-taxonomy__add,
+.nt-mail-taxonomy__chevron,
+.nt-mail-taxonomy__item {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.nt-mail-taxonomy__icon-toggle {
+  display: grid;
+  grid-template-columns: var(--nt-rail-icon-lane);
+  grid-template-rows: 40px;
+  width: var(--nt-rail-icon-lane);
+  height: 40px;
+  place-items: center;
+  cursor: pointer;
+  border-radius: 14px;
+  color: var(--nt-signal);
+}
+
+.nt-mail-taxonomy__icon {
+  justify-self: center;
+  pointer-events: none;
+}
+
+.nt-mail-taxonomy__icon-toggle:hover,
+.nt-mail-taxonomy__add:hover,
+.nt-mail-taxonomy__chevron:hover {
+  background: rgba(217, 255, 56, 0.11);
+  color: var(--nt-signal);
+}
+
+.nt-mail-taxonomy__icon-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nt-mail-taxonomy__row {
+  display: grid;
+  grid-template-columns: 24px 24px;
+  align-items: center;
+  height: 40px;
+  justify-self: end;
+  justify-content: end;
+  gap: 4px;
+  min-width: 52px;
+  padding-right: 8px;
+  animation: nt-mail-taxonomy-row-appear 90ms ease both;
+}
+
+@keyframes nt-mail-taxonomy-row-appear {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.nt-mail-taxonomy__summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+  height: 34px;
+  padding: 0 8px 0 0;
+  text-align: left;
+}
+
+.nt-mail-taxonomy__summary strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--nt-signal);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-mail-taxonomy__add,
+.nt-mail-taxonomy__chevron {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.nt-mail-taxonomy__chevron {
+  font-size: 0.72rem;
+}
+
+.nt-mail-taxonomy__empty {
+  margin: 0 0 4px var(--nt-rail-icon-lane);
+  color: var(--nt-soft);
+  font-size: 0.78rem;
+  opacity: 0.88;
+}
+
+.nt-mail-taxonomy__drawer {
+  position: fixed;
+  left: calc(var(--nt-rail-gutter-x) + var(--nt-rail-icon-lane) + 2px);
+  z-index: 39;
+  display: grid;
+  gap: 4px;
+  width: min(220px, calc(100vw - 72px));
+  padding: 8px;
+  border: 0;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(19, 24, 33, 0.97), rgba(9, 13, 20, 0.98)),
+    rgba(9, 13, 20, 0.98);
+  box-shadow: 0 22px 44px rgba(4, 8, 13, 0.42);
+}
+
+.nt-mail-taxonomy__drawer-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px 24px;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.nt-mail-taxonomy__drawer-title {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+  height: 34px;
+  padding: 0 8px 0 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.nt-mail-taxonomy__drawer-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--nt-signal);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-mail-taxonomy__item {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--nt-rail-icon-lane) minmax(0, 1fr) auto;
+  align-items: center;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 8px 0 0;
+  border-radius: 12px;
+  color: var(--nt-fog);
+  cursor: pointer;
+  text-align: left;
+}
+
+.nt-mail-taxonomy__item--folder {
+  padding-left: calc(18px + (var(--taxonomy-depth, 0) * 16px));
+}
+
+.nt-mail-taxonomy__item--label {
+  padding-left: 18px;
+}
+
+.nt-mail-taxonomy__item:hover,
+.nt-mail-taxonomy__item--active {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.nt-mail-taxonomy__item--active::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: 2px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--nt-signal);
+  box-shadow: 0 0 12px rgba(217, 255, 56, 0.44);
+}
+
+.nt-mail-taxonomy__folder-icon {
+  justify-self: center;
+  width: 17px;
+  height: 12px;
+  border: 1.7px solid var(--taxonomy-color, var(--nt-signal));
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--taxonomy-color, var(--nt-signal)) 22%, transparent);
+}
+
+.nt-mail-taxonomy__dot,
+.nt-proton-action-menu__color {
+  justify-self: center;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--taxonomy-color, var(--nt-signal));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--taxonomy-color, var(--nt-signal)) 55%, transparent);
+}
+
+.nt-mail-taxonomy__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--nt-fog);
+  font-size: 0.82rem;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-mail-taxonomy__badge {
+  display: inline-grid;
+  min-width: 16px;
+  height: 16px;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(217, 255, 56, 0.16);
+  color: var(--nt-signal);
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+
+.nt-proton-action-menu__divider {
+  display: block;
+  height: 1px;
+  margin: 4px 0;
+  background: rgba(148, 163, 184, 0.22);
+}
+
+.nt-app-shell--rail-collapsed .nt-mail-taxonomy {
+  gap: 2px;
+  width: var(--nt-rail-icon-lane);
+  padding: 0;
+}
+
+.nt-app-shell--rail-collapsed .nt-mail-taxonomy__section {
+  gap: 0;
+}
+
+.nt-app-shell--rail-collapsed .nt-mail-taxonomy__head {
+  min-height: 40px;
+}
+
+.nt-app-shell--rail-collapsed .nt-mail-taxonomy__empty,
+.nt-app-shell--rail-collapsed .nt-mail-taxonomy__badge {
+  display: none;
+}
+
+.nt-app-shell--rail-collapsed .nt-mail-taxonomy__icon-toggle,
+.nt-app-shell--rail-collapsed .nt-mail-taxonomy__item {
+  width: var(--nt-rail-icon-lane);
+  overflow: hidden;
+  padding: 0;
+}
+
+.nt-mail-taxonomy-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 72;
+  background:
+    radial-gradient(circle at 18% 28%, var(--nt-yellow-soft), transparent 34%),
+    rgba(4, 8, 13, 0.52);
+  backdrop-filter: blur(6px);
+}
+
+.nt-mail-taxonomy-modal {
+  position: fixed;
+  z-index: 73;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(680px, calc(100vw - 36px));
+  max-height: min(720px, calc(100vh - 42px));
+  overflow: hidden;
+  color: #111827;
+  border: 1px solid var(--nt-reading-border);
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 28px 90px rgba(4, 8, 13, 0.36);
+  transform: translate(-50%, -50%);
+}
+

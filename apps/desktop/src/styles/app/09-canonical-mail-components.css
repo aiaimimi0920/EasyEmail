@@ -1,0 +1,350 @@
+.nt-mail-topbar,
+.nt-mail-list-toolbar {
+  border-bottom-color: var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-shell);
+  box-shadow: none;
+}
+
+.nt-mail-adaptive,
+.nt-list-pane,
+.nt-scroll-pane {
+  background: var(--nt-surface-app);
+}
+
+.nt-list-pane {
+  border-right-color: var(--nt-border-default);
+}
+
+.nt-mail-list-select,
+.nt-mail-list-toolbar__trigger,
+.nt-mail-list-toolbar__action,
+.nt-mail-list-toolbar__filter,
+.nt-mail-list-toolbar__pager button,
+.nt-message-card__select,
+.nt-mail-list-toolbar__chip,
+.nt-mail-list-toolbar__unread-toggle {
+  border-color: var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control);
+  box-shadow: none;
+}
+
+.nt-mail-list-select:hover,
+.nt-mail-list-toolbar__trigger:hover,
+.nt-mail-list-toolbar__action:hover,
+.nt-mail-list-toolbar__filter:hover,
+.nt-mail-list-toolbar__pager button:hover,
+.nt-message-card__select:hover,
+.nt-mail-list-toolbar__unread-toggle:hover {
+  border-color: color-mix(in srgb, var(--nt-text-primary) 22%, var(--nt-border-default));
+  background: var(--nt-surface-control-hover);
+}
+
+.nt-mail-list-select--checked,
+.nt-message-card__select[aria-pressed="true"],
+.nt-mail-list-toolbar__unread-toggle--active,
+.nt-mail-list-toolbar__action[aria-expanded="true"],
+.nt-mail-list-toolbar__filter[aria-expanded="true"] {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  box-shadow: none;
+}
+
+.nt-mail-list-select--checked .nt-mail-list-select__box,
+.nt-message-card__select[aria-pressed="true"] .nt-message-card__checkbox {
+  color: var(--nt-action-primary);
+  border-color: var(--nt-surface-app);
+  background: var(--nt-surface-app);
+  box-shadow: none;
+  text-shadow: none;
+}
+
+.nt-message-card,
+.nt-thread-card,
+.nt-code-card,
+.nt-resource-row,
+.nt-result,
+.nt-alert {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-surface-panel);
+  box-shadow: none;
+}
+
+.nt-message-card--compact {
+  border-radius: var(--nt-radius-sm);
+}
+
+.nt-message-card:hover {
+  border-color: color-mix(in srgb, var(--nt-text-primary) 22%, var(--nt-border-default));
+  background: var(--nt-surface-control-hover);
+}
+
+.nt-message-card--active {
+  border-color: var(--nt-yellow-line);
+  background: var(--nt-yellow-soft);
+  box-shadow: inset 3px 0 0 var(--nt-action-primary);
+}
+
+.nt-message-card--unread {
+  border-color: var(--nt-border-default);
+  background: var(--nt-surface-panel);
+}
+
+.nt-message-card strong,
+.nt-message-card__content strong,
+.nt-message-card__subject-line strong {
+  color: var(--nt-text-primary);
+}
+
+.nt-message-card span,
+.nt-message-card__content,
+.nt-message-card small,
+.nt-message-card__time {
+  color: var(--nt-text-muted);
+}
+
+.nt-label-chip,
+.nt-folder-chip,
+.nt-more-chip,
+.nt-read-chip,
+.nt-unread-chip {
+  border-color: var(--nt-border-default);
+  color: var(--nt-text-muted);
+  background: var(--nt-surface-control);
+}
+
+.nt-code-chip,
+.nt-message-code,
+.nt-mail-list-toolbar__mailbox-count,
+.nt-message-card__count {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-action-primary);
+}
+
+.nt-reading-pane {
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-surface);
+}
+
+.nt-proton-message-card,
+.nt-proton-message-body-wrap,
+.nt-proton-message-body-wrap .nt-message-body,
+.nt-proton-conversation-message,
+.nt-proton-conversation-message__header {
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-surface);
+  box-shadow: none;
+}
+
+.nt-proton-message-body-wrap,
+.nt-proton-conversation-message,
+.nt-proton-conversation-message__header,
+.nt-proton-conversation-summary {
+  border-color: color-mix(in srgb, var(--nt-reading-ink) 12%, transparent);
+}
+
+.nt-proton-conversation-stack {
+  background: color-mix(in srgb, var(--nt-reading-ink) 3%, var(--nt-reading-surface));
+}
+
+.nt-proton-conversation-message--expanded .nt-proton-conversation-message__header,
+.nt-proton-conversation-message__header:hover {
+  background: color-mix(in srgb, var(--nt-action-primary) 10%, var(--nt-reading-surface));
+}
+
+.nt-proton-icon-btn,
+.nt-proton-star,
+.nt-proton-action-menu button,
+.nt-proton-message-more-menu button,
+.nt-reading-pane .nt-mini-btn {
+  border-color: color-mix(in srgb, var(--nt-reading-ink) 16%, transparent);
+  color: var(--nt-reading-ink);
+  background: color-mix(in srgb, var(--nt-reading-ink) 4%, var(--nt-reading-surface));
+  box-shadow: none;
+}
+
+.nt-proton-icon-btn:hover,
+.nt-proton-star:hover,
+.nt-proton-action-menu button:hover,
+.nt-proton-message-more-menu button:hover,
+.nt-reading-pane .nt-mini-btn:hover {
+  border-color: color-mix(in srgb, var(--nt-reading-ink) 28%, transparent);
+  background: color-mix(in srgb, var(--nt-action-primary) 12%, var(--nt-reading-surface));
+}
+
+.nt-proton-message-more-menu,
+.nt-proton-action-menu {
+  border-color: color-mix(in srgb, var(--nt-reading-ink) 14%, transparent);
+  background: var(--nt-reading-surface);
+}
+
+.nt-reading-pane--dark {
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-panel);
+}
+
+.nt-board-head {
+  min-height: 88px;
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-md);
+  background:
+    linear-gradient(100deg, var(--nt-yellow-soft), transparent 38%),
+    var(--nt-surface-panel);
+}
+
+.nt-board-head h1 {
+  color: var(--nt-text-primary);
+  font-size: 2rem;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.nt-kicker,
+.nt-kicker::before {
+  color: var(--nt-action-primary);
+}
+
+.nt-action-board,
+.nt-directory,
+.nt-rail-card {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-surface-panel);
+  box-shadow: none;
+}
+
+.nt-mail-account-panel,
+.nt-source-drawer {
+  border-color: var(--nt-yellow-line);
+  border-radius: var(--nt-radius-md);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-panel);
+  box-shadow: 0 24px 64px var(--nt-shadow-panel);
+}
+
+.nt-mail-account-panel__preset {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-surface-control);
+}
+
+.nt-badge {
+  border-color: var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control);
+}
+
+.nt-badge--signal {
+  border-color: var(--nt-yellow-line);
+  color: var(--nt-action-primary);
+  background: var(--nt-yellow-soft);
+}
+
+.nt-badge--cyan {
+  border-color: var(--nt-info-line);
+  color: var(--nt-info-text);
+  background: var(--nt-info-soft);
+}
+
+.nt-alert--danger,
+.nt-copy-toast--error {
+  border-color: var(--nt-danger-line);
+  color: var(--nt-danger-text);
+  background: var(--nt-danger-soft);
+}
+
+.nt-copy-toast {
+  border-color: var(--nt-yellow-line);
+  border-radius: var(--nt-radius-md);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  box-shadow: 0 18px 44px var(--nt-shadow-panel);
+}
+
+.nt-copy-toast--status {
+  border-color: var(--nt-info-line);
+  color: var(--nt-info-text);
+  background: var(--nt-info-soft);
+}
+
+.nt-compose-popover__titlebar {
+  border-bottom: 1px solid var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-panel);
+}
+
+.nt-compose-popover__grabber,
+.nt-compose-popover__window-controls button {
+  color: var(--nt-text-muted);
+}
+
+.nt-compose-popover__grabber:hover,
+.nt-compose-popover__window-controls button:hover {
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+}
+
+.nt-compose-popover__toolbar button:hover,
+.nt-compose-popover__formatbar button:hover,
+.nt-compose-popover__utility-actions button:hover {
+  color: var(--nt-reading-ink);
+  background: color-mix(in srgb, var(--nt-action-primary) 14%, var(--nt-reading-surface));
+}
+
+.nt-compose-format-button--active,
+.nt-compose-popover__formatbar .nt-compose-format-button--active:hover,
+.nt-compose-popover__utility-actions button[aria-pressed="true"],
+.nt-compose-popover__utility-actions button[aria-expanded="true"] {
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-action-primary) !important;
+}
+
+.nt-compose-popover__send,
+.nt-compose-popover__send-menu {
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+}
+
+.nt-contact-modal,
+.nt-compose-link-modal,
+.nt-compose-expiration-modal,
+.nt-compose-encryption-modal,
+.nt-mail-taxonomy-modal {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-md);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-surface);
+  box-shadow: 0 28px 72px var(--nt-shadow-panel);
+}
+
+.nt-contact-modal__primary,
+.nt-compose-link-modal footer button[type="submit"],
+.nt-compose-encryption-modal footer button[type="submit"],
+.nt-mail-taxonomy-modal__primary {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+}
+
+.nt-scroll-pane::-webkit-scrollbar-thumb,
+.nt-source-list::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--nt-text-muted) 48%, transparent);
+}
+
+@media (max-width: 720px) {
+  .nt-workspace-board,
+  .nt-side-rail,
+  .nt-board-head,
+  .nt-mail-commandbar {
+    border-radius: var(--nt-radius-md);
+  }
+
+  .nt-board-head h1 {
+    font-size: 1.65rem;
+  }
+}
+

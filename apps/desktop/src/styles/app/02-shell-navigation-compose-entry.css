@@ -1,0 +1,398 @@
+.nt-rail-text {
+  min-width: 0;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 120ms ease 60ms,
+    visibility 0ms linear 60ms;
+  will-change: opacity;
+}
+
+.nt-brand strong {
+  letter-spacing: 0.02em;
+}
+
+.nt-brand div > span {
+  margin-top: 2px;
+  color: var(--nt-soft);
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+}
+
+.nt-app-shell--rail-collapsed .nt-rail-text {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition-delay: 0ms;
+}
+
+.nt-mode-switch {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 6px;
+}
+
+.nt-mode-switch--expanded {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.nt-mode-switch--collapsed {
+  width: var(--nt-rail-icon-lane);
+}
+
+.nt-mode-option,
+.nt-mode-current {
+  position: relative;
+  display: inline-grid;
+  height: 42px;
+  min-width: 0;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  color: var(--nt-soft);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.nt-mode-current {
+  width: var(--nt-rail-icon-lane);
+  border-color: rgba(217, 255, 56, 0.3);
+  color: var(--nt-signal);
+  background:
+    linear-gradient(135deg, rgba(217, 255, 56, 0.14), transparent 54%),
+    rgba(255, 255, 255, 0.045);
+}
+
+.nt-mode-option:hover,
+.nt-mode-current:hover {
+  color: var(--nt-fog);
+  border-color: rgba(217, 255, 56, 0.34);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.nt-mode-option--active {
+  color: var(--nt-action-primary-ink);
+  border-color: rgba(217, 255, 56, 0.76);
+  background: linear-gradient(
+    135deg,
+    var(--nt-action-primary),
+    var(--nt-action-primary-pressed)
+  );
+  box-shadow:
+    inset 0 -2px 0 rgba(0, 0, 0, 0.18),
+    0 0 18px rgba(217, 255, 56, 0.14);
+}
+
+.nt-mode-option__icon,
+.nt-mode-popover__icon {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  background: transparent;
+  box-shadow: none;
+}
+
+.nt-mode-option__icon svg,
+.nt-mode-popover__icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nt-mode-popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 38;
+  background: transparent;
+}
+
+.nt-mode-popover {
+  position: fixed;
+  top: 72px;
+  left: calc(var(--nt-rail-gutter-x) + var(--nt-rail-icon-lane) + 2px);
+  z-index: 39;
+  display: grid;
+  grid-template-columns: repeat(2, var(--nt-rail-icon-lane));
+  gap: 2px;
+  width: calc((var(--nt-rail-icon-lane) * 2) + 2px);
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(217, 255, 56, 0.12), transparent 42%),
+    linear-gradient(180deg, rgba(17, 24, 33, 0.98), rgba(8, 11, 16, 0.98));
+  box-shadow:
+    0 18px 38px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(217, 255, 56, 0.28),
+    inset 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.nt-mode-popover__item {
+  position: relative;
+  display: inline-grid;
+  width: var(--nt-rail-icon-lane);
+  height: 42px;
+  min-height: 42px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 0;
+  color: var(--nt-muted);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.nt-mode-option--active::after,
+.nt-mode-current::after,
+.nt-mode-popover__item--active::after {
+  content: "";
+  position: absolute;
+  right: 9px;
+  bottom: 4px;
+  left: 9px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 10px rgba(217, 255, 56, 0.55);
+}
+
+.nt-mode-popover__item:hover,
+.nt-mode-popover__item--active {
+  color: var(--nt-signal);
+  border-color: rgba(217, 255, 56, 0.48);
+  background: rgba(217, 255, 56, 0.1);
+}
+
+.nt-mode-popover__item--active {
+  box-shadow: inset 0 0 0 1px rgba(217, 255, 56, 0.26);
+}
+
+.nt-compose-popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 34;
+  pointer-events: none;
+  background: transparent;
+}
+
+.nt-compose-popover {
+  position: fixed;
+  right: 24px;
+  bottom: 18px;
+  z-index: 35;
+  display: grid;
+  grid-template-rows: 44px auto minmax(0, 1fr) auto auto;
+  width: min(640px, calc(100vw - 96px));
+  height: min(626px, calc(100vh - 36px));
+  min-height: 430px;
+  overflow: hidden;
+  border: 1px solid rgba(217, 255, 56, 0.24);
+  border-radius: 10px 10px 0 0;
+  color: #111821;
+  background: #fbfcf7;
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.52),
+    0 0 0 1px rgba(217, 255, 56, 0.1);
+}
+
+.nt-compose-popover--expanded {
+  right: 28px;
+  bottom: 22px;
+  width: min(760px, calc(100vw - 96px));
+  height: min(700px, calc(100vh - 44px));
+}
+
+.nt-compose-popover--minimized {
+  grid-template-rows: 44px;
+  width: min(360px, calc(100vw - 96px));
+  height: 44px;
+  min-height: 44px;
+  border-color: rgba(217, 255, 56, 0.34);
+}
+
+.nt-compose-popover__titlebar {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 10px 0 12px;
+  color: var(--nt-text-primary);
+  background:
+    linear-gradient(90deg, var(--nt-yellow-soft), transparent 32%),
+    var(--nt-surface-panel);
+}
+
+.nt-compose-popover__titlebar strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.92rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-compose-popover__grabber,
+.nt-compose-popover__window-controls button {
+  display: inline-grid;
+  min-width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  padding: 0;
+  color: rgba(248, 250, 252, 0.88);
+  background: transparent;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.nt-compose-popover__grabber:hover,
+.nt-compose-popover__window-controls button:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.nt-compose-popover__window-controls {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.nt-compose-popover__fields {
+  display: grid;
+  padding: 12px 24px 0;
+  background: #fbfcf7;
+}
+
+.nt-compose-popover__row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto auto auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 45px;
+  border-bottom: 1px solid rgba(17, 24, 33, 0.09);
+  color: rgba(17, 24, 33, 0.52);
+  font-size: 0.86rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.nt-compose-popover__row input,
+.nt-compose-popover__row select {
+  min-height: 36px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: #111821;
+  background: transparent;
+  box-shadow: none;
+  font-size: 0.92rem;
+}
+
+.nt-compose-popover__row button {
+  min-height: 28px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 6px;
+  color: #111821;
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.nt-compose-popover__row button:hover {
+  color: var(--nt-action-info);
+  background: var(--nt-reading-hover);
+}
+
+.nt-compose-recipient-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.nt-compose-recipient-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  min-height: 36px;
+  padding: 4px 0;
+}
+
+.nt-compose-recipient-tokens input {
+  flex: 1 1 150px;
+  min-width: 120px;
+}
+
+.nt-compose-recipient-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  min-height: 28px;
+  border: 1px solid var(--nt-reading-border);
+  border-radius: 8px;
+  padding: 0 5px 0 0;
+  color: #111821;
+  background: rgba(17, 24, 33, 0.06);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.nt-compose-popover__row .nt-compose-recipient-token__menu {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 26px;
+  align-items: center;
+  border: 0;
+  padding: 0 5px 0 10px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: context-menu;
+}
+
+.nt-compose-recipient-token__menu span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-compose-recipient-token:hover,
+.nt-compose-recipient-token:focus-within {
+  outline: none;
+  border-color: var(--nt-yellow-line);
+  background: var(--nt-reading-hover);
+}
+
+.nt-compose-popover__row .nt-compose-recipient-token__remove {
+  display: inline-grid;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  border-radius: 999px;
+  color: rgba(17, 24, 33, 0.62);
+  background: transparent;
+  font-size: 0.82rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.nt-compose-popover__row .nt-compose-recipient-token__menu:hover {
+  color: inherit;
+  background: transparent;
+}
+

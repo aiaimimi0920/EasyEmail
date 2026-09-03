@@ -1,0 +1,400 @@
+.nt-compose-emoji-tab:hover,
+.nt-compose-emoji-tab--active {
+  color: #111821 !important;
+  background: var(--nt-reading-hover) !important;
+}
+
+.nt-compose-emoji-tab--active {
+  box-shadow: inset 0 -2px 0 var(--nt-border-focus);
+}
+
+.nt-compose-emoji-search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+  margin: 10px 14px 8px;
+  border: 1px solid rgba(17, 24, 33, 0.14);
+  border-radius: 8px;
+  padding: 0 8px;
+  color: rgba(17, 24, 33, 0.5);
+  background: #ffffff;
+}
+
+.nt-compose-emoji-search input {
+  width: 100%;
+  min-height: 30px;
+  border: 0;
+  padding: 0;
+  color: #111821;
+  background: transparent;
+  outline: none;
+}
+
+.nt-compose-emoji-search button {
+  min-height: 24px !important;
+  border-radius: 999px !important;
+  padding: 0 4px !important;
+  color: rgba(17, 24, 33, 0.52) !important;
+  background: transparent !important;
+  font-size: 1.1rem !important;
+}
+
+.nt-compose-emoji-scroll {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 0 16px 16px;
+  background: #ffffff;
+}
+
+.nt-compose-emoji-scroll h4 {
+  margin: 8px 0 10px;
+  color: rgba(17, 24, 33, 0.78);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.nt-compose-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 32px);
+  gap: 4px;
+}
+
+.nt-compose-emoji-grid button,
+.nt-compose-emoji-button {
+  display: grid;
+  width: 32px;
+  min-height: 32px !important;
+  place-items: center;
+  border-radius: 7px !important;
+  padding: 0 !important;
+  font-size: 1.18rem !important;
+  font-weight: 500 !important;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.nt-compose-emoji-empty {
+  margin: 18px 0 0;
+  color: rgba(17, 24, 33, 0.58);
+  font-size: 0.86rem;
+}
+
+.nt-compose-link-modal-backdrop {
+  position: fixed;
+  z-index: 130;
+  inset: 0;
+  background: rgba(17, 24, 33, 0.42);
+}
+
+.nt-compose-link-modal {
+  position: fixed;
+  z-index: 131;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: min(600px, calc(100vw - 48px));
+  gap: 18px;
+  transform: translate(-50%, -50%);
+  border-radius: 12px;
+  padding: 34px 32px 30px;
+  color: #111821;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(17, 24, 33, 0.34);
+}
+
+.nt-compose-link-modal label span {
+  color: #111821;
+  font-weight: 700;
+}
+
+.nt-compose-link-modal header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nt-compose-link-modal header strong {
+  font-size: 1.22rem;
+}
+
+.nt-compose-link-modal header button {
+  border: 0;
+  background: transparent;
+  font-size: 1.5rem;
+}
+
+.nt-compose-link-modal p {
+  margin: 0;
+  color: #111821;
+}
+
+.nt-compose-link-modal label,
+.nt-compose-link-modal__test {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.nt-compose-link-modal input,
+.nt-compose-link-modal select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(17, 24, 33, 0.2);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #111821;
+  background: #ffffff;
+}
+
+.nt-compose-link-modal__test em {
+  color: rgba(17, 24, 33, 0.42);
+  font-style: normal;
+}
+
+.nt-compose-link-modal footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+.nt-compose-link-modal footer button {
+  min-height: 36px;
+  border: 1px solid rgba(17, 24, 33, 0.1);
+  border-radius: 8px;
+  padding: 0 18px;
+  background: #ffffff;
+}
+
+.nt-compose-link-modal footer button[type="submit"] {
+  border-color: transparent;
+  color: #111821;
+  background: #d9ff38;
+}
+
+.nt-compose-link-modal footer button:disabled {
+  color: rgba(17, 24, 33, 0.28);
+  background: rgba(17, 24, 33, 0.05);
+}
+
+.nt-compose-expiration-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 94;
+  background: rgba(17, 24, 33, 0.42);
+}
+
+.nt-compose-expiration-modal {
+  position: fixed;
+  z-index: 95;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: min(360px, calc(100vw - 34px));
+  gap: 16px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(17, 24, 33, 0.08);
+  border-radius: 12px;
+  padding: 24px 30px 28px;
+  color: #111821;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(17, 24, 33, 0.28);
+}
+
+.nt-compose-encryption-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(17, 24, 33, 0.36);
+}
+
+.nt-compose-encryption-modal {
+  position: absolute;
+  z-index: 21;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: min(360px, calc(100% - 48px));
+  gap: 16px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(17, 24, 33, 0.08);
+  border-radius: 12px;
+  padding: 24px 30px 28px;
+  color: #111821;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(17, 24, 33, 0.28);
+}
+
+.nt-compose-expiration-modal header,
+.nt-compose-encryption-modal header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nt-compose-expiration-modal header strong,
+.nt-compose-encryption-modal header strong {
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.nt-compose-expiration-modal header {
+  gap: 10px;
+}
+
+.nt-compose-encryption-modal header {
+  gap: 10px;
+}
+
+.nt-compose-expiration-modal p,
+.nt-compose-encryption-modal p {
+  margin: 0;
+  color: rgba(17, 24, 33, 0.76);
+  line-height: 1.45;
+}
+
+.nt-compose-expiration-modal p button,
+.nt-compose-encryption-modal p button {
+  border: 0;
+  padding: 0;
+  color: var(--nt-action-info);
+  background: transparent;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.nt-compose-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.nt-compose-expiration-modal label,
+.nt-compose-encryption-modal label {
+  display: grid;
+  gap: 7px;
+  color: #111821;
+  font-weight: 850;
+}
+
+.nt-compose-expiration-modal label span,
+.nt-compose-encryption-modal label span {
+  display: flex;
+  justify-content: space-between;
+}
+
+.nt-compose-expiration-modal label em,
+.nt-compose-encryption-modal label em {
+  color: rgba(17, 24, 33, 0.48);
+  font-style: normal;
+  font-weight: 750;
+}
+
+.nt-compose-expiration-modal input,
+.nt-compose-encryption-modal input {
+  min-height: 36px;
+  border: 1px solid rgba(17, 24, 33, 0.18);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #111821;
+  background: #ffffff;
+  font: inherit;
+}
+
+.nt-compose-expiration-modal input:focus,
+.nt-compose-encryption-modal input:focus {
+  border-color: var(--nt-border-focus);
+  outline: 3px solid var(--nt-focus-ring);
+}
+
+.nt-compose-modal-check {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  font-weight: 650;
+}
+
+.nt-compose-modal-check input {
+  width: 20px;
+  min-height: 20px;
+  margin-top: 2px;
+  padding: 0;
+}
+
+.nt-compose-encryption-password-row {
+  display: grid;
+  grid-template-columns: 1fr 36px 40px;
+  gap: 8px;
+}
+
+.nt-compose-encryption-password-row button {
+  min-height: 36px;
+  border: 1px solid rgba(17, 24, 33, 0.12);
+  border-radius: 8px;
+  color: #111821;
+  background: #ffffff;
+}
+
+.nt-compose-expiration-modal footer,
+.nt-compose-encryption-modal footer {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.nt-compose-expiration-modal footer button,
+.nt-compose-encryption-modal footer button {
+  min-height: 36px;
+  border: 1px solid rgba(17, 24, 33, 0.1);
+  border-radius: 8px;
+  color: #111821;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 850;
+}
+
+.nt-compose-expiration-modal footer button[type="submit"],
+.nt-compose-encryption-modal footer button[type="submit"] {
+  border-color: rgba(185, 231, 26, 0.78);
+  color: var(--nt-action-primary-ink);
+  background: linear-gradient(
+    135deg,
+    var(--nt-action-primary),
+    var(--nt-action-primary-pressed)
+  );
+  box-shadow:
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18),
+    0 12px 26px rgba(185, 231, 26, 0.16);
+}
+
+.nt-compose-popover__formatbar select {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border: 0;
+  border-right: 1px solid rgba(17, 24, 33, 0.09);
+  padding: 0 12px 0 2px;
+  color: rgba(17, 24, 33, 0.78);
+  background: transparent;
+  font: inherit;
+  font-weight: 750;
+  outline: none;
+}
+
+.nt-compose-popover__actions {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 14px;
+  align-items: center;
+  min-height: 56px;
+  padding: 8px 24px 12px;
+  background: #fbfcf7;
+}
+
+.nt-compose-popover__utility-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+

@@ -1,0 +1,199 @@
+.nt-mail-taxonomy-modal__header,
+.nt-mail-taxonomy-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+}
+
+.nt-mail-taxonomy-modal__header strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 1.08rem;
+}
+
+.nt-mail-taxonomy-modal__header button,
+.nt-mail-taxonomy-modal__footer button,
+.nt-mail-taxonomy-modal__actions button,
+.nt-mail-taxonomy-modal__item-actions button {
+  border: 1px solid var(--nt-reading-border);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--nt-action-info);
+  font-weight: 800;
+}
+
+.nt-mail-taxonomy-modal__header button {
+  width: 34px;
+  height: 34px;
+  font-size: 1.2rem;
+}
+
+.nt-mail-taxonomy-modal__body {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.82fr) minmax(0, 1.18fr);
+  gap: 18px;
+  min-height: 0;
+  padding: 20px;
+  overflow: auto;
+  background: linear-gradient(180deg, #ffffff, var(--nt-reading-hover));
+}
+
+.nt-mail-taxonomy-modal__editor {
+  display: grid;
+  align-self: start;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--nt-reading-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.nt-mail-taxonomy-modal__editor label {
+  display: grid;
+  gap: 7px;
+  color: #4b5563;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.nt-mail-taxonomy-modal__editor input:not([type]),
+.nt-mail-taxonomy-modal__editor input[type="text"],
+.nt-mail-taxonomy-modal__editor select {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--nt-reading-border);
+  border-radius: 12px;
+  outline: none;
+  background: #ffffff;
+  color: #111827;
+  font-weight: 700;
+}
+
+.nt-mail-taxonomy-modal__editor input:focus,
+.nt-mail-taxonomy-modal__editor select:focus {
+  border-color: var(--nt-border-focus);
+  box-shadow: 0 0 0 3px var(--nt-focus-ring);
+}
+
+.nt-mail-taxonomy-modal__color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nt-mail-taxonomy-modal__color-row input {
+  width: 42px;
+  height: 34px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+
+.nt-mail-taxonomy-modal__color-row span {
+  color: #6b7280;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.nt-mail-taxonomy-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.nt-mail-taxonomy-modal__actions button,
+.nt-mail-taxonomy-modal__footer button {
+  min-height: 36px;
+  padding: 0 14px;
+}
+
+.nt-mail-taxonomy-modal__primary {
+  border-color: transparent !important;
+  background: var(--nt-action-primary) !important;
+  color: var(--nt-action-primary-ink) !important;
+}
+
+.nt-mail-taxonomy-modal__list {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nt-mail-taxonomy-modal__empty {
+  margin: 0;
+  padding: 18px;
+  color: #6b7280;
+  border: 1px dashed var(--nt-reading-border-hover);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.nt-mail-taxonomy-modal__item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 12px calc(12px + (var(--taxonomy-depth, 0) * 18px));
+  border: 1px solid var(--nt-reading-border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.nt-mail-taxonomy-modal__item--editing {
+  border-color: var(--nt-border-focus);
+  box-shadow: 0 0 0 3px var(--nt-focus-ring);
+}
+
+.nt-mail-taxonomy-modal__item strong,
+.nt-mail-taxonomy-modal__item small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-mail-taxonomy-modal__item small {
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 0.76rem;
+}
+
+.nt-mail-taxonomy-modal__item-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.nt-mail-taxonomy-modal__item-actions button {
+  height: 30px;
+  padding: 0 9px;
+  font-size: 0.76rem;
+}
+
+.nt-mail-taxonomy-modal__item-actions button:disabled {
+  cursor: not-allowed;
+  color: #9ca3af;
+  background: #f3f4f6;
+}
+
+.nt-mail-taxonomy-modal__footer {
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
+  border-bottom: 0;
+  color: #6b7280;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 720px) {
+  .nt-mail-taxonomy-modal__body {
+    grid-template-columns: 1fr;
+  }
+}
+

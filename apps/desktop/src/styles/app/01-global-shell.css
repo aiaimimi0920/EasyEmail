@@ -1,0 +1,402 @@
+:root {
+  color-scheme: dark;
+
+  /* Canonical Neuro palette. Concrete colors live only in this foundation. */
+  --nt-color-signal-yellow: #d9ff38;
+  --nt-color-signal-green: #22c55e;
+  --nt-color-info-blue: #06b6d4;
+  --nt-color-danger-red: #f43f5e;
+  --nt-color-surface-app: #06080d;
+  --nt-color-surface-base: #090c11;
+  --nt-color-surface-panel: #0e1218;
+  --nt-color-surface-rail: #070a0f;
+  --nt-color-surface-control: #111720;
+  --nt-color-surface-control-hover: #18222c;
+  --nt-color-text-primary: #f7f8ef;
+  --nt-color-text-muted: #929a9f;
+  --nt-color-border-default: rgba(255, 255, 255, 0.12);
+  --nt-color-focus-surface: #f3f5f1;
+  --nt-color-focus-ink: #20252b;
+  --nt-color-focus-muted: #656b72;
+
+  /* Interaction states derive from the canonical colors. */
+  --nt-yellow-hover: color-mix(in srgb, var(--nt-color-signal-yellow) 86%, white);
+  --nt-yellow-pressed: color-mix(in srgb, var(--nt-color-signal-yellow) 82%, black);
+  --nt-yellow-soft: color-mix(in srgb, var(--nt-color-signal-yellow) 14%, var(--nt-color-surface-panel));
+  --nt-yellow-line: color-mix(in srgb, var(--nt-color-signal-yellow) 42%, var(--nt-color-border-default));
+  --nt-green-hover: color-mix(in srgb, var(--nt-color-signal-green) 86%, white);
+  --nt-green-pressed: color-mix(in srgb, var(--nt-color-signal-green) 82%, black);
+  --nt-green-soft: color-mix(in srgb, var(--nt-color-signal-green) 14%, var(--nt-color-surface-panel));
+  --nt-green-line: color-mix(in srgb, var(--nt-color-signal-green) 42%, var(--nt-color-border-default));
+  --nt-info-soft: color-mix(in srgb, var(--nt-color-info-blue) 12%, var(--nt-color-surface-panel));
+  --nt-info-line: color-mix(in srgb, var(--nt-color-info-blue) 42%, var(--nt-color-border-default));
+  --nt-danger-soft: color-mix(in srgb, var(--nt-color-danger-red) 12%, var(--nt-color-surface-panel));
+  --nt-danger-line: color-mix(in srgb, var(--nt-color-danger-red) 42%, var(--nt-color-border-default));
+  --nt-on-yellow: color-mix(in srgb, var(--nt-color-signal-yellow) 14%, black);
+  --nt-green-text: color-mix(in srgb, var(--nt-color-signal-green) 76%, white);
+  --nt-info-text: color-mix(in srgb, var(--nt-color-info-blue) 76%, white);
+  --nt-danger-text: color-mix(in srgb, var(--nt-color-danger-red) 78%, white);
+
+  /* Semantic roles consumed by controls and page surfaces. */
+  --nt-action-primary: var(--nt-color-signal-yellow);
+  --nt-action-primary-hover: var(--nt-yellow-hover);
+  --nt-action-primary-pressed: var(--nt-yellow-pressed);
+  --nt-action-primary-ink: var(--nt-on-yellow);
+  --nt-action-positive: var(--nt-color-signal-green);
+  --nt-action-info: var(--nt-color-info-blue);
+  --nt-status-success: var(--nt-color-signal-green);
+  --nt-status-info: var(--nt-color-info-blue);
+  --nt-status-warning: var(--nt-color-signal-yellow);
+  --nt-status-danger: var(--nt-color-danger-red);
+  --nt-surface-app: var(--nt-color-surface-app);
+  --nt-surface-shell: var(--nt-color-surface-base);
+  --nt-surface-panel: var(--nt-color-surface-panel);
+  --nt-surface-rail: var(--nt-color-surface-rail);
+  --nt-surface-control: var(--nt-color-surface-control);
+  --nt-surface-control-hover: var(--nt-color-surface-control-hover);
+  --nt-surface-hover: var(--nt-surface-control-hover);
+  --nt-surface-selected: var(--nt-yellow-soft);
+  --nt-text-primary: var(--nt-color-text-primary);
+  --nt-text-muted: var(--nt-color-text-muted);
+  --nt-border-default: var(--nt-color-border-default);
+  --nt-border-hover: color-mix(in srgb, var(--nt-text-primary) 22%, var(--nt-border-default));
+  --nt-border-focus: var(--nt-color-signal-yellow);
+  --nt-focus-ring: color-mix(in srgb, var(--nt-border-focus) 22%, transparent);
+  --nt-overlay-scrim: color-mix(in srgb, var(--nt-surface-app) 70%, transparent);
+  --nt-action-destructive: var(--nt-color-danger-red);
+  --nt-action-destructive-hover: color-mix(in srgb, var(--nt-color-danger-red) 86%, white);
+  --nt-action-destructive-pressed: color-mix(in srgb, var(--nt-color-danger-red) 82%, black);
+  --nt-action-destructive-ink: color-mix(in srgb, var(--nt-color-danger-red) 12%, white);
+  --nt-reading-surface: var(--nt-color-focus-surface);
+  --nt-reading-ink: var(--nt-color-focus-ink);
+  --nt-reading-muted: var(--nt-color-focus-muted);
+  --nt-reading-border: color-mix(in srgb, var(--nt-reading-ink) 16%, transparent);
+  --nt-reading-border-hover: color-mix(in srgb, var(--nt-reading-ink) 28%, transparent);
+  --nt-reading-control: color-mix(in srgb, var(--nt-reading-ink) 4%, var(--nt-reading-surface));
+  --nt-reading-hover: color-mix(in srgb, var(--nt-action-primary) 12%, var(--nt-reading-surface));
+  --nt-reading-selected: color-mix(in srgb, var(--nt-action-primary) 10%, var(--nt-reading-surface));
+  --nt-disabled-ink: color-mix(in srgb, var(--nt-text-muted) 72%, transparent);
+  --nt-disabled-surface: color-mix(in srgb, var(--nt-surface-control) 72%, transparent);
+  --nt-disabled-border: color-mix(in srgb, var(--nt-border-default) 72%, transparent);
+  --nt-busy-track: color-mix(in srgb, var(--nt-action-primary) 14%, transparent);
+  --nt-busy-indicator: var(--nt-action-primary);
+  --nt-empty-ink: var(--nt-text-muted);
+  --nt-empty-surface: color-mix(in srgb, var(--nt-text-primary) 3%, transparent);
+  --nt-empty-border: color-mix(in srgb, var(--nt-text-primary) 14%, transparent);
+  --nt-empty-marker: color-mix(in srgb, var(--nt-text-muted) 62%, transparent);
+  --nt-shadow-panel: rgba(0, 0, 0, 0.38);
+
+  /* Existing names stay as aliases while components migrate by semantic role. */
+  --nt-signal: var(--nt-action-primary);
+  --nt-cyan: var(--nt-status-info);
+  --nt-danger: var(--nt-status-danger);
+  --nt-warning: var(--nt-status-warning);
+  --nt-success: var(--nt-status-success);
+  --nt-bg: var(--nt-surface-app);
+  --nt-bg-2: var(--nt-surface-shell);
+  --nt-graphite: var(--nt-surface-control);
+  --nt-graphite-strong: var(--nt-surface-rail);
+  --nt-line: var(--nt-border-default);
+  --nt-line-strong: var(--nt-yellow-line);
+  --nt-fog: var(--nt-text-primary);
+  --nt-muted: var(--nt-text-muted);
+  --nt-soft: color-mix(in srgb, var(--nt-text-muted) 68%, transparent);
+  --nt-board: var(--nt-reading-surface);
+  --nt-board-ink: var(--nt-reading-ink);
+  --nt-board-muted: var(--nt-reading-muted);
+  --nt-radius-lg: 12px;
+  --nt-radius-md: 8px;
+  --nt-radius-sm: 6px;
+  --nt-rail-icon-lane: 46px;
+  --nt-rail-gutter-x: 8px;
+  --nt-mail-list-card-target-height: 74px;
+  color: var(--nt-fog);
+  background: var(--nt-bg);
+  font-family:
+    Bahnschrift, "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+body {
+  overflow: hidden;
+  background:
+    linear-gradient(color-mix(in srgb, var(--nt-text-primary) 2.8%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--nt-text-primary) 2.8%, transparent) 1px, transparent 1px),
+    var(--nt-surface-app);
+}
+
+.nt-hidden-file-input {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+button,
+input,
+select,
+textarea,
+pre {
+  font: inherit;
+}
+
+button {
+  border: 0;
+}
+
+button,
+select {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--nt-border-default);
+  border-radius: var(--nt-radius-sm);
+  padding: 0.82rem 0.9rem;
+  color: var(--nt-fog);
+  background: var(--nt-surface-control);
+  outline: none;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+textarea {
+  min-height: 134px;
+  resize: vertical;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--nt-border-focus);
+  outline-offset: 2px;
+  border-color: var(--nt-border-focus);
+  box-shadow: none;
+}
+
+label {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--nt-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nt-app-shell {
+  position: relative;
+  display: grid;
+  grid-template-columns: 286px minmax(0, 1fr);
+  gap: 18px;
+  min-width: 0;
+  max-width: 100%;
+  height: 100vh;
+  padding: 18px;
+  color: var(--nt-fog);
+  transition:
+    grid-template-columns 180ms ease,
+    gap 180ms ease,
+    padding 180ms ease;
+}
+
+.nt-app-shell--edge-rail {
+  gap: 0;
+  padding: 0;
+}
+
+.nt-app-shell--rail-collapsed {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.nt-app-shell--rail-expanded {
+  grid-template-columns: minmax(148px, 160px) minmax(0, 1fr);
+}
+
+.nt-app-shell--mail-compact {
+  gap: 0;
+  padding: 0;
+}
+
+.nt-app-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025), transparent 18%, transparent 82%, rgba(255, 255, 255, 0.02)),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.026) 0 1px, transparent 1px 5px);
+  opacity: 0.62;
+}
+
+.nt-side-rail,
+.nt-workspace-board {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--nt-line);
+  background:
+    linear-gradient(180deg, rgba(20, 27, 36, 0.94), rgba(9, 13, 18, 0.94)),
+    var(--nt-graphite-strong);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.46);
+}
+
+.nt-side-rail {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 18px;
+  padding: 18px;
+  border-radius: 30px;
+}
+
+.nt-app-shell--edge-rail .nt-side-rail {
+  gap: 10px;
+  padding: 14px var(--nt-rail-gutter-x);
+  height: 100vh;
+  border-top: 0;
+  border-right: 1px solid var(--nt-line);
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.nt-app-shell--edge-rail .nt-brand {
+  display: grid;
+  grid-template-columns: var(--nt-rail-icon-lane) minmax(0, 1fr);
+  gap: 0 8px;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  padding: 0 8px 0 0;
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+}
+
+.nt-app-shell--rail-collapsed .nt-side-rail {
+  justify-items: start;
+}
+
+.nt-app-shell--mail-compact .nt-workspace-board {
+  gap: 0;
+  padding: 0;
+  border-left: 0;
+}
+
+.nt-workspace-board {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 18px;
+  border-radius: 34px;
+}
+
+.nt-app-shell--edge-rail .nt-workspace-board {
+  height: 100vh;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.nt-brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(217, 255, 56, 0.16);
+  border-radius: 22px;
+  background: rgba(217, 255, 56, 0.055);
+}
+
+.nt-app-shell--rail-collapsed .nt-brand {
+  grid-template-columns: var(--nt-rail-icon-lane) minmax(0, 1fr);
+  width: var(--nt-rail-icon-lane);
+  overflow: hidden;
+  padding: 0;
+}
+
+.nt-brand__mark {
+  display: inline-grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  color: var(--nt-action-primary-ink);
+  background: transparent;
+  font-weight: 900;
+}
+
+.nt-app-icon {
+  display: block;
+  width: 44px;
+  height: 44px;
+  filter:
+    drop-shadow(0 0 14px rgba(217, 255, 56, 0.18))
+    drop-shadow(0 8px 22px rgba(0, 0, 0, 0.34));
+}
+
+.nt-app-shell--edge-rail .nt-brand__mark {
+  width: 34px;
+  height: 34px;
+}
+
+.nt-app-shell--edge-rail .nt-app-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.nt-app-shell--edge-rail .nt-brand__mark,
+.nt-app-shell--edge-rail .nt-rail-toggle__icon {
+  justify-self: center;
+}
+
+.nt-brand strong,
+.nt-brand span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-brand div {
+  min-width: 0;
+}
+

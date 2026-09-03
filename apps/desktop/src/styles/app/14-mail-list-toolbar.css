@@ -1,0 +1,392 @@
+.nt-mail-list-toolbar__row-main {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nt-mail-list-toolbar__group {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nt-mail-list-toolbar__right {
+  display: inline-flex;
+  min-width: max-content;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.nt-mail-list-toolbar__mailbox-title {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 168px;
+  align-items: center;
+  gap: 7px;
+  margin-left: 2px;
+  border-left: 1px solid rgba(17, 24, 33, 0.1);
+  padding-left: 10px;
+  color: #111821;
+  white-space: nowrap;
+}
+
+.nt-mail-list-toolbar__mailbox-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #111821;
+  font-size: 0.86rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+}
+
+.nt-mail-list-toolbar__mailbox-count {
+  display: inline-grid;
+  min-width: 24px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 7px;
+  color: var(--nt-action-info);
+  background: var(--nt-info-soft);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.nt-mail-list-toolbar__selected-actions {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.nt-mail-list-toolbar__action {
+  cursor: pointer;
+}
+
+.nt-mail-list-toolbar__action--more[aria-expanded="true"],
+.nt-mail-list-toolbar__action[aria-expanded="true"],
+.nt-mail-list-toolbar__filter[aria-expanded="true"] {
+  background: #ececef;
+}
+
+.nt-mail-list-toolbar__menu-anchor {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.nt-mail-list-toolbar__select-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nt-mail-list-select,
+.nt-mail-list-toolbar__trigger,
+.nt-mail-list-toolbar__action,
+.nt-mail-list-toolbar__filter,
+.nt-mail-list-toolbar__pager button,
+.nt-message-card__select {
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(17, 24, 33, 0.11);
+  border-radius: 7px;
+  color: #2b3139;
+  background: #ffffff;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.nt-mail-list-select,
+.nt-mail-list-toolbar__trigger,
+.nt-mail-list-toolbar__action,
+.nt-mail-list-toolbar__pager button,
+.nt-message-card__select {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+}
+
+.nt-mail-list-select:hover,
+.nt-mail-list-toolbar__trigger:hover,
+.nt-mail-list-toolbar__action:hover,
+.nt-mail-list-toolbar__filter:hover,
+.nt-mail-list-toolbar__pager button:hover,
+.nt-message-card__select:hover {
+  border-color: var(--nt-yellow-line);
+  background: var(--nt-reading-hover);
+}
+
+.nt-mail-list-select:disabled,
+.nt-mail-list-toolbar__trigger:disabled,
+.nt-mail-list-toolbar__action:disabled,
+.nt-mail-list-toolbar__filter:disabled,
+.nt-mail-list-toolbar__pager button:disabled,
+.nt-message-card__select:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.nt-mail-list-select--checked,
+.nt-message-card__select[aria-pressed="true"] {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  box-shadow: 0 0 0 2px var(--nt-focus-ring);
+}
+
+.nt-mail-list-select--partial {
+  border-color: var(--nt-yellow-line);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-reading-selected);
+}
+
+.nt-mail-list-select__box,
+.nt-message-card__checkbox {
+  display: inline-grid;
+  width: 15px;
+  height: 15px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.nt-message-card__checkbox {
+  color: inherit;
+}
+
+.nt-mail-list-toolbar__filter {
+  display: inline-flex;
+  grid-auto-flow: unset;
+  gap: 6px;
+  min-height: 30px;
+  align-items: center;
+  padding: 0 9px;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.nt-mail-list-toolbar__filter svg,
+.nt-mail-list-toolbar__trigger svg,
+.nt-mail-list-toolbar__action svg,
+.nt-mail-list-toolbar__pager button svg,
+.nt-mail-list-toolbar__menu button svg,
+.nt-mail-list-toolbar__panel-option svg,
+.nt-mail-list-toolbar__create svg,
+.nt-mail-list-toolbar__snooze-plus svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nt-mail-list-toolbar__chip {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  border: 1px solid rgba(17, 24, 33, 0.09);
+  border-radius: 9px;
+  padding: 0 12px;
+  color: #111821;
+  background: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0;
+}
+
+.nt-mail-list-toolbar__unread-toggle {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(17, 24, 33, 0.09);
+  border-radius: 9px;
+  padding: 0 10px;
+  color: #111821;
+  background: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.nt-mail-list-toolbar__unread-toggle:hover {
+  border-color: var(--nt-yellow-line);
+  background: var(--nt-reading-hover);
+}
+
+.nt-mail-list-toolbar__unread-toggle--active {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  box-shadow: none;
+}
+
+.nt-mail-list-toolbar__unread-toggle--active:hover {
+  border-color: var(--nt-action-primary-hover);
+  background: var(--nt-action-primary-hover);
+}
+
+.nt-mail-list-toolbar__unread-check {
+  display: inline-grid;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-size: 0.64rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.nt-mail-list-toolbar__pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.nt-mail-list-toolbar__pager span {
+  min-width: 42px;
+  color: #a5a8af;
+  font-size: 0.76rem;
+  font-weight: 750;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.nt-mail-list-toolbar__pager button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.nt-mail-list-toolbar__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 42;
+  display: grid;
+  gap: 4px;
+  min-width: 154px;
+  border: 1px solid rgba(17, 24, 33, 0.12);
+  border-radius: 8px;
+  padding: 8px;
+  color: #1f2329;
+  background: #ffffff;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.16);
+}
+
+.nt-mail-list-toolbar__menu--more {
+  left: 0;
+}
+
+.nt-mail-list-toolbar__menu--filter {
+  left: auto;
+  right: 0;
+  min-width: 188px;
+}
+
+.nt-mail-list-toolbar__menu strong {
+  margin: 2px 4px 4px;
+  color: rgba(17, 24, 33, 0.66);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nt-mail-list-toolbar__menu button {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #2b3139;
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 750;
+  text-align: left;
+}
+
+.nt-mail-list-toolbar__menu button:disabled {
+  color: #a5a8af;
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.nt-mail-list-toolbar__menu-color {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--taxonomy-color, var(--nt-action-info));
+}
+
+.nt-mail-list-toolbar__menu-check {
+  display: inline-grid;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  color: var(--nt-action-primary-ink);
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.nt-mail-list-toolbar__menu button:hover,
+.nt-mail-list-toolbar__menu-item--active {
+  color: #111821;
+  background: #f3f1ff;
+}
+
+.nt-mail-list-toolbar__divider {
+  height: 1px;
+  margin: 4px 2px;
+  background: rgba(17, 24, 33, 0.08);
+}
+
+.nt-mail-list-toolbar__divider--vertical {
+  width: 1px;
+  height: 24px;
+  margin: 0 4px;
+  background: rgba(17, 24, 33, 0.1);
+}
+
+.nt-mail-list-toolbar__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 44;
+  display: grid;
+  gap: 10px;
+  width: min(268px, calc(100vw - 40px));
+  border: 1px solid rgba(17, 24, 33, 0.14);
+  border-radius: 8px;
+  padding: 16px;
+  color: #1f2329;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+}
+

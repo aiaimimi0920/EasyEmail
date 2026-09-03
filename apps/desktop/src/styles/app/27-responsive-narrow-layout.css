@@ -1,0 +1,173 @@
+@media (max-width: 480px) {
+  .nt-contact-modal {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+
+  .nt-contact-modal__identity,
+  .nt-contact-modal__two-column,
+  .nt-contact-modal__split,
+  .nt-contact-modal__email-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .nt-contact-modal__identity label,
+  .nt-contact-modal__two-column label,
+  .nt-contact-modal__two-column label:last-child {
+    grid-column: 1;
+  }
+
+  .nt-contact-modal__actions {
+    justify-content: stretch;
+  }
+
+  .nt-contact-modal__actions button {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+}
+
+.nt-mode-switch--collapsed .nt-mode-current,
+.nt-mode-switch--collapsed .nt-mode-current:hover {
+  border-color: var(--nt-yellow-line);
+  color: var(--nt-action-primary);
+  background: var(--nt-yellow-soft);
+  box-shadow: none;
+}
+
+.nt-mail-taxonomy__head,
+.nt-mail-taxonomy__icon-toggle,
+.nt-mail-taxonomy__icon {
+  color: var(--nt-text-muted);
+}
+
+.nt-mail-taxonomy__icon-toggle:hover,
+.nt-mail-taxonomy__icon-toggle:hover .nt-mail-taxonomy__icon,
+.nt-mail-taxonomy__add:hover,
+.nt-mail-taxonomy__chevron:hover {
+  color: var(--nt-action-primary);
+  background: var(--nt-yellow-soft);
+}
+
+.nt-board-head {
+  min-height: 88px;
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-md);
+  padding: 18px 20px;
+  background:
+    linear-gradient(100deg, var(--nt-yellow-soft), transparent 38%),
+    var(--nt-surface-panel);
+}
+
+.nt-board-head h1 {
+  color: var(--nt-text-primary);
+  font-size: 2rem;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.nt-action-board,
+.nt-directory,
+.nt-rail-card,
+.nt-thread-card,
+.nt-code-card,
+.nt-resource-row,
+.nt-result,
+.nt-alert {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-surface-panel);
+  box-shadow: none;
+}
+
+.nt-btn,
+.nt-switch,
+.nt-mini-btn {
+  border-radius: var(--nt-radius-sm);
+  letter-spacing: 0;
+  box-shadow: none;
+}
+
+.nt-btn:hover,
+.nt-switch:hover,
+.nt-resource-row:hover {
+  transform: none;
+}
+
+.nt-btn--primary {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  box-shadow: none;
+}
+
+.nt-btn--primary:hover:not(:disabled) {
+  border-color: var(--nt-action-primary-hover);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary-hover);
+}
+
+.nt-btn--secondary {
+  border-color: var(--nt-info-line);
+  color: var(--nt-info-text);
+  background: var(--nt-info-soft);
+}
+
+.nt-btn--secondary:hover:not(:disabled) {
+  border-color: var(--nt-action-info);
+  color: var(--nt-text-primary);
+  background: color-mix(in srgb, var(--nt-action-info) 18%, var(--nt-surface-panel));
+}
+
+.nt-btn--outline,
+.nt-switch,
+.nt-mini-btn {
+  border-color: var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control);
+}
+
+.nt-switch--active {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+}
+
+.nt-badge {
+  border-color: var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control);
+}
+
+.nt-badge--signal {
+  border-color: var(--nt-yellow-line);
+  color: var(--nt-action-primary);
+  background: var(--nt-yellow-soft);
+}
+
+.nt-badge--cyan {
+  border-color: var(--nt-info-line);
+  color: var(--nt-info-text);
+  background: var(--nt-info-soft);
+}
+
+.nt-reading-pane .nt-kicker {
+  color: var(--nt-reading-muted);
+}
+
+.nt-reading-pane .nt-kicker::before {
+  color: color-mix(in srgb, var(--nt-action-primary) 76%, var(--nt-reading-ink));
+}
+
+.nt-reading-pane--dark .nt-kicker {
+  color: var(--nt-reading-muted);
+}
+
+.nt-reading-pane--dark .nt-kicker::before {
+  color: color-mix(in srgb, var(--nt-action-primary) 76%, var(--nt-reading-ink));
+}
+
+.nt-reading-pane--dark h2 {
+  color: var(--nt-reading-ink);
+}
+

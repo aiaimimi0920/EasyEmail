@@ -1,0 +1,405 @@
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.nt-rail-card,
+.nt-action-board,
+.nt-list-pane,
+.nt-directory,
+.nt-reading-pane {
+  border: 1px solid var(--nt-line);
+  border-radius: var(--nt-radius-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.022)),
+    rgba(12, 17, 23, 0.86);
+}
+
+.nt-rail-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.nt-rail-footer {
+  display: grid;
+  gap: 10px;
+  align-self: end;
+  min-width: 0;
+}
+
+.nt-app-shell--edge-rail .nt-rail-footer {
+  width: 100%;
+}
+
+.nt-rail-footer-action,
+.nt-platform-account-name-button,
+.nt-platform-account-login-button {
+  display: grid;
+  grid-template-columns: var(--nt-rail-icon-lane) minmax(0, 1fr);
+  gap: 0 8px;
+  width: 100%;
+  height: 48px;
+  min-width: 0;
+  align-items: center;
+  overflow: hidden;
+  border: 0;
+  border-radius: 14px;
+  padding: 0 8px 0 0;
+  color: var(--nt-muted);
+  background: transparent;
+  text-align: left;
+}
+
+.nt-rail-footer-action:hover,
+.nt-platform-avatar-button:hover,
+.nt-platform-account-name-button:hover,
+.nt-platform-account-login-button:hover {
+  color: var(--nt-fog);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.nt-rail-footer-action--active {
+  color: var(--nt-fog);
+  background: rgba(217, 255, 56, 0.12);
+}
+
+.nt-rail-footer-action__icon {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  justify-self: center;
+  color: var(--nt-signal);
+}
+
+.nt-rail-footer-action__icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nt-rail-footer-action__copy,
+.nt-platform-account-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nt-rail-footer-action__copy {
+  align-self: center;
+}
+
+.nt-rail-footer-action__copy strong,
+.nt-rail-footer-action__copy small,
+.nt-platform-account-copy strong,
+.nt-platform-account-copy small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-rail-footer-action__copy strong,
+.nt-platform-account-copy strong {
+  color: var(--nt-fog);
+}
+
+.nt-rail-footer-action__copy small,
+.nt-platform-account-copy small {
+  color: var(--nt-soft);
+}
+
+.nt-platform-account-control {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  overflow: hidden;
+}
+
+.nt-platform-account-control--signed-in {
+  grid-template-columns: var(--nt-rail-icon-lane) minmax(0, 1fr) 34px;
+}
+
+.nt-platform-account-control--signed-out {
+  grid-template-columns: minmax(0, 1fr) 34px;
+}
+
+.nt-platform-account-control,
+.nt-platform-avatar-button,
+.nt-platform-account-name-button,
+.nt-platform-account-login-button,
+.nt-platform-account-collapsed-toggle,
+.nt-platform-account-collapse-toggle {
+  height: 46px;
+  min-height: 46px;
+}
+
+.nt-platform-avatar-button,
+.nt-platform-account-name-button,
+.nt-platform-account-login-button {
+  min-width: 0;
+  border: 0;
+  color: var(--nt-muted);
+  background: transparent;
+}
+
+.nt-platform-avatar-button {
+  grid-column: 1;
+  display: inline-grid;
+  width: var(--nt-rail-icon-lane);
+  padding: 0;
+  place-items: center;
+}
+
+.nt-platform-account-name-button {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  overflow: hidden;
+  padding: 0 8px 0 0;
+  text-align: left;
+}
+
+.nt-platform-account-login-button {
+  grid-column: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(217, 255, 56, 0.2);
+  border-radius: 14px;
+  color: var(--nt-signal);
+  font-weight: 900;
+}
+
+.nt-platform-avatar {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  justify-self: center;
+  border: 1px solid rgba(217, 255, 56, 0.28);
+  border-radius: 10px;
+  color: var(--nt-fog);
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 0.86rem;
+  font-weight: 900;
+  overflow: hidden;
+}
+
+.nt-platform-avatar img,
+.nt-platform-account-popover__avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.nt-rail-toggle {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(217, 255, 56, 0.18);
+  border-radius: 16px;
+  color: var(--nt-soft);
+  background:
+    linear-gradient(135deg, rgba(217, 255, 56, 0.08), transparent 45%),
+    rgba(255, 255, 255, 0.035);
+}
+
+.nt-app-shell--edge-rail .nt-rail-toggle {
+  display: grid;
+  grid-template-columns: var(--nt-rail-icon-lane) minmax(0, 1fr);
+  align-items: center;
+  gap: 0 8px;
+  width: 100%;
+  height: 46px;
+  min-height: 46px;
+  justify-content: stretch;
+  overflow: hidden;
+  padding: 0 8px 0 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+.nt-rail-toggle:hover {
+  color: var(--nt-signal);
+  border-color: rgba(217, 255, 56, 0.42);
+}
+
+.nt-app-shell--edge-rail .nt-rail-toggle:hover {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.nt-platform-account-control--signed-in .nt-platform-account-collapse-toggle {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.nt-platform-account-control--signed-out .nt-platform-account-collapse-toggle {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.nt-platform-account-control .nt-platform-account-collapse-toggle {
+  display: grid;
+  grid-template-columns: 34px;
+  grid-template-rows: 46px;
+  place-items: center;
+  align-content: center;
+  justify-content: center;
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+}
+
+.nt-platform-account-control .nt-rail-toggle__label {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.nt-rail-toggle__icon {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  line-height: 1;
+  color: var(--nt-signal);
+  font-weight: 900;
+  letter-spacing: -0.12em;
+}
+
+.nt-rail-chevron {
+  display: block;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nt-rail-toggle__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-app-shell--rail-collapsed .nt-rail-footer {
+  width: var(--nt-rail-icon-lane);
+}
+
+.nt-app-shell--rail-collapsed .nt-rail-footer-action,
+.nt-app-shell--rail-collapsed .nt-platform-account-name-button,
+.nt-app-shell--rail-collapsed .nt-platform-account-login-button {
+  width: var(--nt-rail-icon-lane);
+  padding: 0;
+}
+
+.nt-app-shell--rail-collapsed .nt-platform-account-control {
+  grid-template-columns: var(--nt-rail-icon-lane) 34px;
+  width: var(--nt-rail-icon-lane);
+}
+
+.nt-app-shell--rail-collapsed .nt-rail-card {
+  display: none;
+}
+
+.nt-app-shell--edge-rail .nt-rail-card {
+  display: none;
+}
+
+.nt-app-shell--rail-collapsed .nt-rail-toggle {
+  grid-template-columns: var(--nt-rail-icon-lane) minmax(0, 1fr);
+  width: var(--nt-rail-icon-lane);
+  height: 46px;
+  min-height: 46px;
+  overflow: hidden;
+  padding: 0;
+}
+
+.nt-platform-account-popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: transparent;
+}
+
+.nt-platform-account-popover {
+  position: fixed;
+  left: 8px;
+  bottom: 74px;
+  z-index: 41;
+  display: grid;
+  gap: 10px;
+  width: min(196px, calc(100vw - 16px));
+  padding: 12px;
+  border: 1px solid rgba(217, 255, 56, 0.28);
+  border-radius: 18px;
+  color: var(--nt-fog);
+  background:
+    linear-gradient(135deg, rgba(217, 255, 56, 0.12), transparent 34%),
+    radial-gradient(circle at 100% 0%, rgba(6, 182, 212, 0.16), transparent 14rem),
+    linear-gradient(180deg, rgba(17, 24, 33, 0.98), rgba(8, 11, 16, 0.98));
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.55),
+    inset 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.nt-platform-account-popover__hero {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  text-align: center;
+}
+
+.nt-platform-account-popover__avatar {
+  display: inline-grid;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 3px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(217, 255, 56, 0.34);
+  border-radius: 15px;
+  color: var(--nt-signal);
+  background:
+    linear-gradient(180deg, rgba(19, 27, 35, 0.96), rgba(9, 13, 18, 0.96)),
+    rgba(217, 255, 56, 0.07);
+  box-shadow: 0 0 34px rgba(217, 255, 56, 0.08);
+  font-size: 1.28rem;
+  font-weight: 900;
+}
+
+.nt-platform-account-popover__hero strong {
+  color: var(--nt-fog);
+  font-size: 0.94rem;
+  line-height: 1.2;
+}
+
+.nt-platform-account-popover__hero span {
+  color: rgba(243, 245, 247, 0.58);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+

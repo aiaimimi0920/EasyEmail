@@ -1,0 +1,353 @@
+@media (max-width: 1023px) {
+  .nt-app-shell--edge-rail .nt-side-rail {
+    height: auto;
+    min-height: 0;
+    align-content: start;
+    border-right: 0;
+    border-bottom: 1px solid var(--nt-border-default);
+  }
+}
+
+body {
+  background:
+    linear-gradient(color-mix(in srgb, var(--nt-text-primary) 2.8%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--nt-text-primary) 2.8%, transparent) 1px, transparent 1px),
+    var(--nt-surface-app);
+  background-size: 34px 34px;
+}
+
+.nt-side-rail,
+.nt-workspace-board {
+  border-color: var(--nt-border-default);
+  background: var(--nt-surface-shell);
+  box-shadow: none;
+}
+
+.nt-app-shell--edge-rail .nt-side-rail {
+  background: var(--nt-surface-rail);
+}
+
+.nt-app-shell--mail-compact .nt-workspace-board {
+  background: var(--nt-surface-shell);
+}
+
+.nt-nav__item:not(.nt-nav__item--active) .nt-nav__icon,
+.nt-rail-footer-action:not(.nt-rail-footer-action--active) .nt-rail-footer-action__icon {
+  color: var(--nt-text-muted);
+}
+
+.nt-nav__item:hover,
+.nt-rail-footer-action:hover,
+.nt-platform-account-name-button:hover,
+.nt-platform-account-login-button:hover {
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control-hover);
+}
+
+.nt-app-shell--edge-rail .nt-nav__item--active,
+.nt-rail-footer-action--active {
+  border-color: var(--nt-yellow-line);
+  color: var(--nt-text-primary);
+  background: var(--nt-yellow-soft);
+  box-shadow: inset 3px 0 0 var(--nt-action-primary);
+}
+
+.nt-app-shell--edge-rail .nt-nav__item--active .nt-nav__icon,
+.nt-rail-footer-action--active .nt-rail-footer-action__icon {
+  color: var(--nt-action-primary);
+}
+
+.nt-mail-topbar,
+.nt-mail-list-toolbar {
+  border-bottom-color: var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-shell);
+  box-shadow: none;
+}
+
+.nt-mail-adaptive,
+.nt-list-pane,
+.nt-scroll-pane {
+  background: var(--nt-surface-app);
+}
+
+.nt-list-pane {
+  border-right-color: var(--nt-border-default);
+}
+
+.nt-mail-top-search,
+.nt-mail-search,
+.nt-mail-search__bar,
+.nt-search-box,
+.nt-mail-source-selector__trigger,
+.nt-source-trigger,
+.nt-mail-topbar__action,
+.nt-mail-search-code-switch,
+.nt-mail-search-sync-button {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control);
+  box-shadow: none;
+}
+
+.nt-mail-top-search--active {
+  border-color: var(--nt-border-focus);
+  box-shadow: 0 0 0 2px var(--nt-yellow-soft);
+}
+
+.nt-mail-top-search__icon {
+  color: var(--nt-text-muted);
+}
+
+.nt-mail-search-code-switch:hover:not(:disabled),
+.nt-mail-search-sync-button:hover:not(:disabled),
+.nt-mail-source-selector__trigger:hover,
+.nt-source-trigger:hover,
+.nt-mail-topbar__action:hover {
+  border-color: var(--nt-info-line);
+  color: var(--nt-info-text);
+  background: var(--nt-info-soft);
+  box-shadow: none;
+}
+
+.nt-mail-search-code-switch--active {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  box-shadow: none;
+}
+
+.nt-mail-search-sync-button--syncing {
+  border-color: var(--nt-action-info);
+  color: var(--nt-info-text);
+  background: var(--nt-info-soft);
+  box-shadow: none;
+}
+
+.nt-mail-search-overlay,
+.nt-mail-source-selector__menu,
+.nt-mail-list-toolbar__menu,
+.nt-mail-list-toolbar__panel,
+.nt-proton-message-more-menu {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-md);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-panel);
+  box-shadow: 0 18px 48px var(--nt-shadow-panel);
+}
+
+.nt-mail-source-selector__option,
+.nt-mail-source-selector__action,
+.nt-mail-list-toolbar__menu button,
+.nt-mail-list-toolbar__panel-option,
+.nt-mail-list-toolbar__snooze-row,
+.nt-mail-list-toolbar__snooze-custom,
+.nt-proton-message-more-menu button {
+  border-color: var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control);
+}
+
+.nt-mail-source-selector__option:hover,
+.nt-mail-source-selector__action:hover:not(:disabled),
+.nt-mail-list-toolbar__menu button:hover,
+.nt-mail-list-toolbar__panel-option:hover,
+.nt-mail-list-toolbar__panel-option--active,
+.nt-mail-list-toolbar__snooze-row:hover,
+.nt-mail-list-toolbar__snooze-custom:hover {
+  border-color: var(--nt-border-hover);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-hover);
+}
+
+.nt-mail-source-selector__option--active,
+.nt-mail-source-selector__action--primary,
+.nt-mail-list-toolbar__apply,
+.nt-proton-primary-reply {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  box-shadow: none;
+}
+
+.nt-mail-list-select,
+.nt-mail-list-toolbar__trigger,
+.nt-mail-list-toolbar__action,
+.nt-mail-list-toolbar__filter,
+.nt-mail-list-toolbar__pager button,
+.nt-message-card__select,
+.nt-mail-list-toolbar__chip,
+.nt-mail-list-toolbar__unread-toggle {
+  border-color: var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control);
+  box-shadow: none;
+}
+
+.nt-mail-list-select:hover,
+.nt-mail-list-toolbar__trigger:hover,
+.nt-mail-list-toolbar__action:hover,
+.nt-mail-list-toolbar__filter:hover,
+.nt-mail-list-toolbar__pager button:hover,
+.nt-message-card__select:hover,
+.nt-mail-list-toolbar__unread-toggle:hover {
+  border-color: var(--nt-border-hover);
+  background: var(--nt-surface-hover);
+}
+
+.nt-mail-list-select--checked,
+.nt-message-card__select[aria-pressed="true"],
+.nt-mail-list-toolbar__unread-toggle--active,
+.nt-mail-list-toolbar__action[aria-expanded="true"],
+.nt-mail-list-toolbar__filter[aria-expanded="true"] {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  box-shadow: none;
+}
+
+.nt-message-card {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-surface-panel);
+  box-shadow: none;
+}
+
+.nt-message-card:hover {
+  border-color: var(--nt-border-hover);
+  background: var(--nt-surface-hover);
+}
+
+.nt-message-card--active {
+  border-color: var(--nt-yellow-line);
+  background: var(--nt-surface-selected);
+  box-shadow: inset 3px 0 0 var(--nt-action-primary);
+}
+
+.nt-message-card--unread {
+  border-color: var(--nt-border-default);
+  background: var(--nt-surface-panel);
+}
+
+.nt-message-card strong,
+.nt-message-card__content strong,
+.nt-message-card__subject-line strong {
+  color: var(--nt-text-primary);
+}
+
+.nt-message-card span,
+.nt-message-card__content,
+.nt-message-card small,
+.nt-message-card__time {
+  color: var(--nt-text-muted);
+}
+
+.nt-label-chip,
+.nt-folder-chip,
+.nt-more-chip,
+.nt-read-chip,
+.nt-unread-chip {
+  border-color: var(--nt-border-default);
+  color: var(--nt-text-muted);
+  background: var(--nt-surface-control);
+}
+
+.nt-code-chip,
+.nt-message-code,
+.nt-mail-list-toolbar__mailbox-count,
+.nt-message-card__count {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-action-primary);
+}
+
+.nt-reading-pane {
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-surface);
+}
+
+.nt-proton-message-card,
+.nt-proton-message-body-wrap,
+.nt-proton-message-body-wrap .nt-message-body,
+.nt-proton-conversation-message,
+.nt-proton-conversation-message__header {
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-surface);
+  box-shadow: none;
+}
+
+.nt-proton-conversation-stack {
+  background: color-mix(in srgb, var(--nt-reading-ink) 3%, var(--nt-reading-surface));
+}
+
+.nt-proton-conversation-message--expanded .nt-proton-conversation-message__header,
+.nt-proton-conversation-message__header:hover {
+  background: var(--nt-reading-selected);
+}
+
+.nt-proton-icon-btn,
+.nt-proton-star,
+.nt-proton-action-menu button,
+.nt-proton-message-more-menu button,
+.nt-reading-pane .nt-mini-btn {
+  border-color: var(--nt-reading-border);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-control);
+  box-shadow: none;
+}
+
+.nt-proton-icon-btn:hover,
+.nt-proton-star:hover,
+.nt-proton-action-menu button:hover,
+.nt-proton-message-more-menu button:hover,
+.nt-reading-pane .nt-mini-btn:hover {
+  border-color: var(--nt-reading-border-hover);
+  background: var(--nt-reading-hover);
+}
+
+.nt-compose-popover {
+  border-color: var(--nt-yellow-line);
+  border-radius: var(--nt-radius-md) var(--nt-radius-md) 0 0;
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-surface);
+  box-shadow: 0 28px 72px var(--nt-shadow-panel);
+}
+
+.nt-compose-popover__titlebar {
+  border-bottom: 1px solid var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-panel);
+}
+
+.nt-compose-popover__grabber,
+.nt-compose-popover__window-controls button {
+  color: var(--nt-text-muted);
+}
+
+.nt-compose-popover__grabber:hover,
+.nt-compose-popover__window-controls button:hover {
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+}
+
+.nt-compose-popover__toolbar button:hover,
+.nt-compose-popover__formatbar button:hover,
+.nt-compose-popover__utility-actions button:hover {
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-hover);
+}
+
+.nt-compose-format-button--active,
+.nt-compose-popover__formatbar .nt-compose-format-button--active:hover,
+.nt-compose-popover__utility-actions button[aria-pressed="true"],
+.nt-compose-popover__utility-actions button[aria-expanded="true"] {
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-action-primary) !important;
+}
+
+.nt-compose-popover__send,
+.nt-compose-popover__send-menu {
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+}

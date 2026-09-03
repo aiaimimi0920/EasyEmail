@@ -1,0 +1,230 @@
+@media (max-width: 1100px) {
+  .nt-two-column {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1024px) {
+  body {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .nt-app-shell {
+    height: auto;
+    min-height: 100vh;
+  }
+}
+
+@media (max-width: 720px) {
+  .nt-compose-schedule-popover {
+    width: min(330px, calc(100vw - 32px));
+    min-width: 0;
+    max-width: calc(100vw - 32px);
+  }
+
+  .nt-app-shell--edge-rail.nt-app-shell--rail-collapsed .nt-side-rail {
+    display: flex;
+    width: 100%;
+    height: 64px;
+    min-height: 64px;
+    max-height: 64px;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 4px 8px;
+    overflow: hidden;
+  }
+
+  .nt-app-shell--edge-rail.nt-app-shell--rail-collapsed .nt-brand {
+    flex: 0 0 var(--nt-rail-icon-lane);
+    width: var(--nt-rail-icon-lane);
+    min-height: 48px;
+    padding: 0;
+  }
+
+  .nt-app-shell--edge-rail.nt-app-shell--rail-collapsed .nt-mode-switch {
+    flex: 0 0 var(--nt-rail-icon-lane);
+    width: var(--nt-rail-icon-lane);
+  }
+
+  .nt-app-shell--edge-rail.nt-app-shell--rail-collapsed .nt-nav-shell {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    height: 56px;
+  }
+
+  .nt-app-shell--edge-rail.nt-app-shell--rail-collapsed .nt-nav {
+    display: flex;
+    width: 100%;
+    max-width: none;
+    height: 56px;
+    flex: 1 1 auto;
+    flex-basis: auto;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 2px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .nt-app-shell--edge-rail.nt-app-shell--rail-collapsed .nt-nav__item {
+    flex: 0 0 var(--nt-rail-icon-lane);
+    width: var(--nt-rail-icon-lane);
+    min-width: var(--nt-rail-icon-lane);
+  }
+
+  .nt-app-shell--edge-rail.nt-app-shell--rail-collapsed .nt-mail-taxonomy {
+    display: flex;
+    width: auto;
+    height: 46px;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+
+  .nt-app-shell--edge-rail.nt-app-shell--rail-collapsed .nt-mail-taxonomy__section,
+  .nt-app-shell--edge-rail.nt-app-shell--rail-collapsed .nt-mail-taxonomy__head {
+    width: var(--nt-rail-icon-lane);
+    min-width: var(--nt-rail-icon-lane);
+    height: 46px;
+    min-height: 46px;
+  }
+
+  .nt-app-shell--edge-rail.nt-app-shell--rail-collapsed .nt-mail-taxonomy__icon-toggle {
+    width: var(--nt-rail-icon-lane);
+    height: 46px;
+  }
+
+  .nt-app-shell--edge-rail.nt-app-shell--rail-collapsed .nt-nav-scroll-hint {
+    display: none;
+  }
+
+  .nt-app-shell--edge-rail.nt-app-shell--rail-collapsed .nt-rail-footer {
+    display: flex;
+    width: auto;
+    flex: 0 0 auto;
+    align-self: center;
+    gap: 2px;
+  }
+
+  .nt-app-shell--edge-rail.nt-app-shell--rail-collapsed .nt-rail-footer-action,
+  .nt-app-shell--edge-rail.nt-app-shell--rail-collapsed .nt-rail-toggle {
+    width: var(--nt-rail-icon-lane);
+    min-width: var(--nt-rail-icon-lane);
+    height: 46px;
+    min-height: 46px;
+    padding: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .nt-mail-list-toolbar {
+    min-height: 0;
+    padding: 6px 14px;
+  }
+
+  .nt-mail-list-toolbar__row-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .nt-mail-list-toolbar__group {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .nt-mail-list-toolbar__group::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  .nt-mail-list-toolbar__mailbox-title {
+    flex: 0 1 auto;
+  }
+
+  .nt-mail-list-toolbar__right {
+    width: 100%;
+    min-width: 0;
+    justify-content: space-between;
+    margin-left: 0;
+  }
+
+  .nt-mail-list-toolbar__pager {
+    margin-left: auto;
+  }
+}
+
+.nt-mail-search-overlay,
+.nt-platform-account-popover,
+.nt-avatar-popover {
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.nt-avatar-popover {
+  max-width: calc(100vw - 24px);
+}
+
+.nt-compose-recipient-menu {
+  border-color: var(--nt-reading-border);
+  border-radius: var(--nt-radius-md);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-surface);
+  box-shadow: 0 18px 44px var(--nt-shadow-panel);
+}
+
+.nt-compose-recipient-menu button {
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-reading-ink);
+  background: transparent;
+}
+
+.nt-compose-recipient-menu button:hover {
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-hover);
+}
+
+.nt-mail-search-toggle {
+  border-color: var(--nt-border-default);
+  background: var(--nt-surface-control);
+}
+
+.nt-mail-search-toggle span {
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+}
+
+.nt-mail-search-toggle:not(.nt-mail-search-toggle--active) span {
+  color: transparent;
+  background: var(--nt-disabled-ink);
+}
+
+.nt-reading-pane h2 {
+  color: var(--nt-reading-ink);
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.nt-action-board > .nt-result {
+  position: relative;
+  border: 0;
+  border-left: 3px solid var(--nt-action-info);
+  border-radius: 0;
+  padding: 10px 12px;
+  background: var(--nt-info-soft);
+}
+
+.nt-action-board > .nt-result strong {
+  color: var(--nt-info-text);
+}
+

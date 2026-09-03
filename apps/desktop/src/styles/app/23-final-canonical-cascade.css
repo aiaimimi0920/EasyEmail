@@ -1,0 +1,320 @@
+/* Final canonical cascade for legacy tuning blocks below the shared role mapping. */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"][tabindex]:focus-visible,
+.nt-compose-recipient-token:focus-within,
+.nt-newsletter-subscription-card:focus-visible,
+.nt-sender-avatar[role="button"]:focus-visible {
+  outline: 2px solid var(--nt-border-focus);
+  outline-offset: 2px;
+  border-color: var(--nt-border-focus);
+  box-shadow: 0 0 0 3px var(--nt-focus-ring);
+}
+
+button:disabled,
+button:disabled:hover,
+.nt-mini-btn:disabled,
+.nt-proton-icon-btn:disabled,
+.nt-proton-star:disabled,
+.nt-proton-primary-reply:disabled,
+.nt-proton-message-more-menu button:disabled,
+.nt-mail-list-select:disabled,
+.nt-mail-list-toolbar__trigger:disabled,
+.nt-mail-list-toolbar__action:disabled,
+.nt-mail-list-toolbar__filter:disabled,
+.nt-mail-list-toolbar__pager button:disabled,
+.nt-message-card__select:disabled,
+.nt-mail-source-selector__action:disabled,
+.nt-mail-search-sync-button:disabled {
+  border-color: var(--nt-disabled-border);
+  color: var(--nt-disabled-ink);
+  background: var(--nt-disabled-surface);
+  opacity: 1;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+  box-shadow: none;
+}
+
+.nt-contact-modal-backdrop,
+.nt-compose-link-modal-backdrop,
+.nt-compose-expiration-modal-backdrop,
+.nt-compose-encryption-modal-backdrop,
+.nt-mail-taxonomy-modal-backdrop {
+  background: var(--nt-overlay-scrim);
+  backdrop-filter: blur(6px);
+}
+
+.nt-compose-recipient-menu__danger,
+.nt-proton-message-more-menu__danger,
+.nt-contact-modal__danger,
+.nt-platform-account-popover__danger {
+  color: var(--nt-action-destructive) !important;
+}
+
+.nt-alert--danger,
+.nt-copy-toast--error {
+  border-color: var(--nt-danger-line);
+  color: var(--nt-danger-text);
+  background: var(--nt-danger-soft);
+}
+
+.nt-nav__badge {
+  border-color: var(--nt-action-destructive-ink);
+  color: var(--nt-action-destructive-ink);
+  background: var(--nt-action-destructive);
+  box-shadow: none;
+}
+
+.nt-compose-expiration-modal input:focus,
+.nt-compose-encryption-modal input:focus,
+.nt-compose-schedule-custom input:focus,
+.nt-mail-taxonomy-modal__editor input:focus,
+.nt-mail-taxonomy-modal__editor select:focus,
+.nt-mail-search-folder-menu__filter input:focus {
+  border-color: var(--nt-border-focus);
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--nt-focus-ring);
+}
+
+.nt-mail-taxonomy-modal {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-md);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-surface);
+  box-shadow: 0 28px 72px var(--nt-shadow-panel);
+}
+
+.nt-mail-taxonomy-modal__header,
+.nt-mail-taxonomy-modal__footer {
+  border-color: var(--nt-reading-border);
+}
+
+.nt-mail-taxonomy-modal__header button,
+.nt-mail-taxonomy-modal__footer button,
+.nt-mail-taxonomy-modal__actions button,
+.nt-mail-taxonomy-modal__item-actions button,
+.nt-mail-taxonomy-modal__editor input:not([type]),
+.nt-mail-taxonomy-modal__editor input[type="text"],
+.nt-mail-taxonomy-modal__editor select {
+  border-color: var(--nt-reading-border);
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-control);
+}
+
+.nt-mail-taxonomy-modal__body {
+  background: var(--nt-reading-surface);
+}
+
+.nt-mail-taxonomy-modal__editor,
+.nt-mail-taxonomy-modal__empty,
+.nt-mail-taxonomy-modal__item {
+  border-color: var(--nt-reading-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-reading-control);
+}
+
+.nt-mail-taxonomy-modal__item--editing {
+  border-color: var(--nt-border-focus);
+  box-shadow: 0 0 0 3px var(--nt-focus-ring);
+}
+
+.nt-mail-taxonomy-modal__editor label,
+.nt-mail-taxonomy-modal__color-row span,
+.nt-mail-taxonomy-modal__empty,
+.nt-mail-taxonomy-modal__item small,
+.nt-mail-taxonomy-modal__footer {
+  color: var(--nt-reading-muted);
+}
+
+.nt-mail-taxonomy-modal__primary,
+.nt-contact-modal__actions .nt-contact-modal__primary,
+.nt-mail-search-submit {
+  border-color: var(--nt-action-primary) !important;
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-action-primary) !important;
+  box-shadow: none;
+}
+
+.nt-mail-source-selector__chevron,
+.nt-mail-search-overlay__row--fulltext em,
+.nt-mail-list-toolbar__menu-check,
+.nt-mail-list-toolbar__snooze-plus {
+  color: var(--nt-info-text);
+}
+
+.nt-mail-list-toolbar__menu-color {
+  background: var(--taxonomy-color, var(--nt-action-info));
+}
+
+.nt-compose-recipient-token:hover,
+.nt-compose-recipient-token:focus-within,
+.nt-compose-format-menu__item:hover,
+.nt-compose-format-menu__item--active,
+.nt-compose-emoji-tab:hover,
+.nt-compose-emoji-tab--active,
+.nt-mail-search-scope-chip--active,
+.nt-mail-search-folder-menu__item:hover,
+.nt-mail-search-folder-menu__item--active,
+.nt-mail-list-select--partial {
+  border-color: var(--nt-yellow-line);
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-surface-selected) !important;
+  box-shadow: none;
+}
+
+.nt-compose-format-menu__item em {
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+}
+
+.nt-compose-color-tabs button.is-active,
+.nt-compose-emoji-tab--active {
+  border-color: var(--nt-border-focus);
+  box-shadow: inset 0 -2px 0 var(--nt-border-focus);
+}
+
+.nt-compose-color-swatch--active {
+  outline-color: var(--nt-border-focus);
+}
+
+.nt-copy-toast {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 28px;
+  align-items: center;
+  top: auto;
+  right: 20px;
+  bottom: 20px;
+  left: auto;
+  width: min(360px, calc(100vw - 40px));
+  min-width: 0;
+  max-width: none;
+  z-index: 160;
+  pointer-events: auto;
+}
+
+.nt-copy-toast--compose-open {
+  top: 72px;
+  right: auto;
+  bottom: auto;
+  left: 76px;
+}
+
+.nt-copy-toast__state {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.nt-copy-toast--success {
+  border-color: var(--nt-green-line);
+  color: var(--nt-green-text);
+  background: var(--nt-green-soft);
+}
+
+.nt-copy-toast--status {
+  border-color: var(--nt-info-line);
+  color: var(--nt-info-text);
+  background: var(--nt-info-soft);
+}
+
+.nt-copy-toast--error {
+  border-color: var(--nt-danger-line);
+  color: var(--nt-danger-text);
+  background: var(--nt-danger-soft);
+}
+
+.nt-copy-toast__content {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.nt-copy-toast__content small {
+  color: currentColor;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 0.68rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+  opacity: 0.76;
+}
+
+.nt-copy-toast__dismiss {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: var(--nt-radius-sm);
+  padding: 0;
+  color: currentColor;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.76;
+}
+
+.nt-copy-toast__dismiss:hover {
+  opacity: 1;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.nt-message-card--compact.nt-message-card--selectable:not(.nt-message-card--code) {
+  grid-template-columns: 26px 24px minmax(0, 1fr);
+}
+
+.nt-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.nt-global-busy {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 200;
+  height: 3px;
+  overflow: visible;
+  pointer-events: none;
+  background: var(--nt-busy-track);
+}
+
+.nt-global-busy__message {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  max-width: min(520px, calc(100vw - 40px));
+  padding: 8px 14px;
+  border: 1px solid var(--nt-border-default);
+  border-radius: var(--nt-radius-md);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-panel);
+  box-shadow: 0 12px 32px var(--nt-shadow-panel);
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.nt-global-busy__bar {
+  display: block;
+  width: 34%;
+  height: 100%;
+  background: var(--nt-busy-indicator);
+  animation: nt-global-busy-slide 1.1s ease-in-out infinite;
+}
+
