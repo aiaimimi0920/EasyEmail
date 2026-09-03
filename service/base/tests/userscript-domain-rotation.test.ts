@@ -4,10 +4,10 @@ import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const thisDir = dirname(fileURLToPath(import.meta.url));
-const userscriptPath = resolve(thisDir, "../../../runtimes/userscript/easy_email_proxy.user.js");
+const providersDir = resolve(thisDir, "../../../runtimes/userscript/src/providers");
 
-function readUserscript(): string {
-  return readFileSync(userscriptPath, "utf8");
+function readProviderSource(fileName: string): string {
+  return readFileSync(resolve(providersDir, fileName), "utf8");
 }
 
 function sliceBetween(source: string, start: string, end: string): string {
@@ -20,7 +20,7 @@ function sliceBetween(source: string, start: string, end: string): string {
 
 describe("userscript domain rotation", () => {
   it("does not pin DuckMail mailbox creation to the first provider domain", () => {
-    const source = readUserscript();
+    const source = readProviderSource("duckmail.js");
     const duckmailOpenMailbox = sliceBetween(
       source,
       "async function duckmailOpenMailbox",
@@ -32,7 +32,7 @@ describe("userscript domain rotation", () => {
   });
 
   it("does not pin MoEmail mailbox creation to the first provider domain", () => {
-    const source = readUserscript();
+    const source = readProviderSource("moemail.js");
     const moemailOpenMailbox = sliceBetween(
       source,
       "async function moemailOpenMailbox",
