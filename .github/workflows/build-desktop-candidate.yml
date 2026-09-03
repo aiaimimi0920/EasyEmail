@@ -67,6 +67,7 @@ jobs:
             throw "Expected one portable EasyEmail.exe, found $($portableExecutables.Count)."
           }
           npm run host:smoke -- -ExecutablePath $portableExecutables[0].FullName
+          npm run host:startup-smoke -- -ExecutablePath $portableExecutables[0].FullName
 
       - name: Assemble Candidate Evidence
         shell: pwsh

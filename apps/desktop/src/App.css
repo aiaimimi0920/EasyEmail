@@ -8405,9 +8405,26 @@ button:disabled:hover,
   inset: 0 0 auto;
   z-index: 200;
   height: 3px;
-  overflow: hidden;
+  overflow: visible;
   pointer-events: none;
   background: var(--nt-busy-track);
+}
+
+.nt-global-busy__message {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  max-width: min(520px, calc(100vw - 40px));
+  padding: 8px 14px;
+  border: 1px solid var(--nt-border-default);
+  border-radius: var(--nt-radius-md);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-panel);
+  box-shadow: 0 12px 32px var(--nt-shadow-panel);
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+  transform: translateX(-50%);
 }
 
 .nt-global-busy__bar {

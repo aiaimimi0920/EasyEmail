@@ -906,10 +906,11 @@ function App() {
   const [tempSendTo, setTempSendTo] = useState("");
   const [tempSendSubject, setTempSendSubject] = useState("");
   const [tempSendBody, setTempSendBody] = useState("");
-  const [, setStatusMessage] = useState("Loading local foundation status...");
+  const [statusMessage, setStatusMessage] = useState("正在启动本地 EasyEmail 核心…");
   const [statusToast, setStatusToast] = useState<string | null>(null);
   const [error, setError] = useState<ErrorDto | null>(null);
   const [busy, setBusyState] = useState(true);
+  const [initializing, setInitializing] = useState(true);
   const [mailSyncInProgress, setMailSyncInProgress] = useState(false);
   // Keep the app busy until every overlapping foreground operation has settled.
   const setBusy = useEventCallback((nextBusy: boolean) => {
@@ -1151,13 +1152,14 @@ function App() {
 
   async function loadCoreTemporaryState(): Promise<CoreTemporaryState> {
     const hostId = await bundledCoreClient.getHostId();
-    const [{ sessions }, { instances }] = await Promise.all([
+    const [{ sessions }, { instances }, { messages: allObservedMessages }] = await Promise.all([
       bundledCoreClient.queryMailboxSessions({
         hostId,
         newestFirst: true,
         limit: 500,
       }),
       bundledCoreClient.queryProviderInstances(),
+      bundledCoreClient.queryObservedMessages({ newestFirst: true, limit: 5000 }),
     ]);
     const instancesById = new Map(instances.map((instance) => [instance.id, instance]));
     const mailboxes = sessions.map((session) =>
@@ -1165,9 +1167,9 @@ function App() {
     );
     const mailboxesById = new Map(mailboxes.map((mailbox) => [mailbox.id, mailbox]));
     const sessionIds = new Set(sessions.map((session) => session.id));
-    const observedMessages = (
-      await bundledCoreClient.queryObservedMessages({ newestFirst: true, limit: 5000 })
-    ).messages.filter((message) => sessionIds.has(message.sessionId));
+    const observedMessages = allObservedMessages.filter((message) =>
+      sessionIds.has(message.sessionId),
+    );
     coreObservedMessagesRef.current = new Map(
       observedMessages.map((message) => [message.id, message]),
     );
@@ -1202,6 +1204,8 @@ function App() {
   }
 
   async function loadInitialState(isCurrent: () => boolean = () => true) {
+    setInitializing(true);
+    setStatusMessage("正在启动本地 EasyEmail 核心并加载邮件数据…");
     setBusy(true);
     try {
       const [
@@ -1210,31 +1214,38 @@ function App() {
         avatarSettingsResult,
         coreTemporaryState,
         platformSessionResult,
+        accountsResult,
+        messagesResult,
+        codesResult,
+        sendQueueResult,
+        contactsResult,
+        agentAccountsResult,
+        agentServicesResult,
+        agentThreadsResult,
+        taxonomyResult,
       ] = await Promise.all([
         bundledCoreClient.getCatalog(),
         settingsClient.getEasyEmailSettings(),
         avatarSettingsClient.getAvatarSettings(),
         loadCoreTemporaryState(),
         platformAccountClient.getPlatformAccountSession(),
+        mailAccountClient.listNormalAccounts(),
+        invoke<AnonymousMessageDto[]>("message_list", {
+          request: { scope: "anonymous", account_id: null, include_archived: true },
+        }),
+        invoke<VerificationCodeDto[]>("verification_list_recent", {
+          request: { temp_mailbox_id: null, limit: 100 },
+        }),
+        sendQueueClient.listSendQueue({ limit: 25 }),
+        contactClient.listContacts(),
+        invoke<LegacyAccountDto[]>("agent_list_accounts"),
+        invoke<AgentServiceDto[]>("agent_list_services"),
+        invoke<AgentThreadDto[]>("agent_list_threads"),
+        loadMailTaxonomyItems(isCurrent),
       ]);
       if (!isCurrent()) {
         return;
       }
-      const accountsResult = await mailAccountClient.listNormalAccounts();
-      const messagesResult = await invoke<AnonymousMessageDto[]>("message_list", {
-        request: { scope: "anonymous", account_id: null, include_archived: true },
-      });
-      const codesResult = await invoke<VerificationCodeDto[]>("verification_list_recent", {
-        request: { temp_mailbox_id: null, limit: 100 },
-      });
-      const sendQueueResult = await sendQueueClient.listSendQueue({ limit: 25 });
-      const contactsResult = await contactClient.listContacts();
-      const [agentAccountsResult, agentServicesResult, agentThreadsResult] = await Promise.all([
-        invoke<LegacyAccountDto[]>("agent_list_accounts"),
-        invoke<AgentServiceDto[]>("agent_list_services"),
-        invoke<AgentThreadDto[]>("agent_list_threads"),
-      ]);
-      const taxonomyResult = await loadMailTaxonomyItems(isCurrent);
       // Normal-account messages and derived newsletters remain owned by the M4/M6
       // migration. Do not cross-read the legacy Rust database using core account IDs.
       const normalMessageCache: MessageCache = {};
@@ -1283,6 +1294,7 @@ function App() {
       }
     } finally {
       if (isCurrent()) {
+        setInitializing(false);
         setBusy(false);
       }
     }
@@ -6702,7 +6714,11 @@ function App() {
       {busy ? (
         <div className="nt-global-busy" role="status" aria-live="polite" aria-atomic="true">
           <span className="nt-global-busy__bar" aria-hidden="true" />
-          <span className="nt-visually-hidden">正在处理</span>
+          {initializing ? (
+            <span className="nt-global-busy__message">{statusMessage}</span>
+          ) : (
+            <span className="nt-visually-hidden">正在处理</span>
+          )}
         </div>
       ) : null}
       <input

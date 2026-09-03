@@ -38,8 +38,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(app_state)
         .setup(move |app| {
-            let runtime = core_runtime::DesktopCoreRuntime::start(app, &application_data_dir)
-                .map_err(std::io::Error::other)?;
+            let runtime =
+                core_runtime::DesktopCoreRuntimeState::start_background(app, &application_data_dir)
+                    .map_err(std::io::Error::other)?;
             app.manage(runtime);
             Ok(())
         })
@@ -122,7 +123,7 @@ pub fn run() {
             tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }
         ) {
             app_handle
-                .state::<core_runtime::DesktopCoreRuntime>()
+                .state::<core_runtime::DesktopCoreRuntimeState>()
                 .stop();
         }
     });

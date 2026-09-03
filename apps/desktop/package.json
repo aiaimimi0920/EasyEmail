@@ -22,6 +22,7 @@
     "portable:bundle": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-portable.ps1",
     "portable:build": "npm run tauri -- build --ci --no-sign --bundles msi nsis && npm run portable:bundle",
     "host:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-desktop-host-smoke.ps1",
+    "host:startup-smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-desktop-startup-responsiveness.ps1",
     "verify": "npm run test:unit && npm run ui:verify && npm run build && npm run preview:smoke && npm run rust:fmt && npm run rust:clippy && npm run rust:test && npm run rust:check && npm run core:bundle && npm run core:verify"
   },
   "dependencies": {

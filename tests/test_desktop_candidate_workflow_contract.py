@@ -8,6 +8,10 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "build-desktop-candidate.yml"
 DESKTOP_PACKAGE = ROOT / "apps" / "desktop" / "package.json"
 PORTABLE_SCRIPT = ROOT / "apps" / "desktop" / "scripts" / "build-portable.ps1"
+STARTUP_SMOKE_SCRIPT = (
+    ROOT / "apps" / "desktop" / "scripts" / "verify-desktop-startup-responsiveness.ps1"
+)
+DELAYED_CORE_FIXTURE = ROOT / "apps" / "desktop" / "scripts" / "fixtures" / "delayed-core.mjs"
 
 
 class DesktopCandidateWorkflowContractTests(unittest.TestCase):
@@ -16,6 +20,7 @@ class DesktopCandidateWorkflowContractTests(unittest.TestCase):
         cls.text = WORKFLOW.read_text(encoding="utf-8")
         cls.package_text = DESKTOP_PACKAGE.read_text(encoding="utf-8")
         cls.portable_text = PORTABLE_SCRIPT.read_text(encoding="utf-8")
+        cls.startup_smoke_text = STARTUP_SMOKE_SCRIPT.read_text(encoding="utf-8")
 
     def test_candidate_is_manual_windows_only_and_read_only(self) -> None:
         self.assertIn("workflow_dispatch:", self.text)
@@ -37,6 +42,10 @@ class DesktopCandidateWorkflowContractTests(unittest.TestCase):
         )
         self.assertIn(
             "npm run host:smoke -- -ExecutablePath $portableExecutables[0].FullName",
+            self.text,
+        )
+        self.assertIn(
+            "npm run host:startup-smoke -- -ExecutablePath $portableExecutables[0].FullName",
             self.text,
         )
         self.assertIn("portableArchive = $portableArchives[0].Name", self.text)
@@ -61,6 +70,19 @@ class DesktopCandidateWorkflowContractTests(unittest.TestCase):
             "PORTABLE_SHA256",
         ):
             self.assertIn(expected, self.portable_text)
+
+    def test_candidate_proves_the_window_stays_interactive_during_core_startup(self) -> None:
+        self.assertIn('"host:startup-smoke"', self.package_text)
+        self.assertTrue(DELAYED_CORE_FIXTURE.is_file())
+        for expected in (
+            "EASY_EMAIL_DESKTOP_CORE_ENTRY",
+            "SendMessageTimeout",
+            "WINDOW_RESPONSIVE_BEFORE_CORE_READY=True",
+            "CORE_LISTENER_BEFORE_CLOSE=False",
+            "CloseMainWindow",
+            "CORE_EXITED_WITH_UI",
+        ):
+            self.assertIn(expected, self.startup_smoke_text)
 
     def test_candidate_cannot_be_mistaken_for_a_public_release(self) -> None:
         self.assertIn("artifactKind = 'desktop-migration-candidate'", self.text)

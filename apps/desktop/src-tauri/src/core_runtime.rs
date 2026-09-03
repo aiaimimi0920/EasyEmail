@@ -3,7 +3,8 @@ use std::io::Write;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -17,7 +18,7 @@ const START_ATTEMPTS: usize = 3;
 const READINESS_TIMEOUT: Duration = Duration::from_secs(15);
 const READINESS_INTERVAL: Duration = Duration::from_millis(150);
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct DesktopCoreRuntimeDto {
     pub status: String,
     pub base_url: String,
@@ -31,6 +32,24 @@ pub struct DesktopCoreRuntime {
     credential_broker: Mutex<Option<DesktopCredentialBroker>>,
 }
 
+enum DesktopCoreStartupStatus {
+    Starting,
+    Ready(Box<DesktopCoreRuntime>),
+    Failed(String),
+    Stopped,
+}
+
+struct DesktopCoreStartupInner {
+    status: Mutex<DesktopCoreStartupStatus>,
+    status_changed: Condvar,
+    cancelled: Arc<AtomicBool>,
+    worker: Mutex<Option<thread::JoinHandle<()>>>,
+}
+
+pub struct DesktopCoreRuntimeState {
+    inner: Arc<DesktopCoreStartupInner>,
+}
+
 struct CoreCommandPaths {
     node: PathBuf,
     entry: PathBuf,
@@ -38,8 +57,11 @@ struct CoreCommandPaths {
 }
 
 impl DesktopCoreRuntime {
-    pub fn start(app: &tauri::App, application_data_dir: &Path) -> Result<Self, String> {
-        let command_paths = resolve_core_command_paths(app)?;
+    fn start_with_paths(
+        command_paths: CoreCommandPaths,
+        application_data_dir: &Path,
+        cancelled: &AtomicBool,
+    ) -> Result<Self, String> {
         let runtime_root = application_data_dir.join("core");
         let state_dir = runtime_root.join("state");
         fs::create_dir_all(&state_dir)
@@ -54,6 +76,9 @@ impl DesktopCoreRuntime {
         let mut last_error = "EasyEmail core did not start.".to_string();
 
         for _ in 0..START_ATTEMPTS {
+            if cancelled.load(Ordering::Acquire) {
+                return Err("EasyEmail core startup was cancelled.".to_string());
+            }
             let port = reserve_loopback_port()?;
             let base_url = format!("http://127.0.0.1:{port}");
             let config_path = runtime_root.join("runtime-config.yaml");
@@ -84,7 +109,7 @@ impl DesktopCoreRuntime {
                 }
             };
 
-            match wait_until_ready(&mut child, &base_url, &api_token) {
+            match wait_until_ready(&mut child, &base_url, &api_token, cancelled) {
                 Ok(()) => {
                     let _ = fs::remove_file(&config_path);
                     return Ok(Self {
@@ -154,6 +179,118 @@ impl DesktopCoreRuntime {
     }
 }
 
+impl DesktopCoreRuntimeState {
+    pub fn start_background(app: &tauri::App, application_data_dir: &Path) -> Result<Self, String> {
+        let command_paths = resolve_core_command_paths(app)?;
+        let application_data_dir = application_data_dir.to_path_buf();
+        Self::start_background_with(move |cancelled| {
+            DesktopCoreRuntime::start_with_paths(
+                command_paths,
+                &application_data_dir,
+                cancelled.as_ref(),
+            )
+        })
+    }
+
+    fn start_background_with<F>(starter: F) -> Result<Self, String>
+    where
+        F: FnOnce(Arc<AtomicBool>) -> Result<DesktopCoreRuntime, String> + Send + 'static,
+    {
+        let inner = Arc::new(DesktopCoreStartupInner {
+            status: Mutex::new(DesktopCoreStartupStatus::Starting),
+            status_changed: Condvar::new(),
+            cancelled: Arc::new(AtomicBool::new(false)),
+            worker: Mutex::new(None),
+        });
+        let worker_inner = Arc::clone(&inner);
+        let cancelled = Arc::clone(&inner.cancelled);
+        let worker = thread::Builder::new()
+            .name("easyemail-core-startup".to_string())
+            .spawn(move || {
+                let result = starter(cancelled);
+                let mut runtime_to_stop = None;
+                if let Ok(mut status) = worker_inner.status.lock() {
+                    if worker_inner.cancelled.load(Ordering::Acquire) {
+                        runtime_to_stop = result.ok();
+                        *status = DesktopCoreStartupStatus::Stopped;
+                    } else {
+                        *status = match result {
+                            Ok(runtime) => DesktopCoreStartupStatus::Ready(Box::new(runtime)),
+                            Err(error) => DesktopCoreStartupStatus::Failed(error),
+                        };
+                    }
+                    worker_inner.status_changed.notify_all();
+                } else if let Ok(runtime) = result {
+                    runtime_to_stop = Some(runtime);
+                }
+                if let Some(runtime) = runtime_to_stop {
+                    runtime.stop();
+                }
+            })
+            .map_err(|error| format!("Could not start EasyEmail core startup worker: {error}"))?;
+        inner
+            .worker
+            .lock()
+            .map_err(|_| "EasyEmail core startup worker lock is unavailable.".to_string())?
+            .replace(worker);
+        Ok(Self { inner })
+    }
+
+    fn wait_for_descriptor(
+        inner: &DesktopCoreStartupInner,
+    ) -> Result<DesktopCoreRuntimeDto, String> {
+        let mut status = inner
+            .status
+            .lock()
+            .map_err(|_| "EasyEmail core startup state is unavailable.".to_string())?;
+        loop {
+            match &*status {
+                DesktopCoreStartupStatus::Starting => {
+                    status = inner
+                        .status_changed
+                        .wait(status)
+                        .map_err(|_| "EasyEmail core startup state is unavailable.".to_string())?;
+                }
+                DesktopCoreStartupStatus::Ready(runtime) => return runtime.descriptor(),
+                DesktopCoreStartupStatus::Failed(error) => return Err(error.clone()),
+                DesktopCoreStartupStatus::Stopped => {
+                    return Err("EasyEmail core startup was stopped.".to_string());
+                }
+            }
+        }
+    }
+
+    pub fn stop(&self) {
+        self.inner.cancelled.store(true, Ordering::Release);
+        let runtime = self.inner.status.lock().ok().and_then(|mut status| {
+            let previous = std::mem::replace(&mut *status, DesktopCoreStartupStatus::Stopped);
+            self.inner.status_changed.notify_all();
+            match previous {
+                DesktopCoreStartupStatus::Ready(runtime) => Some(runtime),
+                _ => None,
+            }
+        });
+        if let Some(runtime) = runtime {
+            runtime.stop();
+        }
+        if let Some(worker) = self
+            .inner
+            .worker
+            .lock()
+            .ok()
+            .and_then(|mut worker| worker.take())
+        {
+            let _ = worker.join();
+        }
+    }
+}
+
+impl Drop for DesktopCoreRuntimeState {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
 fn load_or_create_host_id(application_data_dir: &Path) -> Result<String, String> {
     fs::create_dir_all(application_data_dir)
         .map_err(|error| format!("Could not create EasyEmail application state: {error}"))?;
@@ -218,10 +355,15 @@ impl Drop for DesktopCoreRuntime {
 }
 
 #[tauri::command]
-pub fn desktop_core_runtime(
-    runtime: tauri::State<'_, DesktopCoreRuntime>,
+pub async fn desktop_core_runtime(
+    runtime: tauri::State<'_, DesktopCoreRuntimeState>,
 ) -> Result<DesktopCoreRuntimeDto, String> {
-    runtime.descriptor()
+    let inner = Arc::clone(&runtime.inner);
+    tauri::async_runtime::spawn_blocking(move || {
+        DesktopCoreRuntimeState::wait_for_descriptor(inner.as_ref())
+    })
+    .await
+    .map_err(|_| "EasyEmail core readiness task failed.".to_string())?
 }
 
 fn resolve_core_command_paths(app: &tauri::App) -> Result<CoreCommandPaths, String> {
@@ -384,7 +526,12 @@ fn spawn_core(
         .map_err(|error| format!("Could not start packaged EasyEmail core: {error}"))
 }
 
-fn wait_until_ready(child: &mut Child, base_url: &str, api_token: &str) -> Result<(), String> {
+fn wait_until_ready(
+    child: &mut Child,
+    base_url: &str,
+    api_token: &str,
+    cancelled: &AtomicBool,
+) -> Result<(), String> {
     let deadline = Instant::now() + READINESS_TIMEOUT;
     let readiness_url = format!("{base_url}/mail/catalog");
     let agent = ureq::AgentBuilder::new()
@@ -392,6 +539,9 @@ fn wait_until_ready(child: &mut Child, base_url: &str, api_token: &str) -> Resul
         .build();
 
     while Instant::now() < deadline {
+        if cancelled.load(Ordering::Acquire) {
+            return Err("EasyEmail core startup was cancelled.".to_string());
+        }
         if let Some(status) = child
             .try_wait()
             .map_err(|error| format!("Could not inspect EasyEmail core startup: {error}"))?
@@ -418,6 +568,34 @@ fn wait_until_ready(child: &mut Child, base_url: &str, api_token: &str) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::mpsc;
+
+    #[test]
+    fn background_start_returns_while_core_is_still_starting() {
+        let (started_sender, started_receiver) = mpsc::channel();
+        let (release_sender, release_receiver) = mpsc::channel();
+        let state = DesktopCoreRuntimeState::start_background_with(move |_| {
+            started_sender.send(()).unwrap();
+            release_receiver.recv().unwrap();
+            Err("controlled delayed startup".to_string())
+        })
+        .unwrap();
+
+        started_receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("the background startup worker should begin without blocking its caller");
+        assert!(matches!(
+            *state.inner.status.lock().unwrap(),
+            DesktopCoreStartupStatus::Starting
+        ));
+
+        release_sender.send(()).unwrap();
+        assert_eq!(
+            DesktopCoreRuntimeState::wait_for_descriptor(state.inner.as_ref()).unwrap_err(),
+            "controlled delayed startup"
+        );
+        state.stop();
+    }
 
     #[test]
     fn renderer_descriptor_never_contains_credential_broker_access() {
