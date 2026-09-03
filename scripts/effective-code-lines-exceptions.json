@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "checkerVersion": 2,
+  "checkerSha256": "96ba1dac2c56f1b028fc956ecc9bf616164e2a290de1fccc3e92661a2ac695ed",
+  "lexerSha256": "2d1b0314b20616c0338c9fc422df030e362a199d6963b5053945de7dc952116c",
+  "policySha256": "6126ac78b78b076ee2ffa13c5d5fc1ef60308c1f854f16668714a42663e287ef",
+  "exceptions": []
+}

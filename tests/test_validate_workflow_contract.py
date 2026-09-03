@@ -10,6 +10,9 @@ REUSABLE_WORKFLOW = ROOT / ".github" / "workflows" / "reusable-validate.yml"
 CLOUDFLARE_WORKFLOW = ROOT / ".github" / "workflows" / "deploy-cloudflare-email.yml"
 TEST_ALL = ROOT / "scripts" / "test-all.ps1"
 NODE_VERSION = ROOT / ".nvmrc"
+EFFECTIVE_LINE_POLICY = ROOT / "scripts" / "effective-code-lines-policy.json"
+EFFECTIVE_LINE_BASELINE = ROOT / "scripts" / "effective-code-lines-baseline.json"
+EFFECTIVE_LINE_EXCEPTIONS = ROOT / "scripts" / "effective-code-lines-exceptions.json"
 
 
 class ValidateWorkflowContractTests(unittest.TestCase):
@@ -55,6 +58,24 @@ class ValidateWorkflowContractTests(unittest.TestCase):
         )
         self.assertIn("git diff --check", self.reusable_text)
         self.assertIn("git diff --exit-code", self.reusable_text)
+
+    def test_effective_line_gate_is_local_ci_and_reported(self) -> None:
+        for contract_path in (
+            EFFECTIVE_LINE_POLICY,
+            EFFECTIVE_LINE_BASELINE,
+            EFFECTIVE_LINE_EXCEPTIONS,
+        ):
+            self.assertTrue(contract_path.is_file(), contract_path)
+        self.assertIn(
+            "node --test scripts/tests/effective-code-lines.test.mjs",
+            self.test_all_text,
+        )
+        self.assertIn(
+            "node scripts/effective-code-lines.mjs --mode ratchet",
+            self.test_all_text,
+        )
+        self.assertIn("name: easyemail-effective-code-lines", self.reusable_text)
+        self.assertIn("path: .tmp/effective-code-lines.json", self.reusable_text)
 
     def test_reusable_validation_installs_and_runs_desktop_gate(self) -> None:
         self.assertIn("working-directory: apps/desktop", self.reusable_text)

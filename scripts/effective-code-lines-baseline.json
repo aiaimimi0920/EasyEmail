@@ -1,0 +1,371 @@
+{
+  "schemaVersion": 1,
+  "checkerVersion": 2,
+  "sourceCommit": "420343d1929af21e86143c893aeeb678e6595b39",
+  "sourceTree": "8a35c77c9af0611f73e88edad61e6deb3216717f",
+  "checkerSha256": "96ba1dac2c56f1b028fc956ecc9bf616164e2a290de1fccc3e92661a2ac695ed",
+  "lexerSha256": "2d1b0314b20616c0338c9fc422df030e362a199d6963b5053945de7dc952116c",
+  "policySha256": "6126ac78b78b076ee2ffa13c5d5fc1ef60308c1f854f16668714a42663e287ef",
+  "files": [
+    {
+      "path": ".github/workflows/deploy-cloudflare-email.yml",
+      "effectiveLines": 643,
+      "physicalLines": 708,
+      "sourceSha256": "da5828b7c928679d4ee49d2aa34f5051692211e14a23395b1e89e4081b255fce"
+    },
+    {
+      "path": ".github/workflows/publish-service-base-ghcr.yml",
+      "effectiveLines": 585,
+      "physicalLines": 640,
+      "sourceSha256": "7bebf94e2eef610650cd918b126b759fc90e5217b0b74fe28c715edc8a15d2c1"
+    },
+    {
+      "path": "apps/desktop/scripts/verify-neuroterminal-ui.mjs",
+      "effectiveLines": 551,
+      "physicalLines": 609,
+      "sourceSha256": "6acacbaa94d9fc8f3d3186701250b2f7a9c8f601230b8c9dd6d8340ce2b52a8d"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/avatar.rs",
+      "effectiveLines": 1655,
+      "physicalLines": 1829,
+      "sourceSha256": "dc1b5a30f6dd4b8f09705329070e04a6cf139e228b53250797de876bf9841d55"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/commands.rs",
+      "effectiveLines": 2751,
+      "physicalLines": 3047,
+      "sourceSha256": "6c7104bfc4ba2ff7d15924a0df2eb15f331fe7f137d4d773273b19a125afc0e7"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/core_runtime.rs",
+      "effectiveLines": 631,
+      "physicalLines": 698,
+      "sourceSha256": "f1fc68908d2f5199f58b2dfd4ca5467afc520edb55a1cba04a1d9b69577b696b"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/credential_broker.rs",
+      "effectiveLines": 571,
+      "physicalLines": 621,
+      "sourceSha256": "12390d2edef5e7ca76820ce4144b5cfdf921535b8056ef0819306bd5ba7fd863"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/imap/native.rs",
+      "effectiveLines": 1279,
+      "physicalLines": 1429,
+      "sourceSha256": "8455c54250a20bdfe0db0990621397741b97edbb5771222f151a438db44c2c7a"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/services/agent_service.rs",
+      "effectiveLines": 866,
+      "physicalLines": 934,
+      "sourceSha256": "005341ac2bf048fdb8729452f614b8c19a735628b7d394e0bab8a7a6ceb3c9b6"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/services/easyemail_service.rs",
+      "effectiveLines": 692,
+      "physicalLines": 762,
+      "sourceSha256": "e4110406c7b77eb74180d683cf313094d13b9b79b1e9e2aa93cf5027ba72ad11"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/services/normal_account_service.rs",
+      "effectiveLines": 3056,
+      "physicalLines": 3415,
+      "sourceSha256": "17dae60049ee056c82a017df1c5c1f04bca43e97080af8b1a7d5e435f28bab6b"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/storage/account_repository.rs",
+      "effectiveLines": 525,
+      "physicalLines": 568,
+      "sourceSha256": "31487780c1a208c0e0946af85aef643bd55a01c03480146c45cb687a9335889b"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/storage/agent_repository.rs",
+      "effectiveLines": 562,
+      "physicalLines": 604,
+      "sourceSha256": "4971519a447002c1001a4a5bdb517a1af0e1a16dbb93184006e907403157dc2e"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/storage/message_repository.rs",
+      "effectiveLines": 3639,
+      "physicalLines": 3912,
+      "sourceSha256": "33ea6ae5aa52d783a8f7f17b74a6a3ee2fd259f07eb72e46abb1548cdbd29e7a"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/storage/migrations.rs",
+      "effectiveLines": 544,
+      "physicalLines": 658,
+      "sourceSha256": "f044b239da57889f2928b81a47fd0f6c6e6629c6cb4e192a8ded30e35e9f8dd5"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/storage/send_queue_repository.rs",
+      "effectiveLines": 739,
+      "physicalLines": 802,
+      "sourceSha256": "6bf7c96face256e491b285a83bfe7cc7749e70e87d64ca202a3b7de9151f5592"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/workers/send_queue_worker.rs",
+      "effectiveLines": 1033,
+      "physicalLines": 1125,
+      "sourceSha256": "a80925cf539a502499156798198bd2a2ec545833e507af240f20d837058c25be"
+    },
+    {
+      "path": "apps/desktop/src/api/easyEmailHttpClient.ts",
+      "effectiveLines": 861,
+      "physicalLines": 937,
+      "sourceSha256": "4efd4ecd3b2561f4795cd6f1c173a90ed28cf07d5dd7a2bdbc2a7011ed6a522d"
+    },
+    {
+      "path": "apps/desktop/src/App.css",
+      "effectiveLines": 8137,
+      "physicalLines": 9315,
+      "sourceSha256": "a4b9f8084ed061ba7c8c306e424c4f41e43894c7650a65ebb099b6a0963eaa68"
+    },
+    {
+      "path": "apps/desktop/src/App.tsx",
+      "effectiveLines": 10666,
+      "physicalLines": 11167,
+      "sourceSha256": "c9d6b6a8abb6c094dc060ec884712635929384369f4bda9449572c87d9bf746e"
+    },
+    {
+      "path": "apps/desktop/src/styles/neuro-canonical.css",
+      "effectiveLines": 639,
+      "physicalLines": 754,
+      "sourceSha256": "e19319de0d51ffbc76584784969cacdc62e0b5ad8bdc4c6ce1b0530de3973016"
+    },
+    {
+      "path": "clients/typescript/src/contracts.ts",
+      "effectiveLines": 580,
+      "physicalLines": 638,
+      "sourceSha256": "bb4712a1a29bb642eda59afa436750fd12729fe1790146edef11d89ba11ec633"
+    },
+    {
+      "path": "clients/typescript/src/http-client.ts",
+      "effectiveLines": 510,
+      "physicalLines": 564,
+      "sourceSha256": "f046b7e7e49d4b3a210bf6db7524327312adbb5074960950fa010f5fbbd371c3"
+    },
+    {
+      "path": "deploy/upstreams/cloudflare_temp_email/scripts/bootstrap_cloudflare_mail.py",
+      "effectiveLines": 562,
+      "physicalLines": 683,
+      "sourceSha256": "b7d5083861d6e02dfe6a80c670dea27bce4ee28f9e61daef3d56d29bf1b8a409"
+    },
+    {
+      "path": "deploy/upstreams/cloudflare_temp_email/scripts/teardown_cloudflare_mail.py",
+      "effectiveLines": 581,
+      "physicalLines": 716,
+      "sourceSha256": "b014e1d8dfcb90ceeeadab654d2f32bbf139aa3eaa04be02b0d0b5fad7887077"
+    },
+    {
+      "path": "runtimes/userscript/easy_email_proxy.user.js",
+      "effectiveLines": 3046,
+      "physicalLines": 3083,
+      "sourceSha256": "305417d26c954f1760a49eeb8adb917fcdd96b59ffcb61d087d1926161231ebf"
+    },
+    {
+      "path": "scripts/quick-deploy-cloudflare-mail.ps1",
+      "effectiveLines": 546,
+      "physicalLines": 638,
+      "sourceSha256": "87e83914b61c27d0b7ea2d344ad52c8d285d5ad6909d3ffbdca21e877c4b8c6b"
+    },
+    {
+      "path": "scripts/test-easyemail-cloudflare-sender-matrix.ps1",
+      "effectiveLines": 744,
+      "physicalLines": 851,
+      "sourceSha256": "0a8137d8f73f7e67ec8940ec4c45ddb83625e62f07e8f47c00d4c6666140e45e"
+    },
+    {
+      "path": "scripts/test-real-provider-lifecycle.ps1",
+      "effectiveLines": 894,
+      "physicalLines": 954,
+      "sourceSha256": "9528995f22eca049d63bd9e9ad5474b29619f4901e35895eebebfedaf90cef68"
+    },
+    {
+      "path": "service/base/src/dispatch/mailbox-dispatcher.ts",
+      "effectiveLines": 897,
+      "physicalLines": 1023,
+      "sourceSha256": "7818ebe1c8ac21b1d61245c9a8c3490ffec2556a15dfefcdd02079bcafb29748"
+    },
+    {
+      "path": "service/base/src/domain/models.ts",
+      "effectiveLines": 503,
+      "physicalLines": 558,
+      "sourceSha256": "f70924af131951df158df8aed371a3645b5e5eee2e4ec42de2dcfb65dfe0ad43"
+    },
+    {
+      "path": "service/base/src/persistence/helpers/sqlite_state_store.py",
+      "effectiveLines": 759,
+      "physicalLines": 848,
+      "sourceSha256": "33a0faa7a28738e970ea5393a81fc9ceeea9fd995a626211ab7fac6dd8aaed83"
+    },
+    {
+      "path": "service/base/src/persistence/relational/database.ts",
+      "effectiveLines": 781,
+      "physicalLines": 835,
+      "sourceSha256": "26d0da939fa18630d74c0765abc898b2a7899f4acddbd54345413dc8581f56fa"
+    },
+    {
+      "path": "service/base/src/providers/cloudflare_temp_email/connector/client.ts",
+      "effectiveLines": 935,
+      "physicalLines": 1119,
+      "sourceSha256": "2ba773b6ead57b592e7668803b820ebcb5a46bc433fbb185e7d9fbfb873e969d"
+    },
+    {
+      "path": "service/base/src/providers/duckmail/client.ts",
+      "effectiveLines": 505,
+      "physicalLines": 581,
+      "sourceSha256": "42c327960c4475505b9ba65c1677206ded307a09939c974cd08e2c03134f8900"
+    },
+    {
+      "path": "service/base/src/providers/etempmail/client.ts",
+      "effectiveLines": 775,
+      "physicalLines": 878,
+      "sourceSha256": "6c6172f7b3b8ab9af93b85f2784f1db4c2e333a584f360b2205e26704145745f"
+    },
+    {
+      "path": "service/base/src/providers/im215/client.ts",
+      "effectiveLines": 828,
+      "physicalLines": 930,
+      "sourceSha256": "22f5e4202f050ccd0ba3e8acf8cc61b55453b94233cb6b1cbea8109becb0d908"
+    },
+    {
+      "path": "service/base/src/providers/m2u/client.ts",
+      "effectiveLines": 1062,
+      "physicalLines": 1186,
+      "sourceSha256": "3edeeed544feea63573f8c50425ce53e585c5338fbb84f8aa5491e28a159b84b"
+    },
+    {
+      "path": "service/base/src/providers/mail2925/client.ts",
+      "effectiveLines": 1203,
+      "physicalLines": 1359,
+      "sourceSha256": "013ef906584c11a7dcd90f50ce20582b88c97ce4985fb35b850e9d10ff4d8800"
+    },
+    {
+      "path": "service/base/src/providers/moemail/client.ts",
+      "effectiveLines": 1289,
+      "physicalLines": 1435,
+      "sourceSha256": "9b9a9390e451c6910be1caf09c347f1f0afe0f458cf978025adb839c3838290f"
+    },
+    {
+      "path": "service/base/src/providers/temporam/client.ts",
+      "effectiveLines": 533,
+      "physicalLines": 608,
+      "sourceSha256": "8e90cca48d081622ae894384835205ce8bf8fae2c215e683860a3492caa6f2f6"
+    },
+    {
+      "path": "service/base/src/runtime/config.ts",
+      "effectiveLines": 739,
+      "physicalLines": 818,
+      "sourceSha256": "68c123e734512538a93816ea1c4112a8463c9c49291f531ab657cdc162220b03"
+    },
+    {
+      "path": "service/base/src/runtime/runtime.ts",
+      "effectiveLines": 1046,
+      "physicalLines": 1146,
+      "sourceSha256": "4085ed4580fc6705e6db299ee0ccc55cf5f2f8257f6e7ea920eaa2f650912d1f"
+    },
+    {
+      "path": "service/base/src/service/accounts.ts",
+      "effectiveLines": 573,
+      "physicalLines": 599,
+      "sourceSha256": "5fd9767d4167d3aaf5031a7f5b834c8426ac9f6ba9877018f2343a9b53999e28"
+    },
+    {
+      "path": "service/base/src/service/easy-email-service.ts",
+      "effectiveLines": 1652,
+      "physicalLines": 1823,
+      "sourceSha256": "0a92b4b8b2ab7048fb93b6e262cba03053274e2eb5398fc97c77cbf8cd28b1db"
+    },
+    {
+      "path": "service/base/src/service/mailbox-access-descriptor.ts",
+      "effectiveLines": 524,
+      "physicalLines": 568,
+      "sourceSha256": "7e477a94e8af5defb68291258c05db7b287e010c1865086e17c566acd1fb012d"
+    },
+    {
+      "path": "service/base/src/shared/credentials.ts",
+      "effectiveLines": 842,
+      "physicalLines": 950,
+      "sourceSha256": "35269c6b1e32f52e5200bd076b0ae9884f8aea65385442cd289fde77d799d7f5"
+    },
+    {
+      "path": "service/base/tests/providers/cloudflare-temp-email.test.ts",
+      "effectiveLines": 561,
+      "physicalLines": 614,
+      "sourceSha256": "762d92a6795b0d982643944abff74c39ac567538112cb20f818959018be29c1f"
+    },
+    {
+      "path": "service/base/tests/providers/m2u.test.ts",
+      "effectiveLines": 727,
+      "physicalLines": 776,
+      "sourceSha256": "bcccee7b8b1e8ba420f5faaa33c01e8c13b2c14c3b1770ca7322c04deca7bb96"
+    },
+    {
+      "path": "service/base/tests/service/excluded-mailbox.test.ts",
+      "effectiveLines": 676,
+      "physicalLines": 735,
+      "sourceSha256": "f69058be19f6341c071818332b5126bce30dc49dd0618201de91494bdd9e8bf8"
+    },
+    {
+      "path": "service/base/tests/service/mailbox-recoverability.test.ts",
+      "effectiveLines": 585,
+      "physicalLines": 624,
+      "sourceSha256": "28fd59a3d15bbae1ab61e7b2b71c226b558cc5caf6f3fb3cdd34ced0f6954c23"
+    },
+    {
+      "path": "tests/test_http_api_contract.py",
+      "effectiveLines": 548,
+      "physicalLines": 594,
+      "sourceSha256": "a6b7979a83c8219d9535195bc57e3a7cd385b1be5b0d74dba3b0326673f4d31f"
+    },
+    {
+      "path": "upstreams/cloudflare_temp_email/frontend/src/components/MailBox.vue",
+      "effectiveLines": 531,
+      "physicalLines": 576,
+      "sourceSha256": "9bef411c9442f2e537ea821fb9f5c5221e3c05ffad06bf3b322eaf8a0431ef2b"
+    },
+    {
+      "path": "upstreams/cloudflare_temp_email/frontend/src/i18n/locales/source/de.ts",
+      "effectiveLines": 590,
+      "physicalLines": 590,
+      "sourceSha256": "f3d753322efc6a89ae9dd780105c4b2f06874b321745b9a058b1da8bed73fe71"
+    },
+    {
+      "path": "upstreams/cloudflare_temp_email/frontend/src/i18n/locales/source/es.ts",
+      "effectiveLines": 590,
+      "physicalLines": 590,
+      "sourceSha256": "f9000f478d9a381ac9c71e6da24c75770451427234507ee8defe563f193e6c40"
+    },
+    {
+      "path": "upstreams/cloudflare_temp_email/frontend/src/i18n/locales/source/ja.ts",
+      "effectiveLines": 590,
+      "physicalLines": 590,
+      "sourceSha256": "582520e208f3ee6f2e1c5d70461320b68ebc7e200bbbd759100c5319e949ad57"
+    },
+    {
+      "path": "upstreams/cloudflare_temp_email/frontend/src/i18n/locales/source/ptBR.ts",
+      "effectiveLines": 590,
+      "physicalLines": 590,
+      "sourceSha256": "5580ac65c22534989bdc99a5bcc357d840909d0dac11d05fa44d18494a77ef2b"
+    },
+    {
+      "path": "upstreams/cloudflare_temp_email/frontend/src/i18n/message-registry.ts",
+      "effectiveLines": 2462,
+      "physicalLines": 2465,
+      "sourceSha256": "fc394f8d0067f8f8951184086a0a5fe82ce76a77813b5962b5f41e85b7d9bd9b"
+    },
+    {
+      "path": "upstreams/cloudflare_temp_email/frontend/src/views/admin/Account.vue",
+      "effectiveLines": 548,
+      "physicalLines": 589,
+      "sourceSha256": "28407a2e29abb05224e25a26dc73b169854fdfd4e69a826de4518ed41ff08dad"
+    },
+    {
+      "path": "upstreams/cloudflare_temp_email/worker/src/common.ts",
+      "effectiveLines": 815,
+      "physicalLines": 947,
+      "sourceSha256": "39245d61e0e7ddcecbe12705238b2e107bf71ab759d58a70dc489945a09ea6db"
+    }
+  ]
+}

@@ -73,6 +73,15 @@ jobs:
         shell: pwsh
         run: ./scripts/test-all.ps1
 
+      - name: Upload Effective Line Report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: easyemail-effective-code-lines
+          path: .tmp/effective-code-lines.json
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Validate Release Contract
         shell: pwsh
         run: python scripts/validate-release-contract.py

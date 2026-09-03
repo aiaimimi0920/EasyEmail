@@ -53,6 +53,21 @@ function Assert-MinimumNodeVersion {
 
 Assert-MinimumNodeVersion -MinimumVersion $minimumNodeVersion
 
+Write-Host "Validating effective code line policy..."
+Invoke-InDirectory $repoRoot { & node --test scripts/tests/effective-code-lines.test.mjs }
+if ($LASTEXITCODE -ne 0) {
+    throw "Effective code line checker tests failed with exit code $LASTEXITCODE"
+}
+
+$effectiveLineReportPath = Join-Path $repoRoot '.tmp/effective-code-lines.json'
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $effectiveLineReportPath) | Out-Null
+Invoke-InDirectory $repoRoot {
+    & node scripts/effective-code-lines.mjs --mode ratchet --json $effectiveLineReportPath
+}
+if ($LASTEXITCODE -ne 0) {
+    throw "Effective code line ratchet failed with exit code $LASTEXITCODE"
+}
+
 Write-Host "Validating repository Python tests..."
 Invoke-InDirectory $repoRoot { & python -m unittest discover -s tests -p "test_*.py" -v }
 
