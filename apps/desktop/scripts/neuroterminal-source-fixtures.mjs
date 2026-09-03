@@ -43,12 +43,23 @@ const readCssBundle = (entryPath, ancestors = new Set()) => {
 };
 
 const appComponentSources = [
+  ...filesUnder("src/app", ".ts"),
   ...filesUnder("src/app", ".tsx"),
+  ...filesUnder("src/components", ".ts"),
   ...filesUnder("src/components", ".tsx"),
 ].map(readText);
 
+const normalizeAggregatedAppImports = (source) => source.replaceAll('from "../', 'from "./');
+
 export const senderAvatarIcon = readText("src/components/SenderAvatarIcon.tsx");
-export const app = [readText("src/App.tsx"), ...appComponentSources].join("\n");
+export const appView = readText("src/components/AppView.tsx");
+export const composeActionFooterSource = readText("src/components/app/ComposeActionFooter.tsx");
+export const mailListPaneSource = readText("src/components/app/MailListPane.tsx");
+export const mailListToolbarSource = readText("src/components/app/MailListToolbar.tsx");
+export const mailReadingPaneSource = readText("src/components/app/MailReadingPane.tsx");
+export const app = [readText("src/App.tsx"), ...appComponentSources]
+  .map(normalizeAggregatedAppImports)
+  .join("\n");
 export const cssRaw = readCssBundle("src/App.css");
 export const canonicalCssRaw = readCssBundle("src/styles/neuro-canonical.css");
 

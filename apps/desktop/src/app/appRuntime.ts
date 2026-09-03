@@ -1,0 +1,22 @@
+import { invoke } from "@tauri-apps/api/core";
+import { createAvatarSettingsClient } from "../api/avatarSettingsClient";
+import { createBundledCoreClient } from "../api/bundledCoreClient";
+import { createContactClient } from "../api/contactClient";
+import { createDesktopCredentialClient } from "../api/desktopCredentialClient";
+import { createMailAccountClient } from "../api/mailAccountClient";
+import { createMailTaxonomyClient } from "../api/mailTaxonomyClient";
+import { createNewsletterClient } from "../api/newsletterClient";
+import { createPlatformAccountClient } from "../api/platformAccountClient";
+import { createSendQueueClient } from "../api/sendQueueClient";
+import { createSettingsClient } from "../api/settingsClient";
+
+export const bundledCoreClient = createBundledCoreClient(invoke);
+export const avatarSettingsClient = createAvatarSettingsClient(invoke);
+export const contactClient = createContactClient(bundledCoreClient);
+export const desktopCredentialClient = createDesktopCredentialClient(invoke);
+export const mailAccountClient = createMailAccountClient(bundledCoreClient, desktopCredentialClient);
+export const mailTaxonomyClient = createMailTaxonomyClient(invoke);
+export const newsletterClient = createNewsletterClient(invoke);
+export const platformAccountClient = createPlatformAccountClient(invoke);
+export const settingsClient = createSettingsClient(invoke);
+export const sendQueueClient = createSendQueueClient(invoke);

@@ -20,3 +20,7 @@ export function readAppImplementationSource(): string {
     .join("\n")
     .replace(/\r\n/g, "\n");
 }
+
+export function readDesktopSourceFile(pathFromSrc: string): string {
+  return readFileSync(new URL(`../src/${pathFromSrc}`, import.meta.url), "utf8").replace(/\r\n/g, "\n");
+}

@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { readAppImplementationSource } from "./desktopSourceFixture.ts";
+import { readAppImplementationSource, readDesktopSourceFile } from "./desktopSourceFixture.ts";
 
 test("every migrated temporary-mailbox action uses the bundled HTTP client", async () => {
   const source = readAppImplementationSource();
+  const temporaryControllerSource = readDesktopSourceFile(
+    "app/useTemporaryMailboxController.tsx",
+  );
 
   for (const command of [
     "temp_create_mailbox",
@@ -37,14 +40,23 @@ test("every migrated temporary-mailbox action uses the bundled HTTP client", asy
   assert.match(source, /MAILBOX_REFRESH_PARTIAL_FAILURE/);
   assert.match(source, /failure\.error_code/);
   assert.doesNotMatch(source, /temporaryMailboxAccessRef|recoveryDataCredential/);
-  const refreshStart = source.indexOf("async function refreshCoreMailboxes");
-  const refreshEnd = source.indexOf("async function refreshAnonymousMailOnce", refreshStart);
+  const refreshStart = temporaryControllerSource.indexOf("async function refreshCoreMailboxes");
+  const refreshEnd = temporaryControllerSource.indexOf(
+    "async function refreshAnonymousMailOnce",
+    refreshStart,
+  );
   assert.ok(refreshStart >= 0 && refreshEnd > refreshStart);
-  assert.doesNotMatch(source.slice(refreshStart, refreshEnd), /queryObservedMessages|sync:\s*true/);
-  const temporaryActionsStart = source.indexOf("async function createTempMailbox");
-  const temporaryActionsEnd = source.indexOf("async function promoteMailbox", temporaryActionsStart);
+  assert.doesNotMatch(
+    temporaryControllerSource.slice(refreshStart, refreshEnd),
+    /queryObservedMessages|sync:\s*true/,
+  );
+  const temporaryActionsStart = temporaryControllerSource.indexOf("async function createTempMailbox");
+  const temporaryActionsEnd = temporaryControllerSource.indexOf("\n  return {", temporaryActionsStart);
   assert.ok(temporaryActionsStart >= 0 && temporaryActionsEnd > temporaryActionsStart);
-  assert.doesNotMatch(source.slice(temporaryActionsStart, temporaryActionsEnd), /invoke\s*\(/);
+  assert.doesNotMatch(
+    temporaryControllerSource.slice(temporaryActionsStart, temporaryActionsEnd),
+    /invoke\s*\(/,
+  );
   for (const visibleAction of [
     "Recover from local core",
     "Read auth link",
@@ -59,10 +71,10 @@ test("every migrated temporary-mailbox action uses the bundled HTTP client", asy
 });
 
 test("temporary-mailbox HTTP transport never reads the one-shot settings token", async () => {
-  const source = readAppImplementationSource();
+  const source = readDesktopSourceFile("app/useTemporaryMailboxController.tsx");
   const createStart = source.indexOf("async function createTempMailbox");
   const createEnd = source.indexOf("async function refreshCoreMailboxes", createStart);
-  const refreshEnd = source.indexOf("const pollWaitingMailboxEvent", createEnd);
+  const refreshEnd = source.indexOf("\n  return {", createEnd);
 
   assert.ok(createStart >= 0 && createEnd > createStart && refreshEnd > createEnd);
   const temporaryFlow = source.slice(createStart, refreshEnd);
