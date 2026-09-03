@@ -1,306 +1,23 @@
-import { parseTimestampMs } from "../shared/utils.js";
 import { EasyEmailError } from "../domain/errors.js";
-import {
-  normalizeMailProviderTypeKey,
-} from "../domain/models.js";
+import { normalizeMailProviderTypeKey } from "../domain/models.js";
 import type {
   MailProviderTypeKey,
   MailStrategyModeResolution,
   MailboxPlanResult,
-  ProviderInstance,
-  ProviderTypeDefinition,
   StrategyProfile,
   VerificationMailboxRequest,
 } from "../domain/models.js";
 import { MailRegistry } from "../domain/registry.js";
-import type { DispatchStrategyRegistry } from "../strategies/index.js";
-import { MailboxBindingService } from "./binding-service.js";
+import { getMailProviderTypeForGroup, resolveMailStrategyMode } from "../domain/strategy-mode.js";
 import { CloudflareTempEmailRuntimeController } from "../providers/cloudflare_temp_email/control/index.js";
 import { CloudflareTempEmailProvisioner } from "../providers/cloudflare_temp_email/provisioning/index.js";
-import { getMailProviderTypeForGroup, resolveMailStrategyMode } from "../domain/strategy-mode.js";
+import { createProviderRecoverabilityProfile } from "../service/mailbox-access-descriptor.js";
 import { synchronizeProviderOperationalState } from "../service/provider-operational-state.js";
-import { parseProviderPerformanceStats } from "../service/outcomes.js";
-import {
-  createProviderRecoverabilityProfile,
-  isProviderRecoverabilityEligible,
-} from "../service/mailbox-access-descriptor.js";
-
-interface ExternalSelection {
-  instance: ProviderInstance;
-  strategyProfile: StrategyProfile;
-}
-
-interface RoutingProfileLookup {
-  id: string;
-  providerStrategyModeId?: MailStrategyModeResolution["modeId"];
-  providerSelections?: MailStrategyModeResolution["providerSelections"];
-  strategyProfileId?: string;
-  healthGate?: {
-    minimumHealthScore?: number;
-    maxConsecutiveFailures?: number;
-    recentFailureWindowMs?: number;
-    recentFailurePenalty?: number;
-  };
-}
-
-function parseNonNegativeInteger(value: string | undefined): number {
-  const parsed = Number.parseInt(String(value ?? "0"), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-}
-
-function parseBooleanMetadata(value: string | undefined): boolean {
-  return String(value ?? "").trim().toLowerCase() === "true";
-}
-
-function parsePolicyCooldownMs(value: string | undefined, fallbackSeconds: number): number {
-  const parsed = Number.parseInt(String(value ?? ""), 10);
-  const seconds = Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackSeconds;
-  return Math.max(0, seconds) * 1000;
-}
-
-function normalizeDomain(value: string | undefined): string | undefined {
-  const normalized = String(value ?? "").trim().toLowerCase();
-  return normalized || undefined;
-}
-
-function parseDomainList(value: string | undefined): string[] {
-  const raw = String(value ?? "").trim();
-  if (!raw) {
-    return [];
-  }
-
-  const parsed: string[] = [];
-  if (raw.startsWith("[") && raw.endsWith("]")) {
-    try {
-      const items = JSON.parse(raw);
-      if (Array.isArray(items)) {
-        for (const item of items) {
-          const domain = normalizeDomain(typeof item === "string" ? item : undefined);
-          if (domain) {
-            parsed.push(domain);
-          }
-        }
-      }
-    } catch {
-      // Fall back to plain-text parsing when the metadata is not valid JSON.
-    }
-  }
-
-  const normalizedRaw = raw.replace(/[;\r\n|]/g, ",");
-  for (const item of normalizedRaw.split(",")) {
-    const domain = normalizeDomain(item);
-    if (domain) {
-      parsed.push(domain);
-    }
-  }
-
-  return [...new Set(parsed)];
-}
-
-function resolveRequestExcludedDomains(request: VerificationMailboxRequest): Set<string> {
-  return new Set([
-    ...(request.excludedDomains ?? [])
-      .map((item) => normalizeDomain(item))
-      .filter((item): item is string => item !== undefined),
-    ...parseDomainList(request.metadata?.excludedDomains),
-    ...parseDomainList(request.metadata?.excludedDomain),
-  ]);
-}
-
-function resolveSupportedDomains(instance: ProviderInstance): string[] {
-  const explicitDomains = [
-    ...parseDomainList(instance.metadata.domainsCsv),
-    ...parseDomainList(instance.metadata.domains),
-    ...parseDomainList(instance.metadata.availableDomains),
-    ...parseDomainList(instance.metadata.supportedDomains),
-  ];
-  if (explicitDomains.length > 0) {
-    return [...new Set(explicitDomains)];
-  }
-
-  return [...new Set([
-    ...parseDomainList(instance.metadata.domain),
-    ...parseDomainList(instance.metadata.preferredDomain),
-  ])];
-}
-
-function instanceSupportsRequestedDomain(
-  instance: ProviderInstance,
-  requestedDomain: string | undefined,
-): boolean {
-  const normalizedRequestedDomain = normalizeDomain(requestedDomain);
-  if (!normalizedRequestedDomain) {
-    return true;
-  }
-
-  const supportedDomains = resolveSupportedDomains(instance);
-  if (supportedDomains.length === 0) {
-    return true;
-  }
-
-  return supportedDomains.includes(normalizedRequestedDomain);
-}
-
-function instanceCanAvoidExcludedDomains(
-  instance: ProviderInstance,
-  excludedDomains: Set<string>,
-): boolean {
-  if (excludedDomains.size === 0) {
-    return true;
-  }
-  const supportedDomains = resolveSupportedDomains(instance);
-  if (supportedDomains.length === 0) {
-    return true;
-  }
-  return supportedDomains.some((domain) => !excludedDomains.has(domain));
-}
-
-function shouldSkipForStructuredMailboxOutcome(instance: ProviderInstance, nowMs: number): boolean {
-  const lastOutcome = instance.metadata.lastRegistrationOutcome?.trim().toLowerCase();
-  if (lastOutcome !== "failure") {
-    return false;
-  }
-
-  const attributionKind = instance.metadata.lastRegistrationAttributionKind?.trim().toLowerCase();
-  if (attributionKind !== "provider_route") {
-    return false;
-  }
-
-  const attributedProviderTypeKey = normalizeMailProviderTypeKey(
-    instance.metadata.lastRegistrationAttributionProviderTypeKey,
-  );
-  if (attributedProviderTypeKey && attributedProviderTypeKey !== instance.providerTypeKey) {
-    return false;
-  }
-
-  const attributionStrength = instance.metadata.lastRegistrationAttributionStrength?.trim().toLowerCase();
-  const globalBlacklist = parseBooleanMetadata(instance.metadata.lastRegistrationPolicyGlobalBlacklist);
-  if (globalBlacklist && attributionStrength === "strong") {
-    return true;
-  }
-
-  if (!parseBooleanMetadata(instance.metadata.lastRegistrationPolicyAvoidInCurrentAttempt)) {
-    return false;
-  }
-
-  const observedAtMs = parseTimestampMs(instance.metadata.lastRegistrationOutcomeAt);
-  if (observedAtMs == null) {
-    return false;
-  }
-
-  const defaultCooldownSeconds = attributionStrength === "weak" ? 10 * 60 : 5 * 60;
-  const cooldownMs = parsePolicyCooldownMs(
-    instance.metadata.lastRegistrationPolicyCooldownSeconds,
-    defaultCooldownSeconds,
-  );
-  if (cooldownMs <= 0) {
-    return false;
-  }
-
-  return Math.max(0, nowMs - observedAtMs) < cooldownMs;
-}
-
-function isMailboxDomainRiskOutcome(instance: ProviderInstance): boolean {
-  const lastOutcome = instance.metadata.lastRegistrationOutcome?.trim().toLowerCase();
-  if (lastOutcome !== "failure") {
-    return false;
-  }
-  return instance.metadata.lastRegistrationAttributionKind?.trim().toLowerCase() === "mailbox_domain_risk";
-}
-
-function isMailboxDeliveryFailureReason(reason: string | undefined): boolean {
-  const normalized = String(reason ?? "").trim().toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-
-  return (
-    normalized.includes("otp_timeout")
-    || normalized.includes("timeout waiting for 6-digit code")
-    || normalized.includes("code never arrived")
-    || normalized.includes("mailbox")
-  );
-}
-
-function isProviderCapacityFailureReason(reason: string | undefined): boolean {
-  const normalized = String(reason ?? "").trim().toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-
-  return (
-    normalized.includes("status 429")
-    || normalized.includes(" 429")
-    || normalized.includes("too many requests")
-    || normalized.includes("rate limit")
-    || normalized.includes("quota exceeded")
-    || normalized.includes("最大邮箱数量限制")
-    || normalized.includes("已达到最大邮箱数量限制")
-    || normalized.includes("maximum mailbox")
-    || normalized.includes("max mailbox")
-    || normalized.includes("mailbox count limit")
-  );
-}
-
-function computeRecentMailboxFailurePenalty(instance: ProviderInstance, nowMs: number): number {
-  if (isMailboxDomainRiskOutcome(instance)) {
-    return 0;
-  }
-
-  const reason = instance.metadata.lastRegistrationFailureReason;
-  const isMailboxFailure = isMailboxDeliveryFailureReason(reason);
-  const isCapacityFailure = isProviderCapacityFailureReason(reason);
-  const cooldownUntilMs = parseTimestampMs(instance.metadata.cooldownUntil);
-  if (cooldownUntilMs != null && cooldownUntilMs > nowMs) {
-    const remainingMs = cooldownUntilMs - nowMs;
-    const cooldownPenalty = remainingMs > 30 * 60 * 1000
-      ? 0.28
-      : remainingMs > 10 * 60 * 1000
-        ? 0.2
-        : 0.12;
-    return cooldownPenalty + Math.min(parseNonNegativeInteger(instance.metadata.consecutiveFailureCount), 5) * 0.03;
-  }
-
-  if (!isMailboxFailure && !isCapacityFailure) {
-    return Math.min(parseNonNegativeInteger(instance.metadata.consecutiveFailureCount), 4) * 0.02;
-  }
-
-  const observedAtMs = parseTimestampMs(instance.metadata.lastRegistrationOutcomeAt);
-  if (observedAtMs == null) {
-    if (isCapacityFailure) {
-      return instance.providerTypeKey === "duckmail" ? 0.42 : 0.32;
-    }
-    return instance.providerTypeKey === "duckmail" ? 0.3 : 0.18;
-  }
-
-  const ageMs = Math.max(0, nowMs - observedAtMs);
-  if (ageMs > 6 * 60 * 60 * 1000) {
-    return 0;
-  }
-
-  let penalty = isCapacityFailure
-    ? (
-        ageMs <= 30 * 60 * 1000
-          ? 0.32
-          : ageMs <= 2 * 60 * 60 * 1000
-            ? 0.22
-            : 0.12
-      )
-    : (
-        ageMs <= 30 * 60 * 1000
-          ? 0.24
-          : ageMs <= 2 * 60 * 60 * 1000
-            ? 0.16
-            : 0.08
-      );
-
-  // DuckMail currently tends to accept mailbox creation but miss OTP relay.
-  if (instance.providerTypeKey === "duckmail") {
-    penalty += isCapacityFailure ? 0.1 : 0.14;
-  }
-
-  return penalty;
-}
+import type { DispatchStrategyRegistry } from "../strategies/index.js";
+import { MailboxBindingService } from "./binding-service.js";
+import { resolveRequestedDomain } from "./mailbox-dispatcher-policy.js";
+import { MailboxProviderSelector } from "./mailbox-provider-selector.js";
+import type { RoutingProfileLookup } from "./mailbox-provider-selector.js";
 
 export interface MailboxDispatcherDependencies {
   registry: MailRegistry;
@@ -321,17 +38,16 @@ export class MailboxDispatcher {
 
   private readonly runtimeController: CloudflareTempEmailRuntimeController;
 
-  private readonly strategyRegistry: DispatchStrategyRegistry;
+  private readonly selector: MailboxProviderSelector;
   private readonly defaultStrategyMode?: MailStrategyModeResolution;
   private readonly routingProfiles = new Map<string, RoutingProfileLookup>();
-  private readonly strategyModeRoundRobinCounters = new Map<string, number>();
 
   public constructor(deps: MailboxDispatcherDependencies) {
     this.registry = deps.registry;
     this.bindings = deps.bindings;
     this.provisioner = deps.provisioner;
     this.runtimeController = deps.runtimeController;
-    this.strategyRegistry = deps.strategyRegistry;
+    this.selector = new MailboxProviderSelector(deps.registry, deps.strategyRegistry, deps.runtimeController);
     this.defaultStrategyMode = deps.defaultStrategyMode;
     for (const profile of deps.routingProfiles ?? []) {
       const normalizedId = profile.id.trim().toLowerCase();
@@ -370,7 +86,7 @@ export class MailboxDispatcher {
     }
     if (
       normalizedRequest.providerTypeKey
-      && !this.providerTypeMatchesRecoverabilityFilter(normalizedRequest.providerTypeKey, normalizedRequest, now)
+      && !this.selector.providerTypeMatchesRecoverabilityFilter(normalizedRequest.providerTypeKey, normalizedRequest, now)
     ) {
       throw new EasyEmailError(
         "PROVIDER_RECOVERABILITY_NOT_ELIGIBLE",
@@ -420,7 +136,7 @@ export class MailboxDispatcher {
     let strategyProfile: StrategyProfile | undefined;
     let requiresProvisioning = false;
     let runtimePlan = existingBinding?.providerTypeKey === "cloudflare_temp_email"
-      ? this.createRuntimePlanIfAvailable(existingBinding)
+      ? this.selector.createRuntimePlanIfAvailable(existingBinding)
       : undefined;
 
     if (!instance) {
@@ -433,7 +149,7 @@ export class MailboxDispatcher {
         requiresProvisioning = provisionResult.created;
         runtimePlan = this.runtimeController.createRuntimePlan(provisionResult.instance, provisionResult.template);
       } else {
-        const externalSelection = this.selectExternalInstance(
+        const externalSelection = this.selector.selectExternalInstance(
           providerType,
           request,
           now,
@@ -443,7 +159,7 @@ export class MailboxDispatcher {
         strategyProfile = externalSelection.strategyProfile;
       }
     } else if (providerType.key !== "cloudflare_temp_email") {
-      strategyProfile = this.resolveStrategyProfile(providerType, request);
+      strategyProfile = this.selector.resolveStrategyProfile(providerType, request);
     }
 
     if (!instance) {
@@ -495,7 +211,7 @@ export class MailboxDispatcher {
     const preferredProviderType = request.preferredInstanceId
       ? this.registry.findInstanceById(request.preferredInstanceId)?.providerTypeKey
       : undefined;
-    const providerTypeOrder = this.buildProviderTypeOrder(
+    const providerTypeOrder = this.selector.buildProviderTypeOrder(
       effectiveStrategyMode,
       request,
       now,
@@ -542,14 +258,14 @@ export class MailboxDispatcher {
     strategyMode: MailStrategyModeResolution,
     request: VerificationMailboxRequest,
   ): MailStrategyModeResolution {
-    const requestedDomain = this.resolveRequestedDomain(request);
+    const requestedDomain = resolveRequestedDomain(request);
     if (!requestedDomain) {
       return strategyMode;
     }
 
     const compatibleSelections = strategyMode.providerSelections.filter((group) => {
       const providerTypeKey = getMailProviderTypeForGroup(group);
-      return this.providerTypeSupportsRequestedDomain(providerTypeKey, request, requestedDomain);
+      return this.selector.providerTypeSupportsRequestedDomain(providerTypeKey, request, requestedDomain);
     });
     if (compatibleSelections.length === 0 || compatibleSelections.length === strategyMode.providerSelections.length) {
       return strategyMode;
@@ -568,434 +284,6 @@ export class MailboxDispatcher {
     };
   }
 
-  private providerTypeSupportsRequestedDomain(
-    providerTypeKey: MailProviderTypeKey,
-    request: VerificationMailboxRequest,
-    requestedDomain: string | undefined,
-  ): boolean {
-    const normalizedRequestedDomain = normalizeDomain(requestedDomain);
-    if (!normalizedRequestedDomain) {
-      return true;
-    }
-
-    const candidates = this.registry.listActiveInstancesByType(providerTypeKey).filter((instance) => {
-      if (request.groupKey && instance.groupKeys.length > 0) {
-        return instance.groupKeys.includes(request.groupKey);
-      }
-      return true;
-    });
-    if (candidates.length === 0) {
-      return false;
-    }
-
-    return candidates.some((instance) => instanceSupportsRequestedDomain(instance, normalizedRequestedDomain));
-  }
-
-  private selectExternalInstance(
-    providerType: ProviderTypeDefinition,
-    request: VerificationMailboxRequest,
-    now: Date,
-    applyStructuredMailboxAvoidance = false,
-  ): ExternalSelection {
-    const nowMs = now.getTime();
-    const candidates = this.listExternalInstanceCandidates(providerType.key, request, now)
-      .filter((instance) => !applyStructuredMailboxAvoidance || !shouldSkipForStructuredMailboxOutcome(instance, nowMs));
-
-    if (request.preferredInstanceId) {
-      const preferred = candidates.find((instance) => instance.id === request.preferredInstanceId);
-
-      if (preferred) {
-        return {
-          instance: preferred,
-          strategyProfile: this.resolveStrategyProfile(providerType, request),
-        };
-      }
-    }
-
-    if (candidates.length === 0) {
-      const requestedDomain = this.resolveRequestedDomain(request);
-      throw new EasyEmailError(
-        "PROVIDER_INSTANCE_UNAVAILABLE",
-        requestedDomain
-          ? `No active provider instance for ${providerType.displayName} can serve requested domain "${requestedDomain}".`
-          : `No active provider instance is registered for ${providerType.displayName}.`,
-      );
-    }
-
-    const strategyProfile = this.resolveStrategyProfile(providerType, request);
-    const strategy = this.strategyRegistry.resolve(strategyProfile.key);
-
-    if (!strategy) {
-      throw new EasyEmailError("STRATEGY_NOT_FOUND", `Strategy ${strategyProfile.key} is not registered.`);
-    }
-
-    const selected = strategy.choose({
-      request,
-      profile: strategyProfile,
-      instances: candidates,
-    });
-
-    if (!selected) {
-      throw new EasyEmailError(
-        "PROVIDER_SELECTION_FAILED",
-        `Unable to select a provider instance for ${providerType.displayName}.`,
-      );
-    }
-
-    return {
-      instance: selected,
-      strategyProfile,
-    };
-  }
-
-  private resolveStrategyProfile(
-    providerType: ProviderTypeDefinition,
-    request: VerificationMailboxRequest,
-  ): StrategyProfile {
-    if (request.strategyProfileId) {
-      const matched = this.registry.findStrategyById(request.strategyProfileId);
-
-      if (matched) {
-        return matched;
-      }
-    }
-
-    const fallback = this.registry.listStrategies().find((profile) => profile.key === providerType.defaultStrategyKey);
-
-    if (!fallback) {
-      throw new EasyEmailError(
-        "DEFAULT_STRATEGY_MISSING",
-        `Default strategy ${providerType.defaultStrategyKey} is not registered.`,
-      );
-    }
-
-    return fallback;
-  }
-
-  private createRuntimePlanIfAvailable(instance: ProviderInstance) {
-    const templateId = instance.metadata.templateId;
-
-    if (!templateId) {
-      return undefined;
-    }
-
-    const template = this.registry.findRuntimeTemplateById(templateId);
-
-    if (!template) {
-      return undefined;
-    }
-
-    return this.runtimeController.createRuntimePlan(instance, template);
-  }
-
-  private buildProviderTypeOrder(
-    strategyMode: MailStrategyModeResolution,
-    request: VerificationMailboxRequest,
-    now: Date,
-    preferredProviderType?: MailProviderTypeKey,
-    routingProfile?: RoutingProfileLookup,
-  ): MailProviderTypeKey[] {
-    const groups = strategyMode.modeId === "random"
-      ? this.shuffleValues(strategyMode.providerGroupOrder, `mail:${strategyMode.providerSelections.join("|")}`)
-      : strategyMode.modeId === "available-first"
-        ? this.orderProviderGroupsByAvailability(strategyMode.providerSelections, request, now, routingProfile)
-        : strategyMode.providerGroupOrder;
-    const nowMs = now.getTime();
-    const excludedProviderTypeKeys = new Set(
-      (request.excludedProviderTypeKeys ?? [])
-        .map((item) => normalizeMailProviderTypeKey(item))
-        .filter((item): item is MailProviderTypeKey => item !== undefined),
-    );
-    const providerTypes = groups
-      .map((group) => getMailProviderTypeForGroup(group))
-      .filter((providerTypeKey) => !excludedProviderTypeKeys.has(providerTypeKey))
-      .filter((providerTypeKey) => this.providerTypeMatchesRecoverabilityFilter(providerTypeKey, request, now))
-      .filter((providerTypeKey) => !this.shouldSkipProviderTypeForStructuredMailboxOutcome(
-        providerTypeKey,
-        request,
-        nowMs,
-      ));
-
-    if (!preferredProviderType || !providerTypes.includes(preferredProviderType)) {
-      return providerTypes;
-    }
-
-    return [preferredProviderType, ...providerTypes.filter((item) => item !== preferredProviderType)];
-  }
-
-  private rotateValues<T>(values: T[], key: string): T[] {
-    if (values.length <= 1) {
-      return [...values];
-    }
-
-    const current = this.strategyModeRoundRobinCounters.get(key) ?? 0;
-    this.strategyModeRoundRobinCounters.set(key, current + 1);
-    const index = current % values.length;
-    return [...values.slice(index), ...values.slice(0, index)];
-  }
-
-  private shuffleValues<T>(values: T[], key: string): T[] {
-    const rotated = this.rotateValues(values, key);
-    if (rotated.length <= 2) {
-      return rotated;
-    }
-
-    const [head, ...tail] = rotated;
-    for (let index = tail.length - 1; index > 0; index -= 1) {
-      const swapIndex = Math.floor(Math.random() * (index + 1));
-      [tail[index], tail[swapIndex]] = [tail[swapIndex]!, tail[index]!];
-    }
-    return [head, ...tail];
-  }
-
-  private orderProviderGroupsByAvailability(
-    providerGroups: MailStrategyModeResolution["providerSelections"],
-    request: VerificationMailboxRequest,
-    now: Date,
-    routingProfile?: RoutingProfileLookup,
-  ): MailStrategyModeResolution["providerSelections"] {
-    const nowMs = now.getTime();
-    const scores = new Map(providerGroups.map((group) => [
-      group,
-      this.computeProviderAvailabilityScore(
-        getMailProviderTypeForGroup(group),
-        request,
-        nowMs,
-        routingProfile?.healthGate,
-      ),
-    ]));
-    const effectiveScores = [...scores.values()].some((value) => Number.isFinite(value))
-      ? scores
-      : new Map(providerGroups.map((group) => [
-          group,
-          this.computeProviderAvailabilityScore(getMailProviderTypeForGroup(group), request, nowMs),
-        ]));
-    return this.weightedShuffleProviderGroups(providerGroups, effectiveScores);
-  }
-
-  private weightedShuffleProviderGroups(
-    providerGroups: MailStrategyModeResolution["providerSelections"],
-    scores: Map<MailStrategyModeResolution["providerSelections"][number], number>,
-  ): MailStrategyModeResolution["providerSelections"] {
-    const finiteEntries = providerGroups
-      .map((group) => ({
-        group,
-        score: scores.get(group) ?? Number.NEGATIVE_INFINITY,
-      }))
-      .filter((item) => Number.isFinite(item.score));
-    const unavailable = providerGroups.filter((group) => !finiteEntries.some((item) => item.group === group));
-    if (finiteEntries.length <= 1) {
-      return [
-        ...finiteEntries.map((item) => item.group),
-        ...unavailable,
-      ];
-    }
-
-    const minScore = Math.min(...finiteEntries.map((item) => item.score));
-    const pool = finiteEntries.map((item) => ({
-      group: item.group,
-      weight: Math.max(0.05, item.score - minScore + 0.1),
-    }));
-    const ordered: MailStrategyModeResolution["providerSelections"] = [];
-
-    while (pool.length > 0) {
-      const totalWeight = pool.reduce((sum, item) => sum + item.weight, 0);
-      if (!(totalWeight > 0)) {
-        ordered.push(...pool.map((item) => item.group));
-        break;
-      }
-      let cursor = Math.random() * totalWeight;
-      let selectedIndex = pool.length - 1;
-      for (let index = 0; index < pool.length; index += 1) {
-        cursor -= pool[index]!.weight;
-        if (cursor <= 0) {
-          selectedIndex = index;
-          break;
-        }
-      }
-      const [selected] = pool.splice(selectedIndex, 1);
-      if (selected) {
-        ordered.push(selected.group);
-      }
-    }
-
-    return [...ordered, ...unavailable];
-  }
-
-  private computeProviderPerformanceScore(instance: ProviderInstance, nowMs: number): number {
-    if (isMailboxDomainRiskOutcome(instance)) {
-      return 0;
-    }
-
-    const stats = parseProviderPerformanceStats(instance.metadata.registrationStatsJson);
-    const total = stats.successCount + stats.failureCount;
-    const successRatio = total > 0 ? stats.successCount / total : 0.5;
-    let score = (successRatio - 0.5) * 0.24;
-
-    const lastSuccessAtMs = parseTimestampMs(stats.lastSuccessAt);
-    if (lastSuccessAtMs != null) {
-      const ageMs = Math.max(0, nowMs - lastSuccessAtMs);
-      if (ageMs <= 15 * 60 * 1000) {
-        score += 0.08;
-      } else if (ageMs <= 60 * 60 * 1000) {
-        score += 0.04;
-      }
-    }
-
-    const lastFailureAtMs = parseTimestampMs(stats.lastFailureAt);
-    if (lastFailureAtMs != null) {
-      const ageMs = Math.max(0, nowMs - lastFailureAtMs);
-      if (ageMs <= 15 * 60 * 1000) {
-        score -= 0.14;
-      } else if (ageMs <= 60 * 60 * 1000) {
-        score -= 0.08;
-      }
-    }
-
-    const consecutiveFailureCount = parseNonNegativeInteger(instance.metadata.consecutiveFailureCount);
-    if (consecutiveFailureCount > 0) {
-      score -= Math.min(consecutiveFailureCount, 5) * 0.035;
-    }
-
-    const cooldownUntilMs = parseTimestampMs(instance.metadata.cooldownUntil);
-    if (cooldownUntilMs != null && cooldownUntilMs > nowMs) {
-      score -= 0.12;
-    }
-
-    return score;
-  }
-
-  private computeProviderAvailabilityScore(
-    providerTypeKey: MailProviderTypeKey,
-    request: VerificationMailboxRequest,
-    nowMs: number,
-    healthGate?: RoutingProfileLookup["healthGate"],
-  ): number {
-    const candidates = this.listExternalInstanceCandidates(providerTypeKey, request, new Date(nowMs))
-      .filter((instance) => !shouldSkipForStructuredMailboxOutcome(instance, nowMs));
-
-    if (candidates.length === 0) {
-      return Number.NEGATIVE_INFINITY;
-    }
-
-    return candidates.reduce((best, instance) => {
-      const isDomainRiskOutcome = isMailboxDomainRiskOutcome(instance);
-      const consecutiveFailureCount = isDomainRiskOutcome
-        ? 0
-        : parseNonNegativeInteger(instance.metadata.consecutiveFailureCount);
-      const effectiveHealthScore = isDomainRiskOutcome && healthGate?.minimumHealthScore !== undefined
-        ? Math.max(instance.healthScore, healthGate.minimumHealthScore)
-        : instance.healthScore;
-      if (healthGate?.minimumHealthScore !== undefined && effectiveHealthScore < healthGate.minimumHealthScore) {
-        return best;
-      }
-      if (healthGate?.maxConsecutiveFailures !== undefined && consecutiveFailureCount > healthGate.maxConsecutiveFailures) {
-        return best;
-      }
-
-      const latencyPenalty = Math.min(Math.max(instance.averageLatencyMs, 0), 5_000) / 5_000 * 0.1;
-      const statusBonus = isDomainRiskOutcome
-        ? 0.03
-        : instance.status === "active"
-          ? 0.03
-          : instance.status === "degraded"
-            ? -0.03
-            : 0;
-      const recentFailurePenalty = computeRecentMailboxFailurePenalty(instance, nowMs);
-      const performanceScore = this.computeProviderPerformanceScore(instance, nowMs);
-      const gatePenalty = this.computeRecentFailureGatePenalty(instance, nowMs, healthGate);
-      const score = effectiveHealthScore + statusBonus + performanceScore - latencyPenalty - recentFailurePenalty - gatePenalty;
-      return Math.max(best, score);
-    }, Number.NEGATIVE_INFINITY);
-  }
-
-  private listExternalInstanceCandidates(
-    providerTypeKey: MailProviderTypeKey,
-    request: VerificationMailboxRequest,
-    now: Date = new Date(),
-  ): ProviderInstance[] {
-    const excludedDomains = resolveRequestExcludedDomains(request);
-    return this.registry.listActiveInstancesByType(providerTypeKey).filter((instance) => {
-      if (request.groupKey && instance.groupKeys.length > 0) {
-        return instance.groupKeys.includes(request.groupKey);
-      }
-      return true;
-    })
-      .filter((instance) => instanceSupportsRequestedDomain(instance, this.resolveRequestedDomain(request)))
-      .filter((instance) => instanceCanAvoidExcludedDomains(instance, excludedDomains))
-      .filter((instance) => isProviderRecoverabilityEligible(
-        instance,
-        request.recoverabilityLevels,
-        request.includeUndeterminedRecoverability,
-        now,
-      ));
-  }
-
-  private shouldSkipProviderTypeForStructuredMailboxOutcome(
-    providerTypeKey: MailProviderTypeKey,
-    request: VerificationMailboxRequest,
-    nowMs: number,
-  ): boolean {
-    const candidates = this.listExternalInstanceCandidates(providerTypeKey, request, new Date(nowMs));
-    return candidates.length > 0 && candidates.every((instance) => shouldSkipForStructuredMailboxOutcome(instance, nowMs));
-  }
-
-  private providerTypeMatchesRecoverabilityFilter(
-    providerTypeKey: MailProviderTypeKey,
-    request: VerificationMailboxRequest,
-    now: Date,
-  ): boolean {
-    if (!request.recoverabilityLevels || request.recoverabilityLevels.length === 0) {
-      return true;
-    }
-
-    const candidates = this.registry.listActiveInstancesByType(providerTypeKey).filter((instance) => {
-      if (request.groupKey && instance.groupKeys.length > 0) {
-        return instance.groupKeys.includes(request.groupKey);
-      }
-      return true;
-    });
-    if (candidates.length === 0) {
-      return request.includeUndeterminedRecoverability === true;
-    }
-
-    return candidates.some((instance) => isProviderRecoverabilityEligible(
-      instance,
-      request.recoverabilityLevels,
-      request.includeUndeterminedRecoverability,
-      now,
-    ));
-  }
-
-  private computeRecentFailureGatePenalty(
-    instance: ProviderInstance,
-    nowMs: number,
-    healthGate?: NonNullable<RoutingProfileLookup["healthGate"]>,
-  ): number {
-    if (!healthGate?.recentFailureWindowMs) {
-      return 0;
-    }
-
-    const lastOutcome = instance.metadata.lastRegistrationOutcome?.trim().toLowerCase();
-    if (lastOutcome !== "failure") {
-      return 0;
-    }
-    if (isMailboxDomainRiskOutcome(instance)) {
-      return 0;
-    }
-
-    const observedAtMs = parseTimestampMs(instance.metadata.lastRegistrationOutcomeAt);
-    if (observedAtMs == null) {
-      return 0;
-    }
-
-    const ageMs = Math.max(0, nowMs - observedAtMs);
-    if (ageMs > healthGate.recentFailureWindowMs) {
-      return 0;
-    }
-
-    return Math.max(0, healthGate.recentFailurePenalty ?? 0.12);
-  }
 
   private resolveRoutingProfile(id: string | undefined): RoutingProfileLookup | undefined {
     const normalized = id?.trim().toLowerCase();
@@ -1004,13 +292,6 @@ export class MailboxDispatcher {
     }
 
     return this.routingProfiles.get(normalized);
-  }
-
-  private resolveRequestedDomain(request: VerificationMailboxRequest): string | undefined {
-    return request.requestedDomain?.trim().toLowerCase()
-      || request.metadata?.requestedDomain?.trim().toLowerCase()
-      || request.metadata?.mailcreateDomain?.trim().toLowerCase()
-      || undefined;
   }
 
   private isRecoverableStrategyError(error: unknown): error is EasyEmailError {
