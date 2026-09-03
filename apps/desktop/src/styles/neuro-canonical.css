@@ -1,0 +1,754 @@
+/*
+ * Runtime Neuro UI layer.
+ *
+ * App.css still contains the product layout and legacy component rules. This
+ * file is imported last and owns the cross-product visual contract shared with
+ * Hook and Loom: opaque slabs, compact controls, semantic signals, and a light
+ * focus surface only for reading or focused editing.
+ */
+
+:root {
+  --nt-motion-fast: 150ms ease;
+  --nt-motion-standard: 200ms ease;
+  --nt-shadow-floating: 0 18px 48px color-mix(in srgb, var(--nt-shadow-panel) 92%, transparent);
+}
+
+body {
+  color: var(--nt-text-primary);
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--nt-text-primary) 2.4%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--nt-text-primary) 2.4%, transparent) 1px,
+      transparent 1px
+    ),
+    var(--nt-surface-app);
+  background-size: 36px 36px;
+}
+
+::selection {
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+}
+
+* {
+  scrollbar-color: color-mix(in srgb, var(--nt-text-muted) 52%, transparent)
+    var(--nt-surface-app);
+  scrollbar-width: thin;
+}
+
+/* App shell and rail ------------------------------------------------------ */
+
+.nt-app-shell {
+  color: var(--nt-text-primary);
+  background: transparent;
+}
+
+.nt-side-rail,
+.nt-workspace-board {
+  border-color: var(--nt-border-default);
+  border-radius: 0;
+  background: var(--nt-surface-shell);
+  box-shadow: none;
+}
+
+.nt-app-shell--edge-rail .nt-side-rail {
+  background: var(--nt-surface-rail);
+}
+
+.nt-brand {
+  border-bottom: 1px solid var(--nt-border-default);
+  background: transparent;
+}
+
+.nt-brand__mark {
+  border: 1px solid var(--nt-yellow-line);
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-action-primary);
+  background: var(--nt-yellow-soft);
+  box-shadow: none;
+}
+
+.nt-brand__text strong {
+  color: var(--nt-text-primary);
+  letter-spacing: 0.04em;
+}
+
+.nt-mode-switch {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-surface-panel);
+  box-shadow: none;
+}
+
+.nt-mode-option,
+.nt-mode-current {
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-text-muted);
+  background: transparent;
+  box-shadow: none;
+  transition:
+    color var(--nt-motion-fast),
+    border-color var(--nt-motion-fast),
+    background var(--nt-motion-fast);
+}
+
+.nt-mode-option:hover,
+.nt-mode-current:hover {
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control-hover);
+}
+
+.nt-mode-option--active,
+.nt-mode-switch--collapsed .nt-mode-current,
+.nt-mode-switch--collapsed .nt-mode-current:hover {
+  border-color: var(--nt-yellow-line);
+  color: var(--nt-action-primary);
+  background: var(--nt-yellow-soft);
+  box-shadow: none;
+}
+
+.nt-mode-option--active::after {
+  background: var(--nt-action-primary);
+  box-shadow: none;
+}
+
+.nt-nav__item,
+.nt-rail-footer-action,
+.nt-rail-toggle,
+.nt-mail-taxonomy__icon-toggle,
+.nt-mail-taxonomy__add,
+.nt-mail-taxonomy__chevron {
+  border-radius: var(--nt-radius-sm);
+  box-shadow: none;
+  transition:
+    color var(--nt-motion-fast),
+    border-color var(--nt-motion-fast),
+    background var(--nt-motion-fast);
+}
+
+.nt-nav__item:hover,
+.nt-rail-footer-action:hover,
+.nt-rail-toggle:hover,
+.nt-mail-taxonomy__icon-toggle:hover,
+.nt-mail-taxonomy__add:hover,
+.nt-mail-taxonomy__chevron:hover {
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control-hover);
+  transform: none;
+}
+
+.nt-app-shell--edge-rail .nt-nav__item--active:not(.nt-nav__item--primary),
+.nt-rail-footer-action--active {
+  border-color: var(--nt-yellow-line);
+  color: var(--nt-text-primary);
+  background: var(--nt-yellow-soft);
+  box-shadow: inset 3px 0 0 var(--nt-action-primary);
+}
+
+.nt-nav__item--primary,
+.nt-app-shell--edge-rail .nt-nav__item--primary,
+.nt-app-shell--edge-rail .nt-nav__item--primary.nt-nav__item--active {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  box-shadow: none;
+}
+
+.nt-nav__item--primary:hover,
+.nt-app-shell--edge-rail .nt-nav__item--primary:hover {
+  border-color: var(--nt-action-primary-hover);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary-hover);
+}
+
+.nt-nav__item--primary .nt-nav__icon,
+.nt-app-shell--edge-rail .nt-nav__item--primary .nt-nav__icon {
+  color: var(--nt-action-primary-ink);
+}
+
+.nt-nav__badge {
+  border-color: var(--nt-surface-rail);
+  color: var(--nt-action-destructive-ink);
+  background: var(--nt-action-destructive);
+  box-shadow: none;
+}
+
+.nt-mail-taxonomy,
+.nt-rail-footer {
+  border-color: var(--nt-border-default);
+  background: transparent;
+}
+
+/* Dense work surfaces ---------------------------------------------------- */
+
+.nt-board-view {
+  gap: 12px;
+}
+
+.nt-board-view--mail {
+  gap: 0;
+}
+
+.nt-board-head {
+  min-height: 72px;
+  border: 1px solid var(--nt-border-default);
+  border-left: 3px solid var(--nt-action-primary);
+  border-radius: var(--nt-radius-md);
+  padding: 14px 18px;
+  background: var(--nt-surface-panel);
+  clip-path: none;
+  box-shadow: none;
+}
+
+.nt-board-head h1 {
+  margin: 4px 0 2px;
+  color: var(--nt-text-primary);
+  font-size: clamp(1.45rem, 2.6vw, 2rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.nt-kicker {
+  color: var(--nt-text-muted);
+  letter-spacing: 0.12em;
+}
+
+.nt-action-board,
+.nt-directory,
+.nt-rail-card,
+.nt-thread-card,
+.nt-code-card,
+.nt-resource-row,
+.nt-source-card,
+.nt-newsletter-subscription-card {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-surface-panel);
+  box-shadow: none;
+}
+
+.nt-action-board,
+.nt-directory {
+  background: var(--nt-surface-shell);
+}
+
+.nt-source-card:hover,
+.nt-resource-row:hover,
+.nt-thread-card:hover,
+.nt-code-card:hover,
+.nt-newsletter-subscription-card:hover {
+  border-color: var(--nt-border-hover);
+  background: var(--nt-surface-control-hover);
+  box-shadow: none;
+  transform: none;
+}
+
+.nt-source-card--active,
+.nt-thread-card--active,
+.nt-code-card--active {
+  border-color: var(--nt-yellow-line);
+  background: var(--nt-surface-selected);
+  box-shadow: inset 3px 0 0 var(--nt-action-primary);
+}
+
+.nt-result,
+.nt-alert {
+  border: 0;
+  border-left: 3px solid var(--nt-action-info);
+  border-radius: 0;
+  background: var(--nt-info-soft);
+  box-shadow: none;
+}
+
+.nt-alert--danger,
+.nt-copy-toast--error {
+  border-left-color: var(--nt-action-destructive);
+  color: var(--nt-danger-text);
+  background: var(--nt-danger-soft);
+}
+
+/* Controls --------------------------------------------------------------- */
+
+.nt-btn,
+.nt-switch,
+.nt-mini-btn {
+  min-height: 36px;
+  border-radius: var(--nt-radius-sm);
+  letter-spacing: 0;
+  box-shadow: none;
+  transition:
+    color var(--nt-motion-fast),
+    border-color var(--nt-motion-fast),
+    background var(--nt-motion-fast);
+}
+
+.nt-btn:hover,
+.nt-switch:hover,
+.nt-mini-btn:hover {
+  transform: none;
+}
+
+.nt-btn--primary,
+.nt-switch--active {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+}
+
+.nt-btn--primary:hover:not(:disabled),
+.nt-switch--active:hover:not(:disabled) {
+  border-color: var(--nt-action-primary-hover);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary-hover);
+}
+
+.nt-btn--secondary {
+  border-color: var(--nt-info-line);
+  color: var(--nt-info-text);
+  background: var(--nt-info-soft);
+}
+
+.nt-btn--outline,
+.nt-switch,
+.nt-mini-btn {
+  border-color: var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control);
+}
+
+.nt-btn--outline:hover:not(:disabled),
+.nt-switch:hover:not(:disabled),
+.nt-mini-btn:hover:not(:disabled) {
+  border-color: var(--nt-border-hover);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control-hover);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"][tabindex]:focus-visible {
+  outline: 2px solid var(--nt-border-focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--nt-focus-ring);
+}
+
+button:disabled,
+button:disabled:hover,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  border-color: var(--nt-disabled-border);
+  color: var(--nt-disabled-ink);
+  background: var(--nt-disabled-surface);
+  opacity: 1;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+  box-shadow: none;
+}
+
+.nt-compose-recipient-menu__danger,
+.nt-proton-message-more-menu__danger,
+.nt-contact-modal__danger,
+.nt-platform-account-popover__danger {
+  border-color: var(--nt-danger-line) !important;
+  color: var(--nt-danger-text) !important;
+  background: var(--nt-danger-soft) !important;
+}
+
+/* Mail board ------------------------------------------------------------- */
+
+.nt-mail-topbar,
+.nt-mail-list-toolbar {
+  border-color: var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-shell);
+  box-shadow: none;
+}
+
+.nt-mail-topbar {
+  min-height: 58px;
+  padding: 7px 10px;
+}
+
+.nt-mail-adaptive,
+.nt-list-pane,
+.nt-scroll-pane {
+  background: var(--nt-surface-app);
+}
+
+.nt-list-pane {
+  border-right-color: var(--nt-border-default);
+  padding: 0;
+}
+
+.nt-scroll-pane {
+  gap: 0;
+  padding: 0;
+}
+
+.nt-message-card {
+  border: 0;
+  border-bottom: 1px solid var(--nt-border-default);
+  border-radius: 0;
+  background: var(--nt-surface-panel);
+  box-shadow: none;
+  transition:
+    border-color var(--nt-motion-fast),
+    background var(--nt-motion-fast);
+}
+
+.nt-message-card:hover {
+  border-color: var(--nt-border-hover);
+  background: var(--nt-surface-control-hover);
+  transform: none;
+}
+
+.nt-message-card--active {
+  border-color: var(--nt-yellow-line);
+  background: var(--nt-surface-selected);
+  box-shadow: inset 3px 0 0 var(--nt-action-primary);
+}
+
+.nt-message-card--unread:not(.nt-message-card--active) {
+  background: color-mix(in srgb, var(--nt-surface-control) 68%, var(--nt-surface-panel));
+}
+
+.nt-mail-top-search,
+.nt-mail-search,
+.nt-mail-search__bar,
+.nt-search-box,
+.nt-mail-source-selector__trigger,
+.nt-source-trigger,
+.nt-mail-topbar__action,
+.nt-mail-search-code-switch,
+.nt-mail-search-sync-button,
+.nt-mail-list-select,
+.nt-mail-list-toolbar__trigger,
+.nt-mail-list-toolbar__action,
+.nt-mail-list-toolbar__filter,
+.nt-mail-list-toolbar__pager button,
+.nt-message-card__select,
+.nt-mail-list-toolbar__chip,
+.nt-mail-list-toolbar__unread-toggle {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control);
+  box-shadow: none;
+}
+
+.nt-mail-source-selector__kicker,
+.nt-mail-top-search__icon,
+.nt-mail-list-toolbar__mailbox-title,
+.nt-mail-list-toolbar__mailbox-title strong {
+  color: var(--nt-text-muted);
+}
+
+.nt-mail-source-selector__trigger strong {
+  color: var(--nt-text-primary);
+}
+
+.nt-mail-top-search--active {
+  border-color: var(--nt-border-focus);
+  box-shadow: 0 0 0 2px var(--nt-yellow-soft);
+}
+
+.nt-mail-search-code-switch--active,
+.nt-mail-list-select--checked,
+.nt-message-card__select[aria-pressed="true"],
+.nt-mail-list-toolbar__unread-toggle--active,
+.nt-mail-list-toolbar__action[aria-expanded="true"],
+.nt-mail-list-toolbar__filter[aria-expanded="true"] {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  box-shadow: none;
+}
+
+.nt-mail-search-sync-button--syncing {
+  border-color: var(--nt-info-line);
+  color: var(--nt-info-text);
+  background: var(--nt-info-soft);
+}
+
+/* Menus are dark tool surfaces; reading and focused editing stay light. */
+.nt-mail-search-overlay,
+.nt-mail-source-selector__menu,
+.nt-mail-list-toolbar__menu,
+.nt-mail-list-toolbar__panel,
+.nt-proton-message-more-menu,
+.nt-platform-account-popover,
+.nt-avatar-popover,
+.nt-source-drawer,
+.nt-mail-account-panel {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-md);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-panel);
+  background-image: none;
+  box-shadow: var(--nt-shadow-floating);
+}
+
+.nt-source-drawer,
+.nt-mail-account-panel {
+  border-left: 3px solid var(--nt-action-primary);
+}
+
+.nt-mail-source-selector__option,
+.nt-mail-source-selector__action,
+.nt-mail-list-toolbar__menu button,
+.nt-mail-list-toolbar__panel-option,
+.nt-mail-list-toolbar__snooze-row,
+.nt-mail-list-toolbar__snooze-custom,
+.nt-proton-message-more-menu button,
+.nt-platform-account-popover__actions button {
+  border-color: var(--nt-border-default);
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control);
+}
+
+.nt-mail-source-selector__option strong,
+.nt-mail-source-selector__option span,
+.nt-platform-account-popover__hero strong,
+.nt-platform-account-popover__hero span {
+  color: inherit;
+}
+
+.nt-mail-source-selector__option:hover,
+.nt-mail-source-selector__action:hover:not(:disabled),
+.nt-mail-list-toolbar__menu button:hover,
+.nt-mail-list-toolbar__panel-option:hover,
+.nt-mail-list-toolbar__panel-option--active,
+.nt-mail-list-toolbar__snooze-row:hover,
+.nt-mail-list-toolbar__snooze-custom:hover,
+.nt-proton-message-more-menu button:hover,
+.nt-platform-account-popover__actions button:hover {
+  border-color: var(--nt-border-hover);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-control-hover);
+}
+
+.nt-mail-source-selector__action--primary,
+.nt-mail-list-toolbar__apply,
+.nt-proton-primary-reply {
+  border-color: var(--nt-action-primary);
+  color: var(--nt-action-primary-ink);
+  background: var(--nt-action-primary);
+  box-shadow: none;
+}
+
+.nt-mail-source-selector__option.nt-mail-source-selector__option--active,
+.nt-mail-source-selector__option--cyan.nt-mail-source-selector__option--active,
+.nt-mail-source-selector__option--info.nt-mail-source-selector__option--active,
+.nt-mail-source-selector__option--signal.nt-mail-source-selector__option--active {
+  border-color: var(--nt-yellow-line);
+  color: var(--nt-text-primary);
+  background: var(--nt-yellow-soft);
+  box-shadow: inset 3px 0 0 var(--nt-action-primary);
+}
+
+/* Reading, search and editing focus surfaces ---------------------------- */
+
+.nt-reading-pane,
+.nt-proton-message-card,
+.nt-proton-message-body-wrap,
+.nt-proton-message-body-wrap .nt-message-body,
+.nt-proton-conversation-message,
+.nt-proton-conversation-message__header {
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-surface);
+  box-shadow: none;
+}
+
+.nt-reading-pane {
+  border-radius: 0;
+}
+
+.nt-proton-conversation-stack {
+  background: color-mix(in srgb, var(--nt-reading-ink) 3%, var(--nt-reading-surface));
+}
+
+.nt-proton-icon-btn,
+.nt-proton-star,
+.nt-proton-action-menu button,
+.nt-reading-pane .nt-mini-btn {
+  border-color: var(--nt-reading-border);
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-control);
+  box-shadow: none;
+}
+
+.nt-proton-icon-btn:hover,
+.nt-proton-star:hover,
+.nt-proton-action-menu button:hover,
+.nt-reading-pane .nt-mini-btn:hover {
+  border-color: var(--nt-reading-border-hover);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-hover);
+}
+
+.nt-compose-popover,
+.nt-contact-modal,
+.nt-mail-taxonomy-modal,
+.nt-compose-link-modal,
+.nt-compose-expiration-modal,
+.nt-compose-encryption-modal {
+  border-color: var(--nt-yellow-line);
+  border-radius: var(--nt-radius-md);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-surface);
+  box-shadow: var(--nt-shadow-floating);
+}
+
+.nt-compose-popover__titlebar {
+  border-color: var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-panel);
+}
+
+.nt-contact-modal-backdrop,
+.nt-compose-link-modal-backdrop,
+.nt-compose-expiration-modal-backdrop,
+.nt-compose-encryption-modal-backdrop,
+.nt-mail-taxonomy-modal-backdrop {
+  background: var(--nt-overlay-scrim);
+  backdrop-filter: none;
+}
+
+.nt-compose-popover__send,
+.nt-contact-modal__actions .nt-contact-modal__primary,
+.nt-mail-taxonomy-modal__primary,
+.nt-mail-search-submit {
+  border-color: var(--nt-action-primary) !important;
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-action-primary) !important;
+  box-shadow: none;
+}
+
+.nt-compose-popover__send:hover:not(:disabled),
+.nt-contact-modal__actions .nt-contact-modal__primary:hover:not(:disabled),
+.nt-mail-taxonomy-modal__primary:hover:not(:disabled),
+.nt-mail-search-submit:hover:not(:disabled) {
+  border-color: var(--nt-action-primary-hover) !important;
+  background: var(--nt-action-primary-hover) !important;
+}
+
+.nt-compose-popover__send-menu {
+  border-color: var(--nt-reading-border);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-control);
+  box-shadow: none;
+}
+
+.nt-compose-popover__send-menu:hover:not(:disabled) {
+  border-color: var(--nt-reading-border-hover);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-hover);
+}
+
+.nt-compose-popover__toolbar button:hover,
+.nt-compose-popover__formatbar button:hover,
+.nt-compose-popover__utility-actions button:hover {
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-hover);
+}
+
+.nt-compose-format-button--active,
+.nt-compose-popover__formatbar .nt-compose-format-button--active:hover,
+.nt-compose-popover__utility-actions button[aria-pressed="true"],
+.nt-compose-popover__utility-actions button[aria-expanded="true"] {
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-action-primary) !important;
+}
+
+/* State feedback --------------------------------------------------------- */
+
+.nt-copy-toast {
+  border: 1px solid currentColor;
+  border-left-width: 3px;
+  border-radius: var(--nt-radius-md);
+  box-shadow: var(--nt-shadow-floating);
+}
+
+.nt-copy-toast--success {
+  color: var(--nt-green-text);
+  background: var(--nt-green-soft);
+}
+
+.nt-copy-toast--status {
+  color: var(--nt-info-text);
+  background: var(--nt-info-soft);
+}
+
+.nt-copy-toast__state {
+  border-radius: 50%;
+}
+
+.nt-global-busy__message {
+  max-width: min(520px, calc(100vw - 24px));
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-surface-panel);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.nt-empty,
+[data-empty-state] {
+  color: var(--nt-empty-ink);
+}
+
+.nt-empty {
+  border-color: var(--nt-empty-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-empty-surface);
+}
+
+/* Responsive boundaries ------------------------------------------------- */
+
+@media (max-width: 1023px) {
+  .nt-app-shell--edge-rail .nt-side-rail {
+    border-right: 0;
+    border-bottom: 1px solid var(--nt-border-default);
+  }
+
+  .nt-board-head {
+    min-height: 64px;
+    padding: 12px 14px;
+  }
+}
+
+@media (max-width: 720px) {
+  .nt-compose-popover,
+  .nt-compose-popover--expanded,
+  .nt-contact-modal,
+  .nt-mail-taxonomy-modal,
+  .nt-mail-search-overlay,
+  .nt-platform-account-popover {
+    border-radius: var(--nt-radius-md);
+  }
+
+  .nt-copy-toast {
+    width: calc(100vw - 16px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

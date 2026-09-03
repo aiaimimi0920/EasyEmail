@@ -38,6 +38,10 @@ const app = [readFileSync("src/App.tsx", "utf8"), ...componentSources]
 // Raw stylesheet text. Only the block helpers below use this directly, because
 // they need exact byte offsets to locate a selector.
 const cssRaw = readFileSync("src/App.css", "utf8").replace(/\r\n/g, "\n");
+const canonicalCssRaw = readFileSync("src/styles/neuro-canonical.css", "utf8").replace(
+  /\r\n/g,
+  "\n",
+);
 
 // Collapse runs of whitespace to a single space so reindenting, reordering
 // declarations, or running a formatter cannot fail a check that is really about
@@ -60,6 +64,7 @@ const whitespaceTolerantCss = (raw) => {
 };
 
 const css = whitespaceTolerantCss(cssRaw);
+const canonicalCss = whitespaceTolerantCss(canonicalCssRaw);
 const invokeCommand = readFileSync("src/api/invokeCommand.ts", "utf8");
 const avatarSettingsClient = readFileSync("src/api/avatarSettingsClient.ts", "utf8");
 const contactAvatarImage = readFileSync("src/avatar/contactAvatarImage.ts", "utf8");
@@ -435,6 +440,13 @@ const checks = [
   ["App exposes compact Codes switch", app.includes("onlyCodes")],
   ["CSS defines the canonical Neuro palette", ["--nt-color-signal-yellow: #d9ff38", "--nt-color-signal-green: #22c55e", "--nt-color-info-blue: #06b6d4", "--nt-color-danger-red: #f43f5e"].every((token) => css.includes(token))],
   ["CSS derives interaction states from canonical colors", css.includes("--nt-yellow-hover: color-mix(in srgb, var(--nt-color-signal-yellow) 86%, white)") && css.includes("--nt-green-soft: color-mix(in srgb, var(--nt-color-signal-green) 14%, var(--nt-color-surface-panel))") && css.includes("--nt-info-soft: color-mix(in srgb, var(--nt-color-info-blue) 12%, var(--nt-color-surface-panel))")],
+  ["App imports the runtime Neuro contract after legacy product styles", app.includes('import "./App.css";\nimport "./styles/neuro-canonical.css";')],
+  ["Runtime Neuro layer keeps the compose entry as the single filled rail CTA", app.includes('item.id === "compose" ? "nt-nav__item--primary" : ""') && canonicalCss.includes(".nt-nav__item--primary") && canonicalCss.includes("background: var(--nt-action-primary)") && canonicalCss.includes(".nt-nav__item--active:not(.nt-nav__item--primary)") && canonicalCss.includes("background: var(--nt-yellow-soft)")],
+  ["Compose keeps Send as the only filled yellow action", canonicalCss.includes(".nt-compose-popover__send, .nt-contact-modal__actions .nt-contact-modal__primary") && canonicalCss.includes(".nt-compose-popover__send-menu { border-color: var(--nt-reading-border); color: var(--nt-reading-ink); background: var(--nt-reading-control)")],
+  ["Runtime Neuro layer uses opaque compact slabs instead of decorative glass cards", canonicalCss.includes(".nt-side-rail, .nt-workspace-board") && canonicalCss.includes("border-radius: 0") && canonicalCss.includes("background: var(--nt-surface-shell)") && canonicalCss.includes(".nt-board-head") && canonicalCss.includes("border-left: 3px solid var(--nt-action-primary)") && canonicalCss.includes("background-image: none") && !canonicalCssRaw.includes("backdrop-filter: blur")],
+  ["Runtime Neuro layer reserves the light focus surface for reading and editing", canonicalCss.includes(".nt-reading-pane") && canonicalCss.includes("background: var(--nt-reading-surface)") && canonicalCss.includes(".nt-compose-popover") && canonicalCss.includes("color: var(--nt-reading-ink)") && canonicalCss.includes(".nt-mail-search-overlay") && canonicalCss.includes("background: var(--nt-surface-panel)")],
+  ["Dark source menus keep selection soft and reserve filled yellow for their primary action", canonicalCss.includes(".nt-mail-source-selector__option.nt-mail-source-selector__option--active") && canonicalCss.includes("background: var(--nt-yellow-soft)") && canonicalCss.includes(".nt-mail-source-selector__action--primary, .nt-mail-list-toolbar__apply")],
+  ["Runtime Neuro layer exposes focus disabled motion and narrow viewport states", canonicalCss.includes("outline: 2px solid var(--nt-border-focus)") && canonicalCss.includes("cursor: not-allowed") && canonicalCss.includes("white-space: normal") && canonicalCss.includes("@media (max-width: 720px)") && canonicalCss.includes("@media (prefers-reduced-motion: reduce)")],
   ["Signal yellow controls use semantic ink and derived endpoints instead of competing concrete yellows", cssRaw.includes("var(--nt-action-primary-ink)") && cssRaw.includes("var(--nt-action-primary-pressed)") && cssRaw.includes("var(--nt-action-primary-hover)") && !/(?:#101509|#11160a|#a7f32b|#b8f83c|#c8ff5c|rgba\(167,\s*243,\s*43)/i.test(cssRaw)],
   ["Legacy theme names alias semantic roles without retaining a violet role", css.includes("--nt-signal: var(--nt-action-primary)") && css.includes("--nt-cyan: var(--nt-status-info)") && !css.includes("--nt-violet:") && css.includes("--nt-board: var(--nt-reading-surface)")],
   ["The stylesheet consumes semantic roles without retaining a competing purple palette", finalCanonicalCascadeCss.includes("background: var(--nt-surface-shell)") && finalCanonicalCascadeCss.includes("background: var(--nt-action-primary)") && finalCanonicalCascadeCss.includes("background: var(--nt-reading-surface)") && finalCanonicalCascadeCss.includes("color: var(--nt-reading-ink)") && !/(?:#6d4aff|#7c3aed|#8b5cf6|#6d28d9|#2f246c|rgba\((?:109,\s*74,\s*255|124,\s*58,\s*237|139,\s*92,\s*246))/i.test(cssRaw)],

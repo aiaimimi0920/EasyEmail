@@ -148,6 +148,7 @@ import {
 import { senderAvatarMapKey } from "./mail/senderAvatar";
 import { createNonOverlappingAsyncRunner } from "./utils/asyncTask";
 import "./App.css";
+import "./styles/neuro-canonical.css";
 
 const bundledCoreClient = createBundledCoreClient(invoke);
 const avatarSettingsClient = createAvatarSettingsClient(invoke);
@@ -8353,7 +8354,9 @@ function App() {
                   aria-controls={item.id === "compose" ? "compose-popover" : undefined}
                   data-nonmodal-trigger={item.id === "compose" ? "compose-popover" : undefined}
                   title={item.label}
-                  className={`nt-nav__item ${active ? "nt-nav__item--active" : ""}`}
+                  className={`nt-nav__item ${
+                    item.id === "compose" ? "nt-nav__item--primary" : ""
+                  } ${active ? "nt-nav__item--active" : ""}`}
                   onClick={
                     item.id === "compose"
                       ? openComposePopover
