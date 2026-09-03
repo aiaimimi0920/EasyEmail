@@ -55,6 +55,7 @@ function writeJson(response: ServerResponse, statusCode: number, value: unknown)
 function writeEasyEmailError(response: ServerResponse, statusCode: number, error: EasyEmailError): void {
   writeJson(response, statusCode, {
     code: error.code,
+    ...error.details,
     error: error.message,
     message: error.message,
   });

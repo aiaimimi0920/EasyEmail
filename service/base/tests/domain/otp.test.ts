@@ -167,4 +167,22 @@ describe("extractOtpFromContent", () => {
       source: "html",
     });
   });
+
+  it("ignores sendgrid tracking ids in OpenAI sign-in notification emails without an OTP", () => {
+    const extracted = extractOtpFromContent({
+      subject: "New sign-in to your OpenAI account",
+      textBody: [
+        "New sign-in details for your OpenAI account.",
+        "Hello,",
+        "We noticed a new sign-in to your OpenAI account.",
+        "App: ChatGPT Web",
+        "If you don't recognize this activity, please review your account security",
+        "( https://u20216706.ct.sendgrid.net/ls/click?upn=u001.example ) right away.",
+        "If you have any questions please contact us through our help center",
+        "( https://u20216706.ct.sendgrid.net/ls/click?upn=u001.example2 ).",
+      ].join(" "),
+    });
+
+    expect(extracted).toBeUndefined();
+  });
 });

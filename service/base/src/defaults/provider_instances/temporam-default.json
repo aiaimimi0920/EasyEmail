@@ -14,7 +14,8 @@
   "groupKeys": [],
   "metadata": {
     "tier": "default",
-    "apiBase": "https://www.temporam.com",
+    "apiBase": "https://api.temporam.com/v3",
+    "preferredDomain": "temporam.shop",
     "acceptLanguage": "zh-CN,zh;q=0.9",
     "acceptEncoding": "identity",
     "flow": "anonymous-web"

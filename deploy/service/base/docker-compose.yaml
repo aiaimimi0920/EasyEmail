@@ -6,8 +6,16 @@ services:
     image: ${EASY_EMAIL_SERVICE_IMAGE:-easy-email/easy-email:local}
     container_name: ${EASY_EMAIL_SERVICE_CONTAINER_NAME:-easy-email}
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "${EASY_DOCKER_LOG_MAX_SIZE:-20m}"
+        max-file: "${EASY_DOCKER_LOG_MAX_FILE:-5}"
+    tmpfs:
+      - /tmp:size=128m,mode=1777
     cpus: 0.75
-    mem_limit: 384m
+    mem_limit: ${EASY_EMAIL_SERVICE_MEM_LIMIT:-768m}
+    memswap_limit: ${EASY_EMAIL_SERVICE_MEMSWAP_LIMIT:-1536m}
     ports:
       - "${EASY_EMAIL_SERVICE_HOST_PORT:-18081}:8080"
     env_file:

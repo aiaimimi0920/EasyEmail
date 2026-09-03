@@ -107,6 +107,7 @@ function assertMailboxSessionNotExcluded(
     throw new EasyEmailError(
       "MAILBOX_DOMAIN_EXCLUDED",
       `Mailbox domain "${selectedDomain}" was excluded by the request.`,
+      { domain: selectedDomain },
     );
   }
 }

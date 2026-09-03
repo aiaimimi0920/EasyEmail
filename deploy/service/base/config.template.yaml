@@ -113,7 +113,8 @@ providers:
     # baseUrl: https://api.tempmail.lol/v2
 
   temporam:
-    # baseUrl: https://www.temporam.com
+    # baseUrl: https://api.temporam.com/v3
+    # apiKey: "replace-with-temporam-api-key"
     # preferredDomain: v2proxy.com
 
   m2u:

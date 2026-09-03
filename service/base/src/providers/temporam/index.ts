@@ -21,6 +21,7 @@ export class TemporamProviderAdapter implements MailProviderAdapter {
     const mailbox = await client.createMailbox({
       preferredDomain: request.requestedDomain?.trim() || "",
       requestedLocalPart: request.requestedLocalPart?.trim() || "",
+      excludedDomains: request.excludedDomains,
     });
 
     return {

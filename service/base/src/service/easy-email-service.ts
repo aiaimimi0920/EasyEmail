@@ -101,6 +101,8 @@ import {
   resolveMailRoutingProfileFromProfiles,
 } from "../domain/strategy-mode.js";
 
+const PROVIDER_PROBE_BATCH_SIZE = 3;
+
 function createDefaultRegistry(now: Date = new Date()): MailRegistry {
   return createEasyEmailRegistryFromCatalog({}, now);
 }
@@ -196,16 +198,22 @@ function inferMailboxCapacityRecoveryProviderType(input: {
 function normalizeMailboxOpenError(error: unknown): unknown {
   if (error instanceof EasyEmailError) {
     if (error.code === "MOEMAIL_CAPACITY_EXHAUSTED") {
-      return new EasyEmailError("MAILBOX_CAPACITY_UNAVAILABLE", error.message);
+      return new EasyEmailError("MAILBOX_CAPACITY_UNAVAILABLE", error.message, error.details);
     }
     if (error.code === "MOEMAIL_UPSTREAM_TRANSIENT") {
-      return new EasyEmailError("MAILBOX_UPSTREAM_TRANSIENT", error.message);
+      return new EasyEmailError("MAILBOX_UPSTREAM_TRANSIENT", error.message, error.details);
     }
     return error;
   }
 
   const message = error instanceof Error ? error.message : String(error ?? "");
   const normalized = message.toLowerCase();
+  if (
+    normalized.includes("shared domain")
+    && (normalized.includes("restricted") || normalized.includes("not accepting new public addresses"))
+  ) {
+    return new EasyEmailError("MAILBOX_DOMAIN_EXCLUDED", message);
+  }
   if (normalized.includes("m2u_capacity_failure")) {
     return new EasyEmailError("MAILBOX_CAPACITY_UNAVAILABLE", message);
   }
@@ -219,6 +227,25 @@ function normalizeMailboxOpenError(error: unknown): unknown {
     return new EasyEmailError("MAILBOX_UPSTREAM_TRANSIENT", message);
   }
   return error;
+}
+
+function attachMailboxOpenErrorContext(
+  error: unknown,
+  plan: MailboxPlanResult | undefined,
+  attemptedProviderTypeKey: MailProviderTypeKey,
+): unknown {
+  const normalizedError = normalizeMailboxOpenError(error);
+  if (!(normalizedError instanceof EasyEmailError)) {
+    return normalizedError;
+  }
+
+  return new EasyEmailError(normalizedError.code, normalizedError.message, {
+    ...normalizedError.details,
+    providerTypeKey: normalizedError.details.providerTypeKey
+      ?? plan?.providerType.key
+      ?? attemptedProviderTypeKey,
+    providerInstanceId: normalizedError.details.providerInstanceId ?? plan?.instance.id,
+  });
 }
 
 function isUnresolvedProviderPlanError(error: unknown): boolean {
@@ -644,9 +671,13 @@ export class EasyEmailService {
   public async probeAllProviderInstances(now: Date = new Date()): Promise<ProviderHealthProbeResult[]> {
     this.syncOperationalState(now);
     const instances = this.registry.listInstances().filter((instance) => !isActiveProbeDisabled(instance));
-    const settled = await Promise.allSettled(
-      instances.map((instance) => this.probeProviderInstance(instance.id, now)),
-    );
+    const settled: PromiseSettledResult<ProviderHealthProbeResult>[] = [];
+    for (let index = 0; index < instances.length; index += PROVIDER_PROBE_BATCH_SIZE) {
+      const batch = instances.slice(index, index + PROVIDER_PROBE_BATCH_SIZE);
+      settled.push(...await Promise.allSettled(
+        batch.map((instance) => this.probeProviderInstance(instance.id, now)),
+      ));
+    }
 
     return settled.map((outcome, index) => {
       if (outcome.status === "fulfilled") {
@@ -719,7 +750,7 @@ export class EasyEmailService {
           aliasOutcome,
         };
       } catch (error) {
-        const normalizedError = normalizeMailboxOpenError(error);
+        const normalizedError = attachMailboxOpenErrorContext(error, plan, providerTypeKey);
         if (plan) {
           recordMailboxOpenFailure(this.registry, plan.instance, normalizedError, now);
         }

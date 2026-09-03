@@ -28,6 +28,7 @@ const VALIDITY_HINT_RE = /(?:expire|expired|expires|valid|validity|minute|minute
 const NEGATIVE_RE = /(?:backup|ignore|secondary|order|invoice|tracking|parcel|shipment|ticket|reference|ref\b|phone|mobile|zip|postal|amount|price|total|订单|金额|价格|快递|包裹|物流|手机号|电话|邮编|尾号|参考号)/i;
 const COLOR_STYLE_HINT_RE = /(?:color|background|border|fill|stroke|font-face|stylesheet|style=|rgba?\(|hsla?\(|#[0-9a-f]{3,8})/i;
 const HTML_TAG_RE = /<[^>]+>/g;
+const URL_RE = /https?:\/\/\S+/gi;
 const EMAIL_AROUND_CANDIDATE_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const CONTEXTUAL_NUMERIC_OTP_RE = /(?:verification\s*code|verify\s*code|security\s*code|one[-\s]*time\s*(?:pass)?code|login\s*code|sign[\s-]*in\s*code|confirmation\s*code|email\s*code|otp|passcode|验证码|校验码|动态码|动态密码|口令|代码为|代码是|enter\s+this\s+temporary\s+verification\s+code)[^0-9]{0,80}(\d{6})(?!\d)/i;
 const CONTEXTUAL_SHORT_OTP_PATTERNS = [
@@ -107,8 +108,9 @@ function normalizeContent(value: string | undefined, source: CodeSource): string
   const text = source === "html"
     ? decoded.replace(HTML_TAG_RE, " ")
     : decoded;
+  const withoutUrls = text.replace(URL_RE, " ");
 
-  const normalized = text
+  const normalized = withoutUrls
     .replace(/\s+/g, " ")
     .trim();
 
@@ -284,7 +286,10 @@ function isViableCandidate(code: string, context: string): boolean {
   }
 
   if (hasDigit && !hasLetter) {
-    return compact.length >= 4 && compact.length <= 10;
+    if (compact.length < 6) {
+      return CONTEXT_RE.test(context);
+    }
+    return compact.length <= 10;
   }
 
   return compact.length >= 5 && compact.length <= 24;

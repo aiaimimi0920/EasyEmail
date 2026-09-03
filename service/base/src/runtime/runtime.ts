@@ -867,6 +867,7 @@ function configureTemporamProviderInstance(
     {
       baseUrl: config.temporam.baseUrl,
       extraMetadata: {
+        apiKey: config.temporam.apiKey,
         preferredDomain: config.temporam.preferredDomain,
       },
     },

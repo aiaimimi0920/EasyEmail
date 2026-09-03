@@ -10,6 +10,7 @@ import {
   decodeTemporamMailboxRef,
   encodeTemporamMailboxRef,
   probeTemporamInstance,
+  resolveTemporamConfig,
 } from "../../src/providers/temporam/client.js";
 
 describe("temporam provider", () => {
@@ -76,6 +77,94 @@ describe("temporam provider", () => {
     );
   });
 
+  it("uses the authenticated v3 API when configured with the current API base", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-06T01:00:00.000Z"));
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        code: 200,
+        error: false,
+        data: [{ id: "33", domain: "temporam.com" }],
+      }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new TemporamClient({
+      baseUrl: "https://api.temporam.com/v3",
+      apiKey: "test-api-key",
+      userAgent: "EasyEmailTemporam/1.0",
+      acceptLanguage: "zh-CN,zh;q=0.9",
+      acceptEncoding: "identity",
+    });
+
+    await expect(client.createMailbox({ requestedLocalPart: "demo" })).resolves.toEqual({
+      email: "demo@temporam.com",
+      localPart: "demo",
+      domain: "temporam.com",
+      openedAt: "2026-06-06T01:00:00.000Z",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.temporam.com/v3/domains",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({ Authorization: "Bearer test-api-key" }),
+      }),
+    );
+  });
+
+  it("retries transient fetch failures before creating a mailbox", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-06T01:00:00.000Z"));
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error("fetch failed"))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        code: 200,
+        error: false,
+        data: [{ domain: "temporam.com" }],
+      }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pending = new TemporamClient({
+      baseUrl: "https://api.temporam.com/v3",
+      apiKey: "test-api-key",
+      userAgent: "EasyEmailTemporam/1.0",
+      acceptLanguage: "zh-CN,zh;q=0.9",
+      acceptEncoding: "identity",
+    }).createMailbox({ requestedLocalPart: "demo" });
+    await vi.advanceTimersByTimeAsync(700);
+
+    await expect(pending).resolves.toMatchObject({
+      email: "demo@temporam.com",
+      localPart: "demo",
+      domain: "temporam.com",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries transient upstream responses before returning the final error", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("upstream unavailable", { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        code: 200,
+        error: false,
+        data: [{ domain: "temporam.com" }],
+      }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pending = new TemporamClient({
+      baseUrl: "https://api.temporam.com/v3",
+      apiKey: "test-api-key",
+      userAgent: "EasyEmailTemporam/1.0",
+      acceptLanguage: "zh-CN,zh;q=0.9",
+      acceptEncoding: "identity",
+    }).createMailbox();
+    await vi.advanceTimersByTimeAsync(700);
+
+    await expect(pending).resolves.toMatchObject({ domain: "temporam.com" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("generates an eight-character local part when no local part is requested", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-06T01:00:00.000Z"));
@@ -99,6 +188,36 @@ describe("temporam provider", () => {
       email: "aaaaaaaa@v2proxy.com",
       localPart: "aaaaaaaa",
       domain: "v2proxy.com",
+      openedAt: "2026-06-06T01:00:00.000Z",
+    });
+  });
+
+  it("skips excluded domains when creating a mailbox", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-06T01:00:00.000Z"));
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        code: 200,
+        error: false,
+        data: [{ domain: "v2proxy.com" }, { domain: "safe.test" }],
+      }), { status: 200 }),
+    ));
+
+    const client = new TemporamClient({
+      baseUrl: "https://www.temporam.com",
+      userAgent: "EasyEmailTemporam/1.0",
+      acceptLanguage: "zh-CN,zh;q=0.9",
+      acceptEncoding: "identity",
+    });
+
+    await expect(client.createMailbox({
+      requestedLocalPart: "demo",
+      excludedDomains: ["v2proxy.com"],
+    })).resolves.toEqual({
+      email: "demo@safe.test",
+      localPart: "demo",
+      domain: "safe.test",
       openedAt: "2026-06-06T01:00:00.000Z",
     });
   });
@@ -294,6 +413,30 @@ describe("temporam provider", () => {
     expect(createDefaultProviderInstances(now).some((item) => item.id === "temporam_shared_default")).toBe(true);
     expect(createDefaultMailProviderAdapters().some((adapter) => adapter.typeKey === "temporam")).toBe(true);
     expect(config.defaultStrategyMode?.providerSelections).toContain("temporam");
+  });
+
+  it("parses the current Temporam API key configuration", () => {
+    const config = parseEasyEmailServiceRuntimeConfig({
+      providers: {
+        temporam: {
+          baseUrl: "https://api.temporam.com/v3",
+          apiKey: "test-api-key",
+        },
+      },
+    });
+
+    expect(config.temporam).toEqual({
+      baseUrl: "https://api.temporam.com/v3",
+      apiKey: "test-api-key",
+      preferredDomain: undefined,
+    });
+    expect(resolveTemporamConfig({
+      ...createTemporamInstance(),
+      metadata: {
+        apiBase: "https://api.temporam.com/v3",
+        apiKey: "test-api-key",
+      },
+    }).apiKey).toBe("test-api-key");
   });
 });
 

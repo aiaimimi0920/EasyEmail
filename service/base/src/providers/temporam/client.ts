@@ -16,6 +16,7 @@ import { extractOtpFromContent } from "../../domain/otp.js";
 
 export interface TemporamConfig {
   baseUrl: string;
+  apiKey?: string;
   userAgent: string;
   acceptLanguage: string;
   acceptEncoding: string;
@@ -29,13 +30,18 @@ export interface TemporamMailboxCredentials {
   openedAt: string;
 }
 
-const TEMPORAM_DEFAULT_BASE_URL = "https://www.temporam.com";
+// Temporam's current authenticated API is served under /v3.  Keep the
+// legacy www host handling below for installations that still use the old
+// web API, but default new instances to the current API surface.
+const TEMPORAM_DEFAULT_BASE_URL = "https://api.temporam.com/v3";
 const TEMPORAM_DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
 const TEMPORAM_DEFAULT_ACCEPT_LANGUAGE = "zh-CN,zh;q=0.9";
 const TEMPORAM_DEFAULT_ACCEPT_ENCODING = "identity";
 const TEMPORAM_LOCAL_PART_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 const TRANSIENT_ERROR_RE = /(fetch failed|timeout|timed out|econnreset|socket hang up|network|status 5\d{2}|temporarily unavailable|gateway)/i;
 const CAPACITY_ERROR_RE = /(status 429|too many requests|rate limit|quota|capacity)/i;
+const TEMPORAM_MAX_RETRIES = 2;
+const TEMPORAM_RETRY_BASE_DELAY_MS = 700;
 
 function readMetadata(instance: ProviderInstance, key: string): string | undefined {
   const value = instance.metadata[key];
@@ -108,20 +114,30 @@ function domainMatchesPreference(domain: string | undefined, preferredDomain: st
     || normalizedDomain.endsWith(`.${normalizedPreferredDomain}`);
 }
 
-function selectDomain(domains: string[], preferredDomain: string | undefined): string {
+function selectDomain(
+  domains: string[],
+  preferredDomain: string | undefined,
+  excludedDomains: string[] = [],
+): string {
+  const excludedSet = new Set(
+    excludedDomains
+      .map((domain) => normalizeDomain(domain))
+      .filter((domain): domain is string => Boolean(domain)),
+  );
+  const candidateDomains = domains.filter((domain) => !excludedSet.has(normalizeDomain(domain) ?? ""));
   const normalizedPreferredDomain = normalizeDomain(preferredDomain);
   if (normalizedPreferredDomain) {
-    const preferredMatches = domains.filter((domain) => domainMatchesPreference(domain, normalizedPreferredDomain));
+    const preferredMatches = candidateDomains.filter((domain) => domainMatchesPreference(domain, normalizedPreferredDomain));
     if (preferredMatches.length === 0) {
       throw new Error(`TEMPORAM_PROVIDER_FAILURE: Temporam has no available domains matching "${normalizedPreferredDomain}".`);
     }
     return preferredMatches[Math.floor(Math.random() * preferredMatches.length)] ?? preferredMatches[0]!;
   }
 
-  if (domains.length === 0) {
-    throw new Error("TEMPORAM_PROVIDER_FAILURE: Temporam returned no available domains.");
+  if (candidateDomains.length === 0) {
+    throw new Error("TEMPORAM_PROVIDER_FAILURE: Temporam returned no available domains after exclusions.");
   }
-  return domains[Math.floor(Math.random() * domains.length)] ?? domains[0]!;
+  return candidateDomains[Math.floor(Math.random() * candidateDomains.length)] ?? candidateDomains[0]!;
 }
 
 function encodeQuery(params: Array<[string, string | number | undefined]>): string {
@@ -237,12 +253,31 @@ function buildRequestHeaders(config: TemporamConfig, hasBody: boolean): Record<s
   const normalizedBase = config.baseUrl.replace(/\/$/, "");
   return {
     Accept: "application/json",
+    ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
     "User-Agent": config.userAgent,
     "Accept-Language": config.acceptLanguage,
     "Accept-Encoding": config.acceptEncoding,
     Referer: `${normalizedBase}/`,
     ...(hasBody ? { "Content-Type": "application/json" } : {}),
   };
+}
+
+function isLegacyTemporamBaseUrl(baseUrl: string): boolean {
+  try {
+    return new URL(baseUrl).hostname.toLowerCase() === "www.temporam.com";
+  } catch {
+    return false;
+  }
+}
+
+function endpointPath(config: TemporamConfig, path: string): string {
+  return isLegacyTemporamBaseUrl(config.baseUrl) ? `/api${path}` : path;
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
 }
 
 async function requestJson(
@@ -252,28 +287,50 @@ async function requestJson(
   options: { jsonBody?: Record<string, unknown> } = {},
 ): Promise<{ status: number; body: unknown }> {
   const normalizedBase = config.baseUrl.replace(/\/$/, "");
-  const response = await fetch(`${normalizedBase}${path}`, {
-    method,
-    headers: buildRequestHeaders(config, Boolean(options.jsonBody)),
-    body: options.jsonBody ? JSON.stringify(options.jsonBody) : undefined,
-  });
+  for (let attempt = 0; attempt <= TEMPORAM_MAX_RETRIES; attempt += 1) {
+    let response: Awaited<ReturnType<typeof fetch>>;
+    try {
+      response = await fetch(`${normalizedBase}${path}`, {
+        method,
+        headers: buildRequestHeaders(config, Boolean(options.jsonBody)),
+        body: options.jsonBody ? JSON.stringify(options.jsonBody) : undefined,
+      });
+    } catch (error) {
+      // Node's fetch reports transient DNS/TLS/socket failures as a rejected
+      // promise (for example, "fetch failed") rather than an HTTP response.
+      // Retry those failures before letting the provider circuit breaker cool
+      // the only configured mailbox route.
+      if (attempt < TEMPORAM_MAX_RETRIES) {
+        await sleep(TEMPORAM_RETRY_BASE_DELAY_MS * (attempt + 1));
+        continue;
+      }
+      throw error;
+    }
 
-  const text = await response.text();
-  if (!text) {
-    return { status: response.status, body: {} };
+    const text = await response.text();
+    if ((response.status === 429 || response.status >= 500) && attempt < TEMPORAM_MAX_RETRIES) {
+      await sleep(TEMPORAM_RETRY_BASE_DELAY_MS * (attempt + 1));
+      continue;
+    }
+
+    if (!text) {
+      return { status: response.status, body: {} };
+    }
+
+    try {
+      return {
+        status: response.status,
+        body: JSON.parse(text),
+      };
+    } catch {
+      return {
+        status: response.status,
+        body: text,
+      };
+    }
   }
 
-  try {
-    return {
-      status: response.status,
-      body: JSON.parse(text),
-    };
-  } catch {
-    return {
-      status: response.status,
-      body: text,
-    };
-  }
+  return { status: 599, body: {} };
 }
 
 function normalizeMessageRow(row: Record<string, unknown>, fallbackId: string): {
@@ -313,6 +370,7 @@ function sortMessagesNewestFirst(rows: Record<string, unknown>[]): Record<string
 export function resolveTemporamConfig(instance: ProviderInstance): TemporamConfig {
   return {
     baseUrl: readMetadata(instance, "apiBase") ?? readMetadata(instance, "baseUrl") ?? TEMPORAM_DEFAULT_BASE_URL,
+    apiKey: readMetadata(instance, "apiKey") ?? readMetadata(instance, "key"),
     userAgent: readMetadata(instance, "userAgent") ?? TEMPORAM_DEFAULT_USER_AGENT,
     acceptLanguage: readMetadata(instance, "acceptLanguage") ?? TEMPORAM_DEFAULT_ACCEPT_LANGUAGE,
     acceptEncoding: readMetadata(instance, "acceptEncoding") ?? TEMPORAM_DEFAULT_ACCEPT_ENCODING,
@@ -373,7 +431,7 @@ export class TemporamClient {
   }
 
   public async getDomains(): Promise<string[]> {
-    const response = await requestJson(this.config, "GET", "/api/domains");
+    const response = await requestJson(this.config, "GET", endpointPath(this.config, "/domains"));
     if (response.status !== 200 || bodyHasTemporamError(response.body)) {
       throw formatTemporamError("getDomains", response.status, response.body);
     }
@@ -390,9 +448,14 @@ export class TemporamClient {
   public async createMailbox(options: {
     preferredDomain?: string;
     requestedLocalPart?: string;
+    excludedDomains?: string[];
   } = {}): Promise<TemporamMailboxCredentials> {
     const domains = await this.getDomains();
-    const domain = selectDomain(domains, options.preferredDomain ?? this.config.preferredDomain);
+    const domain = selectDomain(
+      domains,
+      options.preferredDomain ?? this.config.preferredDomain,
+      options.excludedDomains,
+    );
     const localPart = normalizeLocalPart(options.requestedLocalPart) ?? createRandomLocalPart(8);
     return {
       email: `${localPart}@${domain}`,
@@ -414,10 +477,12 @@ export class TemporamClient {
 
     const query = encodeQuery([
       ["email", normalizedEmail],
-      ["since", since],
+      ...(isLegacyTemporamBaseUrl(this.config.baseUrl)
+        ? [["since", since] as [string, string | number | undefined]]
+        : [["page", 1] as [string, string | number | undefined]]),
       ["limit", limit],
     ]);
-    const response = await requestJson(this.config, "GET", `/api/emails${query}`);
+    const response = await requestJson(this.config, "GET", `${endpointPath(this.config, "/emails")}${query}`);
     if (response.status !== 200 || bodyHasTemporamError(response.body)) {
       throw formatTemporamError("listMessages", response.status, response.body);
     }
@@ -431,7 +496,7 @@ export class TemporamClient {
       return {};
     }
 
-    const response = await requestJson(this.config, "GET", `/api/emails/${encodeURIComponent(normalizedMessageId)}`);
+    const response = await requestJson(this.config, "GET", endpointPath(this.config, `/emails/${encodeURIComponent(normalizedMessageId)}`));
     if (response.status === 404) {
       return {};
     }

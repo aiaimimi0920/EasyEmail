@@ -57,6 +57,7 @@ export interface TempmailLolRuntimeConfig {
 
 export interface TemporamRuntimeConfig {
   baseUrl?: string;
+  apiKey?: string;
   preferredDomain?: string;
 }
 
@@ -239,6 +240,8 @@ export interface EasyEmailServiceConfigDocument {
     };
     temporam?: {
       baseUrl?: unknown;
+      apiKey?: unknown;
+      key?: unknown;
       preferredDomain?: unknown;
     };
     m2u?: {
@@ -688,6 +691,7 @@ export function parseEasyEmailServiceRuntimeConfig(
     },
     temporam: {
       baseUrl: asNonEmptyString(temporam.baseUrl),
+      apiKey: asNonEmptyString(temporam.apiKey ?? temporam.key),
       preferredDomain: asNonEmptyString(temporam.preferredDomain),
     },
     m2u: {

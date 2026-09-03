@@ -101,6 +101,25 @@ function createSequentialAdapter(
   };
 }
 
+function createFailingAdapter(
+  typeKey: ProviderTypeDefinition["key"],
+  message: string,
+): MailProviderAdapter {
+  return {
+    typeKey,
+    async createMailboxSession() {
+      throw new Error(message);
+    },
+    async probeInstance() {
+      return {
+        ok: true,
+        detail: `${typeKey}_ok`,
+        averageLatencyMs: 100,
+      };
+    },
+  };
+}
+
 describe("mailbox excluded domains and addresses", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -220,6 +239,41 @@ describe("mailbox excluded domains and addresses", () => {
       excludedDomains: ["blocked.test"],
     }, now)).rejects.toMatchObject({
       code: "MAILBOX_DOMAIN_EXCLUDED",
+      details: {
+        providerTypeKey: "mailtm",
+        providerInstanceId: "mailtm_shared_default",
+        domain: "blocked.test",
+      },
+    });
+  });
+
+  it("attaches the attempted provider to shared-domain restriction errors", async () => {
+    const service = createBootstrappedEasyEmailService({
+      providerTypes: [
+        createProviderType("im215", "215 Mail"),
+      ],
+      providerInstances: [
+        createInstance("im215"),
+      ],
+      adapters: [
+        createFailingAdapter(
+          "im215",
+          "215.im createMailbox failed with status 403. This shared domain is currently restricted and not accepting new public addresses",
+        ),
+      ],
+    }, now);
+
+    await expect(service.openMailbox({
+      hostId: "demo-host",
+      provisionMode: "reuse-only",
+      bindingMode: "shared-instance",
+      providerTypeKey: "im215",
+    }, now)).rejects.toMatchObject({
+      code: "MAILBOX_DOMAIN_EXCLUDED",
+      details: {
+        providerTypeKey: "im215",
+        providerInstanceId: "im215_shared_default",
+      },
     });
   });
 
