@@ -9,12 +9,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "test-real-provider-lifecycle.ps1"
+HELPERS = (
+    ROOT / "scripts" / "lib" / "real-provider-redaction.ps1",
+    ROOT / "scripts" / "lib" / "real-provider-http.ps1",
+    ROOT / "scripts" / "lib" / "real-provider-mailbox.ps1",
+    ROOT / "scripts" / "lib" / "real-provider-persistence.ps1",
+)
 
 
 class RealProviderLifecycleContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.script = SCRIPT.read_text(encoding="utf-8")
+        cls.script = "\n".join(
+            path.read_text(encoding="utf-8") for path in (SCRIPT, *HELPERS)
+        )
 
     def test_validation_is_explicitly_opt_in_before_config_or_docker(self) -> None:
         guard = "if (-not $ConfirmExternalSideEffects)"
@@ -122,20 +130,24 @@ class RealProviderLifecycleContractTests(unittest.TestCase):
             self.skipTest("PowerShell is required for lifecycle script validation.")
 
         parse_command = r"""
-$tokens = $null
-$errors = $null
-[void][System.Management.Automation.Language.Parser]::ParseFile(
-    $env:EASYEMAIL_REAL_LIFECYCLE_SCRIPT,
-    [ref]$tokens,
-    [ref]$errors
-)
-if ($errors.Count -gt 0) {
-    $errors | ForEach-Object { Write-Error $_.Message }
-    exit 1
+foreach ($path in $env:EASYEMAIL_REAL_LIFECYCLE_SCRIPTS -split ';') {
+    $tokens = $null
+    $errors = $null
+    [void][System.Management.Automation.Language.Parser]::ParseFile(
+        $path,
+        [ref]$tokens,
+        [ref]$errors
+    )
+    if ($errors.Count -gt 0) {
+        $errors | ForEach-Object { Write-Error "$path`: $($_.Message)" }
+        exit 1
+    }
 }
 """
         environment = os.environ.copy()
-        environment["EASYEMAIL_REAL_LIFECYCLE_SCRIPT"] = str(SCRIPT)
+        environment["EASYEMAIL_REAL_LIFECYCLE_SCRIPTS"] = ";".join(
+            str(path) for path in (SCRIPT, *HELPERS)
+        )
         completed = subprocess.run(
             [powershell, "-NoProfile", "-Command", parse_command],
             cwd=ROOT,
