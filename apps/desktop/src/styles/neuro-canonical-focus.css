@@ -1,0 +1,198 @@
+
+/* Reading, search and editing focus surfaces ---------------------------- */
+
+.nt-reading-pane,
+.nt-proton-message-card,
+.nt-proton-message-body-wrap,
+.nt-proton-message-body-wrap .nt-message-body,
+.nt-proton-conversation-message,
+.nt-proton-conversation-message__header {
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-surface);
+  box-shadow: none;
+}
+
+.nt-reading-pane {
+  border-radius: 0;
+}
+
+.nt-proton-conversation-stack {
+  background: color-mix(in srgb, var(--nt-reading-ink) 3%, var(--nt-reading-surface));
+}
+
+.nt-proton-icon-btn,
+.nt-proton-star,
+.nt-proton-action-menu button,
+.nt-reading-pane .nt-mini-btn {
+  border-color: var(--nt-reading-border);
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-control);
+  box-shadow: none;
+}
+
+.nt-proton-icon-btn:hover,
+.nt-proton-star:hover,
+.nt-proton-action-menu button:hover,
+.nt-reading-pane .nt-mini-btn:hover {
+  border-color: var(--nt-reading-border-hover);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-hover);
+}
+
+.nt-compose-popover,
+.nt-contact-modal,
+.nt-mail-taxonomy-modal,
+.nt-compose-link-modal,
+.nt-compose-expiration-modal,
+.nt-compose-encryption-modal {
+  border-color: var(--nt-yellow-line);
+  border-radius: var(--nt-radius-md);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-surface);
+  box-shadow: var(--nt-shadow-floating);
+}
+
+.nt-compose-popover__titlebar {
+  border-color: var(--nt-border-default);
+  color: var(--nt-text-primary);
+  background: var(--nt-surface-panel);
+}
+
+.nt-contact-modal-backdrop,
+.nt-compose-link-modal-backdrop,
+.nt-compose-expiration-modal-backdrop,
+.nt-compose-encryption-modal-backdrop,
+.nt-mail-taxonomy-modal-backdrop {
+  background: var(--nt-overlay-scrim);
+  backdrop-filter: none;
+}
+
+.nt-compose-popover__send,
+.nt-contact-modal__actions .nt-contact-modal__primary,
+.nt-mail-taxonomy-modal__primary,
+.nt-mail-search-submit {
+  border-color: var(--nt-action-primary) !important;
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-action-primary) !important;
+  box-shadow: none;
+}
+
+.nt-compose-popover__send:hover:not(:disabled),
+.nt-contact-modal__actions .nt-contact-modal__primary:hover:not(:disabled),
+.nt-mail-taxonomy-modal__primary:hover:not(:disabled),
+.nt-mail-search-submit:hover:not(:disabled) {
+  border-color: var(--nt-action-primary-hover) !important;
+  background: var(--nt-action-primary-hover) !important;
+}
+
+.nt-compose-popover__send-menu {
+  border-color: var(--nt-reading-border);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-control);
+  box-shadow: none;
+}
+
+.nt-compose-popover__send-menu:hover:not(:disabled) {
+  border-color: var(--nt-reading-border-hover);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-hover);
+}
+
+.nt-compose-popover__toolbar button:hover,
+.nt-compose-popover__formatbar button:hover,
+.nt-compose-popover__utility-actions button:hover {
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-hover);
+}
+
+.nt-compose-format-button--active,
+.nt-compose-popover__formatbar .nt-compose-format-button--active:hover,
+.nt-compose-popover__utility-actions button[aria-pressed="true"],
+.nt-compose-popover__utility-actions button[aria-expanded="true"] {
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-action-primary) !important;
+}
+
+/* State feedback --------------------------------------------------------- */
+
+.nt-copy-toast {
+  border: 1px solid currentColor;
+  border-left-width: 3px;
+  border-radius: var(--nt-radius-md);
+  box-shadow: var(--nt-shadow-floating);
+}
+
+.nt-copy-toast--success {
+  color: var(--nt-green-text);
+  background: var(--nt-green-soft);
+}
+
+.nt-copy-toast--status {
+  color: var(--nt-info-text);
+  background: var(--nt-info-soft);
+}
+
+.nt-copy-toast__state {
+  border-radius: 50%;
+}
+
+.nt-global-busy__message {
+  max-width: min(520px, calc(100vw - 24px));
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-surface-panel);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.nt-empty,
+[data-empty-state] {
+  color: var(--nt-empty-ink);
+}
+
+.nt-empty {
+  border-color: var(--nt-empty-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-empty-surface);
+}
+
+/* Responsive boundaries ------------------------------------------------- */
+
+@media (max-width: 1023px) {
+  .nt-app-shell--edge-rail .nt-side-rail {
+    border-right: 0;
+    border-bottom: 1px solid var(--nt-border-default);
+  }
+
+  .nt-board-head {
+    min-height: 64px;
+    padding: 12px 14px;
+  }
+}
+
+@media (max-width: 720px) {
+  .nt-compose-popover,
+  .nt-compose-popover--expanded,
+  .nt-contact-modal,
+  .nt-mail-taxonomy-modal,
+  .nt-mail-search-overlay,
+  .nt-platform-account-popover {
+    border-radius: var(--nt-radius-md);
+  }
+
+  .nt-copy-toast {
+    width: calc(100vw - 16px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
