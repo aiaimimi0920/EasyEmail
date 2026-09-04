@@ -11,6 +11,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SENDER_MATRIX = ROOT / "scripts" / "test-easyemail-cloudflare-sender-matrix.ps1"
 CLOUDFLARE_WORKFLOW = ROOT / ".github" / "workflows" / "deploy-cloudflare-email.yml"
+CLOUDFLARE_WORKFLOW_MATRIX = ROOT / "scripts" / "run-cloudflare-sender-matrix.ps1"
+CLOUDFLARE_MANIFEST = ROOT / "scripts" / "write-cloudflare-release-manifest.ps1"
 CLOUDFLARE_RELEASE_NOTES = ROOT / ".github" / "release-notes" / "cloudflare-email-run.md.tmpl"
 
 
@@ -101,11 +103,14 @@ foreach ($functionName in $functionNames) {
 
     def test_hosted_workflow_opts_in_only_m2u_transient_degradation(self) -> None:
         workflow = CLOUDFLARE_WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("-NonBlockingTransientProviders 'm2u'", workflow)
-        self.assertIn("-not $_.ok -and $_.degraded -ne $true", workflow)
-        self.assertIn("$_.degraded -eq $true", workflow)
-        self.assertIn('"result=$matrixResult"', workflow)
-        self.assertIn("senderMatrix = if", workflow)
+        matrix_script = CLOUDFLARE_WORKFLOW_MATRIX.read_text(encoding="utf-8")
+        manifest_script = CLOUDFLARE_MANIFEST.read_text(encoding="utf-8")
+        self.assertIn("run: .\\scripts\\run-cloudflare-sender-matrix.ps1", workflow)
+        self.assertIn("-NonBlockingTransientProviders 'm2u'", matrix_script)
+        self.assertIn("-not $_.ok -and $_.degraded -ne $true", matrix_script)
+        self.assertIn("$_.degraded -eq $true", matrix_script)
+        self.assertIn('"result=$matrixResult"', matrix_script)
+        self.assertIn("senderMatrix = if", manifest_script)
         release_notes = CLOUDFLARE_RELEASE_NOTES.read_text(encoding="utf-8")
         self.assertIn("{{validation.senderMatrix}}", release_notes)
 
