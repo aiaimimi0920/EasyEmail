@@ -1,4 +1,3 @@
-import { clamp } from "../shared/index.js";
 import { EasyEmailError } from "../domain/errors.js";
 import type {
   MailboxOutcomeReport,
@@ -8,306 +7,36 @@ import type {
 } from "../domain/models.js";
 import { MailRegistry } from "../domain/registry.js";
 import {
+  adjustOutcomeWeightedHealthScore,
+  extractEmailDomain,
+  parseProviderPerformanceStats,
+  updateProviderDomainPerformanceStats,
+  updateProviderPerformanceStats,
+} from "./outcome-performance.js";
+import type {
+  DomainPerformanceStats,
+  ProviderPerformanceStats,
+} from "./outcome-performance.js";
+import {
+  classifyMailboxFailure,
+  normalizeDomainMetadataValue,
+  normalizeEmailMetadataValue,
+  parseConsecutiveFailureCount,
+  putOptionalBooleanMetadata,
+  putOptionalMetadata,
+  putOptionalNumberMetadata,
+  resolveFailureCooldownUntil,
+  trimMetadataValue,
+} from "./outcome-policy.js";
+import type { MailboxFailureClass } from "./outcome-policy.js";
+import {
   clearProviderInstanceCriticalFailures,
   markProviderInstanceCriticalFailure,
   synchronizeProviderOperationalState,
 } from "./provider-operational-state.js";
 
-export interface DomainPerformanceStats {
-  successCount: number;
-  failureCount: number;
-  lastSuccessAt?: string;
-  lastFailureAt?: string;
-}
-
-export interface ProviderPerformanceStats {
-  successCount: number;
-  failureCount: number;
-  lastSuccessAt?: string;
-  lastFailureAt?: string;
-  domains: Record<string, DomainPerformanceStats>;
-}
-
-export type MailboxFailureClass = "capacity" | "transient" | "delivery" | "auth" | "unknown";
-
-export function extractEmailDomain(emailAddress: string | undefined): string | undefined {
-  const value = String(emailAddress || "").trim().toLowerCase();
-  if (!value || !value.includes("@")) {
-    return undefined;
-  }
-
-  const domain = value.split("@", 2)[1]?.trim().toLowerCase();
-  return domain || undefined;
-}
-
-export function parseProviderPerformanceStats(raw: string | undefined): ProviderPerformanceStats {
-  if (!raw?.trim()) {
-    return {
-      successCount: 0,
-      failureCount: 0,
-      domains: {},
-    };
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const domainsRaw = parsed.domains;
-    const domains = domainsRaw && typeof domainsRaw === "object" && Array.isArray(domainsRaw) === false
-      ? Object.fromEntries(
-          Object.entries(domainsRaw).map(([key, value]) => {
-            const entry = value && typeof value === "object" && Array.isArray(value) === false
-              ? value as Record<string, unknown>
-              : {};
-            return [key, {
-              successCount: Math.max(0, Number.parseInt(String(entry.successCount ?? "0"), 10) || 0),
-              failureCount: Math.max(0, Number.parseInt(String(entry.failureCount ?? "0"), 10) || 0),
-              lastSuccessAt: typeof entry.lastSuccessAt === "string" ? entry.lastSuccessAt : undefined,
-              lastFailureAt: typeof entry.lastFailureAt === "string" ? entry.lastFailureAt : undefined,
-            }];
-          }),
-        )
-      : {};
-
-    return {
-      successCount: Math.max(0, Number.parseInt(String(parsed.successCount ?? "0"), 10) || 0),
-      failureCount: Math.max(0, Number.parseInt(String(parsed.failureCount ?? "0"), 10) || 0),
-      lastSuccessAt: typeof parsed.lastSuccessAt === "string" ? parsed.lastSuccessAt : undefined,
-      lastFailureAt: typeof parsed.lastFailureAt === "string" ? parsed.lastFailureAt : undefined,
-      domains,
-    };
-  } catch {
-    return {
-      successCount: 0,
-      failureCount: 0,
-      domains: {},
-    };
-  }
-}
-
-function trimMetadataValue(value: string | undefined): string | undefined {
-  const normalized = value?.trim();
-  return normalized || undefined;
-}
-
-function normalizeDomainMetadataValue(value: string | undefined): string | undefined {
-  const normalized = trimMetadataValue(value)?.toLowerCase();
-  if (!normalized || normalized.includes("@")) {
-    return undefined;
-  }
-  return normalized;
-}
-
-function normalizeEmailMetadataValue(value: string | undefined): string | undefined {
-  const normalized = trimMetadataValue(value)?.toLowerCase();
-  if (!normalized || !normalized.includes("@")) {
-    return undefined;
-  }
-  const [localPart, domain, ...rest] = normalized.split("@");
-  if (!localPart || !domain || rest.length > 0) {
-    return undefined;
-  }
-  return `${localPart}@${domain}`;
-}
-
-function putOptionalMetadata(
-  metadata: Record<string, string>,
-  key: string,
-  value: string | undefined,
-): void {
-  if (value !== undefined) {
-    metadata[key] = value;
-  } else {
-    delete metadata[key];
-  }
-}
-
-function putOptionalBooleanMetadata(
-  metadata: Record<string, string>,
-  key: string,
-  value: boolean | undefined,
-): void {
-  if (value !== undefined) {
-    metadata[key] = value ? "true" : "false";
-  } else {
-    delete metadata[key];
-  }
-}
-
-function putOptionalNumberMetadata(
-  metadata: Record<string, string>,
-  key: string,
-  value: number | undefined,
-): void {
-  if (value !== undefined && Number.isFinite(value)) {
-    metadata[key] = String(value);
-  } else {
-    delete metadata[key];
-  }
-}
-
-function updateProviderPerformanceStats(
-  current: ProviderPerformanceStats,
-  input: {
-    success: boolean;
-    observedAt: string;
-    domain?: string;
-  },
-): ProviderPerformanceStats {
-  const next: ProviderPerformanceStats = {
-    successCount: current.successCount,
-    failureCount: current.failureCount,
-    lastSuccessAt: current.lastSuccessAt,
-    lastFailureAt: current.lastFailureAt,
-    domains: Object.fromEntries(
-      Object.entries(current.domains).map(([key, value]) => [key, { ...value }]),
-    ),
-  };
-
-  if (input.success) {
-    next.successCount += 1;
-    next.lastSuccessAt = input.observedAt;
-  } else {
-    next.failureCount += 1;
-    next.lastFailureAt = input.observedAt;
-  }
-
-  if (input.domain) {
-    const domainStats = next.domains[input.domain] ?? {
-      successCount: 0,
-      failureCount: 0,
-    };
-    if (input.success) {
-      domainStats.successCount += 1;
-      domainStats.lastSuccessAt = input.observedAt;
-    } else {
-      domainStats.failureCount += 1;
-      domainStats.lastFailureAt = input.observedAt;
-    }
-    next.domains[input.domain] = domainStats;
-  }
-
-  return next;
-}
-
-function updateProviderDomainPerformanceStats(
-  current: ProviderPerformanceStats,
-  input: {
-    success: boolean;
-    observedAt: string;
-    domain?: string;
-  },
-): ProviderPerformanceStats {
-  if (!input.domain) {
-    return {
-      ...current,
-      domains: Object.fromEntries(
-        Object.entries(current.domains).map(([key, value]) => [key, { ...value }]),
-      ),
-    };
-  }
-
-  const next: ProviderPerformanceStats = {
-    ...current,
-    domains: Object.fromEntries(
-      Object.entries(current.domains).map(([key, value]) => [key, { ...value }]),
-    ),
-  };
-  const domainStats = next.domains[input.domain] ?? {
-    successCount: 0,
-    failureCount: 0,
-  };
-  if (input.success) {
-    domainStats.successCount += 1;
-    domainStats.lastSuccessAt = input.observedAt;
-  } else {
-    domainStats.failureCount += 1;
-    domainStats.lastFailureAt = input.observedAt;
-  }
-  next.domains[input.domain] = domainStats;
-  return next;
-}
-
-function adjustOutcomeWeightedHealthScore(currentScore: number, success: boolean): number {
-  if (success) {
-    return clamp(currentScore + (1 - currentScore) * 0.12, 0.1, 1);
-  }
-
-  return clamp(currentScore * 0.82, 0.1, 1);
-}
-
-export function classifyMailboxFailure(reason: string | undefined): MailboxFailureClass {
-  const normalized = String(reason ?? "").trim().toLowerCase();
-  if (!normalized) {
-    return "unknown";
-  }
-
-  if (
-    normalized.includes("status 429")
-    || normalized.includes("too many requests")
-    || normalized.includes("rate limit")
-    || normalized.includes("quota")
-    || normalized.includes("capacity")
-    || normalized.includes("最大邮箱数量限制")
-    || normalized.includes("已达到最大邮箱数量限制")
-    || normalized.includes("maximum mailbox")
-    || normalized.includes("max mailbox")
-    || normalized.includes("mailbox count limit")
-  ) {
-    return "capacity";
-  }
-
-  if (
-    normalized.includes("otp_timeout")
-    || normalized.includes("code never arrived")
-    || normalized.includes("mailbox")
-    || normalized.includes("delivery")
-  ) {
-    return "delivery";
-  }
-
-  if (
-    normalized.includes("unauthorized")
-    || normalized.includes("forbidden")
-    || normalized.includes("invalid token")
-    || normalized.includes("auth")
-    || normalized.includes("credential")
-  ) {
-    return "auth";
-  }
-
-  if (
-    normalized.includes("fetch failed")
-    || normalized.includes("timeout")
-    || normalized.includes("timed out")
-    || normalized.includes("econnreset")
-    || normalized.includes("socket hang up")
-    || normalized.includes("network")
-    || normalized.includes("transient")
-    || normalized.includes("status 5")
-  ) {
-    return "transient";
-  }
-
-  return "unknown";
-}
-
-function parseConsecutiveFailureCount(value: string | undefined): number {
-  const parsed = Number.parseInt(String(value ?? "0"), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-}
-
-function resolveFailureCooldownUntil(failureClass: MailboxFailureClass, now: Date): string | undefined {
-  const minutes = failureClass === "capacity"
-    ? 45
-    : failureClass === "transient"
-      ? 15
-      : failureClass === "delivery"
-        ? 10
-        : failureClass === "auth"
-          ? 90
-          : 5;
-  return new Date(now.getTime() + minutes * 60 * 1000).toISOString();
-}
+export { extractEmailDomain, parseProviderPerformanceStats, classifyMailboxFailure };
+export type { DomainPerformanceStats, ProviderPerformanceStats, MailboxFailureClass };
 
 function supportsCredentialRuntimeCooldown(registry: MailRegistry, instance: ProviderInstance): boolean {
   return registry.resolveCredentialSetsForInstance(instance.id, "generate").length > 0
@@ -468,8 +197,8 @@ export function reportMailboxOutcomeToRegistry(
   const cooledInstance = isMailboxDomainRisk
     ? nextInstance
     : report.success
-    ? clearProviderInstanceCriticalFailures(nextInstance, now)
-    : applyProviderCriticalFailureState(registry, nextInstance, failureClass, now);
+      ? clearProviderInstanceCriticalFailures(nextInstance, now)
+      : applyProviderCriticalFailureState(registry, nextInstance, failureClass, now);
   registry.saveInstance(cooledInstance);
   synchronizeProviderOperationalState(registry, now);
 
