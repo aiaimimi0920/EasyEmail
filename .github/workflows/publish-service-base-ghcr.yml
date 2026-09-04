@@ -181,52 +181,12 @@ jobs:
           RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
           VERSION_INPUT: ${{ inputs.version }}
           COORDINATED_RELEASE: ${{ inputs.coordinated_release }}
+          PUSH_LATEST_INPUT: ${{ inputs.push_latest }}
+          RUN_SMOKE_INPUT: ${{ inputs.run_smoke }}
+          PLATFORM_INPUT: ${{ inputs.platform }}
+          FORCE_PUBLISH_INPUT: ${{ inputs.force_publish }}
         shell: bash
-        run: |
-          set -euo pipefail
-
-          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          short_sha="$(git rev-parse --short HEAD)"
-
-          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${COORDINATED_RELEASE}" != "true" ]]; then
-            version="${GITHUB_REF_NAME}"
-            push_latest="true"
-            run_smoke="true"
-            platform="linux/amd64"
-            force_publish="false"
-          else
-            version="${RELEASE_TAG_INPUT:-${VERSION_INPUT:-}}"
-            if [[ -z "${version}" ]]; then
-              version="release-$(date -u +%Y%m%d)-$(printf '%03d' "${GITHUB_RUN_NUMBER}")"
-            fi
-            push_latest="${{ inputs.push_latest }}"
-            run_smoke="${{ inputs.run_smoke }}"
-            platform="${{ inputs.platform }}"
-            force_publish="${{ inputs.force_publish }}"
-          fi
-
-          image_ref="${REGISTRY}/${owner}/${IMAGE_NAME}"
-          smoke_image="${image_ref}:smoke-${GITHUB_RUN_ID}"
-
-          {
-            echo "owner=${owner}"
-            echo "version=${version}"
-            echo "release_tag=${version}"
-            echo "short_sha=${short_sha}"
-            echo "platform=${platform}"
-            echo "image_ref=${image_ref}"
-            echo "smoke_image=${smoke_image}"
-            echo "push_latest=${push_latest}"
-            echo "run_smoke=${run_smoke}"
-            echo "force_publish=${force_publish}"
-            echo "tags<<EOF"
-            echo "${image_ref}:${version}"
-            echo "${image_ref}:sha-${short_sha}"
-            if [[ "${push_latest}" == "true" ]]; then
-              echo "${image_ref}:latest"
-            fi
-            echo "EOF"
-          } >> "${GITHUB_OUTPUT}"
+        run: python scripts/resolve-service-base-release.py
 
       - name: Validate Release Tag
         shell: bash
@@ -460,89 +420,19 @@ jobs:
       - name: Write Release Manifest
         if: steps.change_gate.outputs.should_publish == 'true'
         id: manifest
+        env:
+          EASYEMAIL_RELEASE_VERSION: ${{ steps.release_meta.outputs.version }}
+          EASYEMAIL_IMAGE_REF: ${{ steps.release_meta.outputs.image_ref }}
+          EASYEMAIL_SHORT_SHA: ${{ steps.release_meta.outputs.short_sha }}
+          EASYEMAIL_PUSH_LATEST: ${{ steps.release_meta.outputs.push_latest }}
+          EASYEMAIL_PLATFORM: ${{ steps.release_meta.outputs.platform }}
+          EASYEMAIL_IMAGE_DIGEST: ${{ steps.build_push.outputs.digest }}
+          EASYEMAIL_DISTRIBUTION_PATH: ${{ steps.runtime_config_upload.outputs.path }}
+          EASYEMAIL_MATCHED_FILES: ${{ steps.change_gate.outputs.matched_files }}
+          EASYEMAIL_CHANGE_REASON: ${{ steps.change_gate.outputs.reason }}
+          EASYEMAIL_SMOKE_LABEL: ${{ steps.smoke_label.outputs.value }}
         shell: pwsh
-        run: |
-          . .\scripts\lib\easyemail-config.ps1
-
-          $version = '${{ steps.release_meta.outputs.version }}'
-          $tags = @(
-            "${{ steps.release_meta.outputs.image_ref }}:${{ steps.release_meta.outputs.version }}"
-            "${{ steps.release_meta.outputs.image_ref }}:sha-${{ steps.release_meta.outputs.short_sha }}"
-          )
-          if ('${{ steps.release_meta.outputs.push_latest }}' -eq 'true') {
-            $tags += "${{ steps.release_meta.outputs.image_ref }}:latest"
-          }
-
-          $distribution = $null
-          if (Test-Path -LiteralPath '${{ steps.runtime_config_upload.outputs.path }}') {
-            $distribution = Get-Content -LiteralPath '${{ steps.runtime_config_upload.outputs.path }}' -Raw | ConvertFrom-Json
-          }
-
-          $matchedFilesRaw = @'
-          ${{ steps.change_gate.outputs.matched_files }}
-          '@
-          $matchedFiles = @(
-            $matchedFilesRaw -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-          )
-          if ($matchedFiles.Count -eq 0) {
-            $matchedFiles = @('(no matched files recorded)')
-          }
-
-          $scopeSummary = Get-EasyEmailReleaseScopeSummary -Files $matchedFiles
-          $channel = Get-EasyEmailReleaseChannel -Tag $version
-          $tagMarkdown = ($tags | ForEach-Object { '- `{0}`' -f $_ }) -join [Environment]::NewLine
-          $matchedFilesMarkdown = ($matchedFiles | ForEach-Object { '- `{0}`' -f $_ }) -join [Environment]::NewLine
-
-          $manifest = [ordered]@{
-            schemaVersion = 1
-            generatedAtUtc = [DateTime]::UtcNow.ToString('o')
-            repository = '${{ github.repository }}'
-            workflow = [ordered]@{
-              name = '${{ github.workflow }}'
-              runId = '${{ github.run_id }}'
-              runNumber = '${{ github.run_number }}'
-              runAttempt = '${{ github.run_attempt }}'
-              url = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
-            }
-            source = [ordered]@{
-              eventName = '${{ github.event_name }}'
-              actor = '${{ github.actor }}'
-              ref = '${{ github.ref }}'
-              sha = '${{ github.sha }}'
-              shortSha = '${{ steps.release_meta.outputs.short_sha }}'
-              changeReason = '${{ steps.change_gate.outputs.reason }}'
-              matchedFiles = $matchedFiles
-            }
-            audit = [ordered]@{
-              scopeSummary = $scopeSummary.summary
-              scopeGroups = $scopeSummary.groups
-            }
-            release = [ordered]@{
-              kind = 'service-base-ghcr'
-              version = $version
-              channel = $channel
-              imageRef = '${{ steps.release_meta.outputs.image_ref }}'
-              platform = '${{ steps.release_meta.outputs.platform }}'
-              digest = '${{ steps.build_push.outputs.digest }}'
-              tags = $tags
-              publishLatest = ('${{ steps.release_meta.outputs.push_latest }}' -eq 'true')
-            }
-            distribution = $distribution
-            validation = [ordered]@{
-              smoke = '${{ steps.smoke_label.outputs.value }}'
-              sbom = 'enabled'
-              provenance = 'mode=max'
-            }
-            markdown = [ordered]@{
-              tags = $tagMarkdown
-              matchedFiles = $matchedFilesMarkdown
-              scopeSummary = $scopeSummary.markdown
-            }
-          }
-
-          $manifestPath = Join-Path $PWD 'service-base-release-manifest.json'
-          $manifest | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
-          "path=$manifestPath" >> $env:GITHUB_OUTPUT
+        run: .\scripts\write-service-base-release-manifest.ps1
 
       - name: Render Release Notes
         if: steps.change_gate.outputs.should_publish == 'true'
