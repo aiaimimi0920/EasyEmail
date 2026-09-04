@@ -12,6 +12,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot 'lib/easyemail-config.ps1')
+. (Join-Path $PSScriptRoot 'lib/cloudflare-deploy-process.ps1')
 
 $resolvedConfigPath = Resolve-EasyEmailPath -Path $ConfigPath
 $minimumNodeVersion = [Version]'22.13.0'
@@ -25,124 +26,6 @@ if ($DryRun -and -not $NoRoutingSync) {
 
 if (-not [string]::IsNullOrWhiteSpace($SyncMode) -and @('exact', 'wildcard') -notcontains $SyncMode) {
     throw "Unsupported sync mode '$SyncMode'. Use 'exact' or 'wildcard'."
-}
-
-function Assert-MinimumNodeVersion {
-    param(
-        [Parameter(Mandatory = $true)]
-        [Version]$MinimumVersion
-    )
-
-    $rawNodeVersion = (& node --version).Trim()
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Node.js is required but was not found in PATH.'
-    }
-
-    $currentNodeVersion = [Version]($rawNodeVersion.TrimStart('v'))
-    if ($currentNodeVersion -lt $MinimumVersion) {
-        throw "Node.js $MinimumVersion or newer is required. Current version: $currentNodeVersion"
-    }
-}
-
-function Invoke-InDirectory {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Path,
-        [Parameter(Mandatory = $true)]
-        [scriptblock]$Action
-    )
-
-    Push-Location $Path
-    try {
-        & $Action
-        if ($LASTEXITCODE -ne 0) {
-            throw "Command failed in $Path with exit code $LASTEXITCODE"
-        }
-    } finally {
-        Pop-Location
-    }
-}
-
-function Invoke-Tool {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Executable,
-        [Parameter(Mandatory = $true)]
-        [string[]]$Arguments,
-        [Parameter(Mandatory = $true)]
-        [string]$WorkingDirectory
-    )
-
-    Push-Location $WorkingDirectory
-    try {
-        & $Executable @Arguments
-        if ($LASTEXITCODE -ne 0) {
-            throw "Command failed: $Executable $($Arguments -join ' ')"
-        }
-    } finally {
-        Pop-Location
-    }
-}
-
-function Assert-PythonModule {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$ModuleName
-    )
-
-    & python -c "import $ModuleName"
-    if ($LASTEXITCODE -eq 0) {
-        return
-    }
-
-    Write-Host "Installing missing Python module: $ModuleName" -ForegroundColor Cyan
-    & python -m pip install --disable-pip-version-check $ModuleName
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to install required Python module: $ModuleName"
-    }
-}
-
-function Invoke-PythonJsonTool {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Executable,
-        [Parameter(Mandatory = $true)]
-        [string[]]$Arguments,
-        [Parameter(Mandatory = $true)]
-        [string]$WorkingDirectory
-    )
-
-    Push-Location $WorkingDirectory
-    try {
-        $output = & $Executable @Arguments
-        if ($LASTEXITCODE -ne 0) {
-            throw "Command failed: $Executable $($Arguments -join ' ')"
-        }
-        $json = ($output | Out-String).Trim()
-        if ([string]::IsNullOrWhiteSpace($json)) {
-            throw "Command did not return JSON output: $Executable $($Arguments -join ' ')"
-        }
-        return $json | ConvertFrom-Json
-    } finally {
-        Pop-Location
-    }
-}
-
-function Invoke-LocalNodeTool {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$CommandPath,
-        [Parameter(Mandatory = $true)]
-        [string[]]$Arguments,
-        [Parameter(Mandatory = $true)]
-        [string]$WorkingDirectory
-    )
-
-    if (-not (Test-Path -LiteralPath $CommandPath)) {
-        throw "Local command not found: $CommandPath"
-    }
-
-    Invoke-Tool -Executable $CommandPath -Arguments $Arguments -WorkingDirectory $WorkingDirectory
 }
 
 function Get-FirstEasyEmailString {

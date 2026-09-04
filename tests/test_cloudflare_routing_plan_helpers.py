@@ -11,9 +11,19 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 QUICK_DEPLOY = ROOT / "scripts" / "quick-deploy-cloudflare-mail.ps1"
 CONFIG_LIBRARY = ROOT / "scripts" / "lib" / "easyemail-config.ps1"
+PROCESS_LIBRARY = ROOT / "scripts" / "lib" / "cloudflare-deploy-process.ps1"
 
 
 class CloudflareRoutingPlanHelperTests(unittest.TestCase):
+    def test_process_helpers_are_sourced_from_library(self) -> None:
+        quick_deploy_text = QUICK_DEPLOY.read_text(encoding="utf-8")
+
+        self.assertIn(
+            ". (Join-Path $PSScriptRoot 'lib/cloudflare-deploy-process.ps1')",
+            quick_deploy_text,
+        )
+        self.assertNotIn("function Invoke-InDirectory", quick_deploy_text)
+
     def test_single_value_routing_plan_renders_under_strict_mode(self) -> None:
         powershell = shutil.which("pwsh") or shutil.which("powershell")
         if powershell is None:
@@ -22,8 +32,24 @@ class CloudflareRoutingPlanHelperTests(unittest.TestCase):
         environment = os.environ.copy()
         environment["EASYEMAIL_QUICK_DEPLOY"] = str(QUICK_DEPLOY)
         environment["EASYEMAIL_CONFIG_LIBRARY"] = str(CONFIG_LIBRARY)
+        environment["EASYEMAIL_PROCESS_LIBRARY"] = str(PROCESS_LIBRARY)
         command = r"""
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
 . $env:EASYEMAIL_CONFIG_LIBRARY
+. $env:EASYEMAIL_PROCESS_LIBRARY
+$processHelperNames = @(
+    'Assert-MinimumNodeVersion',
+    'Invoke-Tool',
+    'Assert-PythonModule',
+    'Invoke-PythonJsonTool',
+    'Invoke-LocalNodeTool'
+)
+foreach ($helperName in $processHelperNames) {
+    if (-not (Get-Command -Name $helperName -CommandType Function -ErrorAction SilentlyContinue)) {
+        throw "Expected process helper function $helperName."
+    }
+}
 $tokens = $null
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile(
