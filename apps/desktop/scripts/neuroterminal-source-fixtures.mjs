@@ -52,7 +52,12 @@ const appComponentSources = [
 const normalizeAggregatedAppImports = (source) => source.replaceAll('from "../', 'from "./');
 
 export const senderAvatarIcon = readText("src/components/SenderAvatarIcon.tsx");
-export const appView = readText("src/components/AppView.tsx");
+export const appView = [
+  readText("src/components/AppView.tsx"),
+  readText("src/components/app/AppOverlays.tsx"),
+  readText("src/components/app/ComposeOverlays.tsx"),
+  readText("src/components/app/MailWorkspace.tsx"),
+].join("\n");
 export const composeActionFooterSource = readText("src/components/app/ComposeActionFooter.tsx");
 export const mailListPaneSource = readText("src/components/app/MailListPane.tsx");
 export const mailListToolbarSource = readText("src/components/app/MailListToolbar.tsx");
