@@ -66,6 +66,19 @@ class CloudflareZoneSelectionTests(unittest.TestCase):
     def test_teardown_collect_desired_zones_prefers_real_root_zones(self) -> None:
         self.assert_zone_selection(TEARDOWN)
 
+    def test_plan_placeholder_filtering_preserves_command_specific_behavior(self) -> None:
+        config = {
+            "cloudflareMail": {
+                "publicDomain": "mail.example.com",
+                "routing": {"plan": {"domains": ["example.com"]}},
+            }
+        }
+
+        self.assertIsNone(BOOTSTRAP.resolve_public_zone(config))
+        self.assertEqual(BOOTSTRAP.collect_desired_zones(config), [])
+        self.assertEqual(TEARDOWN.resolve_public_zone(config), "example.com")
+        self.assertEqual(TEARDOWN.collect_desired_zones(config), ["example.com"])
+
     def test_bootstrap_ensure_d1_database_skips_wrangler_when_real_id_already_exists(self) -> None:
         config = {
             "cloudflareMail": {
