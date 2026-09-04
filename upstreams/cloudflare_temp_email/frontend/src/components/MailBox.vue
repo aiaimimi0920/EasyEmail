@@ -10,6 +10,7 @@ import { utcToLocalDate } from '../utils';
 import { buildReplyModel, buildForwardModel } from '../utils/mail-actions'
 import MailContentRenderer from "./MailContentRenderer.vue";
 import AiExtractInfo from "./AiExtractInfo.vue";
+import { useMailBoxMultiActions } from './useMailBoxMultiActions'
 
 const message = useMessage()
 const isMobile = useIsMobile()
@@ -134,12 +135,6 @@ const nextMail = async () => {
 
 const curMail = ref(null);
 
-const multiActionMode = ref(false)
-const showMultiActionDownload = ref(false)
-const showMultiActionDelete = ref(false)
-const multiActionDownloadZip = ref({})
-const multiActionDeleteProgress = ref({ percentage: 0, tip: '0/0' })
-
 const { t } = useScopedI18n('components.MailBox')
 
 const setupAutoRefresh = async (autoRefresh) => {
@@ -205,6 +200,26 @@ const refresh = async () => {
   }
 };
 
+const {
+  multiActionMode,
+  showMultiActionDownload,
+  showMultiActionDelete,
+  multiActionDownloadZip,
+  multiActionDeleteProgress,
+  multiActionModeClick,
+  multiActionSelectAll,
+  multiActionDeleteMail,
+  multiActionDownload
+} = useMailBoxMultiActions({
+  data,
+  beginLoading,
+  endLoading,
+  deleteMail: (id) => props.deleteMail(id),
+  message,
+  refresh,
+  t
+})
+
 const backFirstPageAndRefresh = async () => {
   if (page.value !== 1) {
     page.value = 1;
@@ -253,82 +268,6 @@ const onSpiltSizeChange = (size) => {
 
 const saveToS3Proxy = async (filename, blob) => {
   await props.saveToS3(curMail.value.id, filename, blob);
-}
-
-const multiActionModeClick = (enableMulti) => {
-  if (enableMulti) {
-    data.value.forEach((item) => {
-      item.checked = false;
-    });
-    multiActionMode.value = true;
-  } else {
-    multiActionMode.value = false;
-    data.value.forEach((item) => {
-      item.checked = false;
-    });
-  }
-}
-
-const multiActionSelectAll = (checked) => {
-  data.value.forEach((item) => {
-    item.checked = checked;
-  });
-}
-
-const multiActionDeleteMail = async () => {
-  try {
-    beginLoading();
-    const selectedMails = data.value.filter((item) => item.checked);
-    if (selectedMails.length === 0) {
-      message.error(t('pleaseSelectMail'));
-      return;
-    }
-    multiActionDeleteProgress.value = {
-      percentage: 0,
-      tip: `0/${selectedMails.length}`
-    };
-    for (const [index, mail] of selectedMails.entries()) {
-      await props.deleteMail(mail.id);
-      showMultiActionDelete.value = true;
-      multiActionDeleteProgress.value = {
-        percentage: Math.floor((index + 1) / selectedMails.length * 100),
-        tip: `${index + 1}/${selectedMails.length}`
-      };
-    }
-    message.success(t("success"));
-    await refresh();
-  } catch (error) {
-    message.error(error.message || "error");
-  } finally {
-    endLoading();
-    showMultiActionDelete.value = true;
-  }
-}
-
-const multiActionDownload = async () => {
-  try {
-    beginLoading();
-    const selectedMails = data.value.filter((item) => item.checked);
-    if (selectedMails.length === 0) {
-      message.error(t('pleaseSelectMail'));
-      return;
-    }
-    const JSZipModlue = await import('jszip');
-    const JSZip = JSZipModlue.default;
-    const zip = new JSZip();
-    for (const mail of selectedMails) {
-      zip.file(`${mail.id}.eml`, mail.raw);
-    }
-    multiActionDownloadZip.value = {
-      url: URL.createObjectURL(await zip.generateAsync({ type: "blob" })),
-      filename: `mails-${new Date().toISOString().replace(/:/g, '-')}.zip`
-    }
-    showMultiActionDownload.value = true;
-  } catch (error) {
-    message.error(error.message || "error");
-  } finally {
-    endLoading();
-  }
 }
 
 onMounted(async () => {
