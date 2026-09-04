@@ -5,6 +5,14 @@ import type {
   CredentialUseCase,
 } from "../shared/index.js";
 
+export type {
+  HostBindingQueryFilters,
+  MailboxSessionQueryFilters,
+  MailPersistenceStats,
+  ObservedMessageQueryFilters,
+  ProviderInstanceQueryFilters,
+} from "./query-models.js";
+
 export const CLOUDFLARE_TEMP_EMAIL_PROVIDER_KEY = "cloudflare_temp_email" as const;
 
 export type MailProviderTypeKey =
@@ -481,50 +489,6 @@ export interface RegisterCloudflareTempEmailRuntimeResult {
   health: ProviderHealthProbeResult;
   runtimePlan: CloudflareTempEmailRuntimePlan;
   created: boolean;
-}
-
-export interface ProviderInstanceQueryFilters {
-  providerTypeKey?: MailProviderTypeKey;
-  status?: ProviderInstanceStatus;
-  shared?: boolean;
-  groupKey?: string;
-  limit?: number;
-}
-
-export interface HostBindingQueryFilters {
-  hostId?: string;
-  providerTypeKey?: MailProviderTypeKey;
-  instanceId?: string;
-  limit?: number;
-}
-
-export interface MailboxSessionQueryFilters {
-  hostId?: string;
-  providerTypeKey?: MailProviderTypeKey;
-  providerInstanceId?: string;
-  status?: MailboxSessionStatus;
-  limit?: number;
-  newestFirst?: boolean;
-}
-
-export interface ObservedMessageQueryFilters {
-  sessionId?: string;
-  providerInstanceId?: string;
-  extractedCodeOnly?: boolean;
-  sync?: boolean;
-  limit?: number;
-  newestFirst?: boolean;
-}
-
-export interface MailPersistenceStats {
-  providerInstanceCount: number;
-  hostBindingCount: number;
-  credentialSetCount: number;
-  credentialBindingCount: number;
-  mailboxSessionCount: number;
-  observedMessageCount: number;
-  resolvedSessionCount: number;
-  extractedCodeMessageCount: number;
 }
 
 export function isCloudflareTempEmailProviderKey(value: string | undefined): boolean {
