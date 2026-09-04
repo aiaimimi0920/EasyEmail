@@ -1,263 +1,18 @@
-from __future__ import annotations
-
-import json
-import re
 import unittest
-from collections import Counter
-from pathlib import Path
-
-
-ROOT = Path(__file__).resolve().parents[1]
-SERVER_CONTRACTS = ROOT / "service" / "base" / "src" / "http" / "contracts.ts"
-DOMAIN_MODELS = ROOT / "service" / "base" / "src" / "domain" / "models.ts"
-DOMAIN_CONTACT = ROOT / "service" / "base" / "src" / "domain" / "contact.ts"
-DOMAIN_ACCOUNT = ROOT / "service" / "base" / "src" / "domain" / "account.ts"
-ACCOUNT_CONNECTIVITY = (
-    ROOT / "service" / "base" / "src" / "service" / "account-connectivity.ts"
-)
-DOMAIN_TAXONOMY = (
-    ROOT / "service" / "base" / "src" / "domain" / "mail-taxonomy.ts"
-)
-SHARED_CREDENTIALS = (
-    ROOT / "service" / "base" / "src" / "shared" / "credentials.ts"
-)
-ROUTE_FILES = tuple(
-    (ROOT / "service" / "base" / "src" / "http" / "routes").glob("*.ts")
-)
-HTTP_SERVER = ROOT / "service" / "base" / "src" / "http" / "server.ts"
-HTTP_SOURCE_FILES = (SERVER_CONTRACTS, HTTP_SERVER, *ROUTE_FILES)
-OPENAPI_PATH = ROOT / "docs" / "easyemail-openapi.json"
-
-DYNAMIC_ROUTE_METHODS = {
-    "probeProviderInstance": {"get": "probeProviderInstance"},
-    "readVerificationCode": {"get": "readVerificationCode"},
-    "readAuthenticationLink": {"get": "readAuthenticationLink"},
-    "refreshMailbox": {"post": "refreshMailbox"},
-    "getObservedMessage": {"get": "getObservedMessage"},
-    "contact": {
-        "get": "getContact",
-        "patch": "updateContact",
-        "delete": "deleteContact",
-    },
-    "account": {
-        "get": "getMailAccount",
-        "patch": "updateMailAccount",
-        "delete": "deleteMailAccount",
-    },
-    "disableAccount": {"post": "disableMailAccount"},
-    "taxonomyItem": {
-        "get": "getMailTaxonomy",
-        "patch": "updateMailTaxonomy",
-        "delete": "deleteMailTaxonomy",
-    },
-    "taxonomyUpsert": {"put": "upsertMailTaxonomy"},
-}
-
-STATIC_ROUTE_DISPATCH = re.compile(
-    r'method === "(GET|POST|PUT|PATCH|DELETE)" && path === '
-    r"EASY_EMAIL_HTTP_ROUTES\.(\w+)"
+from tests.http_api_contract_support import (
+    ACCOUNT_CONNECTIVITY,
+    DOMAIN_ACCOUNT,
+    DOMAIN_CONTACT,
+    DOMAIN_MODELS,
+    DOMAIN_TAXONOMY,
+    SERVER_CONTRACTS,
+    SHARED_CREDENTIAL_MODELS,
+    HttpApiContractTestCase,
+    extract_interface_fields,
 )
 
 
-def extract_static_routes(text: str) -> dict[str, str]:
-    return {
-        name: value
-        for name, value in re.findall(
-            r'^\s{2}(\w+):\s+"([^"]+)",\s*$', text, re.MULTILINE
-        )
-    }
-
-
-def extract_dynamic_routes(text: str) -> dict[str, str]:
-    routes: dict[str, str] = {}
-    for name, parameters, template in re.findall(
-        r"^\s{2}(\w+)\(([^)]*)\): string \{\s+"
-        r"return `([^`]+)`;\s+\},$",
-        text,
-        re.MULTILINE,
-    ):
-        path = template
-        for parameter in re.findall(r"(\w+)\s*:", parameters):
-            expression = "${encodeURIComponent(" + parameter + ")}"
-            path = path.replace(expression, "{" + parameter + "}")
-        if "${" in path:
-            raise AssertionError(f"unsupported dynamic route template: {name}: {template}")
-        routes[name] = path
-    return routes
-
-
-def resolve_local_ref(document: dict[str, object], ref: str) -> object:
-    if not ref.startswith("#/"):
-        raise AssertionError(
-            f"OpenAPI contract must not depend on an external reference: {ref}"
-        )
-
-    value: object = document
-    for encoded_part in ref[2:].split("/"):
-        part = encoded_part.replace("~1", "/").replace("~0", "~")
-        if not isinstance(value, dict) or part not in value:
-            raise AssertionError(f"unresolved OpenAPI reference: {ref}")
-        value = value[part]
-    return value
-
-
-def extract_interface_fields(
-    path: Path, interface_name: str
-) -> tuple[set[str], set[str]]:
-    source = path.read_text(encoding="utf-8")
-    matched = re.search(
-        rf"^export interface {re.escape(interface_name)}"
-        rf"(?:\s+extends\s+[^{{]+)?\s*\{{\n(.*?)^\}}",
-        source,
-        re.MULTILINE | re.DOTALL,
-    )
-    if not matched:
-        raise AssertionError(f"missing TypeScript interface: {interface_name}")
-
-    fields = re.findall(r"^  (\w+)(\?)?:", matched.group(1), re.MULTILINE)
-    return (
-        {name for name, _ in fields},
-        {name for name, optional in fields if not optional},
-    )
-
-
-class HttpApiContractTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.server_text = SERVER_CONTRACTS.read_text(encoding="utf-8")
-        self.route_text = "\n".join(
-            path.read_text(encoding="utf-8") for path in ROUTE_FILES
-        )
-        self.http_source_text = "\n".join(
-            path.read_text(encoding="utf-8") for path in HTTP_SOURCE_FILES
-        )
-        self.openapi = json.loads(OPENAPI_PATH.read_text(encoding="utf-8"))
-
-    def test_openapi_covers_every_service_route(self) -> None:
-        static_routes = set(extract_static_routes(self.server_text).values())
-        dynamic_routes = set(extract_dynamic_routes(self.server_text).values())
-        documented_paths = set(self.openapi["paths"])
-
-        self.assertEqual(documented_paths, static_routes | dynamic_routes)
-
-    def test_route_constants_are_unique_and_completely_dispatched(self) -> None:
-        static_routes = extract_static_routes(self.server_text)
-        dynamic_routes = extract_dynamic_routes(self.server_text)
-        all_paths = [*static_routes.values(), *dynamic_routes.values()]
-
-        duplicate_paths = sorted(
-            path for path, count in Counter(all_paths).items() if count > 1
-        )
-        self.assertEqual(duplicate_paths, [])
-
-        static_dispatches = STATIC_ROUTE_DISPATCH.findall(self.route_text)
-        static_references = Counter(name for _, name in static_dispatches)
-        self.assertEqual(set(static_references), set(static_routes))
-        self.assertEqual(
-            len(static_dispatches), len(set(static_dispatches)), "duplicate static dispatch"
-        )
-
-        self.assertEqual(set(dynamic_routes), set(DYNAMIC_ROUTE_METHODS))
-        for name, methods in DYNAMIC_ROUTE_METHODS.items():
-            for handler_name in methods.values():
-                self.assertEqual(
-                    self.route_text.count(f"handler.{handler_name}("),
-                    1,
-                    f"{name}: {handler_name}",
-                )
-
-    def test_openapi_methods_match_service_route_implementations(self) -> None:
-        routes = extract_static_routes(self.server_text)
-        dynamic_routes = extract_dynamic_routes(self.server_text)
-        route_methods: dict[str, set[str]] = {}
-        for method, name in STATIC_ROUTE_DISPATCH.findall(self.route_text):
-            route_methods.setdefault(routes[name], set()).add(method.lower())
-        for name, methods in DYNAMIC_ROUTE_METHODS.items():
-            route_methods.setdefault(dynamic_routes[name], set()).update(methods)
-
-        self.assertEqual(set(route_methods), set(self.openapi["paths"]))
-        for path, methods in route_methods.items():
-            documented_methods = set(self.openapi["paths"][path]) & {
-                "get",
-                "post",
-                "put",
-                "patch",
-                "delete",
-            }
-            self.assertEqual(documented_methods, methods, path)
-
-    def test_generic_commands_endpoint_is_not_exposed(self) -> None:
-        for path in self.openapi["paths"]:
-            self.assertNotIn("/commands", path)
-        self.assertNotRegex(
-            self.http_source_text,
-            r'["`][^"`\n]*/commands(?:/|\{|["`])',
-        )
-
-    def test_openapi_operations_and_local_references_are_well_formed(self) -> None:
-        operation_ids: set[str] = set()
-
-        def visit(value: object) -> None:
-            if isinstance(value, list):
-                for item in value:
-                    visit(item)
-                return
-            if not isinstance(value, dict):
-                return
-            ref = value.get("$ref")
-            if isinstance(ref, str):
-                resolve_local_ref(self.openapi, ref)
-            for item in value.values():
-                visit(item)
-
-        visit(self.openapi)
-
-        for path, path_item in self.openapi["paths"].items():
-            placeholders = set(re.findall(r"\{([^}]+)\}", path))
-            for method, operation in path_item.items():
-                if method not in {"get", "post", "put", "patch", "delete"}:
-                    continue
-
-                operation_id = operation.get("operationId")
-                self.assertIsInstance(operation_id, str, f"{method} {path}")
-                self.assertNotIn(
-                    operation_id,
-                    operation_ids,
-                    f"duplicate operationId: {operation_id}",
-                )
-                operation_ids.add(operation_id)
-                self.assertIn(
-                    "200", operation.get("responses", {}), f"{method} {path}"
-                )
-
-                parameters = []
-                for parameter in operation.get("parameters", []):
-                    if "$ref" in parameter:
-                        parameter = resolve_local_ref(self.openapi, parameter["$ref"])
-                    parameters.append(parameter)
-                documented_path_parameters = {
-                    parameter["name"]
-                    for parameter in parameters
-                    if isinstance(parameter, dict)
-                    and parameter.get("in") == "path"
-                    and parameter.get("required") is True
-                }
-                self.assertEqual(
-                    documented_path_parameters, placeholders, f"{method} {path}"
-                )
-
-    def test_openapi_is_the_authenticated_direct_http_contract(self) -> None:
-        self.assertEqual(self.openapi["openapi"], "3.1.0")
-        self.assertEqual(
-            self.openapi["servers"][0]["url"], "http://127.0.0.1:18081"
-        )
-        self.assertEqual(self.openapi["security"], [{"bearerAuth": []}])
-        bearer = self.openapi["components"]["securitySchemes"]["bearerAuth"]
-        self.assertEqual(bearer["type"], "http")
-        self.assertEqual(bearer["scheme"], "bearer")
-        self.assertIn(
-            "published client SDK is not required",
-            self.openapi["info"]["description"],
-        )
+class HttpApiContractTests(HttpApiContractTestCase):
 
     def test_mailbox_open_schema_matches_required_server_request_fields(
         self,
@@ -290,11 +45,11 @@ class HttpApiContractTests(unittest.TestCase):
                 "ApplyMailCredentialSetsHttpRequest",
             ),
             "CredentialSetDefinition": (
-                SHARED_CREDENTIALS,
+                SHARED_CREDENTIAL_MODELS,
                 "CredentialSetDefinition",
             ),
             "CredentialItemDefinition": (
-                SHARED_CREDENTIALS,
+                SHARED_CREDENTIAL_MODELS,
                 "CredentialItemDefinition",
             ),
             "UpdateMailboxSessionRequest": (
