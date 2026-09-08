@@ -12,6 +12,7 @@ declare const fetch: (
 }>;
 
 import type { CloudflareTempEmailConfig } from "./models.js";
+import { fetchProviderResourceWithRecovery } from "../../http-policy.js";
 import { asRecord } from "./mail-content.js";
 
 export async function requestJson(
@@ -34,10 +35,7 @@ export async function requestJson(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await (fetch as unknown as (
-      input: string,
-      init?: Record<string, unknown>,
-    ) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>)(
+    const response = await fetchProviderResourceWithRecovery(
       `${config.baseUrl.replace(/\/$/, "")}${withQuery}`,
       {
         method,
@@ -102,10 +100,7 @@ export async function requestAdminJson(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await (fetch as unknown as (
-      input: string,
-      init?: Record<string, unknown>,
-    ) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>)(
+    const response = await fetchProviderResourceWithRecovery(
       `${config.baseUrl.replace(/\/$/, "")}${path}`,
       {
         method,

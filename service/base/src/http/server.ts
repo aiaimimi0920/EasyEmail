@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { EasyEmailError } from "../domain/errors.js";
 import { EasyEmailHttpHandler } from "./handler.js";
+import { reportHttpFailure } from "./failure-diagnostic.js";
 import { handleAdminRoute } from "./routes/admin.js";
 import { handleInternalRoute } from "./routes/internal.js";
 import { handlePublicRoute } from "./routes/public.js";
@@ -330,10 +331,12 @@ export function createEasyEmailHttpServer(
       }
 
       if (error instanceof EasyEmailError) {
+        reportHttpFailure(method, path, error);
         writeEasyEmailError(response, 500, error);
         return;
       }
 
+      reportHttpFailure(method, path, error);
       writeJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
     }
   });

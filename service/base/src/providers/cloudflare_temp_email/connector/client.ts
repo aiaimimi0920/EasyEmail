@@ -13,6 +13,7 @@ declare const fetch: (
 
 import { extractOtpFromContent } from "../../../domain/otp.js";
 import type { ObservedMessage, ProviderInstance } from "../../../domain/models.js";
+import { fetchProviderResourceWithRecovery } from "../../http-policy.js";
 import { parseDomainWeights, pickWeightedDomainFamily, resolveCloudflareTempEmailConfig } from "./configuration.js";
 import { extractErrorDetail, requestAdminJson, requestJson } from "./http.js";
 import { asMailItems, asRecord, extractObservedAtFromRaw, parseRawMailBodies, parseRawMailHeader } from "./mail-content.js";
@@ -269,10 +270,7 @@ export class CloudflareTempEmailCreateClient {
     const timeoutMs = Math.max(1000, this.config.timeoutSeconds * 1000);
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await (fetch as unknown as (
-        input: string,
-        init?: Record<string, unknown>,
-      ) => Promise<{ ok: boolean; status: number; text(): Promise<string> }>)(
+      const response = await fetchProviderResourceWithRecovery(
         `${this.config.baseUrl.replace(/\/$/, "")}/admin/send_mail`,
         {
           method: "POST",
