@@ -1,6 +1,8 @@
 import { Context } from "hono";
 import { CONSTANTS } from "../constants";
 import utils from "../utils";
+import { migrateMailResources } from '../mails_api/mail_resource_schema';
+import { migrateAddressDeletions } from '../mails_api/address_deletion_schema';
 
 const DB_INIT_QUERIES = `
 CREATE TABLE IF NOT EXISTS raw_mails (
@@ -134,6 +136,8 @@ export default {
             .map((query) => query.trim())
             .join(";\n");
         await c.env.DB.exec(query);
+        await migrateMailResources(c.env.DB);
+        await migrateAddressDeletions(c.env.DB);
 
         const version = await utils.getSetting(c, CONSTANTS.DB_VERSION_KEY);
         if (version) {
@@ -205,6 +209,8 @@ export default {
                 .map((query) => query.trim())
                 .join(";\n");
             await c.env.DB.exec(query);
+            await migrateMailResources(c.env.DB);
+            await migrateAddressDeletions(c.env.DB);
             // Update the version in the settings table
             await utils.saveSetting(c, CONSTANTS.DB_VERSION_KEY, CONSTANTS.DB_VERSION);
             return c.json({
@@ -212,6 +218,8 @@ export default {
                 message: "Database migrated"
             });
         }
+        await migrateMailResources(c.env.DB);
+        await migrateAddressDeletions(c.env.DB);
         return c.json({
             success: true,
             message: "Database does not need migration"

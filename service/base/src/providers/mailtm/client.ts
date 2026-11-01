@@ -1,4 +1,4 @@
-﻿declare const fetch: (
+declare const fetch: (
   input: string,
   init?: {
     method?: string;
@@ -13,6 +13,7 @@
 
 import type { ObservedMessage, ProviderInstance } from "../../domain/models.js";
 import { extractOtpFromContent } from "../../domain/otp.js";
+import { fetchProviderResource } from "../http-policy.js";
 
 export interface MailTmConfig {
   apiBase: string;
@@ -155,7 +156,7 @@ async function requestJson(
     jsonBody?: Record<string, unknown>;
   } = {},
 ): Promise<{ status: number; body: unknown }> {
-  const response = await fetch(`${config.apiBase.replace(/\/$/, "")}${path}`, {
+  const response = await fetchProviderResource(`${config.apiBase.replace(/\/$/, "")}${path}`, {
     method,
     headers: {
       Accept: "application/json",

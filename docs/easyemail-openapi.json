@@ -1828,6 +1828,11 @@
           "baseUrl": { "type": "string", "format": "uri" },
           "customAuth": { "type": "string" },
           "adminAuth": { "type": "string" },
+          "sendTransport": {
+            "type": "string",
+            "enum": ["worker", "binding"],
+            "description": "Optional per-instance send transport. Omitted values preserve existing configuration; binding explicitly uses the admin native SEND_MAIL endpoint without backend fallback."
+          },
           "domain": { "type": "string" },
           "domains": { "type": "array", "items": { "type": "string" } },
           "randomSubdomainDomains": { "type": "array", "items": { "type": "string" } },

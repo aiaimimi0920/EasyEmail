@@ -81,6 +81,35 @@ test("temporary-mailbox HTTP transport never reads the one-shot settings token",
   assert.doesNotMatch(temporaryFlow, /apiToken|setApiToken|localStorage|sessionStorage/);
 });
 
+test("temporary-mailbox controller wires committed creation to the current source", () => {
+  const temporarySource = readDesktopSourceFile("app/useTemporaryMailboxController.tsx");
+  const createStart = temporarySource.indexOf("async function createTempMailbox");
+  const createEnd = temporarySource.indexOf("async function refreshCoreMailboxes", createStart);
+  assert.ok(createStart >= 0 && createEnd > createStart);
+
+  const createFlow = temporarySource.slice(createStart, createEnd);
+  assert.match(createFlow, /runTemporaryMailboxCreation\(\{/);
+  assert.match(createFlow, /onOpened: \(mailboxRecord\) => \{/);
+  assert.match(createFlow, /setTempMailboxes\(\(current\)/);
+  assert.match(createFlow, /showStatusToast\(/);
+  assert.match(createFlow, /creation\.refreshCompletion\.then/);
+  assert.match(createFlow, /return creation\.mailbox\.view\.id;/);
+
+  const mailSource = readDesktopSourceFile("app/useMailSourceController.tsx");
+  const sourceActionStart = mailSource.indexOf("async function createAndSelectTempMailbox");
+  const sourceActionEnd = mailSource.indexOf("async function syncCurrentMailSource", sourceActionStart);
+  assert.ok(sourceActionStart >= 0 && sourceActionEnd > sourceActionStart);
+  assert.match(
+    mailSource.slice(sourceActionStart, sourceActionEnd),
+    /const tempMailboxId = await createTempMailbox\(\);\s*if \(tempMailboxId\) \{\s*selectMailSource\(temporaryMailboxSourceId\(tempMailboxId\)\);/,
+  );
+
+  const sourceDrawer = readDesktopSourceFile("components/app/MailSourceDrawer.tsx");
+  const setupPanel = readDesktopSourceFile("components/app/EasyEmailSetupPanel.tsx");
+  assert.match(sourceDrawer, /onClick=\{createAndSelectTempMailbox\}/);
+  assert.match(setupPanel, /onClick=\{createAndSelectTempMailbox\}/);
+});
+
 test("temporary-mailbox failures keep actionable auth, timeout, offline, and recovery semantics", async () => {
   const source = readAppImplementationSource();
 

@@ -62,11 +62,24 @@ export const composeActionFooterSource = readText("src/components/app/ComposeAct
 export const mailListPaneSource = readText("src/components/app/MailListPane.tsx");
 export const mailListToolbarSource = readText("src/components/app/MailListToolbar.tsx");
 export const mailReadingPaneSource = readText("src/components/app/MailReadingPane.tsx");
+export const mailTaxonomySectionSource = readText(
+  "src/components/app/MailTaxonomySection.tsx",
+);
+export const sideRailSource = readText("src/components/app/SideRail.tsx");
 export const app = [readText("src/App.tsx"), ...appComponentSources]
   .map(normalizeAggregatedAppImports)
   .join("\n");
-export const cssRaw = readCssBundle("src/App.css");
-export const canonicalCssRaw = readCssBundle("src/styles/neuro-canonical.css");
+export const cssRaw = [
+  readCssBundle("src/App.css"),
+  readCssBundle("src/styles/loom-desktop-shell.css"),
+].join("\n");
+export const canonicalCssRaw = [
+  "src/styles/neuro-canonical.css",
+  "src/styles/neuro-canonical-mail.css",
+  "src/styles/neuro-canonical-focus.css",
+]
+  .map((path) => readCssBundle(path))
+  .join("\n");
 
 const collapseWhitespace = (value) => value.replace(/\s+/g, " ");
 
@@ -93,6 +106,8 @@ export const platformAccountClient = readText("src/api/platformAccountClient.ts"
 export const bundledCoreClient = readText("src/api/bundledCoreClient.ts");
 export const desktopCoreClient = readText("src/api/desktopCoreClient.ts");
 export const easyEmailHttpClient = readText("src/api/easyEmailHttpClient.ts");
+export const easyEmailHttpRoutes = readText("src/api/easyEmailRoutes.ts");
+export const easyEmailHttpTransport = readText("src/api/easyEmailHttpTransport.ts");
 export const settingsClient = readText("src/api/settingsClient.ts");
 export const sendQueueClient = readText("src/api/sendQueueClient.ts");
 export const composeData = readText("src/compose/composeData.ts");
@@ -107,9 +122,10 @@ export const senderAvatar = readText("src/mail/senderAvatar.ts");
 export const mailSelectors = readText("src/mail/mailSelectors.ts");
 export const mailSearch = readText("src/mail/mailSearch.ts");
 export const mailTaxonomy = readText("src/mail/mailTaxonomy.ts");
+export const mailProjectionSource = readText("src/app/mailProjection.ts");
 export const imapModels = readText("src-tauri/src/imap/models.rs");
-export const imapNative = readText("src-tauri/src/imap/native.rs");
-export const smtpNative = readText("src-tauri/src/smtp/native.rs");
+export const imapNative = readSourceWithModules("src-tauri/src/imap/native.rs");
+export const smtpNative = readSourceWithModules("src-tauri/src/smtp/native.rs");
 export const normalAccountService = readSourceWithModules("src-tauri/src/services/normal_account_service.rs");
 export const verificationDomain = readText("src-tauri/src/domain/verification.rs");
 export const platformAccountService = readText("src-tauri/src/services/platform_account_service.rs");
@@ -118,7 +134,10 @@ export const sendService = readText("src-tauri/src/services/send_service.rs");
 export const sendQueueRepository = readSourceWithModules("src-tauri/src/storage/send_queue_repository.rs");
 export const messageRepository = readSourceWithModules("src-tauri/src/storage/message_repository.rs");
 export const contactRepository = readText("src-tauri/src/storage/contact_repository.rs");
-export const migrations = readText("src-tauri/src/storage/migrations.rs");
+export const migrations = [
+  readText("src-tauri/src/storage/migrations.rs"),
+  readText("src-tauri/src/storage/migration_steps.rs"),
+].join("\n");
 export const smtpModels = readText("src-tauri/src/smtp/models.rs");
 export const tauriLib = readText("src-tauri/src/lib.rs");
 export const tauriCapability = readText("src-tauri/capabilities/default.json");

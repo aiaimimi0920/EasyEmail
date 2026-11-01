@@ -1,8 +1,63 @@
+import { readdir, readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { once } from "node:events";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fetchProviderResource, fetchProviderResourceWithRecovery } from "../../src/providers/http-policy.js";
+
+const PROVIDER_ROOT = fileURLToPath(new URL("../../src/providers", import.meta.url));
+
+async function listTypeScriptFiles(directory: string): Promise<string[]> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const nested = await Promise.all(entries.map(async (entry) => {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) return listTypeScriptFiles(path);
+    return entry.isFile() && entry.name.endsWith(".ts") ? [path] : [];
+  }));
+  return nested.flat();
+}
+
+describe("provider HTTP policy", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("overrides caller redirect preferences with fail-closed behavior", async () => {
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchProviderResource("https://provider.example.test/resource", {
+      method: "GET",
+      redirect: "follow",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://provider.example.test/resource",
+      expect.objectContaining({ redirect: "error" }),
+    );
+  });
+
+  it("keeps provider adapters on the centralized no-redirect transport", async () => {
+    const files = (await listTypeScriptFiles(PROVIDER_ROOT))
+      .filter((path) => !path.endsWith("/http-policy.ts"));
+    const violations: string[] = [];
+    for (const path of files) {
+      const source = await readFile(path, "utf8");
+      if (/\bfetch\s*\(|\(\s*fetch\s+as\s+unknown\s+as/.test(source)) {
+        violations.push(path.slice(PROVIDER_ROOT.length + 1).replaceAll("\\", "/"));
+      }
+      if (source.includes("requests.request(") && !source.includes("allow_redirects=False")) {
+        violations.push(`${path.slice(PROVIDER_ROOT.length + 1)}:requests`);
+      }
+      if (source.includes("urllib.request.build_opener(") && !source.includes("NoRedirectHandler")) {
+        violations.push(`${path.slice(PROVIDER_ROOT.length + 1)}:urllib`);
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+});
 
 describe("opt-in provider connection recovery", () => {
   const networkError = (code: string) => new TypeError("fetch failed", {

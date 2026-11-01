@@ -20,6 +20,9 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
         cls.host = (DESKTOP / "src-tauri" / "src" / "core_runtime.rs").read_text(
             encoding="utf-8"
         )
+        cls.host_process = (
+            DESKTOP / "src-tauri" / "src" / "core_runtime_process.rs"
+        ).read_text(encoding="utf-8")
         cls.credential_broker = (
             DESKTOP / "src-tauri" / "src" / "credential_broker.rs"
         ).read_text(encoding="utf-8")
@@ -27,6 +30,12 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
             DESKTOP / "src-tauri" / "src" / "desktop_credentials.rs"
         ).read_text(encoding="utf-8")
         cls.app = (DESKTOP / "src" / "App.tsx").read_text(encoding="utf-8")
+        cls.app_runtime = (DESKTOP / "src" / "app" / "appRuntime.ts").read_text(
+            encoding="utf-8"
+        )
+        cls.initial_data_controller = (
+            DESKTOP / "src" / "app" / "useInitialDataController.tsx"
+        ).read_text(encoding="utf-8")
         cls.bundled_client = (
             DESKTOP / "src" / "api" / "bundledCoreClient.ts"
         ).read_text(encoding="utf-8")
@@ -57,24 +66,30 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
     def test_host_uses_authenticated_loopback_and_owns_exact_child(self) -> None:
         for expected in (
             'TcpListener::bind(("127.0.0.1", 0))',
-            'format!("http://127.0.0.1:{port}")',
             'format!("Bearer {api_token}")',
             'format!("{base_url}/mail/catalog")',
+        ):
+            self.assertIn(expected, self.host_process)
+        self.assertIn('format!("http://127.0.0.1:{port}")', self.host)
+        for expected in (
             "process.kill()",
             "process.wait()",
         ):
             self.assertIn(expected, self.host)
-        self.assertNotIn("taskkill", self.host.lower())
+        self.assertNotIn("taskkill", (self.host + self.host_process).lower())
 
     def test_host_injects_a_separate_scoped_credential_broker(self) -> None:
         for expected in (
             "DesktopCredentialBroker::start(&base_url, &api_token)",
-            '"EASY_EMAIL_DESKTOP_CREDENTIAL_BROKER_URL"',
-            '"EASY_EMAIL_DESKTOP_CREDENTIAL_BROKER_TOKEN"',
             "credential_broker: Mutex<Option<DesktopCredentialBroker>>",
             "self.stop_credential_broker()",
         ):
             self.assertIn(expected, self.host)
+        for expected in (
+            '"EASY_EMAIL_DESKTOP_CREDENTIAL_BROKER_URL"',
+            '"EASY_EMAIL_DESKTOP_CREDENTIAL_BROKER_TOKEN"',
+        ):
+            self.assertIn(expected, self.host_process)
         for expected in (
             'TcpListener::bind(("127.0.0.1", 0))',
             'const RESOLVE_PATH: &str = "/v1/credentials/resolve"',
@@ -151,9 +166,12 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
         )
 
     def test_react_startup_uses_canonical_http_not_legacy_health(self) -> None:
-        self.assertIn("createBundledCoreClient(invoke)", self.app)
-        self.assertIn("bundledCoreClient.getCatalog()", self.app)
-        self.assertNotIn("appClient.getHealth()", self.app)
+        self.assertIn("createBundledCoreClient(invoke)", self.app_runtime)
+        self.assertIn("bundledCoreClient.getCatalog()", self.initial_data_controller)
+        self.assertNotIn(
+            "appClient.getHealth()",
+            self.app + self.app_runtime + self.initial_data_controller,
+        )
         self.assertIn("createDesktopCoreClient", self.bundled_client)
         self.assertIn("createEasyEmailHttpClient", self.bundled_client)
         self.assertIn("bearerToken: runtime.api_token", self.bundled_client)

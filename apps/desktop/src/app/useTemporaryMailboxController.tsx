@@ -3,6 +3,7 @@ import { temporaryMailboxRecordFromOpenResult, temporaryMailboxRefreshView, temp
 import { asErrorDto, mergeByIdentity, optionalValue, temporaryRefreshError } from "./appDomain";
 import { bundledCoreClient } from "./appRuntime";
 import type { TempMailboxDto, CoreTemporaryState } from "./appTypes";
+import { runTemporaryMailboxCreation } from "./temporaryMailboxCreation";
 import type { AppState } from "./useAppState";
 
 type Dependencies = {
@@ -42,41 +43,76 @@ export function useTemporaryMailboxController(appState: AppState, dependencies: 
       }
       return mailbox;
     }
-  async function createTempMailbox() {
+  async function createTempMailbox(): Promise<string | null> {
       setBusy(true);
       try {
-        const hostId = await bundledCoreClient.getHostId();
-        const metadata = {
-          source: "desktop-ui",
-          ...(optionalValue(targetService) ? { targetService: targetService.trim() } : {}),
-          ...(optionalValue(note) ? { note: note.trim() } : {}),
-        };
-        const { result } = await bundledCoreClient.openMailbox({
-          hostId,
-          provisionMode: "auto-create-if-missing",
-          bindingMode: "shared-instance",
-          metadata,
+        let createdMessage = "Temporary mailbox created.";
+        const creation = await runTemporaryMailboxCreation({
+          openMailbox: async () => {
+            const hostId = await bundledCoreClient.getHostId();
+            const metadata = {
+              source: "desktop-ui",
+              ...(optionalValue(targetService) ? { targetService: targetService.trim() } : {}),
+              ...(optionalValue(note) ? { note: note.trim() } : {}),
+            };
+            const { result } = await bundledCoreClient.openMailbox({
+              hostId,
+              provisionMode: "auto-create-if-missing",
+              bindingMode: "shared-instance",
+              metadata,
+            });
+            return temporaryMailboxRecordFromOpenResult(result);
+          },
+          loadCoreTemporaryState,
+          loadNormalAccounts,
+          onOpened: (mailboxRecord) => {
+            setTempMailboxes((current) =>
+              mergeByIdentity([mailboxRecord.view], current, (mailbox) => mailbox.id),
+            );
+            setSelectedTempMailboxId(mailboxRecord.view.id);
+            setTargetService("");
+            setNote("");
+            createdMessage = waitForCode
+              ? `Created ${mailboxRecord.view.email_address}; waiting for a verification code.`
+              : `Created temporary mailbox ${mailboxRecord.view.email_address}.`;
+            if (waitForCode) {
+              setWaitingMailboxId(mailboxRecord.view.id);
+            }
+            showStatusToast(createdMessage);
+            setError(null);
+          },
+          onCoreStateLoaded: (coreState, mailboxRecord) => {
+            applyCoreTemporaryState({
+              ...coreState,
+              mailboxes: mergeByIdentity(
+                coreState.mailboxes,
+                [mailboxRecord.view],
+                (mailbox) => mailbox.id,
+              ),
+            });
+          },
+          onNormalAccountsLoaded: (accounts) => {
+            canonicalNormalAccountIdsRef.current = new Set(
+              accounts.map((account) => account.id),
+            );
+            setNormalAccounts(accounts);
+          },
         });
-        const mailboxRecord = temporaryMailboxRecordFromOpenResult(result);
-        const coreState = await loadCoreTemporaryState();
-        const accounts = await loadNormalAccounts();
-        applyCoreTemporaryState(coreState);
-        canonicalNormalAccountIdsRef.current = new Set(accounts.map((account) => account.id));
-        setNormalAccounts(accounts);
-        setSelectedTempMailboxId(mailboxRecord.view.id);
-        setTargetService("");
-        setNote("");
-        if (waitForCode) {
-          setWaitingMailboxId(mailboxRecord.view.id);
-          setStatusMessage(
-            `Created ${mailboxRecord.view.email_address}; waiting for a verification code.`,
-          );
-        } else {
-          setStatusMessage(`Created temporary mailbox ${mailboxRecord.view.email_address}.`);
+        if (creation.status === "failed") {
+          setError(asErrorDto(creation.error));
+          return null;
         }
-        setError(null);
+        void creation.refreshCompletion.then(({ failedRefreshCount }) => {
+          if (failedRefreshCount > 0) {
+            setStatusMessage(
+              `${createdMessage} ${failedRefreshCount} background list refresh(es) did not complete; use Sync to retry.`,
+            );
+          }
+        });
+        return creation.mailbox.view.id;
       } catch (caught: unknown) {
         setError(asErrorDto(caught));
+        return null;
       } finally {
         setBusy(false);
       }

@@ -12,11 +12,13 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "NMail",
-        "width": 1024,
-        "height": 768,
-        "minWidth": 1024,
-        "minHeight": 768
+        "width": 1120,
+        "height": 760,
+        "decorations": false,
+        "transparent": false,
+        "center": true
       }
     ],
     "security": {

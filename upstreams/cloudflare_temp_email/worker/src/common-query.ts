@@ -1,6 +1,7 @@
 import { Context } from 'hono';
 
 import i18n from './i18n';
+import type { RawMailRow } from './models';
 
 export const handleListQuery = async (
     c: Context<HonoCustomType>,
@@ -54,7 +55,7 @@ export const handleMailListQuery = async (
     const resultsQuery = `${query} order by ${orderClause} limit ? offset ?`;
     const { results } = await c.env.DB.prepare(resultsQuery).bind(
         ...params, limit, offset
-    ).all();
+    ).all<RawMailRow>();
     const resolvedResults = await resolveRawEmailList(results);
     const count = offset == 0 ? await c.env.DB.prepare(
         countQuery

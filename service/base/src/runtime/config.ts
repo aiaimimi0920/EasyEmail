@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { parseCloudflareSendTransport } from "../domain/cloudflare-send-policy.js";
 import { parse as parseYaml } from "yaml";
 import type {
   EasyEmailRuntimeBootstrapEnvironment,
@@ -88,7 +89,7 @@ export function parseEasyEmailServiceRuntimeConfig(
     });
 
   return {
-    hostname: asNonEmptyString(server.hostname) ?? asNonEmptyString(server.host) ?? "0.0.0.0",
+    hostname: asNonEmptyString(server.hostname) ?? asNonEmptyString(server.host) ?? "127.0.0.1",
     defaultStrategyProfileId,
     defaultStrategyMode,
     routingProfiles,
@@ -205,6 +206,7 @@ export function parseEasyEmailServiceRuntimeConfig(
       baseUrl: asNonEmptyString(cloudflareTempEmail.baseUrl),
       apiKey: asNonEmptyString(cloudflareTempEmail.apiKey),
       adminAuth: asNonEmptyString(cloudflareTempEmail.adminAuth),
+      sendTransport: parseCloudflareSendTransport(cloudflareTempEmail.sendTransport),
       domain: asNonEmptyString(cloudflareTempEmail.domain),
       domains: parseStringList(cloudflareTempEmail.domains),
       randomSubdomainDomains: parseStringList(cloudflareTempEmail.randomSubdomainDomains),

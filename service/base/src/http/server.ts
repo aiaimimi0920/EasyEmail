@@ -1,5 +1,7 @@
+import { Buffer } from "node:buffer";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { EasyEmailError } from "../domain/errors.js";
+import { EASY_EMAIL_HTTP_ROUTES } from "./contracts.js";
 import { EasyEmailHttpHandler } from "./handler.js";
 import { reportHttpFailure } from "./failure-diagnostic.js";
 import { handleAdminRoute } from "./routes/admin.js";
@@ -11,6 +13,7 @@ export interface EasyEmailHttpServerOptions {
   port?: number;
   apiKey?: string;
   corsOrigins?: readonly string[];
+  maxRequestBodyBytes?: number;
 }
 
 export interface StartedEasyEmailHttpServer {
@@ -24,22 +27,50 @@ function encodeJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function decodeChunk(chunk: string | Uint8Array): string {
-  if (typeof chunk === "string") return chunk;
-  return new TextDecoder("utf-8").decode(chunk);
+const DEFAULT_MAX_REQUEST_BODY_BYTES = 1024 * 1024;
+
+function requestBodyTooLarge(): EasyEmailError {
+  return new EasyEmailError(
+    "REQUEST_BODY_TOO_LARGE",
+    "Request body exceeds the configured size limit.",
+  );
 }
 
-function readBody(request: IncomingMessage): Promise<string> {
+function readBody(request: IncomingMessage, maxBytes: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    let body = "";
-    request.on("data", (chunk) => { body += decodeChunk(chunk); });
-    request.on("end", () => { resolve(body); });
-    request.on("error", reject);
+    const declaredLength = request.headers["content-length"];
+    if (typeof declaredLength === "string" && Number(declaredLength) > maxBytes) {
+      request.resume();
+      reject(requestBodyTooLarge());
+      return;
+    }
+
+    const chunks: Buffer[] = [];
+    let receivedBytes = 0;
+    let exceeded = false;
+    request.on("data", (chunk: string | Uint8Array) => {
+      if (exceeded) return;
+      const buffer = Buffer.from(chunk);
+      receivedBytes += buffer.byteLength;
+      if (receivedBytes > maxBytes) {
+        exceeded = true;
+        chunks.length = 0;
+        reject(requestBodyTooLarge());
+        return;
+      }
+      chunks.push(buffer);
+    });
+    request.on("end", () => {
+      if (!exceeded) resolve(Buffer.concat(chunks, receivedBytes).toString("utf8"));
+    });
+    request.on("error", (error) => {
+      if (!exceeded) reject(error);
+    });
   });
 }
 
-async function readJsonBody<T>(request: IncomingMessage): Promise<T> {
-  const body = await readBody(request);
+async function readJsonBody<T>(request: IncomingMessage, maxBytes: number): Promise<T> {
+  const body = await readBody(request, maxBytes);
   try {
     return (body ? JSON.parse(body) : {}) as T;
   } catch {
@@ -83,6 +114,17 @@ function checkApiKey(apiKey: string | undefined, request: IncomingMessage, respo
     message: "A valid Bearer token is required. Set Authorization: Bearer <api-key>.",
   });
   return false;
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+  if (normalized === "localhost" || normalized === "::1" || normalized === "0:0:0:0:0:0:0:1") {
+    return true;
+  }
+  const octets = normalized.split(".");
+  return octets.length === 4
+    && octets[0] === "127"
+    && octets.every((octet) => /^\d{1,3}$/.test(octet) && Number(octet) <= 255);
 }
 
 function extractVerificationCodeSessionId(path: string): string | undefined {
@@ -144,11 +186,18 @@ export function createEasyEmailHttpServer(
   const hostname = options.hostname ?? "127.0.0.1";
   const requestedPort = options.port ?? 0;
   const { apiKey } = options;
+  const maxRequestBodyBytes = options.maxRequestBodyBytes ?? DEFAULT_MAX_REQUEST_BODY_BYTES;
+  if (!Number.isSafeInteger(maxRequestBodyBytes) || maxRequestBodyBytes < 1) {
+    throw new TypeError("maxRequestBodyBytes must be a positive safe integer.");
+  }
+  if (!apiKey && !isLoopbackHostname(hostname)) {
+    throw new TypeError("apiKey is required when hostname is not loopback.");
+  }
   const corsOrigins = new Set(
     (options.corsOrigins ?? []).map((origin) => origin.trim()).filter(Boolean),
   );
 
-  const server = createServer(async (request, response) => {
+  const handleRequest = async (request: IncomingMessage, response: ServerResponse) => {
     const method = request.method ?? "GET";
     const url = request.url ?? "/";
     const path = url.split("?")[0] ?? "/";
@@ -184,11 +233,20 @@ export function createEasyEmailHttpServer(
       return;
     }
 
+    if (!apiKey && method === "GET" && path === EASY_EMAIL_HTTP_ROUTES.snapshot) {
+      writeJson(response, 403, {
+        code: "SNAPSHOT_AUTH_REQUIRED",
+        error: "SNAPSHOT_AUTH_REQUIRED",
+        message: "Configure server.apiKey and authenticate to read the full service snapshot.",
+      });
+      return;
+    }
+
     if (!checkApiKey(apiKey, request, response)) {
       return;
     }
 
-    const readBodyJson = <T>() => readJsonBody<T>(request);
+    const readBodyJson = <T>() => readJsonBody<T>(request, maxRequestBodyBytes);
 
     try {
       const query = parseQueryString(url);
@@ -221,6 +279,11 @@ export function createEasyEmailHttpServer(
 
       writeJson(response, 404, { error: "EASY_EMAIL_ROUTE_NOT_FOUND", path, method });
     } catch (error) {
+      if (error instanceof EasyEmailError && error.code === "REQUEST_BODY_TOO_LARGE") {
+        writeEasyEmailError(response, 413, error);
+        return;
+      }
+
       if (error instanceof EasyEmailError && ["INVALID_JSON", "INVALID_QUERY"].includes(error.code)) {
         writeEasyEmailError(response, 400, error);
         return;
@@ -339,10 +402,30 @@ export function createEasyEmailHttpServer(
       reportHttpFailure(method, path, error);
       writeJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
     }
+  };
+
+  let closing = false;
+  let closePromise: Promise<void> | undefined;
+  const requestTasks = new Set<Promise<void>>();
+  const server = createServer((request, response) => {
+    if (closing) {
+      response.setHeader("connection", "close");
+      writeJson(response, 503, { error: "EASY_EMAIL_SHUTTING_DOWN" });
+      return;
+    }
+    // A disconnected socket does not cancel its in-flight provider or registry work.
+    const task = handleRequest(request, response).catch(() => {
+      console.error("easy_email_http_request_failed");
+      response.destroy();
+    });
+    requestTasks.add(task);
+    void task.then(() => requestTasks.delete(task));
   });
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
     server.listen(requestedPort, hostname, () => {
+      server.removeListener("error", reject);
       const address = server.address();
       const port = (address as { port: number } | null)?.port ?? requestedPort;
       resolve({
@@ -350,7 +433,17 @@ export function createEasyEmailHttpServer(
         hostname,
         port,
         close() {
-          return new Promise((res, rej) => server.close((e) => (e ? rej(e) : res())));
+          if (!closePromise) {
+            closing = true;
+            const listenerClosed = new Promise<void>((res, rej) => {
+              server.close((error) => error ? rej(error) : res());
+            });
+            closePromise = Promise.allSettled([listenerClosed, ...requestTasks]).then((results) => {
+              const failure = results.find((result) => result.status === "rejected");
+              if (failure?.status === "rejected") throw failure.reason;
+            });
+          }
+          return closePromise;
         },
       });
     });

@@ -288,6 +288,9 @@ def build_granular_service_overlay(base_config: dict[str, Any]) -> dict[str, Any
         "EASYEMAIL_PROVIDER_GPTMAIL_PAID_API_KEY",
         "EASYEMAIL_PROVIDER_GPTMAIL_PAID_KEYS_TEXT",
         "EASYEMAIL_PROVIDER_TEMPMAIL_LOL_BASE_URL",
+        "EASYEMAIL_PROVIDER_TEMPORAM_API_KEY",
+        "EASYEMAIL_PROVIDER_TEMPORAM_BASE_URL",
+        "EASYEMAIL_PROVIDER_TEMPORAM_PREFERRED_DOMAIN",
         "EASYEMAIL_PROVIDER_M2U_BASE_URL",
         "EASYEMAIL_PROVIDER_M2U_PREFERRED_DOMAIN",
         "EASYEMAIL_PROVIDER_M2U_UPSTREAM_PROXY_URL",
@@ -372,6 +375,7 @@ def build_granular_service_overlay(base_config: dict[str, Any]) -> dict[str, Any
         providers["tempmailLol"] = tempmail_lol
 
     temporam: dict[str, Any] = {}
+    set_if_present(temporam, "apiKey", get_secret_text("EASYEMAIL_PROVIDER_TEMPORAM_API_KEY"))
     set_if_present(temporam, "baseUrl", get_secret_text("EASYEMAIL_PROVIDER_TEMPORAM_BASE_URL"))
     set_if_present(temporam, "preferredDomain", get_secret_text("EASYEMAIL_PROVIDER_TEMPORAM_PREFERRED_DOMAIN"))
     if temporam:

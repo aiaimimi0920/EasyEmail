@@ -41,6 +41,7 @@ function buildCloudflareTempEmailRegistrationRequest(
     baseUrl,
     customAuth: config.cloudflareTempEmail.apiKey,
     adminAuth: config.cloudflareTempEmail.adminAuth,
+    sendTransport: config.cloudflareTempEmail.sendTransport,
     domain: config.cloudflareTempEmail.domain?.trim() || config.cloudflareTempEmail.domains?.[0]?.trim() || inferredDomain,
     domains: config.cloudflareTempEmail.domains,
     randomSubdomainDomains: config.cloudflareTempEmail.randomSubdomainDomains,

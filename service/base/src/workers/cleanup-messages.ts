@@ -1,4 +1,6 @@
-﻿import { MailRegistry } from "../domain/registry.js";
+import type { MailRegistry } from "../domain/registry.js";
+
+import type { ObservedMessage } from "../domain/models.js";
 
 export interface MessageCleanupOptions {
   now?: Date;
@@ -17,14 +19,22 @@ export function cleanupMailboxMessages(
 ): MessageCleanupRecord[] {
   const keepRecentCount = options.keepRecentCount ?? 5;
   const records: MessageCleanupRecord[] = [];
+  const messagesBySession = new Map<string, ObservedMessage[]>();
+  for (const message of registry.listMessages()) {
+    const messages = messagesBySession.get(message.sessionId);
+    if (messages) {
+      messages.push(message);
+    } else {
+      messagesBySession.set(message.sessionId, [message]);
+    }
+  }
 
   for (const session of registry.listSessions()) {
     if (options.onlyResolvedOrExpired !== false && session.status === "open") {
       continue;
     }
 
-    const messages = registry
-      .listMessagesBySession(session.id)
+    const messages = (messagesBySession.get(session.id) ?? [])
       .sort((left, right) => right.observedAt.localeCompare(left.observedAt));
 
     const removable = messages.slice(keepRecentCount);

@@ -1,0 +1,19 @@
+export function deploymentFixture() {
+  return { version: 1, accountId: '1'.repeat(32),
+    email: { name: 'easyemail-email-acceptance', origin: 'https://email-api.release.example.com', domains: ['mail.release.example.com'],
+      database: { name: 'email-acceptance', id: '11111111-1111-4111-8111-111111111111' } },
+    platform: { name: 'easyemail-web-acceptance', origin: 'https://easyemail.release.example.com',
+      database: { name: 'easyemail-acceptance', id: '22222222-2222-4222-8222-222222222222' }, inboxBucket: 'easyemail-inbox-acceptance', outboxBucket: 'easyemail-outbox-acceptance' } };
+}
+
+export function acceptanceDeploymentFixture(workersDev = false) {
+  const value = deploymentFixture(); value.acceptance = { workersDev };
+  value.email.name = 'easyemail-migration-email'; value.platform.name = 'easyemail-migration-platform';
+  for (const component of ['email', 'platform']) {
+    value[component].origin = `https://${value[component].name}.synthetic-account.workers.dev`;
+    value[component].database.name = `${value[component].name}-db`;
+  }
+  value.email.domains = ['mail.acceptance.test'];
+  value.platform.inboxBucket = 'easyemail-migration-inbox'; value.platform.outboxBucket = 'easyemail-migration-outbox';
+  return value;
+}

@@ -1,0 +1,110 @@
+import assert from "node:assert/strict";
+import path from "node:path";
+import { test } from "node:test";
+import { chromium } from "playwright-core";
+import { createHarness, INVITE, PASSWORD } from "./runtime-harness.mjs";
+import { providerFixture } from "./provider-fixture.mjs";
+import { attachmentMail } from "./attachment-fixture.mjs";
+
+test("Chrome: confirm/cancel trash, restore, purge, disable/enable and explicitly release platform access", { timeout: 90000 }, async () => {
+  const f = await providerFixture();
+  let h, browser, page;
+  try {
+    h = await createHarness(f.bindings, true);
+    browser = await chromium.launch({ executablePath: process.env.EASYEMAIL_CHROME_PATH
+      ?? "C:/Program Files/Google/Chrome/Application/chrome.exe", headless: true });
+    page = await browser.newPage({ viewport: { width: 1100, height: 1000 } });
+    page.setDefaultTimeout(10000);
+    const errors = [], external = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("request", (request) => { if (!request.url().startsWith(h.baseUrl.origin)) external.push(request.url()); });
+    await page.goto(h.baseUrl.href);
+    await page.getByRole("button", { name: "使用邀请口令注册", exact: true }).click();
+    await page.getByLabel("用户名", { exact: true }).fill("lifecycle-web-alice");
+    await page.getByLabel("密码", { exact: true }).fill(PASSWORD);
+    await page.getByLabel("邀请口令", { exact: true }).fill(INVITE);
+    await page.getByRole("button", { name: "注册", exact: true }).click();
+    await page.getByRole("combobox", { name: "域名", exact: true }).selectOption("cf.example.test");
+    await page.getByRole("button", { name: "分配随机邮箱", exact: true }).click();
+    await page.getByRole("heading", { name: "收件箱", exact: true }).waitFor();
+    const box = await h.db.prepare("SELECT * FROM mailboxes LIMIT 1").first();
+    const fixture = attachmentMail(box.address);
+    f.messages.set(box.address, [fixture.parsed]); f.rawMails.set(box.address, [fixture.raw]);
+    await page.getByRole("button", { name: "刷新收信", exact: true }).click();
+    await page.getByRole("button", { name: fixture.parsed.subject, exact: true }).click();
+    const calls = f.calls.length;
+    page.once("dialog", (dialog) => dialog.dismiss());
+    await page.getByRole("button", { name: "移到平台回收站", exact: true }).click();
+    assert.equal((await h.db.prepare("SELECT trashed_at FROM messages LIMIT 1").first()).trashed_at, null);
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "移到平台回收站", exact: true }).click();
+    await page.getByRole("article", { name: "邮件详情" }).waitFor({ state: "detached" });
+    assert.equal(await page.getByRole("button", { name: fixture.parsed.subject, exact: true }).count(), 0);
+    await page.getByRole("button", { name: "聚合收件箱", exact: true }).click();
+    await page.getByRole("combobox", { name: "邮件来源", exact: true }).selectOption("temporary");
+    await page.getByRole("combobox", { name: "文件夹", exact: true }).selectOption("trash");
+    await page.getByRole("button", { name: "搜索邮件", exact: true }).click();
+    await page.getByRole("button", { name: fixture.parsed.subject, exact: true }).click();
+    assert.equal(await page.getByRole("button", { name: "回复", exact: true }).isDisabled(), true);
+    await page.getByRole("button", { name: "恢复平台邮件", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "已加载 0 封" }).waitFor();
+    await page.getByRole("combobox", { name: "文件夹", exact: true }).selectOption("inbox");
+    await page.getByRole("button", { name: "搜索邮件", exact: true }).click();
+    await page.getByRole("button", { name: fixture.parsed.subject, exact: true }).click();
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "移到平台回收站", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "已加载 0 封" }).waitFor();
+    await page.getByRole("combobox", { name: "文件夹", exact: true }).selectOption("trash");
+    await page.getByRole("button", { name: "搜索邮件", exact: true }).click();
+    await page.getByRole("button", { name: fixture.parsed.subject, exact: true }).click();
+    page.once("dialog", (dialog) => dialog.dismiss());
+    await page.getByRole("button", { name: "永久清除平台缓存", exact: true }).click();
+    assert.equal((await h.db.prepare("SELECT purged_at FROM messages LIMIT 1").first()).purged_at, null);
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "永久清除平台缓存", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "已加载 0 封" }).waitFor();
+    assert.equal((await h.db.prepare("SELECT text_body FROM messages LIMIT 1").first()).text_body, "");
+    await page.getByRole("button", { name: "邮箱管理", exact: true }).click();
+    await page.getByRole("button", { name: "停用邮箱", exact: true }).click();
+    await page.getByRole("button", { name: "启用邮箱", exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "刷新收信", exact: true }).isDisabled(), true);
+    assert.equal(await page.getByRole("button", { name: "用此邮箱写信", exact: true }).isDisabled(), true);
+    await page.getByRole("button", { name: "启用邮箱", exact: true }).click();
+    await page.getByRole("button", { name: "停用邮箱", exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "刷新收信", exact: true }).isEnabled(), true);
+    await page.getByRole("button", { name: "释放平台访问", exact: true }).click();
+    await page.getByLabel("确认释放的邮箱地址", { exact: true }).fill("wrong@example.test");
+    assert.equal(await page.getByRole("button", { name: "确认释放平台访问", exact: true }).isDisabled(), true);
+    await page.getByRole("button", { name: "取消释放", exact: true }).click();
+    assert.equal((await h.db.prepare("SELECT released_at FROM mailboxes LIMIT 1").first()).released_at, null);
+    await page.getByRole("button", { name: "释放平台访问", exact: true }).click();
+    await page.getByLabel("确认释放的邮箱地址", { exact: true }).fill(box.address);
+    await page.getByRole("button", { name: "确认释放平台访问", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "已释放平台访问；历史缓存保留" }).waitFor();
+    assert.equal((await h.db.prepare("SELECT credential_cipher FROM mailboxes LIMIT 1").first()).credential_cipher, null);
+    assert.equal(f.calls.length, calls, "All platform lifecycle operations stay local");
+    for (const [permission, name, scopes] of [["cleanup", "cache cleanup", ["mailboxes:read", "messages:read", "messages:delete"]],
+      ["release", "platform release", ["mailboxes:read", "mailboxes:delete"]]]) {
+      await page.getByRole("combobox", { name: "权限", exact: true }).selectOption(permission);
+      await page.getByLabel("名称", { exact: true }).fill(name);
+      const created = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/api-keys" && response.request().method() === "POST");
+      await page.getByRole("button", { name: "创建 Key", exact: true }).click(); await created;
+      await page.getByTestId("new-key").waitFor();
+      assert.deepEqual(JSON.parse((await h.db.prepare("SELECT scopes FROM api_keys WHERE name = ?").bind(name).first()).scopes), scopes);
+      await page.getByRole("button", { name: "隐藏", exact: true }).click();
+    }
+    await page.reload();
+    await page.getByRole("button", { name: box.address, exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "已释放平台访问；历史缓存保留" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "刷新收信", exact: true }).isDisabled(), true);
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.screenshot({ path: path.join(h.directory, "lifecycle-mobile.png"), fullPage: true });
+    assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
+    assert.deepEqual(errors, []); assert.deepEqual(external, []);
+    console.log(`M3d Chrome evidence: ${h.directory}`);
+  } catch (error) {
+    if (page) { console.error(await page.locator("body").ariaSnapshot()); await page.screenshot({ path: path.join(h.directory, "lifecycle-failure.png"), fullPage: true }); }
+    throw error;
+  } finally { await browser?.close(); await h?.close(); await f.close(); }
+});

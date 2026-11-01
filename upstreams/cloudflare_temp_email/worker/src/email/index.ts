@@ -14,7 +14,7 @@ import { CONSTANTS } from "../constants";
 import { compressText } from "../gzip";
 
 
-async function email(message: ForwardableEmailMessage, env: Bindings, ctx: ExecutionContext) {
+async function email(message: ForwardableEmailMessage, env: Bindings) {
     if (await isBlocked(message.from, env)) {
         message.setReject("Reject from address");
         console.log(`Reject message from ${message.from} to ${message.to}`);
@@ -112,10 +112,13 @@ async function email(message: ForwardableEmailMessage, env: Bindings, ctx: Execu
         if (!success) {
             message.setReject(`Failed save message to ${message.to}`);
             console.error(`Failed save message from ${message.from} to ${message.to}`);
+            return;
         }
     }
     catch (error) {
         console.error("save email error", error);
+        message.setReject(`Failed save message to ${message.to}`);
+        return;
     }
 
     // forward email

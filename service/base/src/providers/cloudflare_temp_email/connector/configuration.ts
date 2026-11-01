@@ -1,4 +1,5 @@
 import type { ProviderInstance } from "../../../domain/models.js";
+import { parseCloudflareSendTransport } from "../../../domain/cloudflare-send-policy.js";
 import type { CloudflareTempEmailConfig } from "./models.js";
 
 function readMetadata(instance: ProviderInstance, key: string): string | undefined {
@@ -219,6 +220,7 @@ export function resolveCloudflareTempEmailConfig(instance: ProviderInstance): Cl
     baseUrl,
     customAuth: readMetadata(instance, "customAuth"),
     adminAuth: readMetadata(instance, "adminAuth"),
+    sendTransport: parseCloudflareSendTransport(instance.metadata.sendTransport),
     domain: readMetadata(instance, "domain"),
     domains: parseDomainList(instance),
     randomSubdomainDomains: parseRandomSubdomainDomainList(instance),

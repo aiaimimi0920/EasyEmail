@@ -92,6 +92,20 @@ pub(super) fn invalid_json_error(endpoint: &'static str, _message: String) -> Ap
     }
 }
 
+pub(super) fn redirect_refused_error(endpoint: &'static str) -> AppError {
+    AppError {
+        code: "easyemail_redirect_refused".to_string(),
+        category: ErrorCategory::Protocol,
+        user_message: "EasyEmail redirected the request. Configure the final service URL instead."
+            .to_string(),
+        technical_message: Some(format!("EasyEmail redirect refused at {endpoint}")),
+        retryable: false,
+        action_required: ActionRequired::EditSettings,
+        correlation_id: uuid::Uuid::new_v4().to_string(),
+        metadata: Box::new(json!({ "endpoint": endpoint })),
+    }
+}
+
 pub(super) fn map_ureq_error(error: ureq::Error, endpoint: &'static str) -> AppError {
     match error {
         ureq::Error::Status(status, response) => {

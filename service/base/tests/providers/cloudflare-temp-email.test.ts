@@ -37,6 +37,7 @@ describe("cloudflare temp email connector", () => {
       "https://temp.example.test/api/new_address",
       expect.objectContaining({
         method: "POST",
+        redirect: "error",
         headers: expect.objectContaining({
           "Content-Type": "application/json",
         }),

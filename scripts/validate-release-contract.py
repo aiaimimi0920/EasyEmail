@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_PATH = ROOT / "release-contract.json"
 PRODUCT_CONTRACT_PATH = ROOT / "product-contract.json"
 DOC_PATH = ROOT / "docs" / "release-contract.md"
+LOCAL_SCRIPT_PATTERN = re.compile(
+    r"(?:\bpython(?:3)?\s+|\.\\|\./)(?P<path>scripts[\\/][A-Za-z0-9_.\\/-]+\.(?:py|ps1|sh))"
+)
 
 
 def load_contract() -> dict[str, Any]:
@@ -41,10 +44,48 @@ def require_regex(path: Path, pattern: str, label: str) -> None:
         raise AssertionError(f"{path.relative_to(ROOT)} missing {label}: {pattern}")
 
 
+def collect_workflow_sources(
+    workflow_path: Path,
+    workflow_text: str,
+    root: Path = ROOT,
+) -> list[tuple[Path, str]]:
+    sources = [(workflow_path, workflow_text)]
+    seen: set[str] = set()
+    for match in LOCAL_SCRIPT_PATTERN.finditer(workflow_text):
+        relative = match.group("path").replace("\\", "/")
+        if relative in seen:
+            continue
+        seen.add(relative)
+        script_path = root / relative
+        if not script_path.is_file():
+            raise AssertionError(f"workflow references missing local script: {relative}")
+        sources.append((script_path, script_path.read_text(encoding="utf-8")))
+    return sources
+
+
+def sources_write_github_output(sources: list[tuple[Path, str]], output_name: str) -> bool:
+    inline_markers = (f'echo "{output_name}=', f"echo '{output_name}=")
+    for _, text in sources:
+        shell_append = re.search(r">>[^\n]*GITHUB_OUTPUT", text)
+        python_append = re.search(r"\.open\(\s*[\"']a[\"']", text) and re.search(
+            r"\.write\(", text
+        )
+        if "GITHUB_OUTPUT" not in text or not (shell_append or python_append):
+            continue
+        if any(marker in text for marker in inline_markers):
+            return True
+        if re.search(rf"[\"']{re.escape(output_name)}[\"']\s*:", text):
+            return True
+        if re.search(rf"[\"']{re.escape(output_name)}(?:=|<<)", text):
+            return True
+    return False
+
+
 def validate_workflow(workflow: dict[str, Any]) -> None:
     relative = str(workflow["path"])
     path = require_file(relative)
     text = path.read_text(encoding="utf-8")
+    sources = collect_workflow_sources(path, text)
     if "workflow_dispatch:" not in text:
         raise AssertionError(f"{relative} must expose workflow_dispatch")
     if "workflow_call:" not in text:
@@ -54,7 +95,7 @@ def validate_workflow(workflow: dict[str, Any]) -> None:
         require_regex(path, rf"^\s+{re.escape(input_name)}:\s*$", f"workflow_dispatch input {input_name}")
 
     for output_name in workflow.get("releaseTagOutputs", []):
-        if f'echo "{output_name}=' not in text and f"echo '{output_name}=" not in text:
+        if not sources_write_github_output(sources, output_name):
             raise AssertionError(f"{relative} must write release metadata output {output_name}")
 
     for artifact_name in workflow.get("artifacts", []):
@@ -73,11 +114,12 @@ def validate_workflow(workflow: dict[str, Any]) -> None:
             raise AssertionError(f"{relative} must generate an encrypted import-code artifact")
 
     if workflow.get("requiresCloudflareDeploy"):
-        if "scripts/deploy-cloudflare-email.ps1" not in text:
+        if "scripts/deploy-cloudflare-email.ps1" not in text.replace("\\", "/"):
             raise AssertionError(f"{relative} must invoke the Cloudflare email deploy entrypoint")
 
     if workflow.get("requiresRuntimeReadback"):
-        if "/health_check" not in text or "cloudflare-email-runtime-readback" not in text:
+        has_health_readback = any("/health_check" in source_text for _, source_text in sources)
+        if not has_health_readback or "cloudflare-email-runtime-readback" not in text:
             raise AssertionError(f"{relative} must verify and publish Cloudflare runtime readback")
 
     if workflow.get("requiresDistributionBuilder"):

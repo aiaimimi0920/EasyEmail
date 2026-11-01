@@ -4,7 +4,7 @@ export function EasyEmailSetupPanel({ controller }: { controller: AppController 
   const {
     serviceUrl, setServiceUrl, apiToken, setApiToken, saveSettings, busy, testConnection, easyEmailHealth,
     avatarSettings, setAvatarSettings, saveAvatarSettings, clearSenderAvatarCache, targetService, setTargetService, note, setNote,
-    waitForCode, setWaitForCode, createTempMailbox, refreshAnonymousMail, tempRecoveryEmail, setTempRecoveryEmail, tempRecoveryProviderType, setTempRecoveryProviderType,
+    waitForCode, setWaitForCode, createAndSelectTempMailbox, refreshAnonymousMail, tempRecoveryEmail, setTempRecoveryEmail, tempRecoveryProviderType, setTempRecoveryProviderType,
     recoverTempMailbox, selectedTempMailboxId, setSelectedTempMailboxId, tempMailboxes, tempMailboxFromContains, setTempMailboxFromContains, tempOutcomeFailureReason, setTempOutcomeFailureReason,
     tempSendTo, setTempSendTo, tempSendSubject, setTempSendSubject, tempSendBody, setTempSendBody, readTempMailboxAuthenticationLink, updateTempMailboxSession,
     reportTempMailboxOutcome, sendTempMailboxMessage, releaseTempMailbox, lastAuthenticationLink, openLastTempMailboxAuthenticationLink, lastRefresh, lastPromotion, refreshMailbox,
@@ -160,7 +160,7 @@ export function EasyEmailSetupPanel({ controller }: { controller: AppController 
         </label>
       </div>
       <div className="nt-actions">
-        <button type="button" className="nt-btn nt-btn--primary" onClick={createTempMailbox} disabled={busy}>
+        <button type="button" className="nt-btn nt-btn--primary" onClick={createAndSelectTempMailbox} disabled={busy}>
           Create temp mailbox
         </button>
         <button type="button" className="nt-btn nt-btn--secondary" onClick={refreshAnonymousMail} disabled={busy}>

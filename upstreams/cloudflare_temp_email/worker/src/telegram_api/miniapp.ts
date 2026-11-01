@@ -6,6 +6,7 @@ import { checkCfTurnstile, checkIsAdmin, getBooleanValue } from "../utils";
 import { resolveRawEmailRow } from "../gzip";
 import { TelegramSettings } from "./settings";
 import i18n from "../i18n";
+import type { RawMailRow } from "../models";
 
 const encoder = new TextEncoder();
 const TG_AUTH_TIMEOUT = 300;
@@ -141,7 +142,7 @@ async function getMail(c: Context<HonoCustomType>): Promise<Response> {
         if (checkIsAdmin(c)) {
             const result = await c.env.DB.prepare(
                 `SELECT * FROM raw_mails where id = ?`
-            ).bind(mailId).first();
+            ).bind(mailId).first<RawMailRow>();
             if (!result) {
                 return c.text("Mail not found", 404);
             }
@@ -152,7 +153,7 @@ async function getMail(c: Context<HonoCustomType>): Promise<Response> {
         const { addressList, addressIdMap } = await jwtListToAddressData(c, jwtList, msgs);
         const result = await c.env.DB.prepare(
             `SELECT * FROM raw_mails where id = ?`
-        ).bind(mailId).first();
+        ).bind(mailId).first<RawMailRow>();
         if (!result) return c.json(null);
         const settings = await c.env.KV.get<TelegramSettings>(CONSTANTS.TG_KV_SETTINGS_KEY, "json");
         const superUser = settings?.enableGlobalMailPush && settings?.globalMailPushList.includes(userId);

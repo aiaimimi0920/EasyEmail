@@ -5,7 +5,7 @@ export interface MailMaintenanceLoop {
   intervalMs: number;
   tick(): ReturnType<EasyEmailService["runMaintenance"]>;
   probeAll(): Promise<ProviderHealthProbeResult[]>;
-  stop(): void;
+  stop(): Promise<void>;
 }
 
 export interface MailMaintenanceLoopOptions {
@@ -23,8 +23,10 @@ export function startMailMaintenanceLoop(
   let maintenanceRunning = false;
   let maintenanceQueued = false;
   let probeInFlight: Promise<ProviderHealthProbeResult[]> | null = null;
+  let stopped = false;
 
   const runMaintenanceTick = () => {
+    if (stopped) throw new Error("MAIL_MAINTENANCE_STOPPED");
     const result = {
       expired: service.expireSessions(),
       cleanedSessions: service.cleanupSessions(options.keepRecentSessionCount),
@@ -36,6 +38,7 @@ export function startMailMaintenanceLoop(
   };
 
   const scheduleMaintenanceTick = () => {
+    if (stopped) return;
     if (maintenanceRunning) {
       maintenanceQueued = true;
       return;
@@ -55,6 +58,7 @@ export function startMailMaintenanceLoop(
   };
 
   const runProbeAll = (): Promise<ProviderHealthProbeResult[]> => {
+    if (stopped) return Promise.reject(new Error("MAIL_MAINTENANCE_STOPPED"));
     if (probeInFlight) {
       return probeInFlight;
     }
@@ -93,11 +97,14 @@ export function startMailMaintenanceLoop(
     probeAll() {
       return runProbeAll();
     },
-    stop() {
+    async stop() {
+      stopped = true;
       clearInterval(maintenanceHandle);
       if (activeProbeHandle !== undefined) {
         clearInterval(activeProbeHandle);
       }
+      // Probe failures have already been reported; shutdown still waits for settlement.
+      await probeInFlight?.catch(() => undefined);
     },
   };
 }

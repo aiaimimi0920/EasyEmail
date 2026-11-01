@@ -2,34 +2,14 @@ import type { AppController } from "../../app/useAppController";
 
 export function AgentWorkspace({ controller }: { controller: AppController }) {
   const {
-    loadAgentThreads, setAgentWorkspace, agentThreads, needsAttentionThreads, selectedAgentService, agentServices, agentWorkspace, loadAgentThreadDetail,
+    setAgentWorkspace, agentThreads, needsAttentionThreads, selectedAgentService, agentServices, agentWorkspace, loadAgentThreadDetail,
     selectedAgentThreadDetail, selectedAgentSenderId, setSelectedAgentSenderId, sendEnabledAgentAccounts, selectedAgentServiceId, setSelectedAgentServiceId, agentTaskSubject, setAgentTaskSubject,
     agentTaskBody, setAgentTaskBody, confirmRestrictedAgent, setConfirmRestrictedAgent, sendAgentTask, busy, selectedAgentSender, lastAgentTask,
     agentAccounts, agentDisplayName, setAgentDisplayName, agentEmailAddress, setAgentEmailAddress, addAgentAccount, agentServiceName, setAgentServiceName,
     agentServiceEmail, setAgentServiceEmail, agentTrustLevel, setAgentTrustLevel, agentServiceDescription, setAgentServiceDescription, addAgentService,
   } = controller;
   return (
-    <section className="nt-board-view">
-      <div className="nt-board-head">
-        <div>
-          <p className="nt-kicker">AGENT MAIL</p>
-          <h1>Task thread control</h1>
-          <span>Agent accounts are scope=agent and hidden from normal Mail.</span>
-        </div>
-        <div className="nt-board-actions">
-          <button type="button" className="nt-btn nt-btn--secondary" onClick={() => void loadAgentThreads()}>
-            Refresh threads
-          </button>
-          <button
-            type="button"
-            className="nt-btn nt-btn--primary"
-            onClick={() => setAgentWorkspace("compose")}
-          >
-            Compose task
-          </button>
-        </div>
-      </div>
-
+    <section className="nt-board-view nt-board-view--content-only">
       <div className="nt-agent-layout">
         <aside className="nt-directory">
           <p className="nt-kicker">WORKSPACE</p>

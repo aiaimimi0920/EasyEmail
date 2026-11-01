@@ -3,7 +3,7 @@ import type { AppController } from "../../app/useAppController";
 export function MailTopbarActions({ controller }: { controller: AppController }) {
   const {
     mailboxView, emptyCurrentTrash, busy, trashMessageCount, selectedMailMessage, mailReadingExpanded, setMailReadingExpanded, mailSourceDropdownOpen,
-    selectedMailSource, closeMailSearchOverlay, setMailSourceDropdownOpen, mailSources, mailSourceId, selectMailSource, openMailAccountPanelFromSourceDropdown, createTempMailboxFromSourceDropdown,
+    selectedMailSource, closeMailSearchOverlay, setMailSourceDropdownOpen, mailSources, mailSourceId, selectMailSource, openMailAccountPanelFromSourceDropdown, createAndSelectTempMailbox,
   } = controller;
   return (
     <div className="nt-mail-topbar__actions">
@@ -43,7 +43,6 @@ export function MailTopbarActions({ controller }: { controller: AppController })
             setMailSourceDropdownOpen((value) => !value);
           }}
         >
-          <span className="nt-mail-source-selector__kicker">当前邮箱账号</span>
           <strong>{selectedMailSource.label}</strong>
           <span className="nt-mail-source-selector__chevron" aria-hidden="true">
             {mailSourceDropdownOpen ? "⌃" : "⌄"}
@@ -89,7 +88,7 @@ export function MailTopbarActions({ controller }: { controller: AppController })
               <button
                 type="button"
                 className="nt-mail-source-selector__action nt-mail-source-selector__action--primary"
-                onClick={createTempMailboxFromSourceDropdown}
+                onClick={createAndSelectTempMailbox}
                 disabled={busy}
               >
                 创建并添加临时邮箱

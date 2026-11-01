@@ -10,12 +10,13 @@ import { startEasyEmailServiceRuntime } from "../../src/runtime/runtime.js";
 
 
 describe("service runtime state preservation", () => {
-  it("restores a persisted runtime template after a full restart", async () => {
+  it.each([true, false])("restores a runtime template after restart (explicit flush: %s)", async (explicitFlush) => {
     const stateDir = await mkdtemp(join(tmpdir(), "easy-email-state-preservation-"));
     const config = parseEasyEmailServiceRuntimeConfig({
       server: {
         host: "127.0.0.1",
         port: 0,
+        apiKey: "state-preservation-token",
       },
       maintenance: {
         enabled: false,
@@ -45,7 +46,7 @@ describe("service runtime state preservation", () => {
       const firstRuntime = await startEasyEmailServiceRuntime({ config });
       try {
         firstRuntime.service.saveRuntimeTemplate(template);
-        await firstRuntime.persistenceLoop?.flush();
+        if (explicitFlush) await firstRuntime.persistenceLoop?.flush();
       } finally {
         await firstRuntime.close();
       }
@@ -54,6 +55,7 @@ describe("service runtime state preservation", () => {
       try {
         const response = await fetch(
           `${restartedRuntime.server.baseUrl}${EASY_EMAIL_HTTP_ROUTES.snapshot}`,
+          { headers: { authorization: "Bearer state-preservation-token" } },
         );
         expect(response.status).toBe(200);
         const payload = await response.json() as { snapshot: EasyEmailSnapshot };

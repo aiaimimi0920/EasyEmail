@@ -12,6 +12,7 @@ declare const fetch: (
 }>;
 
 import type { ProviderInstance } from "../../../domain/models.js";
+import { fetchProviderResource } from "../../http-policy.js";
 import { normalizeDomainArray, resolveCloudflareTempEmailConfig } from "./configuration.js";
 import { requestJson } from "./http.js";
 import { asRecord } from "./mail-content.js";
@@ -34,7 +35,7 @@ export async function probeCloudflareTempEmailInstance(instance: ProviderInstanc
 
   const startedAt = Date.now();
   try {
-    const healthResponse = await fetch(`${config.baseUrl.replace(/\/$/, "")}/health_check`, {
+    const healthResponse = await fetchProviderResource(`${config.baseUrl.replace(/\/$/, "")}/health_check`, {
       method: "GET",
       headers: {
         Accept: "text/plain, application/json, */*",

@@ -23,6 +23,7 @@
     "portable:build": "npm run tauri -- build --ci --no-sign --bundles msi nsis && npm run portable:bundle",
     "host:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-desktop-host-smoke.ps1",
     "host:startup-smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-desktop-startup-responsiveness.ps1",
+    "host:functional-smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-desktop-functional-smoke.ps1",
     "verify": "npm run test:unit && npm run ui:verify && npm run build && npm run preview:smoke && npm run rust:fmt && npm run rust:clippy && npm run rust:test && npm run rust:check && npm run core:bundle && npm run core:verify"
   },
   "dependencies": {
@@ -39,6 +40,7 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "jsdom": "^30.0.1",
+    "playwright-core": "1.62.1",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
   }

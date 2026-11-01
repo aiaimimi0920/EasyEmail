@@ -1,6 +1,46 @@
 #!/bin/sh
 set -eu
 
+APP_PID=""
+SYNC_PID=""
+RUN_PID=""
+STOPPING="false"
+
+terminate_child() {
+  if [ -n "${1:-}" ]; then
+    kill "-${2:-TERM}" "$1" 2>/dev/null || true
+    wait "$1" 2>/dev/null || true
+  fi
+}
+
+shutdown() {
+  STOPPING="true"
+  trap '' TERM INT
+  if [ -n "$APP_PID" ]; then
+    kill "-$1" "$APP_PID" 2>/dev/null || true
+  fi
+  terminate_child "$SYNC_PID" TERM
+  terminate_child "$RUN_PID" TERM
+  APP_STATUS=0
+  if [ -n "$APP_PID" ]; then
+    # A trapped signal interrupts wait; wait again until the app has really exited.
+    wait "$APP_PID" 2>/dev/null || APP_STATUS=$?
+  fi
+  exit "$APP_STATUS"
+}
+
+trap 'shutdown TERM' TERM
+trap 'shutdown INT' INT
+
+run_child() {
+  "$@" &
+  RUN_PID=$!
+  RUN_STATUS=0
+  wait "$RUN_PID" || RUN_STATUS=$?
+  RUN_PID=""
+  return "$RUN_STATUS"
+}
+
 # Force Unix paths (Docker Desktop on Windows may inject Windows paths)
 case "${EASY_EMAIL_CONFIG_PATH:-}" in
   *C:*|*\\*) EASY_EMAIL_CONFIG_PATH="/etc/easy-email/config.yaml" ;;
@@ -26,7 +66,7 @@ mkdir -p "$(dirname "$CONFIG_PATH")" "$(dirname "$RUNTIME_ENV_PATH")" "$STATE_DI
 if [ ! -f "$BOOTSTRAP_PATH" ] && [ -n "$IMPORT_CODE" ]; then
   mkdir -p "$(dirname "$BOOTSTRAP_PATH")"
   echo "[easy-email] import code provided, generating bootstrap file at $BOOTSTRAP_PATH"
-  python /usr/local/bin/easyemail-import-code.py inspect \
+  run_child python /usr/local/bin/easyemail-import-code.py inspect \
     --import-code "$IMPORT_CODE" \
     --output "$BOOTSTRAP_PATH"
 fi
@@ -34,7 +74,7 @@ fi
 if [ ! -f "$CONFIG_PATH" ]; then
   if [ -f "$BOOTSTRAP_PATH" ]; then
     echo "[easy-email] runtime config missing, attempting bootstrap via $BOOTSTRAP_PATH"
-    python /usr/local/bin/bootstrap-service-config.py \
+    run_child python /usr/local/bin/bootstrap-service-config.py \
       --bootstrap-path "$BOOTSTRAP_PATH" \
       --config-path "$CONFIG_PATH" \
       --runtime-env-path "$RUNTIME_ENV_PATH" \
@@ -91,7 +131,7 @@ start_runtime() {
   fi
 
   if [ "$(id -u)" = "0" ]; then
-    chown -R easy:easy "$STATE_DIR" "$(dirname "$CONFIG_PATH")" /app
+    run_child chown -R easy:easy "$STATE_DIR" "$(dirname "$CONFIG_PATH")" /app
     gosu easy node dist/src/runtime/main.js &
   else
     node dist/src/runtime/main.js &
@@ -103,9 +143,24 @@ start_runtime() {
 start_sync_loop() {
   SYNC_INTERVAL_SECONDS="$1"
   (
+    SYNC_CHILD_PID=""
+    sync_shutdown() {
+      trap '' TERM INT
+      terminate_child "$SYNC_CHILD_PID" TERM
+      exit 0
+    }
+    trap 'sync_shutdown' TERM INT
+    run_sync_child() {
+      "$@" &
+      SYNC_CHILD_PID=$!
+      SYNC_CHILD_STATUS=0
+      wait "$SYNC_CHILD_PID" || SYNC_CHILD_STATUS=$?
+      SYNC_CHILD_PID=""
+      return "$SYNC_CHILD_STATUS"
+    }
     while true; do
-      sleep "$SYNC_INTERVAL_SECONDS"
-      python /usr/local/bin/bootstrap-service-config.py \
+      run_sync_child sleep "$SYNC_INTERVAL_SECONDS"
+      run_sync_child python /usr/local/bin/bootstrap-service-config.py \
         --bootstrap-path "$BOOTSTRAP_PATH" \
         --config-path "$CONFIG_PATH" \
         --runtime-env-path "$RUNTIME_ENV_PATH" \
@@ -141,13 +196,12 @@ while true; do
 
   APP_STATUS=0
   wait "$APP_PID" || APP_STATUS=$?
+  APP_PID=""
 
-  if [ -n "${SYNC_PID:-}" ]; then
-    kill "$SYNC_PID" 2>/dev/null || true
-    wait "$SYNC_PID" 2>/dev/null || true
-  fi
+  terminate_child "$SYNC_PID" TERM
+  SYNC_PID=""
 
-  if [ -f "$SYNC_FLAG_PATH" ]; then
+  if [ "$STOPPING" != "true" ] && [ -f "$SYNC_FLAG_PATH" ]; then
     rm -f "$SYNC_FLAG_PATH"
     continue
   fi

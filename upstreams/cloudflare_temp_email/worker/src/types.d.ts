@@ -77,6 +77,7 @@ type Bindings = {
     // cf turnstile
     CF_TURNSTILE_SITE_KEY: string | undefined
     CF_TURNSTILE_SECRET_KEY: string | undefined
+    ENABLE_GLOBAL_TURNSTILE_CHECK?: string | boolean
 
     // resend
     RESEND_TOKEN: string | undefined

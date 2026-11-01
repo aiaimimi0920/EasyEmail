@@ -1,4 +1,4 @@
-﻿import type { CodeSource, ObserveMessageInput } from "./models.js";
+import type { CodeSource, ObserveMessageInput } from "./models.js";
 
 export interface ExtractedOtp {
   code: string;
@@ -83,7 +83,7 @@ function maybeDecodeQuotedPrintable(value: string): string {
     bytes.push(current.charCodeAt(0));
   }
 
-  return Buffer.from(bytes).toString("utf8");
+  return new TextDecoder("utf-8", { fatal: false, ignoreBOM: true }).decode(Uint8Array.from(bytes));
 }
 
 function decodeTransferEncodedContent(value: string): string {

@@ -13,6 +13,7 @@ declare const fetch: (
 
 import type { ProviderInstance } from "../../domain/models.js";
 import { extractOtpFromContent } from "../../domain/otp.js";
+import { fetchProviderResource } from "../http-policy.js";
 import type { TemporamConfig } from "./client.js";
 
 // Temporam's current authenticated API is served under /v3. Keep the legacy
@@ -209,7 +210,8 @@ export function bodyHasTemporamError(body: unknown): boolean {
   return Number.isFinite(code) && code >= 400;
 }
 
-export function classifyTemporamError(message: string): "transient" | "capacity" | "provider" {
+export function classifyTemporamError(message: string): "transient" | "capacity" | "provider" | "configuration" {
+  if (message.startsWith("TEMPORAM_CONFIGURATION_FAILURE:")) return "configuration";
   const normalized = message.trim().toLowerCase();
   if (CAPACITY_ERROR_RE.test(normalized)) {
     return "capacity";
@@ -271,10 +273,18 @@ export async function requestJson(
   options: { jsonBody?: Record<string, unknown> } = {},
 ): Promise<{ status: number; body: unknown }> {
   const normalizedBase = config.baseUrl.replace(/\/$/, "");
+  const endpoint = URL.parse(normalizedBase);
+  if (
+    endpoint?.origin === "https://api.temporam.com"
+    && endpoint.pathname === "/v3"
+    && !config.apiKey?.trim()
+  ) {
+    throw new Error("TEMPORAM_CONFIGURATION_FAILURE: Temporam API key is required for the official v3 API.");
+  }
   for (let attempt = 0; attempt <= TEMPORAM_MAX_RETRIES; attempt += 1) {
     let response: Awaited<ReturnType<typeof fetch>>;
     try {
-      response = await fetch(`${normalizedBase}${path}`, {
+      response = await fetchProviderResource(`${normalizedBase}${path}`, {
         method,
         headers: buildRequestHeaders(config, Boolean(options.jsonBody)),
         body: options.jsonBody ? JSON.stringify(options.jsonBody) : undefined,

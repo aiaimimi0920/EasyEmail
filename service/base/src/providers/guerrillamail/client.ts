@@ -14,6 +14,7 @@ declare const fetch: (
 import { randomBytes } from "node:crypto";
 import type { ObservedMessage, ProviderInstance } from "../../domain/models.js";
 import { extractOtpFromContent } from "../../domain/otp.js";
+import { fetchProviderResource } from "../http-policy.js";
 
 export interface GuerrillaMailConfig {
   apiBase: string;
@@ -154,7 +155,7 @@ async function requestJson(
   config: GuerrillaMailConfig,
   params: Record<string, string | number | undefined>,
 ): Promise<{ status: number; body: unknown }> {
-  const response = await fetch(`${config.apiBase}${encodeQuery(params)}`, {
+  const response = await fetchProviderResource(`${config.apiBase}${encodeQuery(params)}`, {
     method: "GET",
     headers: {
       Accept: "application/json",

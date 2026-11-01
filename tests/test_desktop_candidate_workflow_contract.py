@@ -11,6 +11,12 @@ PORTABLE_SCRIPT = ROOT / "apps" / "desktop" / "scripts" / "build-portable.ps1"
 STARTUP_SMOKE_SCRIPT = (
     ROOT / "apps" / "desktop" / "scripts" / "verify-desktop-startup-responsiveness.ps1"
 )
+FUNCTIONAL_SMOKE_SCRIPT = (
+    ROOT / "apps" / "desktop" / "scripts" / "verify-desktop-functional-smoke.ps1"
+)
+FUNCTIONAL_CDP_PROBE = (
+    ROOT / "apps" / "desktop" / "scripts" / "verify-desktop-functional-cdp.mjs"
+)
 DELAYED_CORE_FIXTURE = ROOT / "apps" / "desktop" / "scripts" / "fixtures" / "delayed-core.mjs"
 
 
@@ -21,6 +27,16 @@ class DesktopCandidateWorkflowContractTests(unittest.TestCase):
         cls.package_text = DESKTOP_PACKAGE.read_text(encoding="utf-8")
         cls.portable_text = PORTABLE_SCRIPT.read_text(encoding="utf-8")
         cls.startup_smoke_text = STARTUP_SMOKE_SCRIPT.read_text(encoding="utf-8")
+        cls.functional_smoke_text = (
+            FUNCTIONAL_SMOKE_SCRIPT.read_text(encoding="utf-8")
+            if FUNCTIONAL_SMOKE_SCRIPT.is_file()
+            else ""
+        )
+        cls.functional_cdp_text = (
+            FUNCTIONAL_CDP_PROBE.read_text(encoding="utf-8")
+            if FUNCTIONAL_CDP_PROBE.is_file()
+            else ""
+        )
 
     def test_candidate_is_manual_windows_only_and_read_only(self) -> None:
         self.assertIn("workflow_dispatch:", self.text)
@@ -83,6 +99,44 @@ class DesktopCandidateWorkflowContractTests(unittest.TestCase):
             "CORE_EXITED_WITH_UI",
         ):
             self.assertIn(expected, self.startup_smoke_text)
+
+    def test_candidate_drives_the_packaged_temporary_mailbox_workflow(self) -> None:
+        self.assertTrue(FUNCTIONAL_SMOKE_SCRIPT.is_file())
+        self.assertTrue(FUNCTIONAL_CDP_PROBE.is_file())
+        self.assertIn('"host:functional-smoke"', self.package_text)
+        self.assertIn(
+            "npm run host:functional-smoke -- -ExecutablePath $portableExecutables[0].FullName",
+            self.text,
+        )
+        for expected in (
+            "EASYEMAILAM_DATA_DIR",
+            "WEBVIEW2_USER_DATA_FOLDER",
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            "msedgewebview2.exe",
+            "Stop-IsolatedWebViewProcesses",
+            "CloseMainWindow",
+            "CORE_EXITED_WITH_UI=True",
+        ):
+            self.assertIn(expected, self.functional_smoke_text)
+        for expected in (
+            "connectOverCDP",
+            "创建并添加临时邮箱",
+            "同步当前邮箱",
+            "/mail/mailboxes/open",
+            "/mail/mailboxes/anonymous/refresh",
+            "TEMP_MAILBOX_CREATE_UI=True",
+            "TEMP_MAILBOX_SYNC_UI=True",
+            "SEARCH_UI=True",
+            "COMPOSE_UI=True",
+            "SETTINGS_UI=True",
+            "MAIL_ACCOUNT_PANEL_UI=True",
+            "MAIL_ACCOUNT_VALIDATION_UI=True",
+            "Release mailbox",
+            "/mail/mailboxes/release",
+            "TEMP_MAILBOX_RELEASE_HTTP=200",
+            "TEMP_MAILBOX_RELEASE_UI=True",
+        ):
+            self.assertIn(expected, self.functional_cdp_text)
 
     def test_candidate_cannot_be_mistaken_for_a_public_release(self) -> None:
         self.assertIn("artifactKind = 'desktop-migration-candidate'", self.text)

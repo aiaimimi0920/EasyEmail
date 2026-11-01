@@ -22,8 +22,17 @@ describe("runtime YAML config contract", () => {
   it("derives persistence paths from state dir", () => {
     const config = parseEasyEmailServiceRuntimeConfig({}, { stateDir: "/data/easy-email" });
 
+    expect(config.hostname).toBe("127.0.0.1");
     expect(config.persistence.filePath).toBe(resolve("/data/easy-email", "state/easy-email-state.json"));
     expect(config.persistence.databasePath).toBe(resolve("/data/easy-email", "state/easy-email-state.sqlite3"));
+  });
+
+  it("preserves an explicit public bind address", () => {
+    const config = parseEasyEmailServiceRuntimeConfig({
+      server: { host: "0.0.0.0" },
+    });
+
+    expect(config.hostname).toBe("0.0.0.0");
   });
 
   it("loads YAML config from EASY_EMAIL_CONFIG_PATH", async () => {

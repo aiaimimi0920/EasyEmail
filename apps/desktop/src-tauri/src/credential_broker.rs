@@ -1,4 +1,4 @@
-use std::io::{ErrorKind, Read, Write};
+use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -10,6 +10,9 @@ use zeroize::{Zeroize, Zeroizing};
 
 use crate::secret::windows::WindowsCredentialManagerVault;
 use crate::secret::SecretVaultAdapter;
+
+#[path = "credential_broker_workers.rs"]
+mod workers;
 
 const RESOLVE_PATH: &str = "/v1/credentials/resolve";
 const MAX_HEADER_BYTES: usize = 8192;
@@ -179,31 +182,18 @@ impl DesktopCredentialBroker {
         let server_thread = thread::Builder::new()
             .name("easyemail-credential-broker".to_string())
             .spawn(move || {
-                while !server_shutdown.load(Ordering::Acquire) {
-                    match listener.accept() {
-                        Ok((mut stream, _)) => {
-                            if server_shutdown.load(Ordering::Acquire) {
-                                break;
-                            }
-                            // Windows may inherit the listener's nonblocking mode
-                            // on accepted sockets. Restore blocking I/O so the
-                            // bounded read/write timeouts govern partial requests.
-                            if stream.set_nonblocking(false).is_err() {
-                                continue;
-                            }
-                            handle_connection(
-                                &mut stream,
-                                server_token.as_str(),
-                                vault.as_ref(),
-                                authorizer.as_ref(),
-                            );
-                        }
-                        Err(error) if error.kind() == ErrorKind::WouldBlock => {
-                            thread::sleep(Duration::from_millis(20));
-                        }
-                        Err(_) => break,
+                workers::run_bounded_server(listener, server_shutdown, move |mut stream| {
+                    // Windows may inherit the listener's nonblocking mode.
+                    if stream.set_nonblocking(false).is_err() {
+                        return;
                     }
-                }
+                    handle_connection(
+                        &mut stream,
+                        server_token.as_str(),
+                        vault.as_ref(),
+                        authorizer.as_ref(),
+                    );
+                });
             })
             .map_err(|error| format!("Could not start the desktop credential broker: {error}"))?;
 
@@ -288,6 +278,20 @@ fn parse_content_length(header: &str) -> Result<usize, ()> {
     content_length.ok_or(())
 }
 
+fn parse_authorization(header: &str) -> Result<Option<&str>, ()> {
+    let mut authorization = None;
+    for line in header.lines().skip(1) {
+        let (name, value) = line.split_once(':').ok_or(())?;
+        if name.eq_ignore_ascii_case("authorization") {
+            if authorization.is_some() {
+                return Err(());
+            }
+            authorization = Some(value.trim());
+        }
+    }
+    Ok(authorization)
+}
+
 fn read_request(stream: &mut TcpStream) -> Result<Zeroizing<Vec<u8>>, ()> {
     stream
         .set_read_timeout(Some(CONNECTION_TIMEOUT))
@@ -364,11 +368,13 @@ fn handle_connection(
         write_error(stream, 400, "invalid_request");
         return;
     }
-    let authorization = lines.find_map(|line| {
-        let (name, value) = line.split_once(':')?;
-        name.eq_ignore_ascii_case("authorization")
-            .then_some(value.trim())
-    });
+    let authorization = match parse_authorization(header) {
+        Ok(authorization) => authorization,
+        Err(()) => {
+            write_error(stream, 400, "invalid_request");
+            return;
+        }
+    };
     let expected_authorization = Zeroizing::new(format!("Bearer {expected_token}"));
     if !authorization
         .map(|value| constant_time_equal(value, expected_authorization.as_str()))

@@ -1,5 +1,6 @@
 import type { MailboxView } from "../../app/useAppController";
 import type { AppController } from "../../app/useAppController";
+import { MailTaxonomySection } from "./MailTaxonomySection";
 
 export function SideRail({ controller }: { controller: AppController }) {
   const {
@@ -7,8 +8,8 @@ export function SideRail({ controller }: { controller: AppController }) {
     railNavScrollState, railNavRef, updateRailNavScrollState, MAIL_RAIL_ITEMS, mailRailCounts, formatRailBadgeCount, composePopoverOpen, activeView,
     mailboxView, openComposePopover, selectMailRailItem, mailTaxonomySectionExpanded, openMailTaxonomySectionFromIcon, railExpandedReady, createMailTaxonomyItem, toggleMailTaxonomySection,
     isMailTaxonomyDrawerOpen, mailFolders, renderMailTaxonomyFolderItems, mailLabels, renderMailTaxonomyLabelItems, agentRailBadge, agentRailBadgeCount, setRailMode,
-    setActiveView, queueRailBadge, queueRailBadgeCount, expandRail, RailChevronIcon, platformAccountSignedIn, choosePlatformAvatarFile, platformAccountAvatarDataUrl,
-    platformAccountInitial, platformAccountName, platformAccountEmail, platformAccountMeta, platformAccountMenuOpen, openPlatformAccountPopover, signInPlatformAccount, busy,
+    setActiveView, queueRailBadge, queueRailBadgeCount, expandRail, RailChevronIcon, platformAccountSignedIn, platformAccountAvatarDataUrl,
+    platformAccountInitial, platformAccountName, platformAccountEmail, platformAccountMeta, platformAccountMenuOpen, openPlatformAccountPopover,
     collapseRail,
   } = controller;
   return (
@@ -17,13 +18,26 @@ export function SideRail({ controller }: { controller: AppController }) {
           aria-label="应用导航"
       data-collapsed={railCollapsed ? "true" : "false"}
     >
-      <div className="nt-brand">
-        <span className="nt-brand__mark">
+      <div className="nt-brand" data-tauri-drag-region>
+        <button
+          type="button"
+          className="nt-shell-rail-toggle"
+          aria-label={railCollapsed ? "展开侧栏" : "收起侧栏"}
+          title={railCollapsed ? "展开侧栏" : "收起侧栏"}
+          aria-expanded={!railCollapsed}
+          onClick={railCollapsed ? expandRail : collapseRail}
+        >
+          <span className="nt-shell-rail-toggle__icon">
+            <RailChevronIcon direction={railCollapsed ? "right" : "left"} />
+          </span>
+          <span className="nt-shell-rail-toggle__mark">
+            <EasyEmailAppIcon />
+          </span>
+        </button>
+        <span className="nt-brand__product-mark">
           <EasyEmailAppIcon />
         </span>
-        <div className="nt-rail-text nt-brand__text">
-          <strong>NMail</strong>
-        </div>
+        <strong className="nt-brand__product-name nt-rail-text">NMail</strong>
       </div>
 
       <div
@@ -120,187 +134,34 @@ export function SideRail({ controller }: { controller: AppController }) {
           })
           ) : null}
           {railMode === "mail" ? (
-        <div className="nt-mail-taxonomy" aria-label="文件夹与标签">
-            <section className="nt-mail-taxonomy__section">
-              <div className="nt-mail-taxonomy__head">
-                <button
-                  type="button"
-                  className="nt-mail-taxonomy__icon-toggle"
-                  data-modal-return-focus="mail-taxonomy"
-                  aria-label={mailTaxonomySectionExpanded.folder ? "收起文件夹" : "展开文件夹"}
-                  aria-expanded={mailTaxonomySectionExpanded.folder}
-                  aria-controls="mail-taxonomy-folders"
-                  onClick={() => openMailTaxonomySectionFromIcon("folder")}
-                >
-                  <span className="nt-nav__icon nt-mail-taxonomy__icon">
-                    <RailIcon kind="folders" />
-                  </span>
-                </button>
-                {railExpandedReady ? (
-                  <div className="nt-mail-taxonomy__row">
-                    <button
-                      type="button"
-                      className="nt-mail-taxonomy__add"
-                      aria-label="新建文件夹"
-                      onClick={() => void createMailTaxonomyItem("folder")}
-                    >
-                      +
-                    </button>
-                    <button
-                      type="button"
-                      className="nt-mail-taxonomy__chevron"
-                      aria-label={mailTaxonomySectionExpanded.folder ? "收起文件夹" : "展开文件夹"}
-                      aria-expanded={mailTaxonomySectionExpanded.folder}
-                      aria-controls="mail-taxonomy-folders"
-                      onClick={() => toggleMailTaxonomySection("folder")}
-                    >
-                      {mailTaxonomySectionExpanded.folder ? "⌃" : "⌄"}
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-              <div id="mail-taxonomy-folders" hidden={!mailTaxonomySectionExpanded.folder}>
-                {mailTaxonomySectionExpanded.folder ? (
-                  isMailTaxonomyDrawerOpen("folder") ? (
-                  <div className="nt-mail-taxonomy__drawer" role="group" aria-label="文件夹">
-                    <div className="nt-mail-taxonomy__drawer-head">
-                      <button type="button" className="nt-mail-taxonomy__drawer-title" onClick={() => selectMailRailItem("folders")}>
-                        <strong>文件夹</strong>
-                      </button>
-                      <button
-                        type="button"
-                        className="nt-mail-taxonomy__add"
-                        aria-label="新建文件夹"
-                        onClick={() => void createMailTaxonomyItem("folder")}
-                      >
-                        +
-                      </button>
-                      <button
-                        type="button"
-                        className="nt-mail-taxonomy__chevron"
-                        aria-label="收起文件夹"
-                        onClick={() => toggleMailTaxonomySection("folder")}
-                      >
-                        ⌃
-                      </button>
-                    </div>
-                    {mailFolders.length === 0 ? (
-                      <p
-                        className="nt-mail-taxonomy__empty nt-rail-text"
-                        role="status"
-                        aria-live="polite"
-                        data-empty-state
-                      >
-                        无文件夹
-                      </p>
-                    ) : renderMailTaxonomyFolderItems()}
-                  </div>
-                ) : mailFolders.length === 0 ? (
-                  <p
-                    className="nt-mail-taxonomy__empty nt-rail-text"
-                    role="status"
-                    aria-live="polite"
-                    data-empty-state
-                  >
-                    无文件夹
-                  </p>
-                ) : (
-                  renderMailTaxonomyFolderItems()
-                  )
-                ) : null}
-              </div>
-            </section>
-
-            <section className="nt-mail-taxonomy__section">
-              <div className="nt-mail-taxonomy__head">
-                <button
-                  type="button"
-                  className="nt-mail-taxonomy__icon-toggle"
-                  data-modal-return-focus="mail-taxonomy"
-                  aria-label={mailTaxonomySectionExpanded.label ? "收起标签" : "展开标签"}
-                  aria-expanded={mailTaxonomySectionExpanded.label}
-                  aria-controls="mail-taxonomy-labels"
-                  onClick={() => openMailTaxonomySectionFromIcon("label")}
-                >
-                  <span className="nt-nav__icon nt-mail-taxonomy__icon">
-                    <RailIcon kind="labels" />
-                  </span>
-                </button>
-                {railExpandedReady ? (
-                  <div className="nt-mail-taxonomy__row">
-                    <button
-                      type="button"
-                      className="nt-mail-taxonomy__add"
-                      aria-label="新建标签"
-                      onClick={() => void createMailTaxonomyItem("label")}
-                    >
-                      +
-                    </button>
-                    <button
-                      type="button"
-                      className="nt-mail-taxonomy__chevron"
-                      aria-label={mailTaxonomySectionExpanded.label ? "收起标签" : "展开标签"}
-                      aria-expanded={mailTaxonomySectionExpanded.label}
-                      aria-controls="mail-taxonomy-labels"
-                      onClick={() => toggleMailTaxonomySection("label")}
-                    >
-                      {mailTaxonomySectionExpanded.label ? "⌃" : "⌄"}
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-              <div id="mail-taxonomy-labels" hidden={!mailTaxonomySectionExpanded.label}>
-                {mailTaxonomySectionExpanded.label ? (
-                  isMailTaxonomyDrawerOpen("label") ? (
-                  <div className="nt-mail-taxonomy__drawer" role="group" aria-label="标签">
-                    <div className="nt-mail-taxonomy__drawer-head">
-                      <button type="button" className="nt-mail-taxonomy__drawer-title" onClick={() => selectMailRailItem("labels")}>
-                        <strong>标签</strong>
-                      </button>
-                      <button
-                        type="button"
-                        className="nt-mail-taxonomy__add"
-                        aria-label="新建标签"
-                        onClick={() => void createMailTaxonomyItem("label")}
-                      >
-                        +
-                      </button>
-                      <button
-                        type="button"
-                        className="nt-mail-taxonomy__chevron"
-                        aria-label="收起标签"
-                        onClick={() => toggleMailTaxonomySection("label")}
-                      >
-                        ⌃
-                      </button>
-                    </div>
-                    {mailLabels.length === 0 ? (
-                      <p
-                        className="nt-mail-taxonomy__empty nt-rail-text"
-                        role="status"
-                        aria-live="polite"
-                        data-empty-state
-                      >
-                        无标签
-                      </p>
-                    ) : renderMailTaxonomyLabelItems()}
-                  </div>
-                ) : mailLabels.length === 0 ? (
-                  <p
-                    className="nt-mail-taxonomy__empty nt-rail-text"
-                    role="status"
-                    aria-live="polite"
-                    data-empty-state
-                  >
-                    无标签
-                  </p>
-                ) : (
-                  renderMailTaxonomyLabelItems()
-                  )
-                ) : null}
-              </div>
-            </section>
-          </div>
+            <div className="nt-mail-taxonomy" aria-label="文件夹与标签">
+              <MailTaxonomySection
+                kind="folder"
+                expanded={mailTaxonomySectionExpanded.folder}
+                railExpandedReady={railExpandedReady}
+                drawerOpen={isMailTaxonomyDrawerOpen("folder")}
+                itemCount={mailFolders.length}
+                icon={<RailIcon kind="folders" />}
+                renderItems={renderMailTaxonomyFolderItems}
+                onOpenFromIcon={() => openMailTaxonomySectionFromIcon("folder")}
+                onCreate={() => void createMailTaxonomyItem("folder")}
+                onToggle={() => toggleMailTaxonomySection("folder")}
+                onSelect={() => selectMailRailItem("folders")}
+              />
+              <MailTaxonomySection
+                kind="label"
+                expanded={mailTaxonomySectionExpanded.label}
+                railExpandedReady={railExpandedReady}
+                drawerOpen={isMailTaxonomyDrawerOpen("label")}
+                itemCount={mailLabels.length}
+                icon={<RailIcon kind="labels" />}
+                renderItems={renderMailTaxonomyLabelItems}
+                onOpenFromIcon={() => openMailTaxonomySectionFromIcon("label")}
+                onCreate={() => void createMailTaxonomyItem("label")}
+                onToggle={() => toggleMailTaxonomySection("label")}
+                onSelect={() => selectMailRailItem("labels")}
+              />
+            </div>
           ) : null}
           {railMode === "agent" ? (
           <button
@@ -364,86 +225,40 @@ export function SideRail({ controller }: { controller: AppController }) {
           </span>
         </button>
 
-        {railCollapsed ? (
-          <button
-            type="button"
-            className="nt-rail-toggle nt-platform-account-collapsed-toggle"
-            aria-label="展开导航"
-            title="展开导航"
-            aria-pressed={railCollapsed}
-            onClick={expandRail}
-          >
-            <span className="nt-rail-toggle__icon" aria-hidden="true">
-              <RailChevronIcon direction="right" />
-            </span>
-            <span className="nt-rail-toggle__label nt-rail-text">展开</span>
-          </button>
-        ) : (
-          <div
-            className={`nt-platform-account-control nt-platform-account-control--expanded ${
-              platformAccountSignedIn
-                ? "nt-platform-account-control--signed-in"
-                : "nt-platform-account-control--signed-out"
-            }`}
-          >
-            {platformAccountSignedIn ? (
-              <>
-                <button
-                  type="button"
-                  className="nt-platform-avatar-button"
-                  aria-label="上传平台账户图标"
-                  title="上传平台账户图标"
-                  onClick={choosePlatformAvatarFile}
-                >
-                  <span className="nt-platform-avatar" aria-hidden="true">
-                    {platformAccountAvatarDataUrl ? (
-                      <img src={platformAccountAvatarDataUrl} alt="" />
-                    ) : (
-                      platformAccountInitial
-                    )}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="nt-platform-account-name-button"
-                  aria-label="平台账户"
-                  title={`${platformAccountName} / ${platformAccountEmail} / ${platformAccountMeta}`}
-                  aria-expanded={platformAccountMenuOpen}
-                  aria-haspopup="dialog"
-                  data-nonmodal-trigger="platform-account"
-                  onClick={openPlatformAccountPopover}
-                >
-                  <span className="nt-rail-text nt-platform-account-copy">
-                    <strong className="nt-platform-account-name">{platformAccountName}</strong>
-                  </span>
-                </button>
-              </>
+        <button
+          type="button"
+          className={`nt-rail-account-action ${
+            platformAccountSignedIn
+              ? "nt-rail-account-action--signed-in"
+              : "nt-rail-account-action--signed-out"
+          }`}
+          aria-label={platformAccountSignedIn ? `账号：${platformAccountName}` : "账号：未登录"}
+          title={
+            platformAccountSignedIn
+              ? `${platformAccountName} / ${platformAccountEmail} / ${platformAccountMeta}`
+              : "账号 / 未登录"
+          }
+          aria-expanded={platformAccountMenuOpen && !railCollapsed}
+          aria-haspopup="dialog"
+          data-nonmodal-trigger="platform-account"
+          onClick={() => {
+            if (railCollapsed) expandRail();
+            openPlatformAccountPopover();
+          }}
+        >
+          <span className="nt-platform-avatar" aria-hidden="true">
+            {platformAccountSignedIn && platformAccountAvatarDataUrl ? (
+              <img src={platformAccountAvatarDataUrl} alt="" />
+            ) : platformAccountSignedIn ? (
+              platformAccountInitial
             ) : (
-              <button
-                type="button"
-                className="nt-platform-account-login-button"
-                aria-label="登录平台账户"
-                onClick={() => void signInPlatformAccount()}
-                disabled={busy}
-              >
-                预览登录
-              </button>
+              "N"
             )}
-            <button
-              type="button"
-              className="nt-rail-toggle nt-platform-account-collapse-toggle"
-              aria-label="收起导航"
-              title="收起导航"
-              aria-pressed={railCollapsed}
-              onClick={collapseRail}
-            >
-              <span className="nt-rail-toggle__icon" aria-hidden="true">
-                <RailChevronIcon direction="left" />
-              </span>
-              <span className="nt-rail-toggle__label nt-rail-text">收起</span>
-            </button>
-          </div>
-        )}
+          </span>
+          <span className="nt-rail-text nt-platform-account-copy">
+            <strong>账号</strong>
+          </span>
+        </button>
       </div>
     </aside>
   );

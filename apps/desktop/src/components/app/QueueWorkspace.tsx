@@ -2,28 +2,12 @@ import type { AppController } from "../../app/useAppController";
 
 export function QueueWorkspace({ controller }: { controller: AppController }) {
   const {
-    loadSendQueue, runSendQueueWorkerOnce, busy, selectedNormalAccountId, setSelectedNormalAccountId, setStatusMessage, sendEnabledAccounts, sendTargetAddress,
+    busy, selectedNormalAccountId, setSelectedNormalAccountId, sendEnabledAccounts, sendTargetAddress,
     setSendTargetAddress, sendSubject, setSendSubject, sendBodyText, setDraftBodyText, enqueueDraftSend, lastSend, lastSendWorkerRun,
     sendQueue,
   } = controller;
   return (
-    <section className="nt-board-view">
-      <div className="nt-board-head">
-        <div>
-          <p className="nt-kicker">SEND QUEUE</p>
-          <h1>SMTP dispatch board</h1>
-          <span>Outgoing mail is queued and processed by worker runs.</span>
-        </div>
-        <div className="nt-board-actions">
-          <button type="button" className="nt-btn nt-btn--secondary" onClick={() => void loadSendQueue()}>
-            Refresh queue
-          </button>
-          <button type="button" className="nt-btn nt-btn--secondary" onClick={() => void runSendQueueWorkerOnce()} disabled={busy}>
-            Run worker
-          </button>
-        </div>
-      </div>
-
+    <section className="nt-board-view nt-board-view--content-only">
       <div className="nt-two-column">
         <section className="nt-action-board">
           <div className="nt-form-grid nt-form-grid--single">
@@ -31,11 +15,7 @@ export function QueueWorkspace({ controller }: { controller: AppController }) {
               Sender account
               <select
                 value={selectedNormalAccountId ?? ""}
-                onChange={(event) => {
-                  const accountId = event.currentTarget.value || null;
-                  setSelectedNormalAccountId(accountId);
-                  setStatusMessage("Canonical SMTP and message history become available in M5/M6.");
-                }}
+                onChange={(event) => setSelectedNormalAccountId(event.currentTarget.value || null)}
               >
                 <option value="">Select send-enabled account</option>
                 {sendEnabledAccounts.map((account) => (

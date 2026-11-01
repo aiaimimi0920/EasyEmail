@@ -1,0 +1,23 @@
+name = "easyemail-migration-local"
+main = "src/worker.ts"
+compatibility_date = "2026-10-23"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[assets]
+directory = "./dist/web"
+binding = "ASSETS"
+run_worker_first = true
+
+[triggers]
+crons = ["* * * * *", "*/15 * * * *"]
+
+[vars]
+APP_ORIGIN = "http://localhost:8787"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "easyemail-migration-local"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+remote = false

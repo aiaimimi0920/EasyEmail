@@ -1,6 +1,6 @@
 use rusqlite::{params, Connection, OptionalExtension, Result};
 
-use super::agent_repository::{AgentMessageRow, AgentServiceRow, AgentThreadRow};
+use super::agent_models::{AgentMessageRow, AgentServiceRow, AgentThreadRow};
 
 pub(super) fn get_agent_message(
     connection: &Connection,

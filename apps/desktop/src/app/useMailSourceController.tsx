@@ -8,6 +8,12 @@ import { MAIL_AUTO_SYNC_INTERVAL_MS } from "./appConfig";
 import { asErrorDto, temporaryRefreshError } from "./appDomain";
 import { sendQueueClient } from "./appRuntime";
 import type { MailSource } from "./appTypes";
+import {
+  attachTemporaryMailboxSources,
+  buildTemporaryMailboxSources,
+  temporaryMailboxIdFromSourceId,
+  temporaryMailboxSourceId,
+} from "./temporaryMailSources";
 import type { AppState } from "./useAppState";
 
 type Dependencies = {
@@ -15,7 +21,7 @@ type Dependencies = {
   invalidateMessageDetailRequest: () => void;
   loadPromotedMessages: (accountId: string) => Promise<import("./appTypes").AnonymousMessageDto[]>;
   rememberModalReturnFocus: () => void;
-  createTempMailbox: () => Promise<void>;
+  createTempMailbox: () => Promise<string | null>;
   showStatusToast: (message: string) => void;
   refreshAnonymousMailOnce: () => Promise<import("../mail/temporaryMailboxAdapter").TemporaryMailboxRefreshView>;
   loadRecentCodes: (tempMailboxId?: string, isCurrent?: () => boolean) => Promise<import("../mail/mailSearch").VerificationCodeDto[]>;
@@ -26,7 +32,7 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
     normalAccounts, agentAccounts, setLastSendWorkerRun, setStatusMessage, agentServices, selectedAgentServiceId, selectedAgentSenderId, agentThreads,
     anonymousMessages, normalMessagesByAccount, promotedMessagesByAccount, tempMailboxes, mailSourceId, setMailSourceId, setSelectedMailMessageId, setSelectedMailConversationKey,
     setSelectedMessageDetail, setSelectedNewsletterSubscription, setMailSourceDrawerOpen, setMailSourceDropdownOpen, setSelectedNormalAccountId, setMailAccountPanelOpen, mailAutoSyncInFlightRef, setMailSyncInProgress,
-    setBusy, setRecentCodes, setError, activeView,
+    setBusy, setRecentCodes, setError, activeView, setSelectedTempMailboxId,
   } = appState;
   const {
     loadSendQueue, invalidateMessageDetailRequest, loadPromotedMessages, rememberModalReturnFocus, createTempMailbox, showStatusToast, refreshAnonymousMailOnce, loadRecentCodes,
@@ -91,13 +97,13 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
   const tempVisibleMessages = useMemo(
       () =>
         sortVisibleMailMessagesByTime(
-          anonymousMessages.map((message) => ({
-            ...message,
-            sourceLabel: "临时邮箱",
-            sourceId: "temp",
-          })),
+          attachTemporaryMailboxSources(anonymousMessages, tempMailboxes),
         ),
-      [anonymousMessages],
+      [anonymousMessages, tempMailboxes],
+    );
+  const temporaryMailSources = useMemo(
+      () => buildTemporaryMailboxSources(tempMailboxes, anonymousMessages),
+      [anonymousMessages, tempMailboxes],
     );
   const normalVisibleMessages = useMemo(
       () =>
@@ -149,6 +155,7 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
         meta: `${tempVisibleMessages.length} 封邮件 / ${tempMailboxes.length} 个邮箱`,
         tone: "cyan",
       },
+      ...temporaryMailSources,
       ...normalImapAccounts.map((account): MailSource => ({
         id: `account:${account.id}`,
         label: account.display_name,
@@ -187,6 +194,12 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
         void loadPromotedMessages(accountId);
         return;
       }
+      const tempMailboxId = temporaryMailboxIdFromSourceId(sourceId);
+      if (tempMailboxId) {
+        setSelectedNormalAccountId(null);
+        setSelectedTempMailboxId(tempMailboxId);
+        return;
+      }
       if (sourceId === "temp") {
         setSelectedNormalAccountId(null);
       }
@@ -197,10 +210,13 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
       setMailSourceDrawerOpen(false);
       setMailAccountPanelOpen(true);
     }
-  function createTempMailboxFromSourceDropdown() {
+  async function createAndSelectTempMailbox() {
       setMailSourceDropdownOpen(false);
       setMailSourceDrawerOpen(false);
-      void createTempMailbox();
+      const tempMailboxId = await createTempMailbox();
+      if (tempMailboxId) {
+        selectMailSource(temporaryMailboxSourceId(tempMailboxId));
+      }
     }
   async function syncCurrentMailSource(options: { silent?: boolean } = {}) {
       const silent = options.silent === true;
@@ -242,7 +258,7 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
           return;
         }
 
-        if (mailSourceId === "temp") {
+        if (mailSourceId === "temp" || temporaryMailboxIdFromSourceId(mailSourceId)) {
           const result = await refreshAnonymousMailOnce();
           publishSyncStatus(
             temporaryMailboxRefreshFailureMessage(result) ??
@@ -310,6 +326,7 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
       const autoSyncableSource =
         mailSourceId === "all" ||
         mailSourceId === "temp" ||
+        temporaryMailboxIdFromSourceId(mailSourceId) !== null ||
         mailSourceId.startsWith("promoted:");
       if (!autoSyncableSource) {
         return undefined;
@@ -331,7 +348,7 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
     }, [activeView, mailSourceId, syncCurrentMailSourceEvent]);
   return {
     promotedAccounts, normalImapAccounts, sendEnabledAccounts, sendEnabledAgentAccounts, selectedAgentService, selectedAgentSender, needsAttentionThreads, tempVisibleMessages,
-    allVisibleMailMessages, mailSources, selectedMailSource, selectMailSource, openMailAccountPanelFromSourceDropdown, createTempMailboxFromSourceDropdown, syncCurrentMailSource,
+    allVisibleMailMessages, mailSources, selectedMailSource, selectMailSource, openMailAccountPanelFromSourceDropdown, createAndSelectTempMailbox, syncCurrentMailSource,
   };
 }
 

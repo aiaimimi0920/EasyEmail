@@ -12,11 +12,13 @@ declare const fetch: (
 }>;
 
 import { extractOtpFromContent } from "../../../domain/otp.js";
+import { parseCloudflareSendTransport } from "../../../domain/cloudflare-send-policy.js";
 import type { ObservedMessage, ProviderInstance } from "../../../domain/models.js";
 import { fetchProviderResourceWithRecovery } from "../../http-policy.js";
 import { parseDomainWeights, pickWeightedDomainFamily, resolveCloudflareTempEmailConfig } from "./configuration.js";
 import { extractErrorDetail, requestAdminJson, requestJson } from "./http.js";
 import { asMailItems, asRecord, extractObservedAtFromRaw, parseRawMailBodies, parseRawMailHeader } from "./mail-content.js";
+import { sendMailWithNativeBinding } from "./send-binding.js";
 import type {
   CloudflareTempAdminAddressRecord,
   CloudflareTempEmailConfig,
@@ -39,6 +41,8 @@ export type {
   CloudflareTempMailboxCredentials,
 } from "./models.js";
 export { probeCloudflareTempEmailInstance } from "./probe.js";
+
+class MailboxSendAccessRejectedError extends Error {}
 
 export class CloudflareTempEmailCreateClient {
   public constructor(
@@ -247,7 +251,15 @@ export class CloudflareTempEmailCreateClient {
     });
     if (response.status !== 200) {
       const detail = extractErrorDetail(response.body, response.rawText);
-      throw new Error(`Cloudflare Temp Email sendMail failed with status ${response.status}${detail ? `: ${detail}` : "."}`);
+      const message = `Cloudflare Temp Email sendMail failed with status ${response.status}${detail ? `: ${detail}` : "."}`;
+      // The Worker maps backend failures to 400 too; only explicit pre-send access rejections are replayable.
+      const balanceRejected = response.status === 400 && [
+        "No balance", "Failed to send mail No balance", "余额不足", "Failed to send mail 余额不足",
+      ].includes(detail ?? "");
+      if (response.status === 401 || response.status === 403 || balanceRejected) {
+        throw new MailboxSendAccessRejectedError(message);
+      }
+      throw new Error(message);
     }
   }
 
@@ -291,6 +303,7 @@ export class CloudflareTempEmailCreateClient {
           }),
           signal: controller.signal,
         },
+        "cloudflare_temp_email",
       );
       const text = await response.text();
       if (response.status !== 200) {
@@ -327,6 +340,11 @@ export class CloudflareTempEmailCreateClient {
       throw new Error("Cloudflare Temp Email sendMailboxMessage requires textBody or htmlBody.");
     }
 
+    if (parseCloudflareSendTransport(this.config.sendTransport) === "binding") {
+      await sendMailWithNativeBinding(this.config, mailbox, request);
+      return { deliveryMode: "native_binding" };
+    }
+
     try {
       await this.requestSendMailAccess(mailbox.jwt);
     } catch {
@@ -337,9 +355,7 @@ export class CloudflareTempEmailCreateClient {
       await this.sendMailWithMailboxToken(mailbox, request);
       return { deliveryMode: "mailbox_token" };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const shouldFallback = /no balance|failed to send mail|status 400|status 401|status 403/i.test(message);
-      if (!shouldFallback || !this.config.adminAuth?.trim()) {
+      if (!(error instanceof MailboxSendAccessRejectedError) || !this.config.adminAuth?.trim()) {
         throw error;
       }
     }
@@ -357,6 +373,8 @@ export class CloudflareTempEmailCreateClient {
     providerInstanceId: string,
     fromContains?: string,
   ): Promise<ObservedMessage | undefined> {
+    // Upstream numeric IDs can be reused after a mailbox is deleted.
+    const messagePrefix = `cloudflare_temp_email:${encodeURIComponent(providerInstanceId)}:${encodeURIComponent(sessionId)}`;
     const mails = (await this.listMails(mailbox.jwt)).sort((left, right) => {
       const leftId = typeof left.id === "number" ? left.id : 0;
       const rightId = typeof right.id === "number" ? right.id : 0;
@@ -379,7 +397,7 @@ export class CloudflareTempEmailCreateClient {
         const raw = typeof detail.raw === "string" ? detail.raw : undefined;
         const parsedBodies = parseRawMailBodies(raw);
         return {
-          id: `cloudflare_temp_email:${String(mail.id ?? `${sessionId}:subject`)}`,
+          id: `${messagePrefix}:${String(mail.id ?? "subject")}`,
           sessionId,
           providerInstanceId,
           observedAt: extractObservedAtFromRaw(raw),
@@ -447,7 +465,7 @@ export class CloudflareTempEmailCreateClient {
         continue;
       }
       return {
-        id: `cloudflare_temp_email:${mailId}`,
+        id: `${messagePrefix}:${mailId}`,
         sessionId,
         providerInstanceId,
         observedAt: extractObservedAtFromRaw(raw),

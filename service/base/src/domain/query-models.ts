@@ -2,7 +2,7 @@ import type {
   MailboxSessionStatus,
   MailProviderTypeKey,
   ProviderInstanceStatus,
-} from "./models.js";
+} from "./provider-taxonomy.js";
 
 export interface ProviderInstanceQueryFilters {
   providerTypeKey?: MailProviderTypeKey;

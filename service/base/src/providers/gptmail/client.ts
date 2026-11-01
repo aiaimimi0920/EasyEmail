@@ -25,6 +25,7 @@ import {
 } from "../../shared/index.js";
 import { extractOtpFromContent } from "../../domain/otp.js";
 import type { ObservedMessage, ProviderInstance } from "../../domain/models.js";
+import { fetchProviderResource } from "../http-policy.js";
 
 export interface GptMailConfig {
   instanceId: string;
@@ -160,7 +161,7 @@ async function requestEnvelope(
   }
 
   try {
-    const response = await fetch(url.toString(), {
+    const response = await fetchProviderResource(url.toString(), {
       method,
       headers: {
         accept: "application/json, text/plain, */*",

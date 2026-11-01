@@ -83,6 +83,9 @@ export function markProviderInstanceCooling(
   }
 
   const now = input.now ?? new Date();
+  if (instance.status === "cooling" && hasCredentialAwareCooldown(instance)
+    && input.scope === "credentials" && instance.metadata[OPERATIONAL_COOLDOWN_REASON_KEY] === input.reason
+    && hasActiveOperationalCooldown(instance, now) && !hasOperationalFailureTracking(instance)) return instance;
   const previousStatus = instance.status === "cooling"
     ? normalizeRestoredStatus(instance.metadata[OPERATIONAL_PREVIOUS_STATUS_KEY])
     : instance.status;

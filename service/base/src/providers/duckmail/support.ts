@@ -14,6 +14,7 @@ declare const fetch: (
 import { randomBytes } from "node:crypto";
 import type { ProviderInstance } from "../../domain/models.js";
 import { extractOtpFromContent } from "../../domain/otp.js";
+import { fetchProviderResource } from "../http-policy.js";
 import type { DuckMailConfig } from "./client.js";
 
 interface RequestJsonOptions {
@@ -234,7 +235,7 @@ export async function requestJson(
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(`${config.apiBase.replace(/\/$/, "")}${path}`, {
+  const response = await fetchProviderResource(`${config.apiBase.replace(/\/$/, "")}${path}`, {
     method,
     headers,
     body: options.jsonBody ? JSON.stringify(options.jsonBody) : undefined,

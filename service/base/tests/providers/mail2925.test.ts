@@ -141,6 +141,45 @@ describe("mail2925 provider", () => {
     });
   });
 
+  it("reuses a successful login token for the same credential binding", async () => {
+    const fetchMock = vi.fn(async (input: string) => {
+      if (String(input).endsWith("/mailv2/auth/weblogin")) {
+        return new Response('{"code":200,"result":{"secLogin":false,"token":"token-cached"}}', {
+          status: 200,
+        });
+      }
+      throw new Error(`Unexpected request: ${input}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new Mail2925Client({
+      instanceId: "mail2925-default",
+      namespace: "test:mail2925-cache",
+      apiBase: "https://mail.2925.com",
+      credentialSets: [{
+        id: "cache-set",
+        displayName: "2925 Accounts",
+        useCases: ["generate", "poll"],
+        strategy: "round-robin",
+        priority: 100,
+        items: [
+          { id: "cache-item", label: "cached", username: "cached@2925.com", password: "good", priority: 100, metadata: {} },
+        ],
+        metadata: {},
+      }],
+      domain: "2925.com",
+      folderName: "Inbox",
+      aliasSeparator: "_",
+      aliasSuffixLength: 10,
+      timeoutSeconds: 20,
+    });
+
+    await client.createMailbox({ sessionHint: "first" });
+    await client.createMailbox({ sessionHint: "second" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("falls back to summary content when only preview data is available", async () => {
     const currentTimestamp = String(Date.now());
     const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {

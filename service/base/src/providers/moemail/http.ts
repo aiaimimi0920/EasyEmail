@@ -1,3 +1,4 @@
+import { fetchProviderResource } from "../http-policy.js";
 import { classifyThrownError } from "./failure.js";
 import type { MoemailConfig } from "./types.js";
 
@@ -30,7 +31,7 @@ export async function requestJson(
   }
 
   try {
-    const response = await fetch(url.toString(), {
+    const response = await fetchProviderResource(url.toString(), {
       method,
       headers: {
         Accept: "application/json",

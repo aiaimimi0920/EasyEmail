@@ -11,7 +11,9 @@
     "lint": "eslint src",
     "deploy": "node scripts/run-with-root-config.mjs deploy",
     "start": "node scripts/run-with-root-config.mjs dev",
-    "build": "node scripts/run-with-root-config.mjs build"
+    "build": "node scripts/run-with-root-config.mjs build",
+    "build:local": "node scripts/build-local.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260420.1",
@@ -20,13 +22,14 @@
     "eslint": "9.39.1",
     "globals": "^16.5.0",
     "typescript-eslint": "^8.58.2",
+    "typescript": "5.9.2",
     "wrangler": "^4.83.0"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "3.888.0",
-    "@aws-sdk/s3-request-presigner": "3.888.0",
-    "@simplewebauthn/server": "13.2.3",
-    "hono": "^4.12.14",
+    "@aws-sdk/client-s3": "3.1159.0",
+    "@aws-sdk/s3-request-presigner": "3.1159.0",
+    "@simplewebauthn/server": "13.3.2",
+    "hono": "^4.13.14",
     "jsonpath-plus": "^10.4.0",
     "mimetext": "^3.0.28",
     "postal-mime": "^2.7.4",

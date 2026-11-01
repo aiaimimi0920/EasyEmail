@@ -3,12 +3,19 @@ import type { AppController } from "../../app/useAppController";
 export function MailListToolbar({ controller }: { controller: AppController }) {
   const {
     displayedMailMessages, allVisibleMailMessagesSelected, someVisibleMailMessagesSelected, toggleSelectAllVisibleMailMessages, mailListSelectionMenuOpen, closeMailListToolbarMenus, setMailListSelectionMenuOpen, MailListToolbarIcon,
-    renderMailListSelectionMenu, onlyCodes, selectedMailboxLabel, mailListHasSelection, selectedMailMessagesHaveUnread, markSelectedMailMessagesRead, busy, mailListPrimaryMoveActions,
+    renderMailListSelectionMenu, mailListHasSelection, selectedMailMessagesHaveUnread, markSelectedMailMessagesRead, busy, mailListPrimaryMoveActions,
     renderMailListPrimaryMoveAction, mailListMoveMenuOpen, setMailListMoveTarget, setMailListMoveSearch, setMailListMoveMenuOpen, renderMailListMoveMenu, mailListLabelMenuOpen, resetMailListLabelDraftFromSelection,
     setMailListLabelSearch, setMailListLabelArchiveAfterApply, setMailListLabelMenuOpen, renderMailListLabelMenu, mailListSnoozeMenuOpen, setMailListSnoozeMenuOpen, renderMailListSnoozeMenu, mailListBulkMenuOpen,
     setMailListBulkMenuOpen, renderMailListMoreMenu, visibleMailMessages, mailListReadFilter, mailListHasAttachmentOnly, toggleMailListUnreadOnly, mailListFilterMenuOpen, setMailListFilterMenuOpen,
     renderMailListFilterMenu, goToMailListPage, clampedMailListCurrentPage, displayedMailConversations, mailListPageStart, mailListPageEnd, mailListTotalPages,
   } = controller;
+  const toolbarHasContent =
+    displayedMailMessages.length > 0 ||
+    visibleMailMessages.length > 0 ||
+    mailListReadFilter !== "all" ||
+    mailListHasAttachmentOnly;
+  if (!toolbarHasContent) return null;
+
   return (
     <div className="nt-mail-list-toolbar">
       <div className="nt-mail-list-toolbar__row-main">
@@ -49,15 +56,13 @@ export function MailListToolbar({ controller }: { controller: AppController }) {
               {renderMailListSelectionMenu()}
             </div>
           ) : null}
-          <div
-            className="nt-mail-list-toolbar__mailbox-title"
-            aria-label={`当前邮箱 ${onlyCodes ? "CODES" : selectedMailboxLabel}：${displayedMailMessages.length} 封邮件`}
+          <span
+            className="nt-mail-list-toolbar__mailbox-count"
+            aria-label={`${displayedMailMessages.length} 封邮件`}
+            title={`${displayedMailMessages.length} 封邮件`}
           >
-            <strong>{onlyCodes ? "CODES" : selectedMailboxLabel}</strong>
-            <span className="nt-mail-list-toolbar__mailbox-count">
-              {displayedMailMessages.length}
-            </span>
-          </div>
+            {displayedMailMessages.length}
+          </span>
           {mailListHasSelection ? (
     <div className="nt-mail-list-toolbar__selected-actions" aria-label="选中邮件操作">
               <button

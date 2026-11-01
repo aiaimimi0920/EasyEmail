@@ -34,7 +34,6 @@ export function MailWorkspace({ controller }: { controller: AppController }) {
     setNormalImapSecurity,
     addManualImapAccount,
     mailSourceDrawerOpen,
-    visibleMailMessages,
     busy,
   } = controller;
 
@@ -99,6 +98,8 @@ export function MailWorkspace({ controller }: { controller: AppController }) {
                 <label>
                   邮箱地址
                   <input
+                    autoComplete="email"
+                    type="email"
                     value={normalEmailAddress}
                     placeholder="123456@qq.com"
                     onChange={(event) => updateNormalEmailAddress(event.currentTarget.value)}
@@ -107,6 +108,7 @@ export function MailWorkspace({ controller }: { controller: AppController }) {
                 <label className="nt-wide-field">
                   授权码
                   <input
+                    autoComplete="off"
                     type="password"
                     value={normalImapPassword}
                     placeholder="QQ 邮箱授权码"
@@ -135,6 +137,7 @@ export function MailWorkspace({ controller }: { controller: AppController }) {
                     <label>
                       IMAP 主机
                       <input
+                        autoComplete="off"
                         value={normalImapHost}
                         placeholder="imap.qq.com"
                         onChange={(event) => setNormalImapHost(event.currentTarget.value)}
@@ -188,17 +191,13 @@ export function MailWorkspace({ controller }: { controller: AppController }) {
       <div
         className={`nt-mail-adaptive ${
           mailSourceDrawerOpen ? "nt-mail-adaptive--drawer-open" : ""
-        } ${mailReadingExpanded ? "nt-mail-adaptive--reading" : ""} ${
-          visibleMailMessages.length === 0 ? "nt-mail-adaptive--empty" : ""
-        }`}
+        } ${mailReadingExpanded ? "nt-mail-adaptive--reading" : ""}`}
       >
         <MailListToolbar controller={controller} />
 
         <MailListPane controller={controller} />
 
-        {visibleMailMessages.length > 0 ? (
-          <MailReadingPane controller={controller} />
-        ) : null}
+        <MailReadingPane controller={controller} />
 
         {mailSourceDrawerOpen ? <MailSourceDrawer controller={controller} /> : null}
       </div>

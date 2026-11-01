@@ -10,6 +10,10 @@
 
 ### Features
 
+- feat: |Build| Add a synthetic full-Worker local dry-run build independent of root config.yaml and strict type checking; pin TypeScript and retain the worker-specific pnpm lock without changing legacy dev/deploy
+- feat: |API| Add trusted-service exact custom-address capability/create endpoints with mandatory real admin keys, strict name/default-domain/blacklist policy and an 8 KiB request boundary; configuration/storage failures fail closed without changing legacy admin/public creation
+- feat: |API| DB v0.0.9 adds conditional address deletion, capability lookup and durable receipts. JWT generations fence atomic D1 cleanup; key replay cannot affect replacement addresses. KV/S3 cleanup is explicitly excluded and aggregator Web deletion is not enabled yet
+- feat: |API| Add version-conditional `/api/mail_deletions` and read-only operation lookup. D1 triggers maintain resource generations to prevent reused mail IDs from deleting new mail. DB v0.0.8 expands existing data without granting deletion capability to unversioned caches; missing or drifted triggers fail closed
 - feat: |Frontend| Add six-language frontend support (`zh` / `en` / `es` / `pt-BR` / `ja` / `de`), keep `zh` as the default locale; locale-unprefixed routes (for example `/` and `/user`) render in Chinese by default while still recording browser language as the stored preference. Explicit locale switches are persisted, and the current route, query string, and canonical locale URL stay in sync during switching
 - feat: |API| Add server-side parsed-mail endpoints `/api/parsed_mails` and `/api/parsed_mail/:id` that return `sender` / `subject` / `text` / `html` / `attachments` metadata directly (reuses `commonParseMail`), so AI agents no longer need a client-side MIME parser
 - feat: |Skill| Bundle a read-only skill `cf-temp-mail-agent-mail` (`skills/cf-temp-mail-agent-mail/`) so AI agents like OpenClaw / Codex / Cursor can consume a mailbox with a user-supplied Address JWT + API base URL — list mails, poll verification codes, etc. — sidestepping the Turnstile challenge required to create a mailbox. Install via `npx degit dreamhunter2333/cloudflare_temp_email/skills/cf-temp-mail-agent-mail`
@@ -18,6 +22,13 @@
 
 ### Bug Fixes
 
+- fix: |Receive| Reject database storage failures and stop forwarding/auto-reply instead of reporting success; use EmailMessage consistently in test and production auto-reply
+- fix: |Cleanup| Delete all related D1 rows before administrator mailbox removal in one transaction; roll back scheduled mailbox cleanup on failure and bind one cutoff across all four address-cleanup modes to prevent cross-second selection drift and orphaned mail, without changing user-delete permission switches
+- fix: |Dependencies| Update AWS S3 SDK and SimpleWebAuthn to verified security releases; correct WebAuthn credential metadata placement and actual D1/attachment types
+- fix: |Types| Declare the ENABLE_GLOBAL_TURNSTILE_CHECK binding already used by runtime code so the new creation contract and its real dependency closure typecheck, without changing runtime switch behavior
+- fix: |Dependencies| Raise the Hono minimum to ^4.13.14, matching the pinned auth test version and avoiding vulnerabilities reported by online audit; add negative JWT NumericDate regression tests without upgrading live instances
+- fix: |API| Validate address ID/name generations after `/api/*` JWT verification and before returning reads; precisely preserve old-generation receipt lookup. Legacy cleanup revalidates the pair and uses one conditional D1 batch to protect same-name replacements during unbinding; in-flight writes and external KV/S3 revocation remain outside this guarantee
+- fix: |API| Conditional deletion accepts canonical string address_id claims from existing issuers while rejecting whitespace, leading zeros, exponents and unsafe integers
 - fix: |Frontend| Narrow address-management modal widths and keep address tables horizontally scrollable inside the modal to prevent multi-address lists from stretching the dialog
 - fix: |Frontend| Fix the frontend settings bootstrap throwing an `undefined` error when `/open_api/settings` does not return a `domains` array by normalizing the field to an empty array before mapping it
 - fix: |Frontend| Fix every API call crashing client-side with `Invalid character in header content ["Authorization"]` when stale localStorage credentials (`jwt` / `auth` / `adminAuth` / `userJwt` / `access_token`) are empty, the literal string `"undefined"`, or contain a stray newline or other control character (issue #1000). Adds `safeHeaderValue` / `safeBearerHeader` helpers that validate every auth header against RFC 7230 and omit the header entirely when unsafe, so the worker returns a clean 401 instead of the request being rejected by axios/undici

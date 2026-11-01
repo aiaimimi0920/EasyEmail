@@ -1,3 +1,4 @@
+import { fetchProviderResource } from "../http-policy.js";
 import { buildStatusError } from "./failure.js";
 import { MoemailClientError, type MoemailConfig } from "./types.js";
 
@@ -38,7 +39,7 @@ export async function deleteMailboxViaWebSession(
       : undefined,
   ].filter((item): item is string => Boolean(item && item.trim()));
 
-  const response = await fetch(`${origin}/api/emails/${encodeURIComponent(emailId)}`, {
+  const response = await fetchProviderResource(`${origin}/api/emails/${encodeURIComponent(emailId)}`, {
     method: "DELETE",
     headers: {
       Accept: "*/*",

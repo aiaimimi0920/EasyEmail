@@ -1,0 +1,75 @@
+import assert from "node:assert/strict";
+import path from "node:path";
+import { test } from "node:test";
+import { chromium } from "playwright-core";
+import { createHarness, PASSWORD } from "./runtime-harness.mjs";
+import { moeMail, moemailFixture } from "./moemail-fixture.mjs";
+
+test("Chrome: configure authorized MoEmail instance, probe, allocate, cursor-sync, read, extract and reload without a desktop client", { timeout: 90000 }, async () => {
+  const f = await moemailFixture();
+  let h, browser, page;
+  try {
+    h = await createHarness(f.bindings, true);
+    const admin = await h.register("moemail-web-admin");
+    await h.db.prepare("INSERT INTO platform_admins VALUES (?,unixepoch())").bind(admin.id).run();
+    browser = await chromium.launch({ executablePath: process.env.EASYEMAIL_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe", headless: true });
+    page = await browser.newPage({ viewport: { width: 1100, height: 1000 } }); page.setDefaultTimeout(10000);
+    const errors = [], external = [];
+    page.on("pageerror", error => errors.push(error.message));
+    page.on("request", request => { if (!request.url().startsWith(h.baseUrl.origin)) external.push(request.url()); });
+    await page.goto(h.baseUrl.href);
+    await page.getByLabel("用户名", { exact: true }).fill("moemail-web-admin");
+    await page.getByLabel("密码", { exact: true }).fill(PASSWORD);
+    await page.getByRole("button", { name: "登录", exact: true }).click();
+    await page.getByRole("button", { name: "退出登录", exact: true }).waitFor();
+    await page.getByRole("button", { name: "平台管理", exact: true }).click();
+    await page.getByRole("heading", { name: "平台用量", exact: true }).waitFor();
+    await page.getByRole("button", { name: "新增供应商", exact: true }).click();
+    await page.getByLabel("实例 ID", { exact: true }).fill("extra-moe");
+    await page.getByRole("combobox", { name: "供应商类型", exact: true }).selectOption("moemail");
+    assert.equal(await page.getByLabel("发送渠道", { exact: true }).count(), 0);
+    await page.getByLabel("API 地址", { exact: true }).fill(f.config.baseUrl);
+    await page.getByLabel("启用供应商", { exact: true }).check();
+    await page.getByLabel("域名白名单", { exact: true }).fill("moemail.example.test");
+    await page.getByRole("combobox", { name: "凭据操作", exact: true }).selectOption("replace");
+    await page.getByLabel("供应商 API Key", { exact: true }).fill("synthetic-moemail-key");
+    await page.getByRole("button", { name: "保存供应商", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "供应商配置已保存" }).waitFor();
+    await page.getByRole("button", { name: "探测 extra-moe", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "extra-moe：接口探测通过" }).waitFor();
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.screenshot({ path: path.join(h.directory, "moemail-admin-mobile.png"), fullPage: true });
+    await page.getByRole("button", { name: "邮箱管理", exact: true }).click();
+    await page.getByRole("combobox", { name: "供应商", exact: true }).selectOption("extra-moe");
+    await page.getByRole("combobox", { name: "域名", exact: true }).selectOption("moemail.example.test");
+    await page.getByRole("button", { name: "分配随机邮箱", exact: true }).click();
+    await page.getByRole("heading", { name: "收件箱", exact: true }).waitFor();
+    const mailbox = await h.db.prepare("SELECT * FROM mailboxes WHERE provider_id='extra-moe'").first();
+    assert.equal(mailbox.expires_at - mailbox.created_at, 3600);
+    f.messages.set(mailbox.address, Array.from({ length: 21 }, (_, n) => moeMail(mailbox.address, n + 1)));
+    await page.getByRole("button", { name: "刷新收信", exact: true }).click();
+    await page.getByRole("button", { name: "继续同步下一页", exact: true }).click();
+    await page.getByRole("button", { name: "继续同步下一页", exact: true }).waitFor({ state: "detached" });
+    assert.equal((await h.db.prepare("SELECT COUNT(*) n FROM messages WHERE mailbox_id=?").bind(mailbox.id).first()).n, 21);
+    await page.getByRole("button", { name: /^Verify \d+$/ }).first().click();
+    await page.getByTestId("mail-body").waitFor();
+    assert.equal(await page.getByTestId("mail-body").textContent(), "Your verification code is 735296.");
+    assert.equal(await page.evaluate(() => window.moeExecuted), undefined);
+    await page.getByRole("button", { name: "提取缓存邮件", exact: true }).click();
+    assert.equal(await page.getByTestId("otp-code").first().textContent(), "735296");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.getByTestId("mail-body").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(h.directory, "moemail-reader-mobile.png") });
+    assert.equal((await page.locator("body").innerText()).includes("synthetic-moemail-key"), false);
+    assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
+    await page.reload();
+    await page.getByRole("button", { name: mailbox.address, exact: true }).click();
+    await page.getByRole("button", { name: /^Verify \d+$/ }).first().waitFor();
+    assert.deepEqual(errors, []); assert.deepEqual(external, []);
+    console.log(`MoEmail Chrome evidence: ${h.directory}`);
+  } catch (error) {
+    if (page) { console.error(await page.locator("body").ariaSnapshot()); await page.screenshot({ path: path.join(h.directory, "moemail-failure.png"), fullPage: true }); }
+    throw error;
+  } finally { await browser?.close(); await h?.close(); await f.close(); }
+});

@@ -10,6 +10,10 @@
 
 ### Features
 
+- feat: |构建| 增加无需根 config.yaml 的合成本地完整 Worker dry-run 构建及严格类型检查；显式固定 TypeScript，并保留 worker 专用 pnpm lock，不改旧 dev/deploy 入口
+- feat: |API| 增加可信服务精确自定义地址 capability/create 合同，强制真实管理员密钥，严格名称/默认域名/黑名单与 8 KiB 请求边界；配置或存储异常失败关闭，不改变旧 admin/public 创建行为
+- feat: |API| DB v0.0.9 增加条件地址删除、能力查询及持久化回执；按 JWT 地址代际原子清理指定 D1 数据，同键重放不影响替代地址；明确不清理 KV/S3，尚未启用聚合 Web 删除
+- feat: |API| 新增版本条件删除 `/api/mail_deletions` 与只读操作核对；资源代次由 D1 触发器维护，防止邮件 ID 复用误删。DB v0.0.8 为增量迁移，旧缓存无代次时不授予删除能力；触发器缺失或漂移时失败关闭
 - feat: |Frontend| 前端新增 6 国语言支持（`zh` / `en` / `es` / `pt-BR` / `ja` / `de`），默认语言保持为 `zh`；无 locale 前缀路由（如 `/`、`/user`）默认使用中文渲染，同时会记录浏览器语言作为语言偏好。用户手动切换后会持久化语言偏好，并保持当前页面路径、查询参数与 canonical locale URL 一致
 - feat: |API| 新增服务端解析邮件接口 `/api/parsed_mails` 与 `/api/parsed_mail/:id`，直接返回 `sender` / `subject` / `text` / `html` / `attachments` 元信息（复用 `commonParseMail`），AI agent 侧不再需要引入 MIME 解析器
 - feat: |Skill| 新增仓库内置只读 skill `cf-temp-mail-agent-mail`（`skills/cf-temp-mail-agent-mail/`），让 OpenClaw / Codex / Cursor 等 AI agent 凭用户提供的 Address JWT + API 地址读取邮箱、轮询验证码，绕开创建邮箱时的 Turnstile 人机验证；可通过 `npx degit dreamhunter2333/cloudflare_temp_email/skills/cf-temp-mail-agent-mail` 安装
@@ -18,6 +22,13 @@
 
 ### Bug Fixes
 
+- fix: |收信| 数据库存储失败时拒收并停止后续转发/自动回复，不再吞掉异常返回成功；自动回复测试与生产统一使用 EmailMessage
+- fix: |清理| 管理员删箱先清理全部 D1 关联再删地址，单批事务保护；定时删箱失败时整批回滚，四种批量地址清理共用固定截止时间，避免跨秒后误删地址并残留邮件，保留用户删除开关的原有权限边界
+- fix: |依赖| 更新 AWS S3 SDK 与 SimpleWebAuthn 的已核实安全版本，修复依赖审计告警；修正 WebAuthn credential 元数据层级与真实 D1/附件类型
+- fix: |Types| 补充已在运行代码中使用的 ENABLE_GLOBAL_TURNSTILE_CHECK 绑定类型，支持新创建合同及真实依赖闭包的类型检查，不改变运行时开关行为
+- fix: |依赖| 将 Hono 最低版本提升到 ^4.13.14，匹配鉴权测试固定版本并避开在线审计发现的旧版漏洞；增加 JWT NumericDate 负向回归，不自动升级现网实例
+- fix: |API| `/api/*` 验签后校验地址 ID/name 代际，读取返回前再核验；精确保留原代际查询删除回执。旧地址清理重新核验 pair，D1 使用同一条件 batch，防止解绑期间同名重建误删；不承诺已在途写入或外部 KV/S3 撤销
+- fix: |API| 条件删除兼容既有签发方的 canonical 字符串 address_id，继续拒绝空白、前导零、指数和非安全整数
 - fix: |Frontend| 收窄地址管理相关弹窗宽度，并让地址表格在弹窗内部横向滚动，避免多地址场景撑宽弹窗
 - fix: |Frontend| 修复 `/open_api/settings` 未返回 `domains` 数组时前端设置初始化直接调用 `map()` 报 `undefined` 错误的问题，统一按空数组兜底处理
 - fix: |Frontend| 修复前端在 `jwt` / `auth` / `adminAuth` 等 localStorage 凭据为空字符串、字面量 `"undefined"` 或包含换行/控制符时，请求构造的 `Authorization` 等头部抛出 `Invalid character in header content` 导致前端所有接口报错的问题（issue #1000）。新增 `safeHeaderValue` / `safeBearerHeader` 工具，对全部认证头做 RFC 7230 校验，不安全的值直接跳过该头部，让 worker 走标准 401 而不是请求级崩溃
