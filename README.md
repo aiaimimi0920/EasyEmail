@@ -29,7 +29,8 @@ Cloudflare Web 采用独立设计系统 [NeuroDesign](../NeuroDesign/README.md) 
 不再以旧桌面主题令牌或自写基础控件皮肤作为实现来源。参考 [接入说明](../NeuroDesign/docs/INTEGRATION.md)，
 在 `service/cloudflare` 使用 npm 11+ 执行 `npm run ui:sync`，业务状态、权限与 API 仍留在 EasyEmail。
 当前替换范围、异步确认的行为边界与本地验证见 [Neuro UI 接入](docs/cloudflare-neuro-ui.md)。
-构建后的网页不依赖本机设计仓库，用户不需要安装桌面客户端；本地接入不代表线上已经更新。
+构建后的网页不依赖本机设计仓库，用户不需要安装桌面客户端。
+本轮主题已发布至 [mail.aiaimimi.com](https://mail.aiaimimi.com)，提交范围、线上验证与回滚版本见 [Neuro UI 发布记录](docs/cloudflare-neuro-ui-release.md)。
 
 EasyEmail is the public monorepo entrypoint for the EasyEmail ecosystem.
 

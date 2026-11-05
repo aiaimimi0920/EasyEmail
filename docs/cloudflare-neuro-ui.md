@@ -8,8 +8,8 @@ Web 通过 `@neuro/ui` 使用 NeuroDesign 的 React 标准控件与固定主题�
 Loom 是依赖安装、主题接线与控件消费方式的参考，不是 EasyEmail 的业务或页面模板。
 
 实际工作树为 `C:/Users/Public/nas_home/EasyEmail`，分支 `migration/cloudflare-web`。
-原 `AI/GameEditor/EasyEmail` 主干、NAS、Cloudflare 线上版本和生产数据均不属于本次变更范围。
-本地接入不代表提交、推送、合并或发布。
+原 `AI/GameEditor/EasyEmail` 主干、NAS 和生产业务数据保持不变。
+下文保留各本地阶段当时的验收边界；随后已选择性提交并发布前端资源，见 [Neuro UI 发布记录](cloudflare-neuro-ui-release.md)。
 
 ## 安装与同步
 
