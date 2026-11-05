@@ -6,6 +6,7 @@
     "jsx": "react-jsx",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["react", "react-dom"],
+    "paths": { "react/jsx-runtime": ["../node_modules/@types/react/jsx-runtime.d.ts"] },
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true

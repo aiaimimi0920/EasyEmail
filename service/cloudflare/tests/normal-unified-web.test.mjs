@@ -55,6 +55,7 @@ test("Chrome: unified ordinary search opens the protected reader, exact download
     await normal.getByLabel("缓存收件时间起点", { exact: true }).fill("2026-10-29T00:00");
     await normal.getByRole("button", { name: "提取缓存邮件", exact: true }).click(); await normal.getByTestId("otp-code").filter({ hasText: "742951" }).waitFor();
     phase("cached OTP shown");
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByLabel("名称", { exact: true }).fill("unified-download-profile");
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("unified-download");
     await page.getByRole("button", { name: "创建 Key", exact: true }).click();
@@ -64,6 +65,8 @@ test("Chrome: unified ordinary search opens the protected reader, exact download
     assert.equal((await t.h.request(`${t.base}/messages`, { token, origin: null })).status, 200);
     assert.equal((await t.h.request(`${t.base}/sync`, { method: "POST", token, origin: null, body: {} })).status, 403);
     await page.getByRole("button", { name: "隐藏", exact: true }).click(); phase("independent API Key scope verified");
+    await page.getByRole("navigation").getByRole("button", { name: "普通邮箱", exact: true }).click();
+    await normal.getByRole("button", { name: "提取缓存邮件", exact: true }).waitFor();
     assert.equal(await normal.getByRole("button", { name: "等待新结果（60 秒）", exact: true }).count(), 0);
     assert.equal(t.opens.length, 1); assert.deepEqual(errors, []); assert.deepEqual(external, []); assert.deepEqual(wrong, []);
     await page.setViewportSize({ width: 390, height: 844 }); await page.getByRole("navigation").getByRole("button", { name: "聚合收件箱", exact: true }).click();

@@ -1,3 +1,4 @@
+import { Field, Input, Select } from '@neuro/ui';
 import { useId } from "react";
 
 export type SendMode = "direct" | "queued" | "scheduled";
@@ -13,11 +14,11 @@ export function SendSchedule({ mode, time, disabled, onChange }: {
 }) {
   const id = useId(), date = new Date(time);
   return <fieldset disabled={disabled}><legend>发送安排</legend>
-    <label htmlFor={`${id}-mode`}>发送方式</label><select id={`${id}-mode`} value={mode} onChange={e => onChange(e.target.value as SendMode, time)}>
+    <Field label="发送方式"><Select id={`${id}-mode`} value={mode} onChange={e => onChange(e.target.value as SendMode, time)}>
       <option value="direct">立即发送</option><option value="queued">后台排队</option><option value="scheduled">定时发送</option>
-    </select>
-    {mode === "scheduled" && <><label htmlFor={`${id}-time`}>计划发送时间</label>
-      <input id={`${id}-time`} type="datetime-local" value={time} required onChange={e => onChange(mode, e.target.value)} />
+    </Select></Field>
+    {mode === "scheduled" && <><Field label="计划发送时间">
+      <Input id={`${id}-time`} type="datetime-local" value={time} required onChange={e => onChange(mode, e.target.value)} /></Field>
       {Number.isFinite(date.getTime()) && <small>{date.toLocaleString()} · UTC {date.toISOString()}</small>}</>}
     {mode !== "direct" && <p>页面关闭后任务继续。到期后由后台处理，不保证准点；仅预约前可取消，附件有效期不会延长。</p>}
   </fieldset>;

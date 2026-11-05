@@ -35,6 +35,7 @@ test("Chrome: register, cookie login, owned mailbox, one-time API key, revoke, r
     assert.equal(cookie.sameSite, "Strict");
     assert.equal(await page.evaluate(() => document.cookie), "");
 
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("textbox", { name: "名称", exact: true }).fill("browser smoke");
     await page.getByRole("button", { name: "创建只读 Key", exact: true }).click();
     const secret = page.getByTestId("new-key");
@@ -44,6 +45,7 @@ test("Chrome: register, cookie login, owned mailbox, one-time API key, revoke, r
     assert.equal((await h.request("/api/v1/mailboxes", { token })).status, 200);
     assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
     await page.reload();
+    await page.getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByText("browser smoke", { exact: true }).waitFor();
     assert.equal(await page.getByTestId("new-key").count(), 0);
     assert.equal((await page.locator("body").innerText()).includes(token), false);

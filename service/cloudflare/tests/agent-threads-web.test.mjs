@@ -1,3 +1,4 @@
+import { confirmAction, observeConfirmations } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -22,9 +23,9 @@ test("Chrome: thread filter, detail, explicit completion/archive/restore, least-
     const errors = []; page.on("pageerror", error => errors.push(error.message));
     const region = await open(page, t), filter = region.getByRole("combobox", { name: "线程状态筛选", exact: true });
     await region.getByRole("button", { name: task.subject, exact: true }).click(); const detail = region.getByRole("article", { name: "Agent 线程详情", exact: true });
-    page.once("dialog", dialog => dialog.dismiss()); await detail.getByRole("button", { name: "标记人工完成", exact: true }).click();
+    await confirmAction(page, async () => { await detail.getByRole("button", { name: "标记人工完成", exact: true }).click(); }, dialog => dialog.dismiss());
     assert.equal(await t.h.db.prepare("SELECT COUNT(*) n FROM agent_thread_operations").first("n"), 0);
-    page.on("dialog", dialog => { assert.match(dialog.message(), /不取消或重试派发/); return dialog.accept(); });
+    observeConfirmations(page, dialog => { assert.match(dialog.message(), /不取消或重试派发/); return dialog.accept(); });
     await detail.getByRole("button", { name: "标记人工完成", exact: true }).click(); await detail.getByRole("status").filter({ hasText: "人工已完成" }).waitFor();
     await filter.selectOption("open"); await region.getByText("暂无 Agent 线程", { exact: true }).waitFor();
     await filter.selectOption("completed"); await region.getByRole("button", { name: task.subject, exact: true }).click();
@@ -33,6 +34,7 @@ test("Chrome: thread filter, detail, explicit completion/archive/restore, least-
     await detail.getByRole("button", { name: "恢复处理中", exact: true }).click(); await detail.getByRole("status").filter({ hasText: "处理中" }).waitFor();
     await page.setViewportSize({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: path.join(t.h.directory, "agent-threads-mobile.png"), fullPage: true });
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("agent-threads"); await page.getByLabel("名称", { exact: true }).fill("thread metadata");
     await page.getByRole("button", { name: "创建 Key", exact: true }).click(); const token = await page.getByTestId("new-key").textContent();
     const scopes = JSON.parse(await t.h.db.prepare("SELECT scopes FROM api_keys WHERE name='thread metadata'").first("scopes"));
@@ -48,7 +50,7 @@ test("Chrome: unknown thread writes retain one body/key through navigation, reco
   const t = await agentThreadsFixture({ browser: true }); let browser, page, releaseContext;
   try {
     const task = await t.task({ submitted: false, subject: "未知线程操作" }); await t.task({ subject: "其他线程" });
-    browser = await chromium.launch({ executablePath, headless: true }); page = await browser.newPage(); page.setDefaultTimeout(10000); page.on("dialog", dialog => dialog.accept());
+    browser = await chromium.launch({ executablePath, headless: true }); page = await browser.newPage(); page.setDefaultTimeout(10000); observeConfirmations(page, dialog => dialog.accept());
     const region = await open(page, t); await region.getByRole("button", { name: task.subject, exact: true }).click();
     const detail = region.getByRole("article", { name: "Agent 线程详情", exact: true });
     await detail.getByRole("button", { name: "标记人工完成", exact: true }).click(); await region.getByText("线程状态已保存", { exact: true }).waitFor();
@@ -102,10 +104,10 @@ test("Chrome: thread pagination preserves state filter and abandon requires conf
     const subject = await t.h.db.prepare("SELECT subject FROM agent_outgoing_messages WHERE thread_id=?").bind(last).first("subject");
     await region.getByRole("button", { name: subject, exact: true }).click();
     await page.route(`**/api/v1/agent-threads/${last}/state`, async route => { await route.fetch(); return route.abort("failed"); });
-    page.once("dialog", dialog => dialog.accept()); await region.getByRole("button", { name: "归档线程", exact: true }).click();
+    await confirmAction(page, async () => { await region.getByRole("button", { name: "归档线程", exact: true }).click(); }, dialog => dialog.accept());
     const recover = region.getByRole("button", { name: "核对原线程操作", exact: true }); await recover.waitFor();
-    page.once("dialog", dialog => dialog.dismiss()); await region.getByRole("button", { name: "放弃本页线程核对", exact: true }).click(); await recover.waitFor();
-    page.once("dialog", dialog => dialog.accept()); await region.getByRole("button", { name: "放弃本页线程核对", exact: true }).click();
+    await confirmAction(page, async () => { await region.getByRole("button", { name: "放弃本页线程核对", exact: true }).click(); }, dialog => dialog.dismiss()); await recover.waitFor();
+    await confirmAction(page, async () => { await region.getByRole("button", { name: "放弃本页线程核对", exact: true }).click(); }, dialog => dialog.accept());
     await recover.waitFor({ state: "detached" }); await region.getByRole("button", { name: "刷新 Agent 线程", exact: true }).click();
     await region.getByRole("combobox", { name: "线程状态筛选", exact: true }).selectOption("archived"); await region.getByRole("button", { name: subject, exact: true }).click();
     await region.getByRole("article", { name: "Agent 线程详情", exact: true }).getByRole("status").filter({ hasText: "已归档" }).waitFor();

@@ -1,3 +1,4 @@
+import { Button, Field, Input, Notice, Panel, Select } from '@neuro/ui';
 import { useState, type FormEvent } from "react";
 import { api, errorMessage, type ApiKey, type Page } from "./api";
 
@@ -94,11 +95,11 @@ export function ApiKeys({ initial }: { initial: Page<ApiKey> }) {
     finally { setPending(false); }
   }
 
-  return <section className="card">
+  return <Panel className="card">
     <h2>API Key</h2>
     <form className="row" onSubmit={create}>
-      <label>名称<input name="name" maxLength={80} required disabled={pending} /></label>
-      <label>权限<select value={permission} onChange={(event) => setPermission(event.target.value)} disabled={pending}>
+      <Field label="名称"><Input name="name" maxLength={80} required disabled={pending} /></Field>
+      <Field label="权限"><Select value={permission} onChange={(event) => setPermission(event.target.value)} disabled={pending}>
         <option value="metadata">仅邮箱元数据</option><option value="content">邮箱与邮件只读</option>
         <option value="manage">创建、恢复、同步与阅读</option>
         <option value="recover">邮箱访问恢复与元数据（不含邮件阅读或发信）</option>
@@ -139,18 +140,18 @@ export function ApiKeys({ initial }: { initial: Page<ApiKey> }) {
         <option value="remote-delete">阅读与条件删除上游邮件</option>
         <option value="mailbox-remote-delete">查看与条件删除上游邮箱</option>
         <option value="release">查看邮箱与释放平台访问</option>
-      </select></label>
-      <button disabled={pending}>{permission === "metadata" ? "创建只读 Key" : "创建 Key"}</button>
+      </Select></Field>
+      <Button disabled={pending} type="submit" wrap>{permission === "metadata" ? "创建只读 Key" : "创建 Key"}</Button>
     </form>
     {secret && <div className="secret"><p>仅本次显示，请保存。</p><code data-testid="new-key">{secret}</code>
-      <button className="secondary" onClick={() => setSecret("")}>隐藏</button></div>}
-    {error && <p role="alert">{error}</p>}
+      <Button onClick={() => setSecret("")} variant="quiet" wrap>隐藏</Button></div>}
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}
     <ul>{page.items.map((key) => <li key={key.id}>
       <div><strong>{key.name}</strong> <code>{key.prefix}…</code>
         <small>{key.revokedAt ? "已撤销" : key.expiresAt * 1000 <= Date.now() ? "已过期" : key.scopes.join(" · ")}</small></div>
-      {!key.revokedAt && <button className="secondary" disabled={pending} onClick={() => revoke(key.id)}>撤销</button>}
+      {!key.revokedAt && <Button disabled={pending} onClick={() => revoke(key.id)} variant="quiet" wrap>撤销</Button>}
     </li>)}</ul>
     {page.items.length === 0 && <p>暂无 API Key</p>}
-    {page.nextCursor && <button disabled={pending} onClick={loadMore}>加载更多 Key</button>}
-  </section>;
+    {page.nextCursor && <Button disabled={pending} onClick={loadMore} wrap>加载更多 Key</Button>}
+  </Panel>;
 }

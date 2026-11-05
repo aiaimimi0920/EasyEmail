@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -65,9 +66,10 @@ test("Chrome: private labels, batch selection, filtering, lost responses, naviga
     await button(page, "编辑标签 项目蓝").click(); await field(page, "标签名称").fill("项目绿"); await combo(page, "标签颜色").selectOption("green");
     await button(page, "保存标签修改").click(); await button(page, "编辑标签 项目绿").waitFor();
     await combo(page, "标签筛选").selectOption(""); await button(page, "搜索邮件").click();
-    page.once("dialog", dialog => dialog.accept()); await button(page, "删除标签 项目绿").click();
+    await confirmAction(page, async () => { await button(page, "删除标签 项目绿").click(); }, dialog => dialog.accept());
     await button(page, "编辑标签 项目绿").waitFor({ state: "detached" });
     assert.equal(await h.db.prepare("SELECT COUNT(*) n FROM message_labels").first("n"), 0);
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("labels"); await field(page, "名称").fill("labels web key"); await button(page, "创建 Key").click();
     const token = await page.getByTestId("new-key").textContent();
     expect(await h.request("/api/v1/labels", { token, origin: null }));

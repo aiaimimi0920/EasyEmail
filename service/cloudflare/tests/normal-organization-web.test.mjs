@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -35,9 +36,9 @@ test("Chrome: normal platform read/star/archive/trash/restore and mixed-source f
     await inbox.getByRole("status").filter({ hasText: "已加载 1 封" }).waitFor(); await button(inbox, "收件验收").click();
     await button(actions, "归档").click(); await inbox.getByRole("status").filter({ hasText: "已加载 0 封" }).waitFor();
     await combo(inbox, "文件夹").selectOption("archive"); await button(inbox, "搜索邮件").click(); await button(inbox, "收件验收").click();
-    page.once("dialog", dialog => dialog.dismiss()); await button(actions, "移到平台回收站").click();
+    await confirmAction(page, async () => { await button(actions, "移到平台回收站").click(); }, dialog => dialog.dismiss());
     assert.equal(await t.h.db.prepare("SELECT COUNT(*) n FROM normal_message_state WHERE trashed_at IS NOT NULL").first("n"), 0);
-    page.once("dialog", dialog => dialog.accept()); await button(actions, "移到平台回收站").click();
+    await confirmAction(page, async () => { await button(actions, "移到平台回收站").click(); }, dialog => dialog.accept());
     await inbox.getByRole("status").filter({ hasText: "已加载 0 封" }).waitFor();
     await combo(inbox, "文件夹").selectOption("trash"); await button(inbox, "搜索邮件").click(); await button(inbox, "收件验收").click();
     await button(actions, "恢复平台邮件").click(); await inbox.getByRole("status").filter({ hasText: "已加载 0 封" }).waitFor();
@@ -77,6 +78,7 @@ test("Chrome: lost normal organization response retains exact body/key across na
     await button(normal, "普通邮箱").click(); await combo(normal, "普通平台文件夹").selectOption("all");
     await button(normal, "收件验收").first().click(); await button(normal, "加星标").click();
     await page.getByText("已整理 1 封普通邮件", { exact: true }).waitFor();
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByLabel("名称", { exact: true }).fill("normal-platform-key"); await combo(page, "权限").selectOption("normal-trash");
     await button(page, "创建 Key").click(); const token = await page.getByTestId("new-key").textContent();
     const scopes = JSON.parse((await t.h.db.prepare("SELECT scopes FROM api_keys WHERE name='normal-platform-key'").first()).scopes);
@@ -86,6 +88,7 @@ test("Chrome: lost normal organization response retains exact body/key across na
     assert.equal(independent.status, 200, independent.text);
     assert.equal((await t.h.request(`${t.base}/sync`, { method: "POST", token, origin: null, body: {} })).status, 403);
     await button(page, "隐藏").click();
+    await page.getByRole("navigation").getByRole("button", { name: "普通邮箱", exact: true }).click();
     assert.equal(t.opens.length, 1); assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
     await evidence(page, t, "normal-organization-original-key.png");
   } catch (error) { if (page) await evidence(page, t, "normal-organization-original-key-failure.png"); throw error; }

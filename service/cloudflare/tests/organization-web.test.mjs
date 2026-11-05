@@ -104,6 +104,7 @@ test("Chrome: organize mailboxes, aggregate two providers, paginate, search and 
     await page.getByRole("button", { name: "移回收件箱", exact: true }).click();
     await page.getByRole("status").filter({ hasText: "已加载 0 封" }).waitFor();
     assert.equal(f.calls.length, calls, "Cached browsing and organization must not call providers");
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("organize");
     await page.getByLabel("名称", { exact: true }).fill("workspace automation");
     await page.getByRole("button", { name: "创建 Key", exact: true }).click();

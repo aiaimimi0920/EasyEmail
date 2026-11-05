@@ -80,6 +80,7 @@ test("Chrome: allocate, sync, text-only mail, fresh extraction, scoped key and r
     assert.equal(fixture.calls.filter((call) => call.path === "/cf/admin/new_address").length, beforeCreates + 1);
     await page.unroute("**/api/v1/mailboxes");
 
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByLabel("名称", { exact: true }).fill("mail automation");
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("manage");
     await page.getByRole("button", { name: "创建 Key", exact: true }).click();

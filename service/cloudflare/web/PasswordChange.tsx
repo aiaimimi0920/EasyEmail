@@ -1,3 +1,4 @@
+import { Button, Field, Input, Notice, Panel } from '@neuro/ui';
 import { useRef, useState, type FormEvent } from "react";
 import { api, errorMessage } from "./api";
 
@@ -28,17 +29,17 @@ export function PasswordChange({ onSignedOut }: { onSignedOut: (message: string)
     finally { busy.current = false; setPending(false); }
   }
 
-  return <section className="card" aria-label="账号安全">
+  return <Panel className="card" aria-label="账号安全">
     <h2>账号安全</h2>
     <form onSubmit={submit}>
       <fieldset disabled={pending}>
-        <label>当前密码<input name="currentPassword" type="password" autoComplete="current-password" maxLength={128} required /></label>
-        <label>新密码<input name="newPassword" type="password" autoComplete="new-password" minLength={15} maxLength={128} required /></label>
-        <label>确认新密码<input name="confirmation" type="password" autoComplete="new-password" minLength={15} maxLength={128} required /></label>
+        <Field label="当前密码"><Input name="currentPassword" type="password" autoComplete="current-password" maxLength={128} required /></Field>
+        <Field label="新密码"><Input name="newPassword" type="password" autoComplete="new-password" minLength={15} maxLength={128} required /></Field>
+        <Field label="确认新密码"><Input name="confirmation" type="password" autoComplete="new-password" minLength={15} maxLength={128} required /></Field>
         <p>修改后将退出所有设备并撤销全部 API Key，程序需要重新创建 Key。</p>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit">{pending ? "处理中…" : "修改密码并退出所有设备"}</button>
+        {error && <Notice role="alert" tone="danger">{error}</Notice>}
+        <Button type="submit" wrap>{pending ? "处理中…" : "修改密码并退出所有设备"}</Button>
       </fieldset>
     </form>
-  </section>;
+  </Panel>;
 }

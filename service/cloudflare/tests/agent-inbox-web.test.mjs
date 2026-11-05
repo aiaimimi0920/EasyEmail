@@ -34,9 +34,11 @@ test("Chrome: Agent IMAP receive, isolated cache, inert HTML, digest-verified at
     await downloadButton.scrollIntoViewIfNeeded(); await downloadButton.hover();
     const event = page.waitForEvent("download"); await downloadButton.click();
     const download = await event, target = path.join(t.h.directory, "agent-inbox-attachment.bin"); await download.saveAs(target); assert.deepEqual(await readFile(target), Buffer.from(ATTACHMENT));
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("agent-inbox"); await page.getByLabel("名称", { exact: true }).fill("Agent receive API");
     await page.getByRole("button", { name: "创建 Key", exact: true }).click(); const token = await page.getByTestId("new-key").textContent();
     expect(await t.messages("", { token })); expect(await t.h.request("/api/v1/agent-tasks", { token }), 403);
+    await page.getByRole("navigation").getByRole("button", { name: "Agent 邮箱", exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: path.join(t.h.directory, "agent-inbox-mobile.png"), fullPage: true });
     await page.reload(); await page.getByRole("navigation").getByRole("button", { name: "Agent 邮箱", exact: true }).click();

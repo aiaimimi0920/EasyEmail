@@ -1,3 +1,4 @@
+import { Button, Notice, Panel } from '@neuro/ui';
 import { useEffect, useState } from "react";
 import { api, ApiError, dateText, errorMessage, type Page } from "./api";
 import { type Audit, type Overview, type ProviderState } from "./admin-api";
@@ -37,9 +38,9 @@ export function Administration() {
 
   return <section aria-label="平台管理">
     <h2>平台管理</h2>
-    {error && <p role="alert">{error}</p>}{status && <p role="status">{status}</p>}
-    <div className="row"><button disabled={pending || editing !== undefined} onClick={() => setEditing(null)}>新增供应商</button>
-      <button className="secondary" disabled={pending || editing !== undefined} onClick={() => action(load)}>刷新管理数据</button></div>
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}{status && <Notice role="status" tone="info">{status}</Notice>}
+    <div className="row"><Button disabled={pending || editing !== undefined} onClick={() => setEditing(null)} wrap>新增供应商</Button>
+      <Button disabled={pending || editing !== undefined} onClick={() => action(load)} variant="quiet" wrap>刷新管理数据</Button></div>
     {editing !== undefined && <ProviderEditor key={editing?.config.id ?? "new"} initial={editing} onCancel={() => setEditing(undefined)}
       onSaved={() => { setEditing(undefined); action(async () => { await load(); setStatus("供应商配置已保存"); }); }} />}
     <ul aria-label="供应商实例">{providers.map((row) => <li key={row.config.id}>
@@ -50,16 +51,16 @@ export function Administration() {
         <small>探测：{labels[row.health.state] ?? row.health.state} · {dateText(row.health.checkedAt)}{row.health.error ? ` · ${row.health.error}` : ""}</small>
         <small>新分配：{row.allocation.state === "disabled" ? "已停用" : row.allocation.state === "cooling" ? `冷却至 ${dateText(row.allocation.cooldownUntil)}` : row.allocation.state === "unconfigured" ? "未配置凭据" : "可选"}</small>
         {row.allocation.lastError && <small>分配错误：{row.allocation.lastError} · 已采纳失败 {row.allocation.failureCount}</small>}</div>
-      <div className="row"><button className="secondary" disabled={pending || editing !== undefined} onClick={() => setEditing(row)} aria-label={`编辑 ${row.config.id}`}>编辑</button>
-        <button className="secondary" disabled={pending || editing !== undefined} onClick={() => action(() => probe(row.config.id))} aria-label={`探测 ${row.config.id}`}>接口探测</button></div>
+      <div className="row"><Button disabled={pending || editing !== undefined} onClick={() => setEditing(row)} aria-label={`编辑 ${row.config.id}`} variant="quiet" wrap>编辑</Button>
+        <Button disabled={pending || editing !== undefined} onClick={() => action(() => probe(row.config.id))} aria-label={`探测 ${row.config.id}`} variant="quiet" wrap>接口探测</Button></div>
     </li>)}</ul>
-    {overview && <section className="card"><h3>平台用量</h3><dl>{Object.entries(overview.counts).map(([key, value]) => <div key={key}><dt>{labels[key] ?? key}</dt><dd>{value}</dd></div>)}</dl>
-      <h3>当前硬配额（只读）</h3><dl>{Object.entries(overview.limits).filter(([key]) => key !== "readOnly").map(([key, value]) => <div key={key}><dt>{labels[key] ?? key}</dt><dd>{String(value)}</dd></div>)}</dl></section>}
-    <section className="card"><h3>管理审计</h3><ul>{audit.items.map((row) => <li key={row.id}><div>{row.providerId} · {row.action} · 版本 {row.revision}
+    {overview && <Panel className="card"><h3>平台用量</h3><dl>{Object.entries(overview.counts).map(([key, value]) => <div key={key}><dt>{labels[key] ?? key}</dt><dd>{value}</dd></div>)}</dl>
+      <h3>当前硬配额（只读）</h3><dl>{Object.entries(overview.limits).filter(([key]) => key !== "readOnly").map(([key, value]) => <div key={key}><dt>{labels[key] ?? key}</dt><dd>{String(value)}</dd></div>)}</dl></Panel>}
+    <Panel className="card"><h3>管理审计</h3><ul>{audit.items.map((row) => <li key={row.id}><div>{row.providerId} · {row.action} · 版本 {row.revision}
       <small>{dateText(row.createdAt)} · {row.actorId}{row.secretAction ? ` · ${row.secretAction}` : ""}{row.error ? ` · ${row.error}` : ""}</small></div></li>)}</ul>
-      {audit.nextCursor && <button className="secondary" disabled={pending} onClick={() => action(async () => {
+      {audit.nextCursor && <Button disabled={pending} onClick={() => action(async () => {
         const next = await api<Page<Audit>>(`/admin/audit?cursor=${encodeURIComponent(audit.nextCursor!)}`);
         setAudit({ items: [...audit.items, ...next.items], nextCursor: next.nextCursor });
-      })}>更多审计</button>}</section>
+      })} variant="quiet" wrap>更多审计</Button>}</Panel>
   </section>;
 }

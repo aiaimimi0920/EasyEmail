@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -51,10 +52,9 @@ test("Chrome: admin-only configuration, write-only secrets, explicit probes, CAS
     assert.equal(f.calls.at(-1).path, "/cf/admin/worker/configs");
     await page.getByRole("button", { name: "编辑 self", exact: true }).click();
     await page.getByRole("combobox", { name: "凭据操作", exact: true }).selectOption("clear");
-    page.once("dialog", (dialog) => dialog.dismiss());
-    await page.getByRole("button", { name: "保存供应商", exact: true }).click();
+    await confirmAction(page, async () => { await page.getByRole("button", { name: "保存供应商", exact: true }).click(); }, (dialog) => dialog.dismiss());
     assert.equal((await h.db.prepare("SELECT secret_source FROM provider_overrides WHERE id='self'").first()).secret_source, "stored");
-    page.once("dialog", (dialog) => dialog.accept()); assert.equal((await save()).status(), 200); await saved();
+    await confirmAction(page, async () => { assert.equal((await save()).status(), 200); }, (dialog) => dialog.accept()); await saved();
     assert.equal((await h.db.prepare("SELECT secret_source FROM provider_overrides WHERE id='self'").first()).secret_source, "none");
     await page.getByRole("button", { name: "新增供应商", exact: true }).click();
     await page.getByLabel("实例 ID", { exact: true }).fill("secondary");
@@ -62,15 +62,23 @@ test("Chrome: admin-only configuration, write-only secrets, explicit probes, CAS
     await page.getByLabel("域名白名单", { exact: true }).fill("cf.example.test");
     await page.getByRole("combobox", { name: "发送渠道", exact: true }).selectOption("worker");
     await page.getByLabel("允许收件地址", { exact: true }).fill("recipient@example.test");
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: "保存供应商", exact: true }).click(); await saved();
+    await confirmAction(page, async () => { await page.getByRole("button", { name: "保存供应商", exact: true }).click(); }, (dialog) => dialog.accept()); await saved();
     await page.getByRole("button", { name: "编辑 secondary", exact: true }).waitFor();
     await page.getByRole("button", { name: "编辑 secondary", exact: true }).click();
     await page.getByRole("combobox", { name: "发送渠道", exact: true }).selectOption("binding");
-    const dialog = page.waitForEvent("dialog"), click = page.getByRole("button", { name: "保存供应商", exact: true }).click();
-    await (await dialog).dismiss(); await click;
+    await confirmAction(page, () => page.getByRole("button", { name: "保存供应商", exact: true }).click(), dialog => dialog.dismiss());
     assert.equal((await h.db.prepare("SELECT revision FROM provider_overrides WHERE id='secondary'").first()).revision, 1);
-    await page.getByRole("button", { name: "取消编辑", exact: true }).click();
+    await page.getByRole("combobox", { name: "凭据操作", exact: true }).selectOption("clear");
+    const clear = dialog => { assert.match(dialog.message(), /清除平台供应商凭据/); return dialog.accept(); };
+    const sending = accept => dialog => {
+      assert.match(dialog.message(), /确认启用或修改发送渠道及收件范围/);
+      return accept ? dialog.accept() : dialog.dismiss();
+    };
+    const submit = () => page.getByRole("button", { name: "保存供应商", exact: true }).click();
+    await confirmAction(page, submit, [clear, sending(false)]);
+    assert.equal((await h.db.prepare("SELECT revision FROM provider_overrides WHERE id='secondary'").first()).revision, 1);
+    await confirmAction(page, submit, [clear, sending(true)]); await saved();
+    assert.equal((await h.db.prepare("SELECT revision FROM provider_overrides WHERE id='secondary'").first()).revision, 2);
     await page.getByRole("button", { name: "编辑 self", exact: true }).click();
     const current = (await h.request("/api/v1/admin/providers", { cookie: admin.cookie })).body.items.find((row) => row.config.id === "self");
     const concurrent = await h.request("/api/v1/admin/providers/self", { cookie: admin.cookie, method: "PUT", body: {

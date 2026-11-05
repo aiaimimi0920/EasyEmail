@@ -78,12 +78,15 @@ test("Chrome: inert HTML, explicit verified download, independent API permission
     assert.equal(bytesHash(await readFile(target)), bytesHash(fixture.bytes));
     assert.equal(f.calls.length, calls + 1);
 
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("attachments");
     await page.getByLabel("名称", { exact: true }).fill("verified-download-key");
     await page.getByRole("button", { name: "创建 Key", exact: true }).click();
     await page.getByTestId("new-key").waitFor();
     const key = await h.db.prepare("SELECT scopes FROM api_keys WHERE name = 'verified-download-key'").first();
     assert.deepEqual(JSON.parse(key.scopes), ["mailboxes:read", "messages:read", "attachments:read"]);
+    await page.getByRole("button", { name: "邮箱管理", exact: true }).click();
+    await downloadButton.waitFor();
 
     const gate = f.hold("/cf/api/mail/71");
     try {

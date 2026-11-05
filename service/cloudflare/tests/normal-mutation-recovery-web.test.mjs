@@ -95,6 +95,7 @@ test("Chrome: move and permanent-delete API presets grant separate minimal scope
   try {
     ui = await openMutationUi(t); const { page } = ui;
     for (const action of ["move", "delete"]) {
+      await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
       await page.getByRole("textbox", { name: "名称", exact: true }).fill(`mutation-${action}`);
       await page.getByRole("combobox", { name: "权限", exact: true }).selectOption(`normal-remote-${action}`);
       await button(page, "创建 Key").click(); await page.getByTestId("new-key").waitFor();

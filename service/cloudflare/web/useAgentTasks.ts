@@ -1,3 +1,4 @@
+import { useConfirmation } from "./Confirmation";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, errorMessage, type Page } from "./api";
 import { readAgentTask, readAgentTaskPage, type AgentTask, type AgentTaskInput, type AgentTaskAttempt } from "./agent-tasks-api";
@@ -52,10 +53,13 @@ export function useAgentTasks(visible: boolean) {
     try { await reload(page.nextCursor); } catch (failure) { if (active.current) setError(errorMessage(failure)); }
     finally { busy.current = false; if (active.current) setPending(false); }
   }
-  function newTask() {
+  async function newTask() {
     if (busy.current) return false;
-    if ((held.current || selected) && !window.confirm("原任务可能已经排队或提交。另建任务不会撤销原任务，重复内容可能再次发送，确认另建？")) return false;
+    const original = held.current, version = generation.current;
+    if ((held.current || selected) && !(await confirm("原任务可能已经排队或提交。另建任务不会撤销原任务，重复内容可能再次发送，确认另建？"))) return false;
+    if (!active.current || busy.current || held.current !== original || generation.current !== version) return false;
     held.current = null; generation.current++; setAttempt(null); setSelected(null); setError(""); return true;
   }
+  const confirm = useConfirmation([selected, attempt, pending]);
   return { page, selected, attempt, pending, locked: pending || !!attempt, error, submit, read, refresh, more, newTask };
 }

@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -51,17 +52,19 @@ test("Chrome: Agent SMTP private config, parent interlock, original-key reconcil
     await smtp.getByRole("button", { name: "保存 Agent SMTP 配置", exact: true }).click(); await smtp.getByText("SMTP 凭据：未保存 · 版本 2", { exact: true }).waitFor();
     await page.setViewportSize({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: path.join(t.h.directory, "agent-smtp-mobile.png"), fullPage: true });
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("agent-accounts");
     await page.getByLabel("名称", { exact: true }).fill("Agent SMTP config program"); await page.getByRole("button", { name: "创建 Key", exact: true }).click();
     const token = await page.getByTestId("new-key").textContent(); expect(await t.h.request(t.route, { token }));
     expect(await t.h.request(`/api/v1/normal-accounts/${t.id}/smtp`, { token }), 403);
     assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
     assert.equal((await page.locator("body").textContent()).includes(AGENT_SMTP_PASSWORD), false);
-    page.once("dialog", d => d.dismiss()); await account.getByRole("button", { name: "移除 Agent 邮箱", exact: true }).click();
+    await page.getByRole("navigation").getByRole("button", { name: "Agent 邮箱", exact: true }).click();
+    await confirmAction(page, async () => { await account.getByRole("button", { name: "移除 Agent 邮箱", exact: true }).click(); }, d => d.dismiss());
     assert.equal(await t.h.db.prepare("SELECT deleted_at FROM agent_accounts WHERE id=?").bind(t.id).first("deleted_at"), null);
     await fill(smtp); await smtp.getByRole("button", { name: "保存 Agent SMTP 配置", exact: true }).click();
     await smtp.getByText("SMTP 凭据：已加密保存 · 版本 3", { exact: true }).waitFor();
-    page.once("dialog", d => d.accept()); await account.getByRole("button", { name: "移除 Agent 邮箱", exact: true }).click();
+    await confirmAction(page, async () => { await account.getByRole("button", { name: "移除 Agent 邮箱", exact: true }).click(); }, d => d.accept());
     await account.getByText("暂无 Agent 邮箱", { exact: true }).waitFor();
     assert.equal(await t.h.db.prepare("SELECT credential_cipher FROM agent_smtp_configs WHERE account_id=?").bind(t.id).first("credential_cipher"), null);
     await page.getByRole("button", { name: "退出登录", exact: true }).click(); await login(page, t.bob);
@@ -112,7 +115,7 @@ test("Chrome: late SMTP reads cannot replace refresh and discarded stale-parent 
     await smtp.getByLabel("Agent SMTP 用户名", { exact: true }).fill("Unsaved");
     expect(await agentWrite(t.h, t.alice, t.id, { ...agentAccountInput, expectedRevision: 1, password: undefined, displayName: "Remote current" }));
     await smtp.getByRole("button", { name: "保存 Agent SMTP 配置", exact: true }).click(); await smtp.getByRole("alert").filter({ hasText: "已变化" }).waitFor();
-    page.once("dialog", d => d.accept()); await smtp.getByRole("button", { name: "刷新 Agent SMTP 配置", exact: true }).click();
+    await confirmAction(page, async () => { await smtp.getByRole("button", { name: "刷新 Agent SMTP 配置", exact: true }).click(); }, d => d.accept());
     await smtp.getByRole("alert").filter({ hasText: "Agent 邮箱已变化" }).waitFor();
     await account.getByRole("button", { name: "刷新 Agent 邮箱", exact: true }).click(); await account.getByText("凭据：已加密保存 · 版本 2", { exact: true }).waitFor();
     await smtp.getByRole("status").filter({ hasText: "启用 SMTP 须重新提供应用密码" }).waitFor();
@@ -136,7 +139,7 @@ test("Chrome: absent unknown SMTP request plus obsolete parent CAS reconciles ab
     await recover.click(); await smtp.getByRole("alert").filter({ hasText: "已变化" }).waitFor();
     await recover.waitFor({ state: "hidden" }); assert.equal(reads, 2); assert.equal(keys.length, 2); assert.equal(keys[0], keys[1]); assert.equal(bodies[0], bodies[1]);
     assert.equal(await t.h.db.prepare("SELECT COUNT(*) n FROM agent_smtp_operations").first("n"), 0);
-    page.once("dialog", d => d.accept()); await smtp.getByRole("button", { name: "刷新 Agent SMTP 配置", exact: true }).click();
+    await confirmAction(page, async () => { await smtp.getByRole("button", { name: "刷新 Agent SMTP 配置", exact: true }).click(); }, d => d.accept());
     await smtp.getByRole("alert").filter({ hasText: "Agent 邮箱已变化" }).waitFor();
     await account.getByRole("button", { name: "刷新 Agent 邮箱", exact: true }).click();
     await account.getByText("凭据：已加密保存 · 版本 2", { exact: true }).waitFor();

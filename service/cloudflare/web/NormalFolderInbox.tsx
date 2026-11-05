@@ -1,3 +1,4 @@
+import { Button, Notice } from '@neuro/ui';
 import { useEffect, useState } from "react";
 import { errorMessage } from "./api";
 import type { NormalAccount } from "./normal-accounts";
@@ -28,19 +29,18 @@ export function NormalFolderInbox({ account, folder, visible, disabled, onBusy }
   const sourceId = folder.wireName.toUpperCase() === "INBOX" ? undefined : folder.id;
   const source = { serverFolderId: sourceId, serverFolderName: folder.name };
   return <section aria-label="服务器文件夹邮件"><h4 dir="auto">{folder.name}</h4>
-    <div className="row"><button disabled={disabled || action.locked || state.pending || !account.enabled || !account.credentialConfigured}
-      onClick={() => void state.synchronize()}>{state.uncertain ? "重试原文件夹同步" : "同步此文件夹"}</button>
-      <button className="secondary" disabled={state.pending} onClick={() => void state.refresh()}>刷新文件夹缓存</button>
-      {state.uncertain && <button disabled={state.pending} onClick={() => void state.synchronize(true)}>核对文件夹同步</button>}</div>
-    {state.error && <p role="alert">{state.error}</p>}
-    {taxonomyError && <p role="alert">{taxonomyError}</p>}
-    {state.result?.state === "pending" && <p role="status">同步处理中，请核对原请求</p>}
-    {result && <p role="status">本批保存 {result.stored} 封 · 跳过 {result.skipped.length} 封 · {result.complete ? "已检查到本次快照末尾" : "仍有未检查邮件"}</p>}
-    <p role="status">{state.reading ? "读取文件夹缓存…" : `已加载 ${state.page?.items.length ?? 0} 封`}</p>
+    <div className="row"><Button disabled={disabled || action.locked || state.pending || !account.enabled || !account.credentialConfigured} onClick={() => void state.synchronize()} wrap>{state.uncertain ? "重试原文件夹同步" : "同步此文件夹"}</Button>
+      <Button disabled={state.pending} onClick={() => void state.refresh()} variant="quiet" wrap>刷新文件夹缓存</Button>
+      {state.uncertain && <Button disabled={state.pending} onClick={() => void state.synchronize(true)} wrap>核对文件夹同步</Button>}</div>
+    {state.error && <Notice role="alert" tone="danger">{state.error}</Notice>}
+    {taxonomyError && <Notice role="alert" tone="danger">{taxonomyError}</Notice>}
+    {state.result?.state === "pending" && <Notice role="status" tone="info">同步处理中，请核对原请求</Notice>}
+    {result && <Notice role="status" tone="info">本批保存 {result.stored} 封 · 跳过 {result.skipped.length} 封 · {result.complete ? "已检查到本次快照末尾" : "仍有未检查邮件"}</Notice>}
+    <Notice role="status" tone="info">{state.reading ? "读取文件夹缓存…" : `已加载 ${state.page?.items.length ?? 0} 封`}</Notice>
     <NormalInboxMessages key={`${folder.id}:${state.listRevision}`} account={account} items={(state.page?.items ?? []).map(item => ({ ...item, ...source }))}
       pageIds={state.pageIds} labels={labels} folders={folders} serverFolderId={sourceId}
       disabled={locked || state.reading} onOpen={id => void state.open(id)} />
-    {state.page?.nextCursor && <button disabled={locked || state.reading} onClick={() => void state.more()}>加载更多文件夹邮件</button>}
+    {state.page?.nextCursor && <Button disabled={locked || state.reading} onClick={() => void state.more()} wrap>加载更多文件夹邮件</Button>}
     {state.message && <section aria-label="服务器文件夹邮件详情"><NormalMessageContent key={`${folder.id}:${state.message.id}`}
       message={{ ...state.message, ...source }} disabled={locked} /></section>}
   </section>;

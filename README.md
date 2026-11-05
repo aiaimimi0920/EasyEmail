@@ -23,6 +23,14 @@
 > 自营邮件的版本条件远端删除、独立权限及未知结果核对见 [远端删除切片](docs/cloudflare-remote-delete-slice.md)，不使用旧无条件删除接口。
 > 已有本地业务实现，但尚未完成新服务的真实供应商及邮件投递验收。
 
+## 当前 Web UI 开发方式
+
+Cloudflare Web 采用独立设计系统 [NeuroDesign](../NeuroDesign/README.md) 的 `@neuro/ui` React 标准实现，
+不再以旧桌面主题令牌或自写基础控件皮肤作为实现来源。参考 [接入说明](../NeuroDesign/docs/INTEGRATION.md)，
+在 `service/cloudflare` 使用 npm 11+ 执行 `npm run ui:sync`，业务状态、权限与 API 仍留在 EasyEmail。
+当前替换范围、异步确认的行为边界与本地验证见 [Neuro UI 接入](docs/cloudflare-neuro-ui.md)。
+构建后的网页不依赖本机设计仓库，用户不需要安装桌面客户端；本地接入不代表线上已经更新。
+
 EasyEmail is the public monorepo entrypoint for the EasyEmail ecosystem.
 
 It contains:

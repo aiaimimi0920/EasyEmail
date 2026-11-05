@@ -48,12 +48,15 @@ test("Chrome: remote flag receipts survive navigation/lost response and shared d
     await button(page.getByRole("navigation"), "订阅邮件").click(); await button(page, "查看订阅 Updates").click();
     const subscription = page.getByRole("region", { name: "订阅成员", exact: true }); await button(subscription, "Remote flags").click();
     await button(subscription, "服务器取消星标").waitFor(); assert.equal(t.opens.length, initialOpens + 1);
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("normal-remote-flags");
     await page.getByLabel("名称", { exact: true }).fill("remote flags profile"); await button(page, "创建 Key").click();
     const token = await page.getByTestId("new-key").textContent();
     assert.equal((await t.latest({ cookie: undefined, token, origin: null })).status, 200);
     assert.equal((await t.receive(crypto.randomUUID(), 1, { cookie: undefined, token, origin: null })).status, 403);
     await button(page, "隐藏").click();
+    await button(page.getByRole("navigation"), "订阅邮件").click();
+    await button(subscription, "服务器取消星标").waitFor();
     await page.setViewportSize({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: path.join(t.h.directory, "normal-flags-shared-mobile.png"), fullPage: true });
     assert.deepEqual(errors, []); assert.deepEqual(external, []); assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);

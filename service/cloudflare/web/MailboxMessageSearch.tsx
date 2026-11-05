@@ -1,7 +1,9 @@
+import { Button, Field, Input, Notice } from '@neuro/ui';
 import { useRef, useState, type FormEvent } from "react";
 
 export function MailboxMessageSearch({ disabled, onSearch }: { disabled: boolean; onSearch: (query: string) => void }) {
   const form = useRef<HTMLFormElement>(null), [error, setError] = useState("");
+  const [expanded, setExpanded] = useState(false);
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,13 +26,14 @@ export function MailboxMessageSearch({ disabled, onSearch }: { disabled: boolean
 
   return <form ref={form} aria-label="单邮箱邮件搜索" onSubmit={search}>
     <fieldset disabled={disabled}>
-      <div className="row"><label>搜索当前邮箱邮件<input name="q" type="search" maxLength={256} /></label>
-        <label>发件人筛选<input name="sender" maxLength={320} /></label></div>
-      <div className="row"><label>收件时间从<input name="since" type="datetime-local" /></label>
-        <label>收件时间至<input name="until" type="datetime-local" /></label>
-        <button>搜索当前邮箱</button>
-        <button type="button" className="secondary" onClick={() => { form.current?.reset(); setError(""); onSearch(""); }}>清除邮件筛选</button></div>
+      <div className="row"><Field label="搜索当前邮箱邮件"><Input name="q" type="search" maxLength={256} /></Field></div>
+      <div className="row"><Button type="submit" wrap>搜索当前邮箱</Button>
+        <Button type="button" aria-expanded={expanded} onClick={() => setExpanded(value => !value)} variant="quiet" wrap>{expanded ? '收起邮件筛选' : '展开邮件筛选'}</Button></div>
+      <div hidden={!expanded} className="search-filters"><Field label="发件人筛选"><Input name="sender" maxLength={320} /></Field>
+        <Field label="收件时间从"><Input name="since" type="datetime-local" /></Field>
+        <Field label="收件时间至"><Input name="until" type="datetime-local" /></Field></div>
+      <Button type="button" className="clear-search" onClick={() => { form.current?.reset(); setError(""); onSearch(""); }} variant="quiet" wrap>清除邮件筛选</Button>
     </fieldset>
-    {error && <p role="alert">{error}</p>}
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}
   </form>;
 }

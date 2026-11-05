@@ -1,3 +1,4 @@
+import { Button, Field, Input, Notice, Select } from '@neuro/ui';
 import { useEffect, useState, type FormEvent } from "react";
 import { api, dateText, errorMessage, type Mailbox } from "./api";
 import { CreationAcknowledgement, CreationHistory } from "./CreationHistory";
@@ -60,31 +61,30 @@ export function MailboxAllocation({ visible, onCreated, onRefresh }: { visible: 
   const invalidPrefix = naming === 'custom' && (!/^[a-z0-9]{1,30}$/.test(prefix) || selection === 'manual'
     && (!custom || prefix.length < custom.minLength || prefix.length > custom.maxLength));
   return <>
-    <button className="secondary" disabled={pending} onClick={() => { setError(""); setRefresh((value) => value + 1); creation.refreshHistory(); onRefresh(); }}>刷新供应商状态</button>
+    <Button disabled={pending} onClick={() => { setError(""); setRefresh((value) => value + 1); creation.refreshHistory(); onRefresh(); }} variant="quiet" wrap>刷新供应商状态</Button>
     {(providers.length > 0 || !!unresolved) && <form className="row" onSubmit={submit}>
-      <label>分配方式<select value={selection} disabled={pending || !creation.ready || !!unresolved} onChange={(event) => setSelection(event.target.value as typeof selection)}>
+      <Field label="分配方式"><Select value={selection} disabled={pending || !creation.ready || !!unresolved} onChange={(event) => setSelection(event.target.value as typeof selection)}>
         <option value="manual">手动选择</option><option value="automatic">自动选择</option>
-      </select></label>
-      <label>命名方式<select value={naming} disabled={pending || !creation.ready || !!unresolved} onChange={(event) => setNaming(event.target.value as typeof naming)}>
+      </Select></Field>
+      <Field label="命名方式"><Select value={naming} disabled={pending || !creation.ready || !!unresolved} onChange={(event) => setNaming(event.target.value as typeof naming)}>
         <option value="random">随机前缀</option><option value="custom">自定义前缀</option>
-      </select></label>
-      {naming === 'custom' && <label>邮箱前缀<input value={prefix} maxLength={custom?.maxLength ?? 30} pattern="[a-z0-9]+" required
-        minLength={custom?.minLength ?? 1} disabled={pending || !!unresolved} onChange={(event) => setPrefix(event.target.value)} /></label>}
-      {selection === "automatic" ? <label>自动分配域名（可选）<input value={autoDomain} maxLength={253} disabled={pending || !!unresolved} onChange={(event) => setAutoDomain(event.target.value)} /></label> : <>
-        <label>供应商<select value={providerId} onChange={(event) => setProviderId(event.target.value)} disabled={pending || !!unresolved}>
+      </Select></Field>
+      {naming === 'custom' && <Field label="邮箱前缀"><Input value={prefix} maxLength={custom?.maxLength ?? 30} pattern="[a-z0-9]+" required minLength={custom?.minLength ?? 1} disabled={pending || !!unresolved} onChange={(event) => setPrefix(event.target.value)} /></Field>}
+      {selection === "automatic" ? <Field label="自动分配域名（可选）"><Input value={autoDomain} maxLength={253} disabled={pending || !!unresolved} onChange={(event) => setAutoDomain(event.target.value)} /></Field> : <>
+        <Field label="供应商"><Select value={providerId} onChange={(event) => setProviderId(event.target.value)} disabled={pending || !!unresolved}>
           {providers.map((row) => <option key={row.id} value={row.id}>{row.id} · {row.type}{row.allocation.state === "cooling" ? " · 分配冷却中" : row.allocation.state === "unconfigured" ? " · 未配置凭据" : ""}</option>)}
-        </select></label>
-        <label>域名<select value={domain} onChange={(event) => setDomain(event.target.value)} disabled={pending || !!unresolved}>
+        </Select></Field>
+        <Field label="域名"><Select value={domain} onChange={(event) => setDomain(event.target.value)} disabled={pending || !!unresolved}>
           {displayedDomains.map((value) => <option key={value}>{value}</option>)}
-        </select></label>
+        </Select></Field>
       </>}
-      <button disabled={pending || !creation.ready || (!unresolved && (!available || invalidPrefix || selection === "manual" && !domain))}>{unresolved ? "检查创建结果" : naming === 'custom' ? '创建自定义邮箱' : selection === "automatic" ? "自动分配邮箱" : "分配随机邮箱"}</button>
+      <Button disabled={pending || !creation.ready || (!unresolved && (!available || invalidPrefix || selection === "manual" && !domain))} type="submit" wrap>{unresolved ? "检查创建结果" : naming === 'custom' ? '创建自定义邮箱' : selection === "automatic" ? "自动分配邮箱" : "分配随机邮箱"}</Button>
     </form>}
-    {selection === "manual" && provider?.allocation.cooldownUntil && <p role="status">此供应商的新分配冷却至 {dateText(provider.allocation.cooldownUntil)}；已有邮箱不受分配冷却影响</p>}
-    {unresolved && <p role="status" className="creation-status">{unresolved}</p>}
-    {naming === 'custom' && selection === 'manual' && custom && !custom.enabled && <p role="status">此供应商已关闭自定义前缀</p>}
-    {naming === 'custom' && customError && <p role="alert">{customError}</p>}
-    {(creation.error || error) && <p role="alert">{creation.error || error}</p>}
+    {selection === "manual" && provider?.allocation.cooldownUntil && <Notice role="status" tone="info">此供应商的新分配冷却至 {dateText(provider.allocation.cooldownUntil)}；已有邮箱不受分配冷却影响</Notice>}
+    {unresolved && <Notice role="status" className="creation-status" tone="info">{unresolved}</Notice>}
+    {naming === 'custom' && selection === 'manual' && custom && !custom.enabled && <Notice role="status" tone="info">此供应商已关闭自定义前缀</Notice>}
+    {naming === 'custom' && customError && <Notice role="alert" tone="danger">{customError}</Notice>}
+    {(creation.error || error) && <Notice role="alert" tone="danger">{creation.error || error}</Notice>}
     {creation.creation && <CreationAcknowledgement key={creation.creation.id} creation={creation.creation} pending={pending} onConfirm={creation.acknowledge} />}
     <CreationHistory visible={visible} refresh={refresh + creation.refresh} pending={pending} lockedKey={creation.lockedKey} onSelect={creation.select} onRecover={creation.recover} />
   </>;

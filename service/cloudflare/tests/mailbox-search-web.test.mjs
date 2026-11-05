@@ -56,6 +56,7 @@ test("Chrome: single-mailbox cached search preserves ownership, filters, paginat
     page.on("request", request => { const url = new URL(request.url()); if (url.pathname === "/api/v1/messages") queries.push(url); });
     const calls = f.calls.length;
     await search.getByLabel("搜索当前邮箱邮件", { exact: true }).fill("Project & +中文");
+    await search.getByRole("button", { name: "展开邮件筛选", exact: true }).click();
     await search.getByLabel("发件人筛选", { exact: true }).fill("team@example.test");
     await search.getByLabel("收件时间从", { exact: true }).fill("2026-10-29T00:00");
     await search.getByLabel("收件时间至", { exact: true }).fill("2026-10-31T23:59");

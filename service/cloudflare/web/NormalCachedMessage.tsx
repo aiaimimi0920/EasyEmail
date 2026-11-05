@@ -1,3 +1,4 @@
+import { Button, Notice } from '@neuro/ui';
 import { useEffect, useRef, useState } from "react";
 import { errorMessage } from "./api";
 import { downloadNormalRaw, type NormalMail } from "./normal-inbox";
@@ -14,7 +15,7 @@ function RawDownload({ path }: { path: string }) {
     catch (failure) { if (!controller.signal.aborted) setError(errorMessage(failure)); }
     finally { if (request.current === controller) { request.current = null; setPending(false); } }
   }
-  return <div>{error && <p role="alert">{error}</p>}<button className="secondary" disabled={pending} onClick={() => void download()}>下载原始邮件</button></div>;
+  return <div>{error && <Notice role="alert" tone="danger">{error}</Notice>}<Button disabled={pending} onClick={() => void download()} variant="quiet" wrap>下载原始邮件</Button></div>;
 }
 export function NormalCachedMessage({ path, message }: { path: string; message: NormalMail }) {
   return <>

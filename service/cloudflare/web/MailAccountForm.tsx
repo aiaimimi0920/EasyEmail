@@ -1,3 +1,4 @@
+import { Button, Checkbox, Field, Input, Select } from '@neuro/ui';
 import { useState, type FormEvent } from "react";
 import type { ImapEndpoint, NormalAccount } from "./normal-accounts";
 
@@ -18,18 +19,17 @@ export function MailAccountForm({ account, endpoints, disabled, onSave, onDirty,
   return <form onSubmit={submit} onChange={onDirty} aria-label={`${label}配置`}>
     <fieldset disabled={disabled}>
       <legend>{account ? `编辑${separator}${label}` : `添加${separator}${label}`}</legend>
-      <label>邮箱地址<input name="emailAddress" type="email" maxLength={254} required defaultValue={account?.emailAddress ?? ""} readOnly={immutableAddress && account !== null} /></label>
-      <label>邮箱名称<input name="displayName" maxLength={100} defaultValue={account?.displayName ?? ""} /></label>
-      <label>IMAP 服务器<select name="endpointId" required value={endpointId} onChange={event => setEndpointId(event.target.value)}>
+      <Field label="邮箱地址"><Input name="emailAddress" type="email" maxLength={254} required defaultValue={account?.emailAddress ?? ""} readOnly={immutableAddress && account !== null} /></Field>
+      <Field label="邮箱名称"><Input name="displayName" maxLength={100} defaultValue={account?.displayName ?? ""} /></Field>
+      <Field label="IMAP 服务器"><Select name="endpointId" required value={endpointId} onChange={event => setEndpointId(event.target.value)}>
         {endpoints.map(endpoint => <option key={endpoint.id} value={endpoint.id}>{endpoint.label} · {endpoint.hostname}:{endpoint.port} {endpoint.security === "starttls" ? "STARTTLS" : "TLS"}</option>)}
-      </select></label>
-      <label>IMAP 用户名<input name="username" autoComplete="off" maxLength={255} required defaultValue={account?.username ?? ""} /></label>
-      {!oauth && <label>IMAP 应用密码<input name="password" type="password" autoComplete="new-password" maxLength={1024} required={!account}
-        placeholder={account ? "留空保留原凭据" : "使用邮箱服务商的应用密码"} /></label>}
+      </Select></Field>
+      <Field label="IMAP 用户名"><Input name="username" autoComplete="off" maxLength={255} required defaultValue={account?.username ?? ""} /></Field>
+      {!oauth && <Field label="IMAP 应用密码"><Input name="password" type="password" autoComplete="new-password" maxLength={1024} required={!account} placeholder={account ? "留空保留原凭据" : "使用邮箱服务商的应用密码"} /></Field>}
       {oauth && <p>保存后发起 Google 授权；用户名须与邮箱地址一致</p>}
-      {(!oauth || account?.authentication === "google-oauth2" && account.credentialConfigured) && <label className="check"><input type="checkbox" name="enabled" defaultChecked={account?.enabled ?? true} />允许平台连接</label>}
-      {account && !oauth && <label className="check"><input type="checkbox" name="forgetCredential" />忘记凭据（须同时关闭连接）</label>}
-      <button type="submit" disabled={!endpoints.length}>{`保存${separator}${label}`}</button>
+      {(!oauth || account?.authentication === "google-oauth2" && account.credentialConfigured) && <Checkbox name="enabled" defaultChecked={account?.enabled ?? true} label="允许平台连接" />}
+      {account && !oauth && <Checkbox name="forgetCredential" label="忘记凭据（须同时关闭连接）" />}
+      <Button type="submit" disabled={!endpoints.length} wrap>{`保存${separator}${label}`}</Button>
     </fieldset>
   </form>;
 }

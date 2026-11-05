@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright-core";
@@ -30,7 +31,7 @@ test("Chrome ordinary lost enqueue uses only original-key GET; uncertain cancell
     await send.getByRole("status").filter({ hasText: "已加入发送队列" }).waitFor(); assert.equal(posts.length, 1); assert.equal(t.opens.length, 0);
     assert.equal(gets.length, 1); assert.equal(new URL(gets[0]).searchParams.get("requestKey"), posts[0].key);
     const draft = await t.h.db.prepare("SELECT state,outgoing_id FROM drafts").first(); assert.deepEqual(draft, { state: "submitted", outgoing_id: null });
-    page.once("dialog", dialog => dialog.accept()); await send.getByRole("button", { name: "另起普通邮件", exact: true }).click();
+    await confirmAction(page, async () => { await send.getByRole("button", { name: "另起普通邮件", exact: true }).click(); }, dialog => dialog.accept());
     assert.equal(await send.getByLabel("发送方式").inputValue(), "direct");
     await jobs.getByRole("button", { name: "普通队列浏览器", exact: true }).click(); const detail = jobs.getByRole("article", { name: "任务详情", exact: true });
     await page.route(`**${t.root}/*/cancel`, async route => {
@@ -39,7 +40,7 @@ test("Chrome ordinary lost enqueue uses only original-key GET; uncertain cancell
       if (actions.length === 2) return route.fulfill({ status: 429, contentType: "application/json", body: JSON.stringify({ error: { code: "rate_limited" } }) });
       return route.continue();
     });
-    page.once("dialog", dialog => dialog.accept()); await detail.getByRole("button", { name: "取消排队", exact: true }).click();
+    await confirmAction(page, async () => { await detail.getByRole("button", { name: "取消排队", exact: true }).click(); }, dialog => dialog.accept());
     await detail.getByRole("button", { name: "核对原队列操作", exact: true }).waitFor();
     assert.equal(await region.getByRole("button", { name: "添加普通邮箱", exact: true }).isDisabled(), true);
     assert.equal(await send.getByRole("button", { name: "保存普通邮箱云端草稿", exact: true }).isDisabled(), true);

@@ -1,3 +1,5 @@
+import { useConfirmation } from "./Confirmation";
+import { Button, Notice, Panel } from '@neuro/ui';
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, dateText, errorMessage, type Page } from "./api";
 import { jobState, type SendJob } from "./send-jobs";
@@ -41,7 +43,9 @@ export function SendJobs({ revision, visible, basePath = "/send-jobs", title = "
   }
   async function act(kind: "cancel" | "retry") {
     if (busy.current || !detail || !operation.current && disabled) return;
-    if (!operation.current && !window.confirm(kind === "cancel" ? "取消这个尚未预约发送的任务？已消费的草稿不会恢复。" : "确认只重试尚未建立发送预约的准备步骤？")) return;
+    const original = operation.current, version = details.current;
+    if (!operation.current && !(await confirm(kind === "cancel" ? "取消这个尚未预约发送的任务？已消费的草稿不会恢复。" : "确认只重试尚未建立发送预约的准备步骤？"))) return;
+    if (busy.current || operation.current !== original || details.current !== version) return;
     operation.current ??= { id: detail.id, kind, key: crypto.randomUUID(), revision: detail.revision, uncertain: false, basePath };
     report.current?.(true);
     details.current++;
@@ -58,24 +62,25 @@ export function SendJobs({ revision, visible, basePath = "/send-jobs", title = "
       else { current.uncertain = true; setUnconfirmed(true); }
     } finally { busy.current = false; report.current?.(!!operation.current); setPending(false); }
   }
-  return <section className="card" aria-label={title} hidden={!visible}><h2>{title}</h2>
-    <button className="secondary" disabled={pending} onClick={() => setRefresh(old => old + 1)}>刷新发送队列</button>
-    {error && <p role="alert">{error}</p>}
+  const confirm = useConfirmation([basePath, detail, disabled, unconfirmed, visible]);
+  return <Panel className="card" aria-label={title} hidden={!visible}><h2>{title}</h2>
+    <Button disabled={pending} onClick={() => setRefresh(old => old + 1)} variant="quiet" wrap>刷新发送队列</Button>
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}
     <ul>{page?.items.map(item => <li key={item.id}><div>
-      <button className="secondary" disabled={disabled || !!operation.current} onClick={() => void open(item.id)}>{item.subject || "任务内容已清除"}</button>
+      <Button disabled={disabled || !!operation.current} onClick={() => void open(item.id)} variant="quiet" wrap>{item.subject || "任务内容已清除"}</Button>
       <small>{jobState(item.state)} · {dateText(item.dueAt)}</small>
     </div></li>)}</ul>
     {page?.items.length === 0 && <p>暂无排队任务</p>}
-    {page?.nextCursor && <button disabled={disabled || pending || !!operation.current} onClick={() => void more()}>加载更多排队任务</button>}
+    {page?.nextCursor && <Button disabled={disabled || pending || !!operation.current} onClick={() => void more()} wrap>加载更多排队任务</Button>}
     {detail && <article aria-label="任务详情"><h3>{detail.subject || "任务内容已清除"}</h3><p>{jobState(detail.state)}</p>
       <p>计划：{dateText(detail.dueAt)} · 最迟处理：{dateText(detail.deadlineAt)}</p><p>准备次数：{detail.attempts}/5</p>
       {detail.content && <><p>收件：{addressText(detail.content.to)}</p>{!!detail.content.cc.length && <p>抄送：{detail.content.cc.join(", ")}</p>}
         {!!detail.content.bcc.length && <p>密送：{detail.content.bcc.join(", ")}</p>}<pre>{detail.content.text}</pre>
         <ul>{detail.content.attachments.map(file => <li key={file.id}>{file.filename} · {file.size} 字节</li>)}</ul></>}
       {detail.error && <p>状态码：{detail.error}</p>}<p>原入队键：<code>{detail.requestKey}</code></p>
-      {detail.cancellable && <button disabled={disabled || pending || unconfirmed} onClick={() => void act("cancel")}>取消排队</button>}
-      {detail.retrySafe && <button disabled={disabled || pending || unconfirmed} onClick={() => void act("retry")}>重试准备</button>}
-      {unconfirmed && operation.current && <button disabled={pending} onClick={() => void act(operation.current!.kind)}>核对原队列操作</button>}
+      {detail.cancellable && <Button disabled={disabled || pending || unconfirmed} onClick={() => void act("cancel")} wrap>取消排队</Button>}
+      {detail.retrySafe && <Button disabled={disabled || pending || unconfirmed} onClick={() => void act("retry")} wrap>重试准备</Button>}
+      {unconfirmed && operation.current && <Button disabled={pending} onClick={() => void act(operation.current!.kind)} wrap>核对原队列操作</Button>}
     </article>}
-  </section>;
+  </Panel>;
 }

@@ -1,3 +1,5 @@
+import { useConfirmation } from "./Confirmation";
+import { Button, Notice } from '@neuro/ui';
 import { useEffect, useRef, useState } from "react";
 import { api, errorMessage, type Compose, type Page } from "./api";
 import type { UnifiedMessageSummary } from "./normal-inbox";
@@ -11,6 +13,7 @@ import type { OrganizationController } from "./useOrganization";
 import { useNormalOrganization } from "./NormalOrganization";
 import { useMixedOrganization } from "./MixedOrganization";
 import { canOrganizeMessage, messageSelectionKey } from "./mixed-organization-plan";
+import { MessageWorkspace } from './MessageWorkspace';
 
 export function UnifiedInboxResults({ query, onCompose, labels, folders, action, revision, refresh }: {
   query: string; onCompose: Compose; labels: Label[]; folders: Folder[]; action: OrganizationController; revision: number; refresh: () => void;
@@ -42,21 +45,23 @@ export function UnifiedInboxResults({ query, onCompose, labels, folders, action,
     const targets = page?.items.filter(item => ids.includes(messageSelectionKey(item))) ?? [];
     if (targets.length !== ids.length) { setError("选择的邮件已变化，请刷新列表"); return; }
     if (targets.some(item => !canOrganizeMessage(item))) { setError("邮件来源已变化，请刷新列表"); return; }
-    if (patch.trashed === true && !window.confirm(`将选择的 ${targets.length} 封邮件移到平台回收站？不会删除远端邮件。`)) return;
+    if (patch.trashed === true && !(await confirm(`将选择的 ${targets.length} 封邮件移到平台回收站？不会删除远端邮件。`))) return;
     if (targets.some(item => item.sourceKind === "normal")) return mixed.submit(targets, patch);
     return action.submit(targets.map(item => item.id), patch);
   } };
-  return <>
-    <div className="row"><button className="secondary" disabled={pending || locked} onClick={refresh}>刷新缓存列表</button>
+  const confirm = useConfirmation([path, revision, page, locked, selection]);
+  return <MessageWorkspace selected={!!selected} onBack={() => setSelected(null)} list={<>
+    <div className="row"><Button disabled={pending || locked} onClick={refresh} variant="quiet" wrap>刷新缓存列表</Button>
       <small role="status">{pending ? "读取缓存…" : `已加载 ${page?.items.length ?? 0} 封`}</small></div>
-    {error && <p role="alert">{error}</p>}
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}
     <BatchOrganization ids={selection} labels={labels} folders={folders} action={batchAction} disabled={pending || locked}
       selectPage={() => setSelection(pageIds.slice(0, 50))} clear={() => setSelection([])} />
-    {page && <MessageList items={page.items} pending={pending || locked} onOpen={setSelected} selection={selection} selectionKey={messageSelectionKey}
+    {page && <MessageList items={page.items} pending={pending || locked} onOpen={setSelected} selection={selection} selectionKey={messageSelectionKey} selectedKey={selected ? messageSelectionKey(selected) : undefined}
       onSelect={(id, checked) => setSelection(old => checked ? [...new Set([...old, id])].slice(0, 50) : old.filter(value => value !== id))} />}
-    {page?.nextCursor && <button disabled={pending || locked} onClick={() => void more()}>加载更多聚合邮件</button>}
+    {page?.nextCursor && <Button disabled={pending || locked} onClick={() => void more()} wrap>加载更多聚合邮件</Button>}
+    </>}>
     {selected?.sourceKind === "normal" ? <NormalMessageDetail key={`${messageSelectionKey(selected)}:${revision}`} {...selected} />
       : selected && <MessageDetail key={`temporary:${selected.id}:${revision}`} mailboxId={selected.mailboxId} id={selected.id}
         onStateChanged={refresh} onLabelsChanged={refresh} onRemoved={() => { setSelected(null); refresh(); }} onCompose={onCompose} />}
-  </>;
+  </MessageWorkspace>;
 }

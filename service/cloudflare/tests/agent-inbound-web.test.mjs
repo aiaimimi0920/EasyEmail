@@ -1,3 +1,4 @@
+import { confirmAction, observeConfirmations } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -20,9 +21,9 @@ test("Chrome: explicit inbound creation, unverified message, real inbox thread l
   try {
     browser = await chromium.launch({ executablePath, headless: true }); page = await browser.newPage({ viewport: { width: 1100, height: 900 } }); page.setDefaultTimeout(10000);
     const errors = []; page.on("pageerror", error => errors.push(error.message)); const region = await open(page, t);
-    page.once("dialog", dialog => dialog.dismiss()); await region.getByRole("button", { name: "创建入站线程", exact: true }).click();
+    await confirmAction(page, async () => { await region.getByRole("button", { name: "创建入站线程", exact: true }).click(); }, dialog => dialog.dismiss());
     assert.equal(await t.h.db.prepare("SELECT COUNT(*) n FROM agent_inbound_threads").first("n"), 0);
-    page.on("dialog", dialog => { assert.match(dialog.message(), /不发送邮件|不取消或重试派发/); return dialog.accept(); });
+    observeConfirmations(page, dialog => { assert.match(dialog.message(), /不发送邮件|不取消或重试派发/); return dialog.accept(); });
     await region.getByRole("button", { name: "创建入站线程", exact: true }).click(); await region.getByRole("status").filter({ hasText: "入站线程已创建" }).waitFor();
     await region.getByRole("combobox", { name: "Agent 处理筛选", exact: true }).selectOption("attention"); await region.getByText("暂无 Agent 邮件", { exact: true }).waitFor();
     await region.getByRole("combobox", { name: "Agent 处理筛选", exact: true }).selectOption("handled"); await region.getByRole("button", { name: "任务回复", exact: true }).click();
@@ -35,9 +36,11 @@ test("Chrome: explicit inbound creation, unverified message, real inbox thread l
     for (const [name, status] of [["标记人工完成", "人工已完成"], ["归档线程", "已归档"], ["恢复处理中", "处理中"]]) {
       await detail.getByRole("button", { name, exact: true }).click(); await detail.getByRole("status").filter({ hasText: status }).waitFor();
     }
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("agent-inbound"); await page.getByLabel("名称", { exact: true }).fill("inbound metadata");
     await page.getByRole("button", { name: "创建 Key", exact: true }).click(); const token = await page.getByTestId("new-key").textContent();
     expect(await t.threads("", { token })); expect(await t.h.request("/api/v1/agent-tasks", { method: "POST", token, body: {} }), 403);
+    await page.getByRole("navigation").getByRole("button", { name: "Agent 邮箱", exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: path.join(t.h.directory, "agent-inbound-mobile.png"), fullPage: true });
     assert.equal(t.opens.length, 1); assert.equal(await t.h.db.prepare("SELECT COUNT(*) n FROM agent_outgoing_messages").first("n"), 1);
@@ -49,7 +52,7 @@ test("Chrome: explicit inbound creation, unverified message, real inbox thread l
 test("Chrome: unknown inbound creation survives tabs, holds one body/key, GETs receipt before retry and releases lock after confirmed refresh failure", { timeout: 90000 }, async () => {
   const t = await agentInboundFixture({ browser: true }); let browser, page;
   try {
-    browser = await chromium.launch({ executablePath, headless: true }); page = await browser.newPage(); page.setDefaultTimeout(10000); page.on("dialog", dialog => dialog.accept());
+    browser = await chromium.launch({ executablePath, headless: true }); page = await browser.newPage(); page.setDefaultTimeout(10000); observeConfirmations(page, dialog => dialog.accept());
     const region = await open(page, t), keys = [], bodies = []; let reads = 0, valid = false, failRefresh = false;
     await page.route(`**${t.base}/messages/${t.incoming.id}/inbound-thread`, async route => {
       keys.push(route.request().headers()["idempotency-key"]); bodies.push(route.request().postData());

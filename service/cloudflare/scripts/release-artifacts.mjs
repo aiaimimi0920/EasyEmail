@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { deploymentPlan } from './deployment-config.mjs';
+import { neuroUiInputs } from './neuro-ui-inputs.mjs';
 
 export const workspace = fileURLToPath(new URL('../../../', import.meta.url));
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -12,17 +13,18 @@ export function releaseInputs() {
   const git = args => execFileSync('git', ['-C', workspace, ...args], { cwd: workspace, encoding: 'utf8', windowsHide: true,
     env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, maxBuffer: 16 * 1024 * 1024 });
   const selected = file => /^(?:service\/cloudflare\/(?:src|web|scripts|migrations)\/|service\/base\/src\/|upstreams\/cloudflare_temp_email\/worker\/src\/)/.test(file)
-    || ['service/cloudflare/package.json', 'service/cloudflare/package-lock.json', 'service/cloudflare/tsconfig.json',
+    || ['service/cloudflare/package.json', 'service/cloudflare/package-lock.json', 'service/cloudflare/.npmrc', 'service/cloudflare/tsconfig.json',
       'service/base/package.json', 'service/base/package-lock.json', 'service/base/tsconfig.json',
       'upstreams/cloudflare_temp_email/worker/package.json', 'upstreams/cloudflare_temp_email/worker/pnpm-lock.yaml',
       'upstreams/cloudflare_temp_email/worker/tsconfig.json', 'upstreams/cloudflare_temp_email/worker/scripts/build-local.mjs',
-      'upstreams/cloudflare_temp_email/worker/patches/telegraf@4.16.3.patch', 'upstreams/cloudflare_temp_email/db/schema.sql'].includes(file);
+      'upstreams/cloudflare_temp_email/worker/patches/telegraf@4.16.3.patch', 'upstreams/cloudflare_temp_email/db/schema.sql',
+      'apps/desktop/src/components/AppIcons.tsx'].includes(file);
   const files = [...new Set(git(['ls-files', '--cached', '--others', '--exclude-standard', '-z']).split('\0').filter(file => file && selected(file)))].sort();
   const hashes = Object.fromEntries(files.map(file => {
     const source = path.join(workspace, file); assert.ok(fs.lstatSync(source).isFile() && !fs.lstatSync(source).isSymbolicLink(), `Invalid source file: ${file}`);
     return [file, sha256(fs.readFileSync(source))];
   }));
-  return { head: git(['rev-parse', 'HEAD']).trim(), branch: git(['branch', '--show-current']).trim(), hashes };
+  return { head: git(['rev-parse', 'HEAD']).trim(), branch: git(['branch', '--show-current']).trim(), hashes: { ...hashes, ...neuroUiInputs() } };
 }
 
 export function artifactFiles(directory, prefix = '') {

@@ -1,3 +1,4 @@
+import { Button, Notice } from '@neuro/ui';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ApiError, errorMessage } from "./api";
 import type { NormalMail } from "./normal-inbox";
@@ -39,10 +40,10 @@ export function NormalRemoteFlagsProvider({ children }: { children: ReactNode })
   return <Context.Provider value={{ locked: attempt !== null, revision,
     submit: (message, flag, value, acknowledgedUnknownId) => run(false, { accountId: message.accountId, messageId: message.id, serverFolderId: message.serverFolderId, key: crypto.randomUUID(),
       body: { expectedRevision: message.accountRevision, epochId: message.epochId, flag, value, acknowledgedUnknownId } }) }}>
-    {status && <p role="status">{status}</p>}{error && <p role="alert">{error}</p>}
+    {status && <Notice role="status" tone="info">{status}</Notice>}{error && <Notice role="alert" tone="danger">{error}</Notice>}
     {attempt && <section aria-label="待核对服务器标记"><p>原请求 <code data-testid="remote-flags-request-key">{attempt.key}</code></p>
-      <div className="row"><button disabled={pending} onClick={() => void run(true)}>只读核对原远端操作</button>
-        <button className="secondary" disabled={pending} onClick={() => void run(false)}>重送原请求（不重复执行）</button></div></section>}
+      <div className="row"><Button disabled={pending} onClick={() => void run(true)} wrap>只读核对原远端操作</Button>
+        <Button disabled={pending} onClick={() => void run(false)} variant="quiet" wrap>重送原请求（不重复执行）</Button></div></section>}
     {children}
   </Context.Provider>;
 }

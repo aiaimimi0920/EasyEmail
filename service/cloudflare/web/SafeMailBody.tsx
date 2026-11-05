@@ -1,3 +1,4 @@
+import { Button } from '@neuro/ui';
 import { useMemo, useState } from "react";
 import DOMPurify from "dompurify";
 
@@ -21,8 +22,8 @@ export function SafeMailBody({ text, html }: { text: string; html: string }) {
   const [showHtml, setShowHtml] = useState(false);
   return <section aria-label="邮件正文">
     {html && <div className="row">
-      <button className="secondary" aria-pressed={!showHtml} onClick={() => setShowHtml(false)}>纯文本</button>
-      <button className="secondary" aria-pressed={showHtml} onClick={() => setShowHtml(true)}>安全 HTML</button>
+      <Button aria-pressed={!showHtml} onClick={() => setShowHtml(false)} variant="quiet" wrap>纯文本</Button>
+      <Button aria-pressed={showHtml} onClick={() => setShowHtml(true)} variant="quiet" wrap>安全 HTML</Button>
     </div>}
     {showHtml && html ? <HtmlBody html={html} /> : <pre data-testid="mail-body">{text || html || "（无正文）"}</pre>}
   </section>;

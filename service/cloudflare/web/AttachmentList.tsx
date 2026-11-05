@@ -1,3 +1,4 @@
+import { Button, Notice } from '@neuro/ui';
 import { useEffect, useRef, useState } from "react";
 import { attachmentFilename, MAX_ATTACHMENT_BYTES } from "../src/attachment-policy";
 import { ApiError, errorMessage, type Attachment } from "./api";
@@ -41,13 +42,12 @@ export function AttachmentList({ path, items, truncated }: { path: string; items
   if (!items.length && !truncated) return null;
   return <section aria-label="邮件附件">
     <h4>附件</h4>
-    {error && <p role="alert">{error}</p>}
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}
     <ul>{items.map((item, index) => <li key={index}>
       <div><span>{attachmentFilename(item.filename)}</span><small>{item.size} B</small></div>
-      {item.downloadAvailable ? <button className="secondary" aria-label={`下载 ${attachmentFilename(item.filename)}`}
-        disabled={pending !== null} onClick={() => download(index, item)}>{pending === index ? "下载中…" : "下载"}</button>
+      {item.downloadAvailable ? <Button aria-label={`下载 ${attachmentFilename(item.filename)}`} disabled={pending !== null} onClick={() => download(index, item)} variant="quiet" wrap>{pending === index ? "下载中…" : "下载"}</Button>
         : <small>仅元数据，无法核验下载</small>}
     </li>)}</ul>
-    {truncated && <p role="status">仅显示前 100 个附件。</p>}
+    {truncated && <Notice role="status" tone="info">仅显示前 100 个附件。</Notice>}
   </section>;
 }

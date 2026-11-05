@@ -1,3 +1,4 @@
+import { Button, Field, Input, Notice, Select } from '@neuro/ui';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { api, dateText, errorMessage } from "./api";
 import { waitForExtractions, type ExtractionCheck, type ExtractionResult } from "./extraction-poll";
@@ -60,20 +61,19 @@ export function ExtractionPanel({ mailboxId, address, visible, usable, busy, onB
   return <section aria-label="验证码与认证链接">
     <form ref={form} onSubmit={extract}><h3>验证码与认证链接</h3>
       <fieldset disabled={mode !== null || busy}><div className="row">
-        <label>缓存收件时间起点<input name="since" type="datetime-local" required
-          defaultValue={new Date(Date.now() - 15 * 60000 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} /></label>
-        <label>发件人包含<input name="sender" maxLength={320} /></label>
-        <label>主题包含<input name="subject" maxLength={256} /></label>
-        <label>提取目标<select name="kind"><option value="any">验证码或认证链接</option><option value="otp">验证码</option><option value="link">认证链接</option></select></label>
-        <button>提取缓存邮件</button>
-        {!cacheOnly && <button type="button" disabled={!usable} onClick={() => search(true)}>等待新结果（60 秒）</button>}
+        <Field label="缓存收件时间起点"><Input name="since" type="datetime-local" required defaultValue={new Date(Date.now() - 15 * 60000 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} /></Field>
+        <Field label="发件人包含"><Input name="sender" maxLength={320} /></Field>
+        <Field label="主题包含"><Input name="subject" maxLength={256} /></Field>
+        <Field label="提取目标"><Select name="kind"><option value="any">验证码或认证链接</option><option value="otp">验证码</option><option value="link">认证链接</option></Select></Field>
+        <Button type="submit" wrap>提取缓存邮件</Button>
+        {!cacheOnly && <Button type="button" disabled={!usable} onClick={() => search(true)} wrap>等待新结果（60 秒）</Button>}
       </div></fieldset>
     </form>
-    {mode === "wait" && <button className="secondary" onClick={stop}>停止等待</button>}
-    {status && <p role="status">{status}</p>}
-    {error && <p role="alert">{error}</p>}
-    {result?.searchLimited && <p role="status">仅检查最近 {cacheOnly ? 10 : 100} 封缓存邮件，结果可能不完整</p>}
-    {result?.sync.complete === false && <p role="status">上游同步尚不完整，未匹配不代表邮箱中没有结果</p>}
+    {mode === "wait" && <Button onClick={stop} variant="quiet" wrap>停止等待</Button>}
+    {status && <Notice role="status" tone="info">{status}</Notice>}
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}
+    {result?.searchLimited && <Notice role="status" tone="info">仅检查最近 {cacheOnly ? 10 : 100} 封缓存邮件，结果可能不完整</Notice>}
+    {result?.sync.complete === false && <Notice role="status" tone="info">上游同步尚不完整，未匹配不代表邮箱中没有结果</Notice>}
     {result?.items.map((item) => <div key={item.messageId} className="extraction">
       <small>收件时间：{dateText(item.receivedAt)}</small>
       {item.otp && <p>验证码：<code data-testid="otp-code">{item.otp.code}</code></p>}

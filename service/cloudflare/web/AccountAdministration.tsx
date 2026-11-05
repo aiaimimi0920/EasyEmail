@@ -1,3 +1,4 @@
+import { Button, Field, Input, Notice, Panel, Select } from '@neuro/ui';
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError, dateText, errorMessage, type Page } from "./api";
 import { accountActions, type Account, type AccountAudit } from "./account-api";
@@ -58,46 +59,45 @@ export function AccountAdministration({ userId, onSignedOut }: { userId: string;
     });
   }
 
-  return <section className="card" aria-label="用户管理">
+  return <Panel className="card" aria-label="用户管理">
     <h2>用户管理</h2>
-    {error && <p role="alert">{error}</p>}{status && <p role="status">{status}</p>}
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}{status && <Notice role="status" tone="info">{status}</Notice>}
     <form className="row" onSubmit={(event) => {
       event.preventDefault(); setSelection(null);
       void perform(() => load(new URLSearchParams({ q: query, status: filter }).toString()));
     }}>
-      <label>搜索用户名<input value={query} onChange={(event) => setQuery(event.target.value)} maxLength={64} disabled={pending} /></label>
-      <label>账号状态<select value={filter} onChange={(event) => setFilter(event.target.value)} disabled={pending}>
+      <Field label="搜索用户名"><Input value={query} onChange={(event) => setQuery(event.target.value)} maxLength={64} disabled={pending} /></Field>
+      <Field label="账号状态"><Select value={filter} onChange={(event) => setFilter(event.target.value)} disabled={pending}>
         <option value="">全部</option><option value="active">已启用</option><option value="disabled">已停用</option>
-      </select></label>
-      <button disabled={pending}>搜索用户</button>
-      <button type="button" className="secondary" disabled={pending} onClick={() => { setSelection(null); void perform(() => load()); }}>刷新用户</button>
+      </Select></Field>
+      <Button disabled={pending} type="submit" wrap>搜索用户</Button>
+      <Button type="button" disabled={pending} onClick={() => { setSelection(null); void perform(() => load()); }} variant="quiet" wrap>刷新用户</Button>
     </form>
     {selection && <form onSubmit={submit} aria-label="确认账号操作">
       <h3>{accountActions[selection.action]}：{selection.account.username}</h3>
       <p>{selection.action === "disable" ? "将禁止登录并撤销全部会话和 API Key。邮箱与历史保留；已派发的外部请求可能完成。"
         : selection.action === "enable" ? "恢复登录资格，但不会恢复旧会话或旧 API Key。"
           : "将退出所有设备并撤销全部 API Key；若操作自己的账号，当前网页也会退出。"}</p>
-      <label>输入完整用户名确认<input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" disabled={pending} /></label>
-      <div className="row"><button disabled={pending || confirmation !== selection.account.username}>确认账号操作</button>
-        <button type="button" className="secondary" disabled={pending} onClick={() => { setSelection(null); setConfirmation(""); }}>取消账号操作</button></div>
+      <Field label="输入完整用户名确认"><Input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" disabled={pending} /></Field>
+      <div className="row"><Button disabled={pending || confirmation !== selection.account.username} type="submit" wrap>确认账号操作</Button>
+        <Button type="button" disabled={pending} onClick={() => { setSelection(null); setConfirmation(""); }} variant="quiet" wrap>取消账号操作</Button></div>
     </form>}
     <ul aria-label="用户列表">{users.items.map((account) => <li key={account.id}>
       <div><strong>{account.username}</strong><small>{account.status === "active" ? "已启用" : "已停用"} · {account.isAdmin ? "管理员" : "用户"} · 版本 {account.revision}</small>
         <small>邮箱 {account.mailboxes} · 有效会话 {account.activeSessions} · 有效 Key {account.activeKeys}</small></div>
-      <div className="row"><button className="secondary" disabled={pending || account.id === userId && account.status === "active"}
-        onClick={() => select(account, account.status === "active" ? "disable" : "enable")} aria-label={`${account.status === "active" ? "停用" : "启用"} ${account.username}`}>{account.status === "active" ? "停用" : "启用"}</button>
-        <button className="secondary" disabled={pending} onClick={() => select(account, "revoke-credentials")} aria-label={`撤销凭据 ${account.username}`}>撤销凭据</button></div>
+      <div className="row"><Button disabled={pending || account.id === userId && account.status === "active"} onClick={() => select(account, account.status === "active" ? "disable" : "enable")} aria-label={`${account.status === "active" ? "停用" : "启用"} ${account.username}`} variant="quiet" wrap>{account.status === "active" ? "停用" : "启用"}</Button>
+        <Button disabled={pending} onClick={() => select(account, "revoke-credentials")} aria-label={`撤销凭据 ${account.username}`} variant="quiet" wrap>撤销凭据</Button></div>
     </li>)}</ul>
-    {users.nextCursor && <button className="secondary" disabled={pending} onClick={() => perform(async () => {
+    {users.nextCursor && <Button disabled={pending} onClick={() => perform(async () => {
       const next = await api<Page<Account>>(`/admin/users?${applied}&cursor=${encodeURIComponent(users.nextCursor!)}`);
       setUsers({ items: [...users.items, ...next.items], nextCursor: next.nextCursor });
-    })}>更多用户</button>}
+    })} variant="quiet" wrap>更多用户</Button>}
     <h3>账号审计</h3><ul aria-label="账号审计">{audit.items.map((row) => <li key={row.id}><div>
       {accountActions[row.action] ?? row.action} · 版本 {row.revision}<small>{dateText(row.createdAt)} · 用户 {row.userId} · 操作者 {row.actorId}</small>
     </div></li>)}</ul>
-    {audit.nextCursor && <button className="secondary" disabled={pending} onClick={() => perform(async () => {
+    {audit.nextCursor && <Button disabled={pending} onClick={() => perform(async () => {
       const next = await api<Page<AccountAudit>>(`/admin/users/audit?cursor=${encodeURIComponent(audit.nextCursor!)}`);
       setAudit({ items: [...audit.items, ...next.items], nextCursor: next.nextCursor });
-    })}>更多账号审计</button>}
-  </section>;
+    })} variant="quiet" wrap>更多账号审计</Button>}
+  </Panel>;
 }

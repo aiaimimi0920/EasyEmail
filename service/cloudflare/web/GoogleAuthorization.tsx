@@ -1,3 +1,5 @@
+import { useConfirmation } from "./Confirmation";
+import { Button, Notice } from '@neuro/ui';
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, errorMessage } from "./api";
 import type { NormalAccount } from "./normal-accounts";
@@ -20,7 +22,8 @@ export function GoogleAuthorization<A extends Omit<NormalAccount, "deleted">>({ 
   }, [scope, account.id, account.revision, account.testError]);
   async function run(kind: Attempt["kind"]) {
     if (busy.current || (!attempt.current && (disabled || !canAct()))) return;
-    if (!attempt.current && kind === "disconnect" && !window.confirm("仅在 EasyEmail 断开授权并停用 IMAP/SMTP？如需撤销 Google 权限，请另到 Google 账号的第三方连接页面操作。")) return;
+    if (!attempt.current && kind === "disconnect" && !(await confirm("仅在 EasyEmail 断开授权并停用 IMAP/SMTP？如需撤销 Google 权限，请另到 Google 账号的第三方连接页面操作。"))) return;
+    if (!alive.current || busy.current || !attempt.current && (disabled || !canAct())) return;
     const current = attempt.current ?? { kind, accountId: account.id, revision: account.revision, key: crypto.randomUUID() };
     attempt.current = current; busy.current = true; setPending(true); setError(""); setNotice(""); onBusy(true);
     try {
@@ -44,11 +47,12 @@ export function GoogleAuthorization<A extends Omit<NormalAccount, "deleted">>({ 
       busy.current = false; if (alive.current) { setPending(false); onBusy(!!attempt.current); }
     }
   }
+  const confirm = useConfirmation([scope, account.id, account.revision, disabled, pending]);
   return <section aria-label="Google 邮箱授权"><h3>Google 授权</h3>
     <p>{({ active: "已保存 Google 授权", reauthorize: "需要重新授权", disconnected: "已断开", not_authorized: "尚未授权" }[status] ?? "授权状态待确认")}；无需提供 Google 密码</p>
-    <button disabled={disabled || pending || uncertain} onClick={() => void run("start")}>{account.credentialConfigured ? "重新授权 Google" : "授权 Google 邮箱"}</button>
-    <button className="danger" disabled={disabled || pending || uncertain} onClick={() => void run("disconnect")}>断开 Google 授权（仅本地）</button>
-    {uncertain && <button disabled={pending} onClick={() => void run(attempt.current!.kind)}>核对原授权操作</button>}
-    {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
+    <Button disabled={disabled || pending || uncertain} onClick={() => void run("start")} wrap>{account.credentialConfigured ? "重新授权 Google" : "授权 Google 邮箱"}</Button>
+    <Button variant="danger" disabled={disabled || pending || uncertain} onClick={() => void run("disconnect")} wrap>断开 Google 授权（仅本地）</Button>
+    {uncertain && <Button disabled={pending} onClick={() => void run(attempt.current!.kind)} wrap>核对原授权操作</Button>}
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}{notice && <Notice role="status" tone="info">{notice}</Notice>}
   </section>;
 }

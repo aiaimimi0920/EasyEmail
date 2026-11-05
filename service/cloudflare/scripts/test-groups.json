@@ -324,6 +324,10 @@
     "tests/agent-google-oauth-domain.test.mjs"
   ],
   "web": [
+    "tests/confirmation-web.test.mjs",
+    "tests/confirmation-lifecycle-web.test.mjs",
+    "tests/neuro-ui-integration.test.mjs",
+    "tests/workbench-web.test.mjs",
     "tests/mailbox-access-web.test.mjs",
     "tests/normal-mutation-web.test.mjs",
     "tests/normal-mutation-recovery-web.test.mjs",

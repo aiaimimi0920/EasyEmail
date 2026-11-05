@@ -1,3 +1,4 @@
+import { Button, Field, Input, Notice, Select } from '@neuro/ui';
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, errorMessage } from './api';
 import { useMailboxAccessRecovery } from './useMailboxAccessRecovery';
@@ -29,26 +30,24 @@ export function MailboxAccessRecovery({ visible, onRecovered }: {
   return <section aria-label="恢复已有临时邮箱">
     <h3>恢复已有临时邮箱</h3>
     <form className="row" onSubmit={submit} autoComplete="off">
-      <label>恢复供应商<select value={providerId} disabled={locked || providers.length === 0} onChange={event => setProviderId(event.target.value)}>
+      <Field label="恢复供应商"><Select value={providerId} disabled={locked || providers.length === 0} onChange={event => setProviderId(event.target.value)}>
         {providers.map(row => <option key={row.id}>{row.id}</option>)}
-      </select></label>
-      <label>已有邮箱地址<input type="email" value={address} maxLength={254} required disabled={locked}
-        onChange={event => setAddress(event.target.value)} /></label>
-      <label>邮箱访问凭据<input type="password" value={token} maxLength={4096} required disabled={locked} autoComplete="off"
-        spellCheck={false} onChange={event => setToken(event.target.value)} /></label>
-      <button disabled={locked || !providerId || !address.trim() || !token}>验证并恢复访问</button>
+      </Select></Field>
+      <Field label="已有邮箱地址"><Input type="email" value={address} maxLength={254} required disabled={locked} onChange={event => setAddress(event.target.value)} /></Field>
+      <Field label="邮箱访问凭据"><Input type="password" value={token} maxLength={4096} required disabled={locked} autoComplete="off" spellCheck={false} onChange={event => setToken(event.target.value)} /></Field>
+      <Button disabled={locked || !providerId || !address.trim() || !token} type="submit" wrap>验证并恢复访问</Button>
     </form>
-    {!providers.length && !catalogError && <p role="status">暂无支持凭据恢复的供应商</p>}
+    {!providers.length && !catalogError && <Notice role="status" tone="info">暂无支持凭据恢复的供应商</Notice>}
     {recovery.operation && <div>
-      <p role="status" className="creation-status">原恢复请求：<code>{recovery.operation.key}</code> · {recovery.operation.input.address}</p>
-      <button disabled={recovery.pending} onClick={recovery.check}>核对原恢复结果</button>
+      <Notice role="status" className="creation-status" tone="info">原恢复请求：<code>{recovery.operation.key}</code> · {recovery.operation.input.address}</Notice>
+      <Button disabled={recovery.pending} onClick={recovery.check} wrap>核对原恢复结果</Button>
       {recovery.missing && <>
-        <button disabled={recovery.pending} onClick={recovery.retry}>重试原恢复请求</button>
-        <button className="secondary" disabled={recovery.pending} onClick={recovery.discardMissing}>结束本次恢复验证</button>
+        <Button disabled={recovery.pending} onClick={recovery.retry} wrap>重试原恢复请求</Button>
+        <Button disabled={recovery.pending} onClick={recovery.discardMissing} variant="quiet" wrap>结束本次恢复验证</Button>
       </>}
     </div>}
-    {recovery.notice && <p role="status" className="creation-status">{recovery.notice}</p>}
-    {(catalogError || recovery.error) && <p role="alert">{catalogError || recovery.error}</p>}
+    {recovery.notice && <Notice role="status" className="creation-status" tone="info">{recovery.notice}</Notice>}
+    {(catalogError || recovery.error) && <Notice role="alert" tone="danger">{catalogError || recovery.error}</Notice>}
     <MailboxRecoveryLookup disabled={locked} onRecovered={onRecovered} />
   </section>;
 }

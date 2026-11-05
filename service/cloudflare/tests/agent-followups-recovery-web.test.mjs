@@ -1,3 +1,4 @@
+import { observeConfirmations } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { agentFollowupsWebFixture } from "./agent-followups-web-fixture.mjs";
@@ -10,7 +11,7 @@ test("Chrome: uncertain follow-ups retain the original key/body through navigati
     const task = expect(await t.enqueue({ ...t.input, subject: "未知跟进原线程" }), 201).task; await t.run();
     expect(await t.enqueue({ ...t.input, subject: "其他跟进线程" }), 201); await t.run(); await t.open(task.subject);
     const { page, followups, threads } = t, keys = [], bodies = [], sequence = []; let reads = 0, valid = false, failRefresh = false;
-    page.on("dialog", dialog => dialog.accept());
+    observeConfirmations(page, dialog => dialog.accept());
     await page.route(`**/api/v1/agent-threads/${task.id}/followups`, async route => {
       keys.push(route.request().headers()["idempotency-key"]); bodies.push(route.request().postData()); sequence.push("POST");
       if (keys.length === 1) return route.abort("failed"); await route.fetch(); return route.fulfill({ status: 201, json: {} });
@@ -42,7 +43,7 @@ test("Chrome: uncertain queued cancellation reconciles by ID without another POS
   const t = await agentFollowupsWebFixture();
   try {
     const task = expect(await t.enqueue({ ...t.input, subject: "取消与退出跟进线程" }), 201).task; await t.run(); await t.open(task.subject);
-    const { page, followups } = t; page.on("dialog", dialog => dialog.accept()); await t.compose("取消未知跟进");
+    const { page, followups } = t; observeConfirmations(page, dialog => dialog.accept()); await t.compose("取消未知跟进");
     await followups.getByRole("button", { name: "排队发送同线程跟进", exact: true }).click(); await followups.getByText("跟进请求已保存", { exact: true }).waitFor();
     const row = await t.h.db.prepare("SELECT * FROM agent_followups").first(); let cancels = 0;
     await page.route(`**/api/v1/agent-followups/${row.id}/cancel`, async route => { cancels++; await route.fetch(); return route.abort("failed"); });

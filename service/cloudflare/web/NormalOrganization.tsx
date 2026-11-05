@@ -1,3 +1,4 @@
+import { Button, Notice } from '@neuro/ui';
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, errorMessage } from "./api";
 import type { OrganizationPatch, OrganizationResult } from "./labels-api";
@@ -44,10 +45,10 @@ export function NormalOrganizationProvider({ children }: { children: ReactNode }
   return <Context.Provider value={{ locked: attempt !== null || (gate.owner !== null && gate.owner !== owner), revision: revision + gate.revision,
     submit: (accountId, messageIds, patch, serverFolderId) => run(false, { accountId, serverFolderId, key: crypto.randomUUID(), body: { ...patch, messageIds: [...messageIds],
       ...(patch.addLabelIds ? { addLabelIds: [...patch.addLabelIds] } : {}), ...(patch.removeLabelIds ? { removeLabelIds: [...patch.removeLabelIds] } : {}) } }) }}>
-    {status && <p role="status">{status}</p>}{error && <p role="alert">{error}</p>}
+    {status && <Notice role="status" tone="info">{status}</Notice>}{error && <Notice role="alert" tone="danger">{error}</Notice>}
     {attempt && <div className="row" aria-label="待核对普通整理">
-      <button disabled={pending} onClick={() => void run(true)}>核对原普通整理</button>
-      <button disabled={pending} onClick={() => void run(false)}>重试原普通整理</button></div>}
+      <Button disabled={pending} onClick={() => void run(true)} wrap>核对原普通整理</Button>
+      <Button disabled={pending} onClick={() => void run(false)} wrap>重试原普通整理</Button></div>}
     {children}
   </Context.Provider>;
 }

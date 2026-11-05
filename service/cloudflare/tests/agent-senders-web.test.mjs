@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -34,10 +35,10 @@ test("Chrome: definitive task success survives a failed list reload without a gh
     });
     for (const mode of ["http", "malformed"]) {
       failure = mode;
-      if (mode !== "http") { page.once("dialog", dialog => dialog.accept()); await button(page, "另建 Agent 任务").click(); }
+      if (mode !== "http") { await confirmAction(page, async () => { await button(page, "另建 Agent 任务").click(); }, dialog => dialog.accept()); }
       await select(page, "任务远程服务").selectOption(t.serviceId); await select(page, "任务发件邮箱").selectOption(t.accountId);
       await field(page, "任务主题").fill(`accepted-reload-${mode}`); await field(page, "任务正文").fill("synthetic reload regression");
-      page.once("dialog", dialog => dialog.accept()); await button(page, "创建并排队发送 Agent 任务").click();
+      await confirmAction(page, async () => { await button(page, "创建并排队发送 Agent 任务").click(); }, dialog => dialog.accept());
       await page.getByRole("alert").waitFor();
       assert.equal(await button(page, "核对原 Agent 任务").count(), 0, "A failed list reload cannot turn confirmed success into an unrecoverable unknown attempt");
       assert.equal(await button(page, "刷新 Agent 任务状态").isDisabled(), false);
@@ -56,7 +57,7 @@ test("Chrome: configure, explicitly use, send and clear a private service defaul
     page.on("request", request => { if (!request.url().startsWith(t.h.baseUrl.origin)) external.push(request.url()); });
     await login(page, t.h, t.alice, "Agent 服务"); await button(page, "编辑服务 远程任务服务").click();
     await button(page, "加载 Agent 发件邮箱").click(); await select(page, "服务默认发件邮箱").selectOption(t.accountId);
-    page.once("dialog", dialog => dialog.accept()); await button(page, "保存服务修改").click();
+    await confirmAction(page, async () => { await button(page, "保存服务修改").click(); }, dialog => dialog.accept());
     await page.waitForFunction(() => [...document.querySelectorAll("small")].some(row => row.textContent?.includes("版本 2")));
     assert.equal(expect(await getService(t.h, t.alice, t.serviceId)).service.defaultSenderAccountId, t.accountId);
     await page.getByRole("navigation").getByRole("button", { name: "Agent 任务", exact: true }).click();
@@ -68,7 +69,7 @@ test("Chrome: configure, explicitly use, send and clear a private service defaul
     await page.route("**/api/v1/agent-tasks", route => {
       if (route.request().method() === "POST") posts.push(route.request().postDataJSON()); return route.continue();
     });
-    page.once("dialog", dialog => dialog.accept()); await button(page, "创建并排队发送 Agent 任务").click();
+    await confirmAction(page, async () => { await button(page, "创建并排队发送 Agent 任务").click(); }, dialog => dialog.accept());
     const detail = page.getByRole("article", { name: "Agent 任务详情", exact: true }); await detail.getByRole("status").filter({ hasText: "等待派发" }).waitFor();
     assert.equal(posts.length, 1); assert.equal(posts[0].senderAccountId, t.accountId); assert.equal(posts[0].accountRevision, 1); assert.equal(posts[0].smtpRevision, 1);
     assert.equal(Object.hasOwn(posts[0], "defaultSenderAccountId"), false); assert.equal(t.opens.length, 0);
@@ -76,7 +77,7 @@ test("Chrome: configure, explicitly use, send and clear a private service defaul
     assert.equal(t.messages.length, 1); assert.match(t.messages[0], /From: <sender@example\.test>/);
     await page.getByRole("navigation").getByRole("button", { name: "Agent 服务", exact: true }).click(); await button(page, "编辑服务 远程任务服务").click();
     assert.equal(await select(page, "服务默认发件邮箱").inputValue(), t.accountId); await select(page, "服务默认发件邮箱").selectOption("");
-    page.once("dialog", dialog => dialog.accept()); await button(page, "保存服务修改").click();
+    await confirmAction(page, async () => { await button(page, "保存服务修改").click(); }, dialog => dialog.accept());
     await page.waitForFunction(() => [...document.querySelectorAll("small")].some(row => row.textContent?.includes("版本 3")));
     assert.equal(expect(await getService(t.h, t.alice, t.serviceId)).service.defaultSenderAccountId, null);
     await page.setViewportSize({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -133,7 +134,7 @@ test("Chrome: unknown default writes keep the original body and key; replay cann
       writes.push({ key: route.request().headers()["idempotency-key"], body: route.request().postDataJSON() });
       await route.fetch(); return route.fulfill({ status: 200, json: {} });
     });
-    page.once("dialog", dialog => dialog.accept()); await button(page, "保存服务修改").click(); await button(page, "核对原服务操作").waitFor();
+    await confirmAction(page, async () => { await button(page, "保存服务修改").click(); }, dialog => dialog.accept()); await button(page, "核对原服务操作").waitFor();
     assert.equal(await select(page, "服务默认发件邮箱").isDisabled(), true); assert.equal(writes[0].body.defaultSenderAccountId, t.accountId);
     expect(await serviceWrite(t.h, t.alice, "PATCH", t.serviceId, { expectedVersion: 2, defaultSenderAccountId: null }));
     await page.getByRole("navigation").getByRole("button", { name: "邮箱管理", exact: true }).click();

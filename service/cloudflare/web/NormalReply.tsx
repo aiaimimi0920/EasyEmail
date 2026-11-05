@@ -1,3 +1,4 @@
+import { Button, Notice } from '@neuro/ui';
 import { createContext, useContext, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { api, errorMessage } from "./api";
 import type { NormalAccount } from "./normal-accounts";
@@ -36,10 +37,10 @@ export function NormalReplyProvider({ children, onOpen }: { children: ReactNode;
     finally { if (active.current === controller) { active.current = null; setPending(false); } }
   }
   return <Context.Provider value={{ guard, request, pending, reject, open }}>
-    {error && <p role="alert">{error}</p>}{pending && <p role="status">正在读取回复来源…</p>}{children}
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}{pending && <Notice role="status" tone="info">正在读取回复来源…</Notice>}{children}
   </Context.Provider>;
 }
 export function NormalReplyButton({ accountId, messageId, serverFolderId, disabled }: { accountId: string; messageId: string; serverFolderId?: string; disabled: boolean }) {
   const reply = useNormalReply();
-  return <button className="secondary" disabled={disabled || reply.pending} onClick={() => void reply.open(accountId, messageId, serverFolderId)}>回复</button>;
+  return <Button disabled={disabled || reply.pending} onClick={() => void reply.open(accountId, messageId, serverFolderId)} variant="quiet" wrap>回复</Button>;
 }

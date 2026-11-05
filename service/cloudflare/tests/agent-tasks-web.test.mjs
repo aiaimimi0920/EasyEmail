@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -18,7 +19,7 @@ async function open(page, t) {
   return region;
 }
 async function submit(page, region) {
-  page.once("dialog", dialog => dialog.accept()); await region.getByRole("button", { name: "创建并排队发送 Agent 任务", exact: true }).click();
+  await confirmAction(page, async () => { await region.getByRole("button", { name: "创建并排队发送 Agent 任务", exact: true }).click(); }, dialog => dialog.accept());
 }
 
 test("Chrome: Agent task real protocol submission, explicit confirmation, cancellation, Key and mobile workflow", { timeout: 90000 }, async () => {
@@ -27,13 +28,13 @@ test("Chrome: Agent task real protocol submission, explicit confirmation, cancel
     browser = await chromium.launch({ executablePath, headless: true }); const page = await browser.newPage({ viewport: { width: 1100, height: 900 } }); page.setDefaultTimeout(10000);
     const errors = [], external = []; page.on("pageerror", e => errors.push(e.message)); page.on("request", r => { if (!r.url().startsWith(t.h.baseUrl.origin)) external.push(r.url()); });
     const region = await open(page, t);
-    page.once("dialog", dialog => dialog.dismiss()); await region.getByRole("button", { name: "创建并排队发送 Agent 任务", exact: true }).click();
+    await confirmAction(page, async () => { await region.getByRole("button", { name: "创建并排队发送 Agent 任务", exact: true }).click(); }, dialog => dialog.dismiss());
     assert.equal(await t.h.db.prepare("SELECT COUNT(*) n FROM agent_threads").first("n"), 0);
     await submit(page, region); const detail = region.getByRole("article", { name: "Agent 任务详情", exact: true });
     await detail.getByRole("status").filter({ hasText: "等待派发" }).waitFor(); assert.equal(t.opens.length, 0);
-    page.once("dialog", dialog => dialog.accept()); await detail.getByRole("button", { name: "取消 Agent 任务派发", exact: true }).click();
+    await confirmAction(page, async () => { await detail.getByRole("button", { name: "取消 Agent 任务派发", exact: true }).click(); }, dialog => dialog.accept());
     await detail.getByRole("status").filter({ hasText: "已取消派发" }).waitFor(); await t.run(); assert.equal(t.opens.length, 0);
-    page.once("dialog", dialog => dialog.accept()); await region.getByRole("button", { name: "另建 Agent 任务", exact: true }).click();
+    await confirmAction(page, async () => { await region.getByRole("button", { name: "另建 Agent 任务", exact: true }).click(); }, dialog => dialog.accept());
     await region.getByLabel("任务主题", { exact: true }).fill("新任务"); await region.getByLabel("任务正文", { exact: true }).fill("真实本地协议验收");
     await submit(page, region); await detail.getByRole("status").filter({ hasText: "等待派发" }).waitFor(); await t.run();
     await detail.getByRole("button", { name: "刷新 Agent 任务状态", exact: true }).click();
@@ -41,6 +42,7 @@ test("Chrome: Agent task real protocol submission, explicit confirmation, cancel
     assert.equal(await detail.getByRole("button", { name: "取消 Agent 任务派发", exact: true }).count(), 0);
     await page.setViewportSize({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: path.join(t.h.directory, "agent-tasks-mobile.png"), fullPage: true });
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("agent-tasks");
     await page.getByLabel("名称", { exact: true }).fill("Task API"); await page.getByRole("button", { name: "创建 Key", exact: true }).click();
     const token = await page.getByTestId("new-key").textContent(), response = await t.h.request("/api/v1/agent-tasks", { token }); assert.equal(response.status, 200);
@@ -117,7 +119,7 @@ test("Chrome: refreshing sources rechecks SMTP independently, ignores its late o
     await submit(page, region); const detail = region.getByRole("article", { name: "Agent 任务详情", exact: true }); await detail.waitFor();
     assert.equal(await t.h.db.prepare("SELECT smtp_revision FROM agent_threads").first("smtp_revision"), 3);
     await page.route("**/api/v1/agent-tasks/*/cancel", async route => { await route.fetch(); await route.fulfill({ status: 200, json: {} }); });
-    page.once("dialog", dialog => dialog.accept()); await detail.getByRole("button", { name: "取消 Agent 任务派发", exact: true }).click();
+    await confirmAction(page, async () => { await detail.getByRole("button", { name: "取消 Agent 任务派发", exact: true }).click(); }, dialog => dialog.accept());
     await region.getByRole("alert").filter({ hasText: "响应不匹配" }).waitFor();
     assert.equal(await detail.getByRole("status").textContent(), "等待派发");
     await detail.getByRole("button", { name: "刷新 Agent 任务状态", exact: true }).click(); await detail.getByRole("status").filter({ hasText: "已取消派发" }).waitFor();

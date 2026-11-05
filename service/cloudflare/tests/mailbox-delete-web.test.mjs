@@ -55,11 +55,13 @@ test("Chrome: mailbox confirmation/cancel, persistent unknown, read-only check a
     await page.getByRole("button", { name: "刷新远端邮箱删除记录", exact: true }).click();
     await page.getByRole("status").filter({ hasText: "上游邮箱的 D1 数据已删除；平台缓存保留" }).waitFor();
     assert.equal(t.writes().length, 2);
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("mailbox-remote-delete");
     await page.getByLabel("名称", { exact: true }).fill("conditional mailbox cleaner");
     await page.getByRole("button", { name: "创建 Key", exact: true }).click(); await page.getByTestId("new-key").waitFor();
     assert.deepEqual(JSON.parse((await t.h.db.prepare("SELECT scopes FROM api_keys LIMIT 1").first()).scopes), ["mailboxes:read", "mailboxes:remote-delete"]);
     await page.getByRole("button", { name: "隐藏", exact: true }).click();
+    await page.getByRole("navigation").getByRole("button", { name: "邮箱管理", exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: path.join(t.h.directory, "mailbox-delete-mobile.png"), fullPage: true });

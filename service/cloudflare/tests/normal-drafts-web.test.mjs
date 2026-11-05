@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright-core";
@@ -69,14 +70,15 @@ test("Chrome: old ordinary draft requires explicit account-revision rebinding, t
     assert.equal(await send.getByLabel("普通邮件正文", { exact: true }).inputValue(), "保留旧内容");
     assert.equal(await send.getByRole("button", { name: "发送普通邮件", exact: true }).isDisabled(), true);
     assert.equal(await send.getByRole("button", { name: "保存普通邮箱云端草稿", exact: true }).isDisabled(), true);
-    page.once("dialog", dialog => dialog.dismiss()); await send.getByRole("button", { name: "关联到当前账号版本", exact: true }).click();
+    await confirmAction(page, async () => { await send.getByRole("button", { name: "关联到当前账号版本", exact: true }).click(); }, dialog => dialog.dismiss());
     assert.equal(await send.getByRole("button", { name: "发送普通邮件", exact: true }).isDisabled(), true);
-    page.once("dialog", dialog => dialog.accept()); await send.getByRole("button", { name: "关联到当前账号版本", exact: true }).click();
+    await confirmAction(page, async () => { await send.getByRole("button", { name: "关联到当前账号版本", exact: true }).click(); }, dialog => dialog.accept());
     assert.equal(await send.getByRole("button", { name: "发送普通邮件", exact: true }).isDisabled(), true);
     await send.getByRole("button", { name: "保存普通邮箱云端草稿", exact: true }).click(); await send.getByRole("status").filter({ hasText: "已保存到云端 · 版本 2" }).waitFor();
     await send.getByRole("button", { name: "发送普通邮件", exact: true }).click(); await send.getByRole("status").filter({ hasText: "服务器已接受" }).waitFor();
     assert.equal(t.messages.length, 1); const row = await t.h.db.prepare("SELECT normal_account_revision,state,revision FROM drafts WHERE id=?").bind(id).first();
     assert.deepEqual(row, { normal_account_revision: 2, state: "submitted", revision: 3 });
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("normal-drafts");
     await page.getByRole("textbox", { name: "名称", exact: true }).fill("普通草稿只写不发送"); await page.getByRole("button", { name: "创建 Key", exact: true }).click();
     await page.getByTestId("new-key").waitFor(); const token = await page.getByTestId("new-key").textContent();

@@ -1,3 +1,4 @@
+import { observeConfirmations } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -12,7 +13,7 @@ test("Chrome: Agent Google consent returns to Agent, keeps SMTP/automation opt-i
     browser = await chromium.launch({ executablePath: process.env.EASYEMAIL_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe", headless: true });
     page = await browser.newPage({ viewport: { width: 1100, height: 1000 } }); page.setDefaultTimeout(12000);
     const errors = [], completes = [], callbackCookies = [], disconnects = [], external = [];
-    page.on("pageerror", error => errors.push(error.message)); page.on("dialog", dialog => dialog.accept());
+    page.on("pageerror", error => errors.push(error.message)); observeConfirmations(page, dialog => dialog.accept());
     page.on("request", request => {
       if (!request.url().startsWith(f.h.baseUrl.origin)) external.push(request.url());
       if (request.url().includes("/oauth/google/complete")) completes.push(request.postDataJSON());

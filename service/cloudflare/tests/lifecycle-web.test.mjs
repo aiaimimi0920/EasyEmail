@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -33,11 +34,9 @@ test("Chrome: confirm/cancel trash, restore, purge, disable/enable and explicitl
     await page.getByRole("button", { name: "刷新收信", exact: true }).click();
     await page.getByRole("button", { name: fixture.parsed.subject, exact: true }).click();
     const calls = f.calls.length;
-    page.once("dialog", (dialog) => dialog.dismiss());
-    await page.getByRole("button", { name: "移到平台回收站", exact: true }).click();
+    await confirmAction(page, async () => { await page.getByRole("button", { name: "移到平台回收站", exact: true }).click(); }, (dialog) => dialog.dismiss());
     assert.equal((await h.db.prepare("SELECT trashed_at FROM messages LIMIT 1").first()).trashed_at, null);
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: "移到平台回收站", exact: true }).click();
+    await confirmAction(page, async () => { await page.getByRole("button", { name: "移到平台回收站", exact: true }).click(); }, (dialog) => dialog.accept());
     await page.getByRole("article", { name: "邮件详情" }).waitFor({ state: "detached" });
     assert.equal(await page.getByRole("button", { name: fixture.parsed.subject, exact: true }).count(), 0);
     await page.getByRole("button", { name: "聚合收件箱", exact: true }).click();
@@ -51,17 +50,14 @@ test("Chrome: confirm/cancel trash, restore, purge, disable/enable and explicitl
     await page.getByRole("combobox", { name: "文件夹", exact: true }).selectOption("inbox");
     await page.getByRole("button", { name: "搜索邮件", exact: true }).click();
     await page.getByRole("button", { name: fixture.parsed.subject, exact: true }).click();
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: "移到平台回收站", exact: true }).click();
+    await confirmAction(page, async () => { await page.getByRole("button", { name: "移到平台回收站", exact: true }).click(); }, (dialog) => dialog.accept());
     await page.getByRole("status").filter({ hasText: "已加载 0 封" }).waitFor();
     await page.getByRole("combobox", { name: "文件夹", exact: true }).selectOption("trash");
     await page.getByRole("button", { name: "搜索邮件", exact: true }).click();
     await page.getByRole("button", { name: fixture.parsed.subject, exact: true }).click();
-    page.once("dialog", (dialog) => dialog.dismiss());
-    await page.getByRole("button", { name: "永久清除平台缓存", exact: true }).click();
+    await confirmAction(page, async () => { await page.getByRole("button", { name: "永久清除平台缓存", exact: true }).click(); }, (dialog) => dialog.dismiss());
     assert.equal((await h.db.prepare("SELECT purged_at FROM messages LIMIT 1").first()).purged_at, null);
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: "永久清除平台缓存", exact: true }).click();
+    await confirmAction(page, async () => { await page.getByRole("button", { name: "永久清除平台缓存", exact: true }).click(); }, (dialog) => dialog.accept());
     await page.getByRole("status").filter({ hasText: "已加载 0 封" }).waitFor();
     assert.equal((await h.db.prepare("SELECT text_body FROM messages LIMIT 1").first()).text_body, "");
     await page.getByRole("button", { name: "邮箱管理", exact: true }).click();
@@ -85,6 +81,7 @@ test("Chrome: confirm/cancel trash, restore, purge, disable/enable and explicitl
     assert.equal(f.calls.length, calls, "All platform lifecycle operations stay local");
     for (const [permission, name, scopes] of [["cleanup", "cache cleanup", ["mailboxes:read", "messages:read", "messages:delete"]],
       ["release", "platform release", ["mailboxes:read", "mailboxes:delete"]]]) {
+      await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
       await page.getByRole("combobox", { name: "权限", exact: true }).selectOption(permission);
       await page.getByLabel("名称", { exact: true }).fill(name);
       const created = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/api-keys" && response.request().method() === "POST");

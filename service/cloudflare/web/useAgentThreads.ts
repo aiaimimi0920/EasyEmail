@@ -1,3 +1,4 @@
+import { useConfirmation } from "./Confirmation";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, errorMessage, type Page } from "./api";
 import { readAgentThread, readAgentThreadOperation, readAgentThreadPage, type AgentThread, type AgentThreadAttempt, type AgentThreadState } from "./agent-threads-api";
@@ -59,9 +60,12 @@ export function useAgentThreads(visible: boolean, blocked?: { current: boolean }
       else { current.uncertain = true; setAttempt({ ...current }); }
     } finally { busy.current = false; if (active.current) setPending(false); }
   }
-  function abandon() {
-    if (busy.current || blocked?.current || !held.current || !window.confirm("原线程状态可能已保存。放弃本页核对不会撤销该操作；请刷新线程后再操作。确认放弃？")) return;
+  async function abandon() {
+    const original = held.current;
+    if (busy.current || blocked?.current || !held.current || !(await confirm("原线程状态可能已保存。放弃本页核对不会撤销该操作；请刷新线程后再操作。确认放弃？"))) return;
+    if (!active.current || busy.current || blocked?.current || held.current !== original) return;
     held.current = null; setAttempt(null); setNotice(""); setError(""); setSelected(null); setPage(null);
   }
+  const confirm = useConfirmation([selected, attempt, pending]);
   return { page, selected, filter, pending, locked: pending || !!attempt, isBusy: () => busy.current || !!held.current, error, notice, attempt, refresh, read, submit, abandon };
 }

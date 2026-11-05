@@ -1,3 +1,4 @@
+import { Notice } from '@neuro/ui';
 import { useEffect, useState } from "react";
 import { api, errorMessage } from "./api";
 import { normalMessagePath, type NormalMail, type NormalMailSummary } from "./normal-inbox";
@@ -17,6 +18,6 @@ export function NormalMessageDetail({ accountId, id, serverFolderId, serverFolde
       .catch(failure => { if (!controller.signal.aborted) setError(errorMessage(failure)); });
     return () => controller.abort();
   }, [path, serverFolderId, serverFolderName, action.revision, remoteFlags.revision]);
-  return <article>{error && <p role="alert">{error}</p>}{!message && !error && <p role="status">读取邮件…</p>}
+  return <article>{error && <Notice role="alert" tone="danger">{error}</Notice>}{!message && !error && <Notice role="status" tone="info">读取邮件…</Notice>}
     {message && <NormalMessageContent message={message} />}</article>;
 }

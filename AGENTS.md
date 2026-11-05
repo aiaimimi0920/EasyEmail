@@ -7,6 +7,16 @@
 - A nested project may add stricter rules, but it must not weaken the repository-wide requirements for new or modified code.
 - Machine-readable policy and `scripts/effective-code-lines.mjs` are authoritative when prose and checker behavior differ.
 
+## Web UI source of truth
+
+- The Cloudflare Web application consumes NeuroDesign's React standard implementation `@neuro/ui`, not a recreation of the legacy desktop theme.
+- The local design repository is `C:/Users/Public/nas_home/NeuroDesign`. Read its `docs/INTEGRATION.md` and `design-md/neuro/DESIGN.zh-CN.md` before changing shared presentation or interaction.
+- Import controls from `@neuro/ui`, load `@neuro/ui/styles.css`, and use `NeuroProvider`. Do not copy library source, deep-import its internals, or maintain a parallel standard-control skin.
+- Keep EasyEmail's API calls, permissions, business state, persistence, recovery and mail-specific layout in EasyEmail. Standard components own only generic presentation and interaction.
+- From `service/cloudflare`, use npm 11+ and `npm run ui:sync` after design-library changes. Keep `install-links=true`, the lockfile, installed artifacts and host-owned React instances consistent.
+- Historical desktop and workbench notes describe their original stage; they do not override this integration. Current scope and verification are recorded in `docs/cloudflare-neuro-ui.md`.
+- Use `ConfirmationProvider` and owner-scoped `useConfirmation` for asynchronous business confirmation. Declare the identity/draft scope, await the boolean result and recheck mutable operation guards before continuing. Keep external-link opening in a direct standard-dialog click callback so browser user activation is preserved. Do not reintroduce `window.confirm` or treat Promises as booleans.
+
 ## Effective code lines
 
 - Effective lines exclude blank lines, comment-only lines, and lines wholly inside multiline comments.

@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -23,20 +24,16 @@ test("Chrome: retention preview, cancellation, save, expiry, content redaction a
     assert.equal(preview.preview.counts.redactedOutgoing, 1);
     assert.equal((await h.db.prepare("SELECT revision FROM retention_policy").first()).revision, 0);
     assert.equal((await h.db.prepare("SELECT content_purged_at FROM outgoing_messages").first()).content_purged_at, null);
-    page.once("dialog", (dialog) => dialog.dismiss());
-    await panel.getByRole("button", { name: "保存保留策略", exact: true }).click();
+    await confirmAction(page, async () => { await panel.getByRole("button", { name: "保存保留策略", exact: true }).click(); }, (dialog) => dialog.dismiss());
     assert.equal((await h.db.prepare("SELECT revision FROM retention_policy").first()).revision, 0);
-    page.once("dialog", (dialog) => dialog.accept());
-    await a.request("保存保留策略", "/admin/retention", "PUT");
+    await confirmAction(page, async () => { await a.request("保存保留策略", "/admin/retention", "PUT"); }, (dialog) => dialog.accept());
     await panel.getByRole("status").filter({ hasText: "保留策略已保存" }).waitFor();
     const next = ok(await allocate(h, admin.cookie), 201).mailbox; assert.ok(next.expiresAt);
     await h.db.prepare("UPDATE mailboxes SET expires_at=unixepoch()-1 WHERE id=?").bind(box.id).run();
     await a.request("预览保留影响", "/admin/retention/preview", "POST");
-    page.once("dialog", (dialog) => dialog.dismiss());
-    await panel.getByRole("button", { name: "执行一批维护", exact: true }).click();
+    await confirmAction(page, async () => { await panel.getByRole("button", { name: "执行一批维护", exact: true }).click(); }, (dialog) => dialog.dismiss());
     assert.equal((await h.db.prepare("SELECT COUNT(*) n FROM retention_runs").first()).n, 0);
-    page.once("dialog", (dialog) => dialog.accept());
-    const result = await a.request("执行一批维护", "/admin/retention/run", "POST");
+    const result = await confirmAction(page, () => a.request("执行一批维护", "/admin/retention/run", "POST"), dialog => dialog.accept());
     assert.equal(result.run.counts.redactedOutgoing, 1); assert.equal(result.run.counts.expiredMailboxes, 1);
     await panel.getByRole("heading", { name: "最近维护结果", exact: true }).waitFor();
     await page.getByRole("button", { name: "邮箱管理", exact: true }).click();
@@ -77,7 +74,7 @@ test("Chrome: an unknown maintenance response keeps the original key across work
     await panel.getByLabel("启用自动保留策略", { exact: true }).check();
     await panel.getByLabel("缓存保留（天）", { exact: true }).fill("1");
     await a.request("预览保留影响", "/admin/retention/preview", "POST");
-    page.once("dialog", (dialog) => dialog.accept()); await a.request("保存保留策略", "/admin/retention", "PUT");
+    await confirmAction(page, async () => { await a.request("保存保留策略", "/admin/retention", "PUT"); }, (dialog) => dialog.accept());
     await panel.getByRole("status").filter({ hasText: "保留策略已保存" }).waitFor();
     await a.request("预览保留影响", "/admin/retention/preview", "POST");
     const keys = [];
@@ -86,8 +83,7 @@ test("Chrome: an unknown maintenance response keeps the original key across work
       const response = await route.fetch();
       if (keys.length === 1) await route.abort("failed"); else await route.fulfill({ response });
     });
-    page.once("dialog", (dialog) => dialog.accept());
-    await panel.getByRole("button", { name: "执行一批维护", exact: true }).click();
+    await confirmAction(page, async () => { await panel.getByRole("button", { name: "执行一批维护", exact: true }).click(); }, (dialog) => dialog.accept());
     await panel.getByRole("status").filter({ hasText: "维护结果待确认" }).waitFor();
     const key = await page.getByTestId("retention-attempt-key").innerText(); assert.equal(key, keys[0]);
     const preserved = await seedRetentionMessage(h, admin.id, box);
@@ -128,8 +124,7 @@ test("Chrome: open mailbox actions expire with time and stale retention edits ca
     ok(await h.request("/api/v1/admin/retention", { cookie: admin.cookie, method: "PUT", body: {
       expectedRevision: initial.revision, policy: { ...initial.policy, enabled: true, cacheDays: 30 }, confirm: "APPLY RETENTION" } }));
     const response = page.waitForResponse((res) => res.url().endsWith("/admin/retention") && res.request().method() === "PUT");
-    page.once("dialog", (dialog) => dialog.accept());
-    await panel.getByRole("button", { name: "保存保留策略", exact: true }).click();
+    await confirmAction(page, async () => { await panel.getByRole("button", { name: "保存保留策略", exact: true }).click(); }, (dialog) => dialog.accept());
     assert.equal((await response).status(), 409);
     await panel.getByRole("alert").filter({ hasText: "保留策略已变化" }).waitFor();
     const current = ok(await h.request("/api/v1/admin/retention", { cookie: admin.cookie }));

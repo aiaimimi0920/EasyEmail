@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -29,9 +30,9 @@ test("Chrome: independent normal inbox batches private platform state, taxonomy 
     await combo(inbox, "普通平台文件夹").selectOption("archive"); await batch("批量移回收件箱");
     await combo(inbox, "普通平台文件夹").selectOption("inbox"); await batch("批量标为未读"); await batch("批量取消星标");
     await button(inbox, "选择当前页邮件").click(); await selection(inbox, 2);
-    const before = writes.length; page.once("dialog", dialog => dialog.dismiss()); await button(inbox, "批量移到平台回收站").click();
+    const before = writes.length; await confirmAction(page, async () => { await button(inbox, "批量移到平台回收站").click(); }, dialog => dialog.dismiss());
     assert.equal(writes.length, before); await selection(inbox, 2);
-    page.once("dialog", dialog => dialog.accept()); await button(inbox, "批量移到平台回收站").click();
+    await confirmAction(page, async () => { await button(inbox, "批量移到平台回收站").click(); }, dialog => dialog.accept());
     await inbox.getByText("暂无缓存邮件", { exact: true }).waitFor();
     await combo(inbox, "普通平台文件夹").selectOption("trash"); await batch("批量恢复平台邮件");
     await combo(inbox, "普通平台文件夹").selectOption("inbox"); await button(inbox, "收件验收").first().waitFor();

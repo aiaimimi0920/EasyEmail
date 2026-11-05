@@ -1,3 +1,4 @@
+import { Button, Notice } from '@neuro/ui';
 import { useEffect, useRef, useState } from "react";
 import { api, dateText, errorMessage, type Compose, type Message, type MessageState } from "./api";
 import { SafeMailBody } from "./SafeMailBody";
@@ -36,17 +37,17 @@ export function MessageDetail({ mailboxId, id, onStateChanged, onRemoved, onComp
     finally { busy.current = false; if (active.current) setPending(false); }
   }
 
-  return <article aria-label="邮件详情">
-    {error && <p role="alert">{error}</p>}
-    {!message && !error && <p role="status">读取邮件…</p>}
+  return <article className="message-detail" aria-label="邮件详情">
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}
+    {!message && !error && <Notice role="status" tone="info">读取邮件…</Notice>}
     {message && <>
-      <h3>{message.subject || "（无主题）"}</h3><p>{message.sender} → {message.recipient}</p>
+      <h3>{message.subject || "（无主题）"}</h3><p className="message-addresses">{message.sender} → {message.recipient}</p>
       <small>{dateText(message.receivedAt)}</small>
       <div className="row">
-        <button className="secondary" disabled={!message.replyAddress} onClick={() => onCompose(mailboxId, message)}>回复</button>
-        <button className="secondary" disabled={pending} onClick={() => patch({ isRead: !message.isRead })}>{message.isRead ? "标为未读" : "标为已读"}</button>
-        <button className="secondary" disabled={pending} onClick={() => patch({ starred: !message.starred })}>{message.starred ? "取消星标" : "加星标"}</button>
-        <button className="secondary" disabled={pending} onClick={() => patch({ archived: !message.archived })}>{message.archived ? "移回收件箱" : "归档"}</button>
+        <Button disabled={!message.replyAddress} onClick={() => onCompose(mailboxId, message)} variant="quiet" wrap>回复</Button>
+        <Button disabled={pending} onClick={() => patch({ isRead: !message.isRead })} variant="quiet" wrap>{message.isRead ? "标为未读" : "标为已读"}</Button>
+        <Button disabled={pending} onClick={() => patch({ starred: !message.starred })} variant="quiet" wrap>{message.starred ? "取消星标" : "加星标"}</Button>
+        <Button disabled={pending} onClick={() => patch({ archived: !message.archived })} variant="quiet" wrap>{message.archived ? "移回收件箱" : "归档"}</Button>
       </div>
       <SafeMailBody key={path} text={message.textBody} html={message.htmlBody} />
       <MessageLabels key={`labels-${path}`} path={path} id={id} onChanged={onLabelsChanged} />

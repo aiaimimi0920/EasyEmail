@@ -23,6 +23,7 @@ export async function buildApplication(output) {
     bundle: true,
     format: "esm",
     platform: "browser",
+    nodePaths: [path.join(root, "node_modules")],
     target: "es2022",
     jsx: "automatic",
     minify: true,

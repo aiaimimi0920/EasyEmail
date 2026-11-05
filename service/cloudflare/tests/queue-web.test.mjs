@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright-core";
@@ -46,7 +47,7 @@ test("Chrome: scheduled intent, lost enqueue response, cross-page recovery and e
       else if (calls === 2) await route.fulfill({ status: 429, contentType: "application/json", body: JSON.stringify({ error: { code: "rate_limited" } }) });
       else await route.continue();
     });
-    p.once("dialog", dialog => dialog.accept()); await detail.getByRole("button", { name: "取消排队", exact: true }).click();
+    await confirmAction(p, async () => { await detail.getByRole("button", { name: "取消排队", exact: true }).click(); }, dialog => dialog.accept());
     await button(p, "核对原队列操作").waitFor();
     await button(p, "邮箱管理").click(); await button(p, "写信与发送记录").click();
     await button(p, "核对原队列操作").click(); await region.getByRole("alert").filter({ hasText: "操作过于频繁" }).waitFor();

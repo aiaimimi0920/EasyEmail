@@ -24,11 +24,14 @@ test("Chrome: explicit automatic receive, observed status, account rebind, disab
     await automatic.getByText("配置版本 2 · 已启用", { exact: true }).waitFor(); await t.tick(); assert.equal(t.opens.length, 2);
     await automatic.getByLabel("启用 Agent 自动收件", { exact: true }).uncheck(); await automatic.getByRole("button", { name: "保存自动收件", exact: true }).click();
     await automatic.getByText("配置版本 3 · 已关闭", { exact: true }).waitFor(); await t.due(); await t.tick(); assert.equal(t.opens.length, 2);
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("agent-auto-inbox");
     await page.getByLabel("名称", { exact: true }).fill("自动收件 API"); await page.getByRole("button", { name: "创建 Key", exact: true }).click();
     const token = await page.getByTestId("new-key").textContent(), keys = expect(await t.h.request("/api/v1/api-keys", { cookie: t.alice.cookie })).items;
     assert.deepEqual(keys.find(row => row.name === "自动收件 API").scopes, ["agent-accounts:read", "agent-inbox:automate"]);
     expect(await t.config({ token }), 200); expect(await t.messages("", { token }), 403);
+    await page.getByRole("navigation").getByRole("button", { name: "Agent 邮箱", exact: true }).click();
+    await automatic.getByText("配置版本 3 · 已关闭", { exact: true }).waitFor();
     await page.setViewportSize({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: path.join(t.h.directory, "agent-auto-inbox-mobile.png"), fullPage: true });
     assert.deepEqual(t.errors, []); assert.deepEqual(t.external, []); assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);

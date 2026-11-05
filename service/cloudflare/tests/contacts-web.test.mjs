@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -50,19 +51,20 @@ test("Chrome: private contact CRUD, conflicts, lost writes, original-key recover
     expect(await contactWrite(h, alice, "PATCH", id, { expectedVersion: 4, note: "不应被回放覆盖" }));
     await button(page, "核对并完成原联系人操作").click(); await button(page, "编辑联系人 客户甲修改").waitFor(); assert.deepEqual(patches[0], patches[1]);
     assert.equal(expect(await getContact(h, alice, id)).contact.note, "不应被回放覆盖"); await page.unroute("**/api/v1/contacts/*");
-    page.once("dialog", dialog => dialog.dismiss()); await button(page, "删除联系人 客户甲修改").click(); expect(await getContact(h, alice, id));
+    await confirmAction(page, async () => { await button(page, "删除联系人 客户甲修改").click(); }, dialog => dialog.dismiss()); expect(await getContact(h, alice, id));
     lost = false; const deletions = [];
     await page.route("**/api/v1/contacts/*", async route => {
       if (route.request().method() !== "DELETE") return route.continue();
       deletions.push({ key: route.request().headers()["idempotency-key"], body: route.request().postData() });
       if (!lost) { lost = true; await route.fetch(); await route.abort("connectionfailed"); } else await route.continue();
     });
-    page.once("dialog", dialog => dialog.accept()); await button(page, "删除联系人 客户甲修改").click(); await button(page, "核对并完成原联系人操作").waitFor();
+    await confirmAction(page, async () => { await button(page, "删除联系人 客户甲修改").click(); }, dialog => dialog.accept()); await button(page, "核对并完成原联系人操作").waitFor();
     const replacement = expect(await saveContact(h, alice, contactBody("person@example.test", "同邮箱新联系人")), 201);
     await button(page, "核对并完成原联系人操作").click(); await button(page, "编辑联系人 同邮箱新联系人").waitFor();
     assert.deepEqual(deletions[0], deletions[1]); expect(await getContact(h, alice, replacement.operation.contactId)); await page.unroute("**/api/v1/contacts/*");
     await field(page, "搜索联系人").fill("不存在"); await button(page, "搜索联系人").click(); await page.getByRole("status").filter({ hasText: "已加载 0 位联系人" }).waitFor();
     await field(page, "搜索联系人").fill("PERSON"); await button(page, "搜索联系人").click(); await button(page, "编辑联系人 同邮箱新联系人").waitFor();
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("contacts"); await field(page, "名称").fill("contacts automation"); await button(page, "创建 Key").click();
     const token = await page.getByTestId("new-key").textContent(); expect(await h.request("/api/v1/contacts", { token, origin: null })); expect(await h.request("/api/v1/mailboxes", { token, origin: null }), 403);
     await page.reload(); await button(page, "联系人").click(); await button(page, "编辑联系人 同邮箱新联系人").waitFor();

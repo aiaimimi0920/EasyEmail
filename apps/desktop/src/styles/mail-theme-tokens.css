@@ -1,0 +1,119 @@
+:root {
+  color-scheme: dark;
+
+  /* Canonical Neuro palette. Concrete colors live only in this foundation. */
+  --nt-color-signal-yellow: #d9ff38;
+  --nt-color-signal-green: #22c55e;
+  --nt-color-info-blue: #06b6d4;
+  --nt-color-danger-red: #f43f5e;
+  --nt-color-surface-app: #06080d;
+  --nt-color-surface-base: #090c11;
+  --nt-color-surface-panel: #0e1218;
+  --nt-color-surface-rail: #070a0f;
+  --nt-color-surface-control: #111720;
+  --nt-color-surface-control-hover: #18222c;
+  --nt-color-text-primary: #f7f8ef;
+  --nt-color-text-muted: #929a9f;
+  --nt-color-border-default: rgba(255, 255, 255, 0.12);
+  --nt-color-focus-surface: #f3f5f1;
+  --nt-color-focus-ink: #20252b;
+  --nt-color-focus-muted: #656b72;
+
+  /* Interaction states derive from the canonical colors. */
+  --nt-yellow-hover: color-mix(in srgb, var(--nt-color-signal-yellow) 86%, white);
+  --nt-yellow-pressed: color-mix(in srgb, var(--nt-color-signal-yellow) 82%, black);
+  --nt-yellow-soft: color-mix(in srgb, var(--nt-color-signal-yellow) 14%, var(--nt-color-surface-panel));
+  --nt-yellow-line: color-mix(in srgb, var(--nt-color-signal-yellow) 42%, var(--nt-color-border-default));
+  --nt-green-hover: color-mix(in srgb, var(--nt-color-signal-green) 86%, white);
+  --nt-green-pressed: color-mix(in srgb, var(--nt-color-signal-green) 82%, black);
+  --nt-green-soft: color-mix(in srgb, var(--nt-color-signal-green) 14%, var(--nt-color-surface-panel));
+  --nt-green-line: color-mix(in srgb, var(--nt-color-signal-green) 42%, var(--nt-color-border-default));
+  --nt-info-soft: color-mix(in srgb, var(--nt-color-info-blue) 12%, var(--nt-color-surface-panel));
+  --nt-info-line: color-mix(in srgb, var(--nt-color-info-blue) 42%, var(--nt-color-border-default));
+  --nt-danger-soft: color-mix(in srgb, var(--nt-color-danger-red) 12%, var(--nt-color-surface-panel));
+  --nt-danger-line: color-mix(in srgb, var(--nt-color-danger-red) 42%, var(--nt-color-border-default));
+  --nt-on-yellow: color-mix(in srgb, var(--nt-color-signal-yellow) 14%, black);
+  --nt-green-text: color-mix(in srgb, var(--nt-color-signal-green) 76%, white);
+  --nt-info-text: color-mix(in srgb, var(--nt-color-info-blue) 76%, white);
+  --nt-danger-text: color-mix(in srgb, var(--nt-color-danger-red) 78%, white);
+
+  /* Semantic roles consumed by controls and page surfaces. */
+  --nt-action-primary: var(--nt-color-signal-yellow);
+  --nt-action-primary-hover: var(--nt-yellow-hover);
+  --nt-action-primary-pressed: var(--nt-yellow-pressed);
+  --nt-action-primary-ink: var(--nt-on-yellow);
+  --nt-action-positive: var(--nt-color-signal-green);
+  --nt-action-info: var(--nt-color-info-blue);
+  --nt-status-success: var(--nt-color-signal-green);
+  --nt-status-info: var(--nt-color-info-blue);
+  --nt-status-warning: var(--nt-color-signal-yellow);
+  --nt-status-danger: var(--nt-color-danger-red);
+  --nt-surface-app: var(--nt-color-surface-app);
+  --nt-surface-shell: var(--nt-color-surface-base);
+  --nt-surface-panel: var(--nt-color-surface-panel);
+  --nt-surface-rail: var(--nt-color-surface-rail);
+  --nt-surface-control: var(--nt-color-surface-control);
+  --nt-surface-control-hover: var(--nt-color-surface-control-hover);
+  --nt-surface-hover: var(--nt-surface-control-hover);
+  --nt-surface-selected: var(--nt-yellow-soft);
+  --nt-text-primary: var(--nt-color-text-primary);
+  --nt-text-muted: var(--nt-color-text-muted);
+  --nt-border-default: var(--nt-color-border-default);
+  --nt-border-hover: color-mix(in srgb, var(--nt-text-primary) 22%, var(--nt-border-default));
+  --nt-border-focus: var(--nt-color-signal-yellow);
+  --nt-focus-ring: color-mix(in srgb, var(--nt-border-focus) 22%, transparent);
+  --nt-overlay-scrim: color-mix(in srgb, var(--nt-surface-app) 70%, transparent);
+  --nt-action-destructive: var(--nt-color-danger-red);
+  --nt-action-destructive-hover: color-mix(in srgb, var(--nt-color-danger-red) 86%, white);
+  --nt-action-destructive-pressed: color-mix(in srgb, var(--nt-color-danger-red) 82%, black);
+  --nt-action-destructive-ink: color-mix(in srgb, var(--nt-color-danger-red) 12%, white);
+  --nt-reading-surface: var(--nt-color-focus-surface);
+  --nt-reading-ink: var(--nt-color-focus-ink);
+  --nt-reading-muted: var(--nt-color-focus-muted);
+  --nt-reading-border: color-mix(in srgb, var(--nt-reading-ink) 16%, transparent);
+  --nt-reading-border-hover: color-mix(in srgb, var(--nt-reading-ink) 28%, transparent);
+  --nt-reading-control: color-mix(in srgb, var(--nt-reading-ink) 4%, var(--nt-reading-surface));
+  --nt-reading-hover: color-mix(in srgb, var(--nt-action-primary) 12%, var(--nt-reading-surface));
+  --nt-reading-selected: color-mix(in srgb, var(--nt-action-primary) 10%, var(--nt-reading-surface));
+  --nt-disabled-ink: color-mix(in srgb, var(--nt-text-muted) 72%, transparent);
+  --nt-disabled-surface: color-mix(in srgb, var(--nt-surface-control) 72%, transparent);
+  --nt-disabled-border: color-mix(in srgb, var(--nt-border-default) 72%, transparent);
+  --nt-busy-track: color-mix(in srgb, var(--nt-action-primary) 14%, transparent);
+  --nt-busy-indicator: var(--nt-action-primary);
+  --nt-empty-ink: var(--nt-text-muted);
+  --nt-empty-surface: color-mix(in srgb, var(--nt-text-primary) 3%, transparent);
+  --nt-empty-border: color-mix(in srgb, var(--nt-text-primary) 14%, transparent);
+  --nt-empty-marker: color-mix(in srgb, var(--nt-text-muted) 62%, transparent);
+  --nt-shadow-panel: rgba(0, 0, 0, 0.38);
+
+  /* Existing names stay as aliases while components migrate by semantic role. */
+  --nt-signal: var(--nt-action-primary);
+  --nt-cyan: var(--nt-status-info);
+  --nt-danger: var(--nt-status-danger);
+  --nt-warning: var(--nt-status-warning);
+  --nt-success: var(--nt-status-success);
+  --nt-bg: var(--nt-surface-app);
+  --nt-bg-2: var(--nt-surface-shell);
+  --nt-graphite: var(--nt-surface-control);
+  --nt-graphite-strong: var(--nt-surface-rail);
+  --nt-line: var(--nt-border-default);
+  --nt-line-strong: var(--nt-yellow-line);
+  --nt-fog: var(--nt-text-primary);
+  --nt-muted: var(--nt-text-muted);
+  --nt-soft: color-mix(in srgb, var(--nt-text-muted) 68%, transparent);
+  --nt-board: var(--nt-reading-surface);
+  --nt-board-ink: var(--nt-reading-ink);
+  --nt-board-muted: var(--nt-reading-muted);
+  --nt-radius-lg: 12px;
+  --nt-radius-md: 8px;
+  --nt-radius-sm: 6px;
+  --nt-rail-icon-lane: 46px;
+  --nt-rail-gutter-x: 8px;
+  --nt-mail-list-card-target-height: 74px;
+  color: var(--nt-fog);
+  background: var(--nt-bg);
+  font-family:
+    Bahnschrift, "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}

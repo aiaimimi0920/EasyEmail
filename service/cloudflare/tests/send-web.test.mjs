@@ -75,6 +75,7 @@ test("Chrome: explicit reply, durable send history and lost response -> 429 -> s
     await page.getByRole("region", { name: "写信", exact: true }).getByRole("status").filter({ hasText: "渠道已接受" }).waitFor();
     assert.deepEqual(keys, [attemptKey, attemptKey, attemptKey]); assert.equal(sendCalls(f).length, 2);
     await page.unroute("**/api/v1/mailboxes/*/outgoing");
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("send");
     await page.getByLabel("名称", { exact: true }).fill("send automation");
     await page.getByRole("button", { name: "创建 Key", exact: true }).click();

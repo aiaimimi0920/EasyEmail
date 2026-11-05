@@ -54,6 +54,7 @@ test("Chrome: configure authorized 215.im, allocate with actual expiry, resume c
     await page.getByTestId("mail-body").scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(h.directory, "im215-reader-mobile.png") });
     const text = await page.locator("body").innerText(); for (const secret of [account.token, "AC-synthetic-im215-platform-key", "synthetic-private-url"]) assert.equal(text.includes(secret), false);
     assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
+    await page.getByRole("button", { name: "返回邮件列表", exact: true }).click();
     f.modes.set("/accounts/me", 401); await page.getByRole("button", { name: "刷新收信", exact: true }).click(); await page.getByRole("alert").waitFor();
     assert.equal((await h.db.prepare("SELECT COUNT(*) n FROM messages WHERE mailbox_id=?").bind(mailbox.id).first()).n, 21);
     assert.equal(f.calls.filter(call => call.route === "/accounts").length, 1); assert.deepEqual(errors, []); assert.deepEqual(external, []);

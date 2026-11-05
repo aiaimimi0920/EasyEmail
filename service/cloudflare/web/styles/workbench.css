@@ -1,0 +1,61 @@
+.ee-workbench { display: grid; grid-template-columns: 218px minmax(0, 1fr); height: 100dvh; overflow: hidden; background: var(--n-bg); }
+.skip-link { position: fixed; top: -100px; left: 16px; z-index: 10; }
+.skip-link:focus { top: 8px; }
+.workbench-rail { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid var(--n-line); background: var(--n-rail); }
+.workbench-brand { display: flex; align-items: center; gap: 8px; min-height: 78px; padding: 14px; border-bottom: 1px solid var(--n-line); }
+.workbench-brand strong { font-size: 17px; }
+.brand-icon { display: inline-flex; flex-shrink: 0; }
+.brand-icon svg { width: 36px; height: 36px; }
+.rail-toggle { margin-left: auto; }
+.workbench-rail nav { overflow: auto; flex: 1; padding: 14px 10px; }
+.navigation-group { margin-bottom: 20px; }
+.navigation-group h2 { padding: 0 12px; margin-bottom: 8px; font-size: .75rem; color: var(--n-muted); font-weight: 500; }
+.navigation-item { margin: 3px 0; }
+.navigation-item svg { flex: 0 0 18px; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.workbench-account { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 14px; border-top: 1px solid var(--n-line); }
+.account-avatar { display: grid; place-items: center; height: 28px; width: 28px; background: var(--n-panel); color: var(--n-success); border: 1px solid var(--n-line); border-radius: 4px; }
+.account-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: .75rem; }
+.workbench-account button { width: 100%; }
+.workbench-board { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.workbench-heading { display: flex; justify-content: space-between; gap: 20px; align-items: center; min-height: 76px; padding: 20px 24px; border-bottom: 1px solid var(--n-line); background: var(--n-surface); }
+.workspace-host { color: var(--n-muted); font: .75rem var(--n-mono); overflow-wrap: anywhere; }
+.workbench-content { flex: 1; min-height: 0; overflow: auto; padding: 20px; }
+.workbench-content:focus { outline-offset: -3px; }
+.ee-workbench[data-collapsed="true"] { grid-template-columns: 68px minmax(0, 1fr); }
+[data-collapsed="true"] .workbench-brand { flex-direction: column; padding: 10px; }
+[data-collapsed="true"] .workbench-brand strong, [data-collapsed="true"] .navigation-item span,
+[data-collapsed="true"] .navigation-group h2, [data-collapsed="true"] .account-name { display: none; }
+[data-collapsed="true"] .rail-toggle { margin: 0; }
+[data-collapsed="true"] .navigation-item { justify-content: center; padding-inline: 6px; }
+[data-collapsed="true"] .workbench-account { padding: 10px 6px; justify-content: center; }
+[data-collapsed="true"] .workbench-account button { padding-inline: 1px; }
+.auth-page { display: grid; align-content: center; min-height: 100dvh; padding: 32px 20px; }
+.auth { width: min(100%, 400px); margin: auto; }
+.auth h1 { margin: 12px 0 24px; }
+.auth h2 { margin-bottom: 16px; }
+.auth form > button { width: 100%; margin-top: 6px; }
+.auth > button { width: 100%; margin-top: 12px; }
+@media (max-width: 1100px) {
+  .ee-workbench { grid-template-columns: 182px minmax(0, 1fr); }
+  .workbench-heading { padding: 16px 20px; }
+  .workbench-content { padding: 16px; }
+}
+@media (max-width: 700px) {
+  .ee-workbench, .ee-workbench[data-collapsed="true"] { display: flex; flex-direction: column; height: auto; min-height: 100dvh; overflow: visible; }
+  .workbench-rail { display: block; border-right: 0; }
+  .workbench-brand, [data-collapsed="true"] .workbench-brand { min-height: 54px; flex-direction: row; padding: 8px 16px; }
+  .workbench-brand strong, [data-collapsed="true"] .workbench-brand strong { display: block; }
+  .rail-toggle { display: none; }
+  .workbench-rail nav { display: flex; padding: 4px 8px; overflow-x: auto; border-bottom: 1px solid var(--n-line); }
+  .navigation-group { display: flex; flex: 0 0 auto; gap: 4px; margin: 0; }
+  .navigation-group h2 { display: none; }
+  .navigation-item, [data-collapsed="true"] .navigation-item { width: auto; padding-inline: 10px; white-space: nowrap; }
+  .navigation-item span, [data-collapsed="true"] .navigation-item span { display: inline; }
+  .navigation-item svg { display: none; }
+  .workbench-account, [data-collapsed="true"] .workbench-account { flex-wrap: nowrap; padding: 8px 16px; }
+  .account-name, [data-collapsed="true"] .account-name { display: block; }
+  .workbench-account button, [data-collapsed="true"] .workbench-account button { width: auto; }
+  .workbench-heading { min-height: 64px; padding: 16px; }
+  .workspace-host { display: none; }
+  .workbench-content { overflow: visible; padding: 12px; }
+}

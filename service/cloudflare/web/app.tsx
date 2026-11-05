@@ -1,3 +1,4 @@
+import { NeuroProvider, Notice } from '@neuro/ui';
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ApiKeys } from "./ApiKeys";
@@ -24,6 +25,9 @@ import { AgentTasks } from "./AgentTasks";
 import { AgentThreads } from "./AgentThreads";
 import { NormalRemoteFlagsProvider } from "./NormalRemoteFlags";
 import { NormalRemoteMutationsProvider } from "./NormalRemoteMutations";
+import { WorkbenchShell } from "./WorkbenchShell";
+import { ConfirmationProvider } from "./Confirmation";
+import '@neuro/ui/styles.css';
 import "./app.css";
 
 function App() {
@@ -86,27 +90,15 @@ function App() {
     } catch (failure) { setError(errorMessage(failure)); }
   }
 
-  if (loading) return <main><p role="status">加载中…</p></main>;
-  return <main>
-    {error && <p role="alert">{error}</p>}
-    {notice && <p role="status">{notice}</p>}
-    {!user ? <Authentication onAuthenticated={(next) => { setNotice(""); setUser(next); }} /> : <OrganizationGateProvider key={user.id}>
+  if (loading) return <main><Notice role="status" tone="info">加载中…</Notice></main>;
+  const notices = <>
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}
+    {notice && <Notice role="status" tone="info">{notice}</Notice>}
+  </>;
+  if (!user) return <main className="auth-page">{notices}<Authentication onAuthenticated={(next) => { setNotice(""); setUser(next); }} /></main>;
+  return <WorkbenchShell user={user} view={view} onNavigate={setView} onLogout={logout}>
+    {notices}<OrganizationGateProvider key={user.id}>
       <MixedOrganizationProvider><NormalOrganizationProvider><NormalRemoteFlagsProvider><NormalRemoteMutationsProvider><NormalReplyProvider onOpen={() => setView("normal")}>
-      <header><h1>EasyEmail</h1><div>{user.username} <button className="secondary" onClick={logout}>退出登录</button></div></header>
-      <nav className="row" aria-label="邮件工作台">
-        <button className="secondary" aria-pressed={view === "mailboxes"} onClick={() => setView("mailboxes")}>邮箱管理</button>
-        <button className="secondary" aria-pressed={view === "inbox"} onClick={() => setView("inbox")}>聚合收件箱</button>
-        <button className="secondary" aria-pressed={view === "outgoing"} onClick={() => setView("outgoing")}>写信与发送记录</button>
-        <button className="secondary" aria-pressed={view === "contacts"} onClick={() => setView("contacts")}>联系人</button>
-        <button className="secondary" aria-pressed={view === "subscriptions"} onClick={() => setView("subscriptions")}>订阅邮件</button>
-        <button className="secondary" aria-pressed={view === "normal"} onClick={() => setView("normal")}>普通邮箱</button>
-        <button className="secondary" aria-pressed={view === "agents"} onClick={() => setView("agents")}>Agent 服务</button>
-        <button className="secondary" aria-pressed={view === "agent-accounts"} onClick={() => setView("agent-accounts")}>Agent 邮箱</button>
-        <button className="secondary" aria-pressed={view === "agent-tasks"} onClick={() => setView("agent-tasks")}>Agent 任务</button>
-        <button className="secondary" aria-pressed={view === "agent-threads"} onClick={() => setView("agent-threads")}>Agent 线程</button>
-        {user.isAdmin && <button className="secondary" aria-pressed={view === "admin"} onClick={() => setView("admin")}>平台管理</button>}
-        <button className="secondary" aria-pressed={view === "security"} onClick={() => setView("security")}>账号安全</button>
-      </nav>
       <div hidden={view !== "mailboxes"}><Mailboxes key={user.id} visible={view === "mailboxes"} onCompose={compose} /></div>
       <div hidden={view !== "inbox"}><AggregateInbox key={user.id} onCompose={compose} visible={view === "inbox"} /></div>
       <div hidden={view !== "outgoing"}><Composer key={user.id} visible={view === "outgoing"} request={composeRequest} /></div>
@@ -121,10 +113,10 @@ function App() {
       {view === "admin" && user.isAdmin && <AccountAdministration key={user.id} userId={user.id} onSignedOut={signedOut} />}
       {user.isAdmin && <div hidden={view !== "admin"}><RetentionPanel key={user.id} visible={view === "admin"} /></div>}
       {view === "security" && <PasswordChange key={user.id} onSignedOut={signedOut} />}
-      {keys && <ApiKeys initial={keys} />}
+      <div hidden={view !== "keys"}>{keys && <ApiKeys initial={keys} />}</div>
       </NormalReplyProvider></NormalRemoteMutationsProvider></NormalRemoteFlagsProvider></NormalOrganizationProvider></MixedOrganizationProvider>
-    </OrganizationGateProvider>}
-  </main>;
+    </OrganizationGateProvider>
+  </WorkbenchShell>;
 }
 
-createRoot(document.getElementById("root")!).render(<StrictMode><App /></StrictMode>);
+createRoot(document.getElementById("root")!).render(<StrictMode><NeuroProvider mode="dark" className="ee-ui"><ConfirmationProvider><App /></ConfirmationProvider></NeuroProvider></StrictMode>);

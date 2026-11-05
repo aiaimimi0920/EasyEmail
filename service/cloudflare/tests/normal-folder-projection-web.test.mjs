@@ -77,6 +77,7 @@ test("Chrome: a delayed aggregate folder detail cannot overwrite a different fol
       const response = await route.fetch(); captured(); await waiting; try { await route.fulfill({ response }); } finally { settled(); }
     });
     await button(inbox, "Sent projection 1").click(); await entered;
+    await button(inbox, "返回邮件列表").click();
     await button(inbox, "&Ti1lhw- projection 1").click(); const detail = inbox.getByRole("region", { name: "普通邮件详情", exact: true });
     await detail.getByText("Content &Ti1lhw- projection 1", { exact: true }).waitFor(); release(); release = null; await done;
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));

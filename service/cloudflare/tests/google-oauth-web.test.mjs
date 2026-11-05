@@ -1,3 +1,4 @@
+import { observeConfirmations } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright-core";
@@ -54,7 +55,7 @@ test("Chrome: disabled OAuth account, exact Google cross-site return, Strict ses
     await region.getByLabel("普通邮件主题", { exact: true }).fill("未保存的 OAuth 草稿");
     await expectDisabled(page, region.getByRole("button", { name: "重新授权 Google", exact: true }));
     await expectDisabled(page, region.getByRole("button", { name: "断开 Google 授权（仅本地）", exact: true }));
-    page.on("dialog", dialog => dialog.accept());
+    observeConfirmations(page, dialog => dialog.accept());
     await region.getByRole("button", { name: "新建普通邮件", exact: true }).click();
     f.mailMode("smtp", { final: "drop" });
     await region.getByLabel("收件地址", { exact: true }).fill("receiver@example.test");

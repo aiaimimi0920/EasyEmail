@@ -43,10 +43,12 @@ test("Chrome ordinary upload loss recovery locks navigation and preserves refs t
     await send.getByRole("button", { name: "核对原普通邮件发送", exact: true }).click(); await send.getByRole("status").filter({ hasText: "此普通草稿已提交发送" }).waitFor();
     assert.equal(posts.length, 1); assert.equal(posts[0].body.attachments.length, 1); assert.deepEqual(Object.keys(posts[0].body.attachments[0]).sort(), ["id", "version"]);
     assert.equal(gets.length, 1); assert.ok(gets[0].includes(posts[0].key)); assert.equal(t.messages.length, 1);
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("normal-outbox"); await page.getByRole("textbox", { name: "名称", exact: true }).fill("普通附件");
     await page.getByRole("button", { name: "创建 Key", exact: true }).click(); await page.getByTestId("new-key").waitFor();
     const key = await page.getByTestId("new-key").textContent(); assert.equal((await t.h.request("/api/v1/outbox-attachments", { token: key, origin: null })).status, 200);
     assert.deepEqual(errors, []); assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
+    await page.getByRole("navigation").getByRole("button", { name: "普通邮箱", exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   } catch (error) { if (ui) console.error(await ui.page.locator("body").ariaSnapshot()); throw error; }
   finally { await ui?.browser.close(); await t.close(); }

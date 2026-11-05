@@ -78,6 +78,7 @@ test("Chrome: unknown taxonomy keeps the exact key and targets across navigation
     await button(page, "重试原普通整理").click(); await page.getByRole("status").filter({ hasText: "已核对原操作" }).waitFor();
     assert.deepEqual(attempts[0], attempts[1]); assert.equal(attempts.length, 2);
     assert.equal(expect(await t.h.request(`${t.base}/messages/${id}/folder`, { cookie: t.alice.cookie })).folder, null);
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByLabel("名称", { exact: true }).fill("normal-taxonomy-key"); await combo(page, "权限").selectOption("normal-taxonomy");
     await button(page, "创建 Key").click(); const token = await page.getByTestId("new-key").textContent();
     const scopes = JSON.parse((await t.h.db.prepare("SELECT scopes FROM api_keys WHERE name='normal-taxonomy-key'").first()).scopes);

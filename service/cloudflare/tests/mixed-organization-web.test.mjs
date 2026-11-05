@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -27,8 +28,8 @@ test("Chrome: source-qualified selection batches temporary and two ordinary acco
     await button(inbox, "批量移动位置").click(); await inbox.getByRole("status").filter({ hasText: "已加载 0 封" }).waitFor();
     await combo(inbox, "自定义文件夹筛选").selectOption(t.folder); await button(inbox, "搜索邮件").click();
     await inbox.getByRole("status").filter({ hasText: "已加载 5 封" }).waitFor(); await button(inbox, "选择当前页邮件").click();
-    const before = writes.length; page.once("dialog", dialog => dialog.dismiss()); await button(inbox, "批量移到平台回收站").click();
-    assert.equal(writes.length, before); page.once("dialog", dialog => dialog.accept()); await button(inbox, "批量移到平台回收站").click();
+    const before = writes.length; await confirmAction(page, async () => { await button(inbox, "批量移到平台回收站").click(); }, dialog => dialog.dismiss());
+    assert.equal(writes.length, before); await confirmAction(page, async () => { await button(inbox, "批量移到平台回收站").click(); }, dialog => dialog.accept());
     await inbox.getByRole("status").filter({ hasText: "已加载 0 封" }).waitFor();
     await combo(inbox, "文件夹").selectOption("trash"); await button(inbox, "搜索邮件").click();
     await inbox.getByRole("status").filter({ hasText: "已加载 5 封" }).waitFor(); await button(inbox, "选择当前页邮件").click();

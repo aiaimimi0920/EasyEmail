@@ -1,3 +1,4 @@
+import { useConfirmation } from "./Confirmation";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, errorMessage, type Page } from "./api";
 import type { AgentThread } from "./agent-threads-api";
@@ -90,11 +91,14 @@ export function useAgentFollowups({ visible, thread, threadLocked, threadBusy, g
   }
   const recover = () => held.current ? execute(held.current, true) : Promise.resolve();
   const cancel = () => selected?.cancellable && thread ? execute({ kind: "cancel", row: { ...selected }, threadId: thread.id, uncertain: false }, false) : Promise.resolve();
-  function abandon() {
-    if (busy.current || !held.current || !window.confirm("原跟进可能已经排队、提交或取消。放弃本页核对不会撤销或重发原请求；确认放弃？")) return;
+  async function abandon() {
+    const original = held.current, version = generation.current;
+    if (busy.current || !held.current || !(await confirm("原跟进可能已经排队、提交或取消。放弃本页核对不会撤销或重发原请求；确认放弃？"))) return;
+    if (!active.current || busy.current || held.current !== original || generation.current !== version) return;
     held.current = null; guard.current = false; generation.current++; setAttempt(null); setContext(null); setPage(null); setSelected(null); setAnchor(null);
     setNotice("已放弃本页核对，原意图未撤销"); setError("");
   }
+  const confirm = useConfirmation([thread, attempt, pending]);
   return { page: page && page.items.every(row => row.threadId === thread?.id) ? page : null,
     context: context?.threadId === thread?.id && context?.threadRevision === thread?.management.revision && context?.threadState === thread?.management.state ? context : null,
     selected: selected?.threadId === thread?.id ? selected : null, anchor: anchor?.threadId === thread?.id ? anchor : null,

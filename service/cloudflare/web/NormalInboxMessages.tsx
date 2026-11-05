@@ -1,3 +1,5 @@
+import { useConfirmation } from "./Confirmation";
+import { Notice } from '@neuro/ui';
 import { useState } from "react";
 import type { NormalAccount } from "./normal-accounts";
 import type { NormalAggregateSummary, NormalMailSummary } from "./normal-inbox";
@@ -19,12 +21,13 @@ export function NormalInboxMessages({ account, items, pageIds, labels, folders, 
     if (ids.length > 50 || ids.some(id => !items.some(item => item.id === id && item.accountId === account.id && item.serverFolderId === serverFolderId))) {
       setError("选择的邮件已变化，请刷新列表"); return;
     }
-    if (patch.trashed === true && !window.confirm(`将选择的 ${ids.length} 封邮件移到平台回收站？不会删除服务器上的邮件。`)) return;
+    if (patch.trashed === true && !(await confirm(`将选择的 ${ids.length} 封邮件移到平台回收站？不会删除服务器上的邮件。`))) return;
     setError(""); await action.submit(account.id, ids, patch, serverFolderId);
   } };
   const messages: NormalAggregateSummary[] = items.map(item => ({ ...item, sourceKind: "normal", mailboxAddress: account.emailAddress, mailboxDisplayName: account.displayName }));
+  const confirm = useConfirmation([account, items, serverFolderId, locked, selection]);
   return <>
-    {error && <p role="alert">{error}</p>}
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}
     <BatchOrganization ids={selection} labels={labels} folders={folders} action={controller} disabled={locked}
       selectPage={() => setSelection(pageIds.slice(0, 50))} clear={() => setSelection([])} />
     {messages.length > 0 ? <MessageList items={messages} pending={locked} onOpen={item => onOpen(item.id)} selection={selection} selectionKey={item => item.id}

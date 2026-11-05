@@ -1,3 +1,4 @@
+import { Button, Notice } from '@neuro/ui';
 import { useEffect, useRef, useState } from "react";
 import type { NormalAccount } from "./normal-accounts";
 import { dateText, errorMessage } from "./api";
@@ -40,18 +41,17 @@ export function NormalServerFolders({ account, visible, disabled, onBusy }: {
     }
   }
   return <section aria-label="服务器文件夹"><h3>服务器文件夹</h3>
-    <div className="row"><button disabled={disabled || pending || reading || inboxBusy || !account.enabled || !account.credentialConfigured}
-      onClick={() => void run(true)}>发现服务器文件夹</button>
-      <button className="secondary" disabled={disabled || pending || reading || inboxBusy} onClick={() => void run(false)}>刷新缓存目录</button></div>
-    {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
-    {(pending || reading) && <p role="status">{pending ? "读取目录中…" : "读取缓存目录…"}</p>}
+    <div className="row"><Button disabled={disabled || pending || reading || inboxBusy || !account.enabled || !account.credentialConfigured} onClick={() => void run(true)} wrap>发现服务器文件夹</Button>
+      <Button disabled={disabled || pending || reading || inboxBusy} onClick={() => void run(false)} variant="quiet" wrap>刷新缓存目录</Button></div>
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}{notice && <Notice role="status" tone="info">{notice}</Notice>}
+    {(pending || reading) && <Notice role="status" tone="info">{pending ? "读取目录中…" : "读取缓存目录…"}</Notice>}
     {catalog && !catalog.current && <p>暂无当前来源目录</p>}
     {catalog?.current && <><p>目录观察时间：{dateText(catalog.observedAt)} · {catalog.items.length} 个</p>
       <ul>{catalog.items.map(folder => <li key={folder.id}><div><strong dir="auto">{folder.name}</strong>
         <small>{folder.selectable ? "可选" : "不可选"}{folder.roles.length ? ` · ${folder.roles.map(role => roles[role]).join("、")}` : ""}</small>
-        {folder.selectable && <button className="secondary" disabled={disabled || pending || inboxBusy} onClick={() => setFolder(folder)}>查看 {folder.name} 邮件</button>}</div></li>)}</ul>
+        {folder.selectable && <Button disabled={disabled || pending || inboxBusy} onClick={() => setFolder(folder)} variant="quiet" wrap>查看 {folder.name} 邮件</Button>}</div></li>)}</ul>
       {catalog.items.length === 0 && <p>服务器返回空目录</p>}</>}
-    {folder && <><button className="secondary" disabled={pending || inboxBusy} onClick={() => setFolder(null)}>关闭文件夹邮件</button>
+    {folder && <><Button disabled={pending || inboxBusy} onClick={() => setFolder(null)} variant="quiet" wrap>关闭文件夹邮件</Button>
       <NormalFolderInbox key={`${account.id}:${account.revision}:${folder.id}`} account={account} folder={folder} visible={visible}
         disabled={disabled || pending} onBusy={setInboxBusy} /></>}
   </section>;

@@ -1,3 +1,4 @@
+import { Button, Notice, Panel } from '@neuro/ui';
 import { useEffect, useRef, useState } from "react";
 import { api, dateText, errorMessage, type Page } from "./api";
 import type { DraftSummary } from "./cloud-drafts";
@@ -22,14 +23,14 @@ export function CloudDrafts({ visible, revision, disabled, onOpen, onDelete, bas
     if (visible) void load();
     return () => { generation.current++; };
   }, [visible, revision, basePath]);
-  return <section className="card" aria-label={title}><h2>{title}</h2>
-    <button className="secondary" disabled={pending || disabled} onClick={() => void load()}>刷新草稿</button>
-    {error && <p role="alert">{error}</p>}
+  return <Panel className="card" aria-label={title}><h2>{title}</h2>
+    <Button disabled={pending || disabled} onClick={() => void load()} variant="quiet" wrap>刷新草稿</Button>
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}
     <ul>{page.items.map(draft => <li key={draft.id}><div>
-      <button className="secondary" disabled={disabled} onClick={() => onOpen(draft.id)}>{draft.subject || "（无主题）"}</button>
+      <Button disabled={disabled} onClick={() => onOpen(draft.id)} variant="quiet" wrap>{draft.subject || "（无主题）"}</Button>
       <small>{draft.state === "submitted" ? "已提交发送" : "草稿"} · 版本 {draft.revision} · {dateText(draft.updatedAt)}</small>
-    </div><button className="secondary" disabled={disabled} onClick={() => onDelete(draft.id, draft.revision)}>删除草稿</button></li>)}</ul>
+    </div><Button disabled={disabled} onClick={() => onDelete(draft.id, draft.revision)} variant="quiet" wrap>删除草稿</Button></li>)}</ul>
     {!page.items.length && !pending && <p>暂无云端草稿</p>}
-    {page.nextCursor && <button disabled={disabled || pending} onClick={() => void load(page.nextCursor!)}>更多草稿</button>}
-  </section>;
+    {page.nextCursor && <Button disabled={disabled || pending} onClick={() => void load(page.nextCursor!)} wrap>更多草稿</Button>}
+  </Panel>;
 }

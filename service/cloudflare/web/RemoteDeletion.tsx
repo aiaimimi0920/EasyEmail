@@ -1,3 +1,4 @@
+import { Button, Field, Input, Notice } from '@neuro/ui';
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, errorMessage, type Deletion } from "./api";
 
@@ -33,19 +34,18 @@ export function RemoteDeletion({ path, id, address, available }: { path: string;
   }
   function submit(event: FormEvent) { event.preventDefault(); if (confirmation === address) void change("delete"); }
   return <section aria-label="远端邮件删除">
-    {deletion && <p role="status">{STATES[deletion.state]}</p>}
+    {deletion && <Notice role="status" tone="info">{STATES[deletion.state]}</Notice>}
     {deletion && ["pending", "unknown"].includes(deletion.state) &&
-      <button className="secondary" disabled={pending} onClick={() => change("check")}>核对远端结果</button>}
+      <Button disabled={pending} onClick={() => change("check")} variant="quiet" wrap>核对远端结果</Button>}
     {!deletion && available && loaded && !confirming &&
-      <button className="secondary" disabled={pending} onClick={() => setConfirming(true)}>删除上游邮件</button>}
+      <Button disabled={pending} onClick={() => setConfirming(true)} variant="quiet" wrap>删除上游邮件</Button>}
     {!deletion && confirming && loaded && <form onSubmit={submit}>
       <p>将永久删除此版本的源邮件，无法恢复；平台缓存保留。</p>
-      <label>确认远端删除的邮箱地址<input value={confirmation} maxLength={320} autoComplete="off" disabled={pending}
-        onChange={(event) => setConfirmation(event.target.value)} /></label>
-      <div className="row"><button disabled={pending || confirmation !== address}>确认删除上游邮件</button>
-        <button type="button" className="secondary" disabled={pending} onClick={() => { setConfirming(false); setConfirmation(""); }}>取消远端删除</button></div>
+      <Field label="确认远端删除的邮箱地址"><Input value={confirmation} maxLength={320} autoComplete="off" disabled={pending} onChange={(event) => setConfirmation(event.target.value)} /></Field>
+      <div className="row"><Button disabled={pending || confirmation !== address} type="submit" wrap>确认删除上游邮件</Button>
+        <Button type="button" disabled={pending} onClick={() => { setConfirming(false); setConfirmation(""); }} variant="quiet" wrap>取消远端删除</Button></div>
     </form>}
-    {!loaded && error && <button className="secondary" disabled={pending} onClick={() => change("refresh")}>刷新删除记录</button>}
-    {error && <p role="alert">{error}</p>}
+    {!loaded && error && <Button disabled={pending} onClick={() => change("refresh")} variant="quiet" wrap>刷新删除记录</Button>}
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}
   </section>;
 }

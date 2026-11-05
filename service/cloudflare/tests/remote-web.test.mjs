@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -27,8 +28,7 @@ test("Chrome: typed confirmation/cancel, unknown restoration, read-only reconcil
     await page.getByRole("button", { name: "刷新收信", exact: true }).click();
     await page.getByRole("button", { name: mail.subject, exact: true }).click();
     assert.equal(await page.getByRole("button", { name: "删除上游邮件", exact: true }).count(), 0);
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: "移到平台回收站", exact: true }).click();
+    await confirmAction(page, async () => { await page.getByRole("button", { name: "移到平台回收站", exact: true }).click(); }, (dialog) => dialog.accept());
     await page.getByRole("article", { name: "邮件详情" }).waitFor({ state: "detached" });
     async function openTrash() {
       await page.getByRole("button", { name: "聚合收件箱", exact: true }).click();
@@ -55,12 +55,14 @@ test("Chrome: typed confirmation/cancel, unknown restoration, read-only reconcil
     await page.getByRole("status").filter({ hasText: "源邮件已删除；平台缓存保留" }).waitFor();
     assert.equal(f.calls.filter((call) => call.path === "/cf/api/mail_deletions" && call.method === "POST").length, 1);
     assert.ok(await page.getByText("Your verification code is 485723.", { exact: true }).count());
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("remote-delete");
     await page.getByLabel("名称", { exact: true }).fill("conditional remote cleaner");
     await page.getByRole("button", { name: "创建 Key", exact: true }).click(); await page.getByTestId("new-key").waitFor();
     assert.deepEqual(JSON.parse((await h.db.prepare("SELECT scopes FROM api_keys LIMIT 1").first()).scopes),
       ["mailboxes:read", "messages:read", "messages:remote-delete"]);
     await page.getByRole("button", { name: "隐藏", exact: true }).click();
+    await page.getByRole("navigation").getByRole("button", { name: "邮箱管理", exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: path.join(h.directory, "remote-delete-mobile.png"), fullPage: true });

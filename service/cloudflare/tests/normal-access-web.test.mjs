@@ -39,8 +39,12 @@ test("Chrome: public normal receive, inert HTML, exact binary downloads, restart
     const frame = page.frameLocator('iframe[title="安全邮件正文"]'); await frame.getByText("HTML", { exact: true }).waitFor();
     assert.equal(await frame.locator("script, img, a[href], iframe, form").count(), 0);
     for (const [button, expected, filename] of [["下载 part-0.bin", ATTACHMENT, "normal-attachment.bin"], ["下载原始邮件", raw, "normal-raw.eml"]]) {
-      const event = page.waitForEvent("download"); await detail.getByRole("button", { name: button, exact: true }).click();
-      const download = await event, target = path.join(t.h.directory, filename); await download.saveAs(target);
+      const trigger = detail.getByRole("button", { name: button, exact: true });
+      await trigger.scrollIntoViewIfNeeded();
+      // Settle the inner scroll surface before hit-testing beside a sandboxed iframe.
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const [download] = await Promise.all([page.waitForEvent("download"), trigger.click()]);
+      const target = path.join(t.h.directory, filename); await download.saveAs(target);
       assert.deepEqual(await readFile(target), Buffer.from(expected));
     }
     await page.reload(); await page.getByRole("navigation").getByRole("button", { name: "普通邮箱", exact: true }).click();

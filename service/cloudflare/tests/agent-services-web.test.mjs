@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -41,25 +42,26 @@ test("Chrome: service CRUD, explicit trust confirmation, conflict preservation, 
     await page.getByText("另一设备的最新说明", { exact: true }).waitFor(); await page.unroute("**/api/v1/agent-services");
     await button(page, "编辑服务 研究服务").click(); assert.equal(await field(page, "服务邮箱").isDisabled(), true);
     await field(page, "服务名称").fill("保留的冲突编辑"); await select(page, "信任级别").selectOption("trusted");
-    page.once("dialog", dialog => dialog.dismiss()); await button(page, "保存服务修改").click();
+    await confirmAction(page, async () => { await button(page, "保存服务修改").click(); }, dialog => dialog.dismiss());
     assert.equal(expect(await getService(h, alice, id)).service.version, 2);
     expect(await serviceWrite(h, alice, "PATCH", id, { expectedVersion: 2, description: "并发的新说明" }));
-    page.once("dialog", dialog => dialog.accept()); await button(page, "保存服务修改").click();
+    await confirmAction(page, async () => { await button(page, "保存服务修改").click(); }, dialog => dialog.accept());
     await page.getByRole("alert").filter({ hasText: "远程服务已变化" }).waitFor();
     assert.equal(await field(page, "服务名称").inputValue(), "保留的冲突编辑");
     await button(page, "取消编辑服务").click(); await button(page, "刷新远程服务").click(); await page.getByText("并发的新说明", { exact: true }).waitFor();
     await button(page, "编辑服务 研究服务").click(); await select(page, "信任级别").selectOption("trusted"); await select(page, "服务状态").selectOption("archived");
-    page.once("dialog", dialog => dialog.accept()); await button(page, "保存服务修改").click(); await field(page, "服务名称").waitFor();
+    await confirmAction(page, async () => { await button(page, "保存服务修改").click(); }, dialog => dialog.accept()); await field(page, "服务名称").waitFor();
     await page.waitForFunction(() => [...document.querySelectorAll("small")].some(element => element.textContent?.includes("信任 · 归档 · 版本 4")));
-    page.once("dialog", dialog => dialog.dismiss()); await button(page, "删除服务 研究服务").click(); expect(await getService(h, alice, id));
+    await confirmAction(page, async () => { await button(page, "删除服务 研究服务").click(); }, dialog => dialog.dismiss()); expect(await getService(h, alice, id));
     await page.route("**/api/v1/agent-services/*", async route => {
       if (route.request().method() !== "DELETE") return route.continue();
       deletes.push(route.request().headers()["idempotency-key"]); await route.fetch(); await route.abort("connectionfailed");
     });
-    page.once("dialog", dialog => dialog.accept()); await button(page, "删除服务 研究服务").click(); await button(page, "核对原服务操作").waitFor();
+    await confirmAction(page, async () => { await button(page, "删除服务 研究服务").click(); }, dialog => dialog.accept()); await button(page, "核对原服务操作").waitFor();
     const replacement = expect(await createService(h, alice, serviceBody("research@example.test", "同地址新服务")), 201).operation.serviceId;
     await button(page, "核对原服务操作").click(); await button(page, "编辑服务 同地址新服务").waitFor(); assert.equal(deletes.length, 1);
     expect(await getService(h, alice, replacement)); await page.unroute("**/api/v1/agent-services/*");
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await select(page, "权限").selectOption("agent-services"); await field(page, "名称").fill("service automation"); await button(page, "创建 Key").click();
     const token = await page.getByTestId("new-key").textContent(); expect(await h.request("/api/v1/agent-services", { token, origin: null }));
     expect(await h.request("/api/v1/mailboxes", { token, origin: null }), 403);

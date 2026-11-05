@@ -1,3 +1,5 @@
+import { useConfirmation } from "./Confirmation";
+import { Button, Field, Notice, Select } from '@neuro/ui';
 import { useEffect, useRef, useState } from "react";
 import { errorMessage, type Page } from "./api";
 import type { AgentIncoming } from "./agent-inbox-api";
@@ -18,18 +20,19 @@ export function AgentMessageReview({ message, accountRevision, disabled, onSubmi
     finally { if (reader.current === controller && !controller.signal.aborted) setPending(false); }
   }
   useEffect(() => { void load(); return () => reader.current?.abort(); }, [message.id, message.epochId]);
-  function submit(state: AgentReviewInput["state"], threadId: string | null = null) {
+  async function submit(state: AgentReviewInput["state"], threadId: string | null = null) {
     if (disabled || pending) return;
-    if (state === "linked" && !window.confirm(`将此邮件人工归入任务 ${threadId}？不验证发件人身份、不修改原邮件头、不触发发信或标记任务完成。`)) return;
+    if (state === "linked" && !(await confirm(`将此邮件人工归入任务 ${threadId}？不验证发件人身份、不修改原邮件头、不触发发信或标记任务完成。`))) return;
     onSubmit(message.id, { accountRevision, epochId: message.epochId, expectedRevision: message.review.revision, state, threadId });
   }
+  const confirm = useConfirmation([message, accountRevision, selected, disabled, pending]);
   return <section aria-label="邮件人工处理"><h5>人工处理</h5>
-    <div className="row"><button className="secondary" disabled={disabled || pending || message.review.state === "attention"} onClick={() => submit("attention")}>重新关注</button>
-      <button className="secondary" disabled={disabled || pending || message.review.state === "dismissed"} onClick={() => submit("dismissed")}>忽略此邮件</button></div>
-    <label>人工关联任务<select value={selected} disabled={disabled || pending} onChange={event => setSelected(event.target.value)}><option value="">请选择已提交任务</option>
-      {page?.items.map(row => <option key={row.id} value={row.id}>{row.subject || "（无主题）"} · {row.recipient} · {row.id}</option>)}</select></label>
-    <button disabled={disabled || pending || !page?.items.some(row => row.id === selected)} onClick={() => submit("linked", selected)}>关联所选任务</button>
-    {page?.nextCursor && <button className="secondary" disabled={disabled || pending} onClick={() => void load(page.nextCursor!)}>加载更多关联任务</button>}
-    {error && <p role="alert">{error}</p>}{error && <button className="secondary" disabled={disabled || pending} onClick={() => void load()}>重试加载关联任务</button>}
+    <div className="row"><Button disabled={disabled || pending || message.review.state === "attention"} onClick={() => submit("attention")} variant="quiet" wrap>重新关注</Button>
+      <Button disabled={disabled || pending || message.review.state === "dismissed"} onClick={() => submit("dismissed")} variant="quiet" wrap>忽略此邮件</Button></div>
+    <Field label="人工关联任务"><Select value={selected} disabled={disabled || pending} onChange={event => setSelected(event.target.value)}><option value="">请选择已提交任务</option>
+      {page?.items.map(row => <option key={row.id} value={row.id}>{row.subject || "（无主题）"} · {row.recipient} · {row.id}</option>)}</Select></Field>
+    <Button disabled={disabled || pending || !page?.items.some(row => row.id === selected)} onClick={() => submit("linked", selected)} wrap>关联所选任务</Button>
+    {page?.nextCursor && <Button disabled={disabled || pending} onClick={() => void load(page.nextCursor!)} variant="quiet" wrap>加载更多关联任务</Button>}
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}{error && <Button disabled={disabled || pending} onClick={() => void load()} variant="quiet" wrap>重试加载关联任务</Button>}
   </section>;
 }

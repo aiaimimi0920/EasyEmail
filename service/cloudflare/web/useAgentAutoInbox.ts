@@ -1,3 +1,4 @@
+import { useConfirmation } from "./Confirmation";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, errorMessage } from "./api";
 import type { AgentAccount } from "./agent-accounts-api";
@@ -33,7 +34,10 @@ export function useAgentAutoInbox(account: AgentAccount | null, visible: boolean
   }
   async function save() {
     if (busy.current || !held.current && (!account || !config)) return;
-    if (!held.current && enabled && !window.confirm("允许平台持续读取此 Agent 邮箱？退出网页或撤销本次 Key 不会停止；关闭自动收件、停用或修改账号后停止。")) return;
+    const original = held.current, version = generation.current;
+    if (!held.current && enabled && !(await confirm("允许平台持续读取此 Agent 邮箱？退出网页或撤销本次 Key 不会停止；关闭自动收件、停用或修改账号后停止。"))) return;
+    if (!active.current || busy.current || held.current !== original || generation.current !== version
+      || !original && (selected.current?.id !== account?.id || selected.current?.revision !== account?.revision)) return;
     const current = held.current ?? { accountId: account!.id, key: crypto.randomUUID(), uncertain: false,
       body: { expectedAccountRevision: account!.revision, expectedRevision: config!.revision, enabled, intervalMinutes: interval, persistentAuthorization: enabled } };
     const recovering = !!held.current;
@@ -64,6 +68,7 @@ export function useAgentAutoInbox(account: AgentAccount | null, visible: boolean
       }
     } finally { busy.current = false; if (active.current) setPending(false); }
   }
+  const confirm = useConfirmation([account?.id, account?.revision, config, enabled, interval, attempt, pending]);
   return { config, enabled, interval, dirty, pending, attempt, error, notice, locked: pending || !!attempt,
     canLeave, changeEnabled, changeInterval, refresh, save };
 }

@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { agentFollowupsWebFixture } from "./agent-followups-web-fixture.mjs";
@@ -11,11 +12,9 @@ test("Chrome: restricted and uncertain predecessor risks require an explicit new
     const previous = expect(await t.followup(task.id, await t.followupInput(task.id, { confirmRestricted: true })), 201).followup;
     t.mode("drop-final"); await t.run(); assert.equal(expect(await t.followupRead(previous.id)).followup.state, "unknown");
     t.mode("normal"); await t.open(task.subject); await t.compose("显式承担不确定性的跟进"); const { page, followups } = t;
-    page.once("dialog", dialog => { assert.match(dialog.message(), /受限服务/); assert.match(dialog.message(), /前序邮件结果未确认/); return dialog.dismiss(); });
-    await followups.getByRole("button", { name: "排队发送同线程跟进", exact: true }).click();
+    await confirmAction(page, async () => { await followups.getByRole("button", { name: "排队发送同线程跟进", exact: true }).click(); }, dialog => { assert.match(dialog.message(), /受限服务/); assert.match(dialog.message(), /前序邮件结果未确认/); return dialog.dismiss(); });
     assert.equal(await t.h.db.prepare("SELECT COUNT(*) n FROM agent_followups").first("n"), 1);
-    page.once("dialog", dialog => { assert.match(dialog.message(), /前序邮件结果未确认/); return dialog.accept(); });
-    await followups.getByRole("button", { name: "排队发送同线程跟进", exact: true }).click(); await followups.getByText("跟进请求已保存", { exact: true }).waitFor();
+    await confirmAction(page, async () => { await followups.getByRole("button", { name: "排队发送同线程跟进", exact: true }).click(); }, dialog => { assert.match(dialog.message(), /前序邮件结果未确认/); return dialog.accept(); }); await followups.getByText("跟进请求已保存", { exact: true }).waitFor();
     const row = await t.h.db.prepare("SELECT * FROM agent_followups WHERE id<>?").bind(previous.id).first();
     assert.equal(row.confirm_uncertain, 1); assert.equal(row.confirm_restricted, 1); assert.notEqual(row.rfc_message_id, previous.messageId);
     await t.run(); assert.equal(t.messages.length, 3); assert.equal(expect(await t.followupRead(previous.id)).followup.state, "unknown");

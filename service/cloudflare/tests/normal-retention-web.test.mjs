@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -22,14 +23,14 @@ test("Chrome: ordinary cache preview, explicit confirmation, lost-response recon
     const preview = panel.getByRole("region", { name: "保留预览", exact: true });
     await preview.getByText("普通邮箱缓存", { exact: true }).waitFor();
     assert.equal(await preview.locator("dl > div").filter({ has: page.getByText("普通邮箱缓存", { exact: true }) }).locator("dd").innerText(), "1");
-    page.once("dialog", dialog => dialog.dismiss()); await panel.getByRole("button", { name: "执行一批维护", exact: true }).click();
+    await confirmAction(page, async () => { await panel.getByRole("button", { name: "执行一批维护", exact: true }).click(); }, dialog => dialog.dismiss());
     assert.equal(await t.h.db.prepare("SELECT COUNT(*) n FROM retention_runs").first("n"), 0);
     await page.route("**/admin/retention/run", async route => {
       keys.push(route.request().headers()["idempotency-key"]);
       if (keys.length === 1) { await route.fetch({ headers: { ...route.request().headers(), "x-test-retention-delete-fail": "1" } }); return route.abort("failed"); }
       return route.continue();
     });
-    page.once("dialog", dialog => dialog.accept()); await panel.getByRole("button", { name: "执行一批维护", exact: true }).click();
+    await confirmAction(page, async () => { await panel.getByRole("button", { name: "执行一批维护", exact: true }).click(); }, dialog => dialog.accept());
     await panel.getByRole("status").filter({ hasText: "维护结果待确认" }).waitFor();
     await page.getByRole("button", { name: "聚合收件箱", exact: true }).click();
     await page.getByRole("button", { name: "平台管理", exact: true }).click();

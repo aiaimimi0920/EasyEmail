@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -37,9 +38,10 @@ test("Chrome: subscription browsing is source-exact, complete, private and never
     await button(page, "订阅邮件").click(); await button(list, "查看订阅 Updates").click();
     const methods = page.getByRole("region", { name: "退订方法", exact: true });
     await field(methods, "退订地址").selectOption({ index: 0 });
-    page.once("dialog", dialog => dialog.dismiss()); await button(methods, "打开退订地址").click(); assert.deepEqual(external, []);
-    page.once("dialog", dialog => dialog.accept());
-    const popup = context.waitForEvent("page"); await button(methods, "打开退订地址").click(); const destination = await popup;
+    await confirmAction(page, async () => { await button(methods, "打开退订地址").click(); }, dialog => dialog.dismiss()); assert.deepEqual(external, []);
+    const popup = context.waitForEvent("page");
+    await confirmAction(page, () => button(methods, "打开退订地址").click(), dialog => dialog.accept());
+    const destination = await popup;
     await destination.waitForLoadState(); assert.equal(await destination.evaluate(() => window.opener === null), true); await destination.close();
     assert.equal(external.length, 1); assert.match(external[0], /^https:\/\/unsubscribe\.example\.test\//);
     await page.setViewportSize({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -113,6 +115,7 @@ test("Chrome: lost subscription preference response retains original key/body ac
     await list.getByText("暂无匹配的订阅", { exact: true }).waitFor(); await field(list, "订阅可见性").selectOption("hidden");
     await button(list, "恢复订阅 Updates").click(); await list.getByText("暂无匹配的订阅", { exact: true }).waitFor();
     await field(list, "订阅可见性").selectOption("active"); await list.getByText("1 封 · 1 封未读 · 版本 4", { exact: true }).waitFor();
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("subscriptions"); await field(page, "名称").fill("subscription automation"); await button(page, "创建 Key").click();
     const token = await page.getByTestId("new-key").textContent(); expect(await h.request("/api/v1/subscriptions", { token, origin: null }));
     expect(await h.request(`/api/v1/mailboxes/${box.id}/sync`, { token, origin: null, method: "POST", body: {} }), 403);

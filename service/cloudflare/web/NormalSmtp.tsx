@@ -1,3 +1,5 @@
+import { useConfirmation } from "./Confirmation";
+import { Button, Checkbox, Field, Input, Notice, Select } from '@neuro/ui';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError, errorMessage } from "./api";
 import type { NormalAccount } from "./normal-accounts";
@@ -52,29 +54,30 @@ export function NormalSmtp({ account, disabled, onBusy, reply, replyGuard, onRep
       if (!attempt && failure instanceof ApiError && failure.status < 500) setAttempt(null);
     } finally { busy.current = false; setPending(false); }
   }
+  const confirm = useConfirmation([account.id, account.revision, config, endpointId, username, password, enabled, forget, disabled, locked]);
   return <section aria-label="普通邮箱 SMTP"><h3>SMTP 配置</h3>
-    <button className="secondary" disabled={disabled || locked} onClick={() => {
-      if (!dirty || window.confirm("刷新将丢弃未保存的 SMTP 配置，确认刷新？")) setRefreshRevision(value => value + 1);
-    }}>刷新 SMTP 配置</button>
+    <Button disabled={disabled || locked} onClick={async () => {
+      if (!dirty || (await confirm("刷新将丢弃未保存的 SMTP 配置，确认刷新？"))) setRefreshRevision(value => value + 1);
+    }} variant="quiet" wrap>刷新 SMTP 配置</Button>
     {config && <><p>SMTP 凭据：{config.credentialConfigured ? "已加密保存" : "未保存"} · 版本 {config.revision}</p>
-      {!config.current && config.revision > 0 && <p role="status">{oauth ? "账号版本已变化，请重新保存 SMTP 授权配置" : "账号版本已变化，请重新提供 SMTP 应用密码并保存"}</p>}
+      {!config.current && config.revision > 0 && <Notice role="status" tone="info">{oauth ? "账号版本已变化，请重新保存 SMTP 授权配置" : "账号版本已变化，请重新提供 SMTP 应用密码并保存"}</Notice>}
       <form onSubmit={event => void save(event)} onChange={() => setDirty(true)}>
-        <label>SMTP 服务器<select value={endpointId} disabled={disabled || locked} onChange={event => setEndpointId(event.target.value)} required>
+        <Field label="SMTP 服务器"><Select value={endpointId} disabled={disabled || locked} onChange={event => setEndpointId(event.target.value)} required>
           <option value="">请选择</option>{endpoints.map(row => <option key={row.id} value={row.id}>{row.label} · {row.hostname}:{row.port} {row.security === "starttls" ? "STARTTLS" : "TLS"}</option>)}
-        </select></label>
-        <label>SMTP 用户名<input value={username} maxLength={255} required disabled={disabled || locked} onChange={event => setUsername(event.target.value)} /></label>
-        {!oauth && <label>SMTP 应用密码<input type="password" autoComplete="new-password" value={password} maxLength={1024} disabled={disabled || locked} onChange={event => setPassword(event.target.value)} /></label>}
+        </Select></Field>
+        <Field label="SMTP 用户名"><Input value={username} maxLength={255} required disabled={disabled || locked} onChange={event => setUsername(event.target.value)} /></Field>
+        {!oauth && <Field label="SMTP 应用密码"><Input type="password" autoComplete="new-password" value={password} maxLength={1024} disabled={disabled || locked} onChange={event => setPassword(event.target.value)} /></Field>}
         {oauth && <p>SMTP 使用此邮箱的 Google 授权，不向网页返回令牌</p>}
-        <label><input type="checkbox" checked={enabled} disabled={disabled || locked} onChange={event => setEnabled(event.target.checked)} />允许 SMTP 发信</label>
-        <label><input type="checkbox" checked={forget} disabled={disabled || locked} onChange={event => setForget(event.target.checked)} />忘记 SMTP 凭据（须同时关闭发信）</label>
-        <button disabled={disabled || locked || !endpointId}>保存 SMTP 配置</button>
+        <Checkbox checked={enabled} disabled={disabled || locked} onChange={event => setEnabled(event.target.checked)} label="允许 SMTP 发信" />
+        <Checkbox checked={forget} disabled={disabled || locked} onChange={event => setForget(event.target.checked)} label="忘记 SMTP 凭据（须同时关闭发信）" />
+        <Button disabled={disabled || locked || !endpointId} type="submit" wrap>保存 SMTP 配置</Button>
       </form>
-      {attempt && <button disabled={pending} onClick={() => void save()}>核对原 SMTP 配置</button>}
+      {attempt && <Button disabled={pending} onClick={() => void save()} wrap>核对原 SMTP 配置</Button>}
     </>}
     <NormalSend key={`${account.id}:${account.revision}`} account={account} smtp={config ?? { revision: 0, enabled: false, current: false, credentialConfigured: false }}
       disabled={disabled || !config || pending || !!attempt || dirty} onBusy={reportSend}
       reply={reply} replyGuard={sendGuard} onReplyConsumed={onReplyConsumed} />
-    {endpoints.length === 0 && config && <p role="status">尚未配置 SMTP 服务器</p>}
-    {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
+    {endpoints.length === 0 && config && <Notice role="status" tone="info">尚未配置 SMTP 服务器</Notice>}
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}{notice && <Notice role="status" tone="info">{notice}</Notice>}
   </section>;
 }

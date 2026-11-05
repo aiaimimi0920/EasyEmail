@@ -1,0 +1,40 @@
+body { margin: 0; }
+.ee-ui { min-height: 100dvh; }
+.ee-ui :where(h1, h2, h3, h4) { overflow-wrap: anywhere; }
+.ee-ui :where(.card, article) > :where(h2, h3, h4) { margin-bottom: 14px; }
+.ee-ui :where(form:not(.row), form > fieldset) { display: grid; gap: 12px; }
+.ee-ui :where(fieldset) { border: 0; padding: 0; margin: 0; min-width: 0; }
+.ee-ui :where(ul) { list-style: none; padding: 0; }
+.ee-ui :where(li) { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--n-line); }
+.ee-ui :where(li, li > div, article) { min-width: 0; }
+.ee-ui :where(small) { display: block; margin-top: 4px; color: var(--n-muted); font-size: .75rem; overflow-wrap: anywhere; }
+.ee-ui :where(code, pre) { font-family: var(--n-mono); overflow-wrap: anywhere; }
+.ee-ui :where(pre) { white-space: pre-wrap; max-height: 480px; overflow: auto; }
+.ee-ui :where(article) { overflow-wrap: anywhere; }
+.ee-ui article pre { font: inherit; line-height: 1.85; }
+.ee-ui :where([role="status"], [role="alert"]) { overflow-wrap: anywhere; }
+.row { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-top: 12px; min-width: 0; }
+.row > .n-field { flex: 1 1 150px; }
+.row > button { align-self: end; }
+.card { margin: 0 0 20px; }
+.card .card { margin: 16px 0; }
+.ee-ui dl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 6px 0; }
+.ee-ui dt { overflow-wrap: anywhere; }
+.secret { padding: 12px; background: var(--n-signal-soft); border: 1px solid var(--n-signal-line); margin-top: 16px; }
+.secret button { display: block; margin-top: 12px; }
+.creation-status { overflow-wrap: anywhere; }
+.label-chip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 3px 7px; border-radius: 4px; overflow-wrap: anywhere; }
+/* User-selected label colors describe data, not application action states. */
+.label-blue { background: #e4ecff; color: #243f82; }
+.label-green { background: #ddf5e7; color: #215b39; }
+.label-orange { background: #fff0da; color: #77430e; }
+.label-purple { background: #efe5ff; color: #5a328a; }
+.label-gray { background: #edf0f4; color: #3f495b; }
+.mail-html { display: block; width: 100%; height: 480px; margin-top: 16px; border: 1px solid var(--n-line); background: white; }
+@media (prefers-reduced-motion: reduce) {
+  .ee-ui *, .ee-ui *::before, .ee-ui *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
+}
+@media (max-width: 600px) {
+  .row { gap: 10px; }
+  .row > .n-field { flex-basis: 100%; }
+}

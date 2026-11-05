@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -54,6 +55,7 @@ test("Chrome: independent Agent config, read-only connection, lost-response reco
     await region.getByRole("button", { name: "核对原 Agent 账号操作", exact: true }).click();
     await region.getByText("凭据：已加密保存 · 版本 2", { exact: true }).waitFor(); assert.equal(writes, 1); assert.equal(reads, 1); assert.ok(originalKey);
     await page.unroute(`**/api/v1/agent-accounts/${id}`);
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("agent-accounts");
     await page.getByLabel("名称", { exact: true }).fill("Agent account program"); await page.getByRole("button", { name: "创建 Key", exact: true }).click();
     const token = await page.getByTestId("new-key").textContent(); expect(await h.request("/api/v1/agent-accounts", { token }));
@@ -62,13 +64,13 @@ test("Chrome: independent Agent config, read-only connection, lost-response reco
     await region.getByText("暂无 Agent 邮箱", { exact: true }).waitFor(); assert.equal((await region.textContent()).includes("Agent 原键恢复"), false);
     await page.getByRole("button", { name: "退出登录", exact: true }).click(); await login(page, alice);
     await region.getByRole("button", { name: "Agent 原键恢复", exact: true }).click();
-    page.once("dialog", dialog => dialog.dismiss()); await region.getByRole("button", { name: "移除 Agent 邮箱", exact: true }).click();
+    await confirmAction(page, async () => { await region.getByRole("button", { name: "移除 Agent 邮箱", exact: true }).click(); }, dialog => dialog.dismiss());
     assert.equal(await h.db.prepare("SELECT deleted_at FROM agent_accounts WHERE id=?").bind(id).first("deleted_at"), null);
     await region.getByLabel("允许平台连接", { exact: true }).uncheck(); await region.getByLabel("忘记凭据（须同时关闭连接）", { exact: true }).check();
     await region.getByRole("button", { name: "保存 Agent 邮箱", exact: true }).click();
     await region.getByText("凭据：未保存 · 版本 3", { exact: true }).waitFor();
     assert.equal(await region.getByRole("button", { name: "测试 Agent IMAP 连接", exact: true }).isDisabled(), true);
-    page.once("dialog", dialog => dialog.accept()); await region.getByRole("button", { name: "移除 Agent 邮箱", exact: true }).click();
+    await confirmAction(page, async () => { await region.getByRole("button", { name: "移除 Agent 邮箱", exact: true }).click(); }, dialog => dialog.accept());
     await region.getByText("暂无 Agent 邮箱", { exact: true }).waitFor();
     assert.equal(await h.db.prepare("SELECT credential_cipher FROM agent_accounts WHERE id=?").bind(id).first("credential_cipher"), null);
     assert.ok(await h.db.prepare("SELECT credential_cipher FROM normal_accounts WHERE id=?").bind(t.id).first("credential_cipher"));

@@ -1,3 +1,4 @@
+import { observeConfirmations } from './confirmation-driver.mjs';
 import { chromium } from "playwright-core";
 import { autoInboxFixture } from "./agent-auto-inbox-fixture.mjs";
 import { PASSWORD } from "./runtime-harness.mjs";
@@ -7,7 +8,7 @@ export async function autoInboxWebFixture() {
     browser = await chromium.launch({ executablePath: process.env.EASYEMAIL_CHROME_PATH ?? "C:/Program Files/Google/Chrome/Application/chrome.exe", headless: true });
     const page = await browser.newPage({ viewport: { width: 1100, height: 900 } }), errors = [], dialogs = [], external = [];
     page.setDefaultTimeout(12000); page.on("pageerror", error => errors.push(error.message));
-    page.on("dialog", async dialog => { dialogs.push(dialog.message()); await dialog.accept(); });
+    observeConfirmations(page, async dialog => { dialogs.push(dialog.message()); await dialog.accept(); });
     page.on("request", request => { if (!request.url().startsWith(t.h.baseUrl.origin)) external.push(request.url()); });
     const accounts = page.getByRole("region", { name: "Agent 邮箱", exact: true }), automatic = accounts.getByRole("region", { name: "Agent 自动收件", exact: true });
     return { ...t, browser, page, accounts, automatic, errors, dialogs, external,

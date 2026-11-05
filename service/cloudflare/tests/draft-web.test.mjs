@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -47,9 +48,9 @@ test("Chrome: cloud draft recovery, two-device conflicts, lost save/send respons
     await a.getByRole("status").filter({ hasText: "版本 2" }).waitFor();
     await field(b, "纯文本正文").fill("B 不能覆盖的新编辑"); await button(b, "保存云端草稿").click();
     await b.getByRole("alert").filter({ hasText: "云端草稿已变化" }).waitFor(); assert.equal(await field(b, "纯文本正文").inputValue(), "B 不能覆盖的新编辑");
-    b.once("dialog", dialog => dialog.dismiss()); await button(b, "核对云端版本").click();
+    await confirmAction(b, async () => { await button(b, "核对云端版本").click(); }, dialog => dialog.dismiss());
     assert.equal(await field(b, "纯文本正文").inputValue(), "B 不能覆盖的新编辑");
-    b.once("dialog", dialog => dialog.accept()); await button(b, "核对云端版本").click();
+    await confirmAction(b, async () => { await button(b, "核对云端版本").click(); }, dialog => dialog.accept());
     await b.getByRole("status").filter({ hasText: "已保存到云端 · 版本 2" }).waitFor(); assert.equal(await field(b, "纯文本正文").inputValue(), "A 的新版本");
     await field(b, "收件地址").fill("recipient@example.test"); await button(b, "保存云端草稿").click();
     await b.getByRole("status").filter({ hasText: "已保存到云端 · 版本 3" }).waitFor();
@@ -75,10 +76,11 @@ test("Chrome: cloud draft recovery, two-device conflicts, lost save/send respons
     await button(a, "刷新草稿").click();
     const row = a.getByRole("region", { name: "云端草稿", exact: true }).getByRole("listitem").filter({ hasText: "跨设备草稿" });
     await row.getByText(/版本 4/).waitFor();
-    a.once("dialog", dialog => dialog.accept()); await row.getByRole("button", { name: "删除草稿", exact: true }).click();
+    await confirmAction(a, async () => { await row.getByRole("button", { name: "删除草稿", exact: true }).click(); }, dialog => dialog.accept());
     await row.waitFor({ state: "detached" }); assert.equal(await field(a, "纯文本正文").inputValue(), "");
     assert.equal(await h.db.prepare("SELECT COUNT(*) n FROM outgoing_messages").first("n"), 2);
     assert.equal(sendCalls(f).length, 2);
+    await a.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await a.getByRole("combobox", { name: "权限", exact: true }).selectOption("drafts");
     await field(a, "名称").fill("cloud-drafts-key"); await button(a, "创建 Key").click();
     const token = await a.getByTestId("new-key").textContent();

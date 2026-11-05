@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -61,20 +62,21 @@ test("Chrome: folder hierarchy, placement, filtering, archive compatibility, los
     await button(page, "核对并完成原整理").click(); await page.getByRole("status").filter({ hasText: "已核对原操作" }).waitFor();
     assert.deepEqual(moves[0], moves[1]); await page.unroute("**/api/v1/messages/organize");
     assert.equal(await h.db.prepare("SELECT COUNT(*) n FROM message_folders WHERE folder_id=?").bind(child).first("n"), 2);
-    page.once("dialog", dialog => dialog.accept()); await button(page, "删除文件夹 项目根").click(); await button(page, "编辑文件夹 项目根").waitFor({ state: "detached" });
+    await confirmAction(page, async () => { await button(page, "删除文件夹 项目根").click(); }, dialog => dialog.accept()); await button(page, "编辑文件夹 项目根").waitFor({ state: "detached" });
     await combo(page, "父文件夹").locator(`option[value="${child}"]`).filter({ hasText: /^子目录$/ }).waitFor({ state: "attached" });
     assert.equal(await h.db.prepare("SELECT COUNT(*) n FROM message_folders WHERE folder_id=?").bind(child).first("n"), 2);
-    page.once("dialog", dialog => dialog.dismiss()); await button(page, "删除文件夹 子目录").click(); assert.equal(await button(page, "编辑文件夹 子目录").count(), 1);
+    await confirmAction(page, async () => { await button(page, "删除文件夹 子目录").click(); }, dialog => dialog.dismiss()); assert.equal(await button(page, "编辑文件夹 子目录").count(), 1);
     let lostDelete = false; const deletions = [];
     await page.route("**/api/v1/folders/*", async route => {
       if (route.request().method() !== "DELETE") return route.continue();
       deletions.push({ url: route.request().url(), body: route.request().postData() });
       if (!lostDelete) { lostDelete = true; await route.fetch(); await route.abort("connectionfailed"); } else await route.continue();
     });
-    page.once("dialog", dialog => dialog.accept()); await button(page, "删除文件夹 子目录").click(); await button(page, "核对原文件夹操作").waitFor();
+    await confirmAction(page, async () => { await button(page, "删除文件夹 子目录").click(); }, dialog => dialog.accept()); await button(page, "核对原文件夹操作").waitFor();
     await button(page, "核对原文件夹操作").click(); await button(page, "编辑文件夹 子目录").waitFor({ state: "detached" });
     assert.deepEqual(deletions[0], deletions[1]); await page.unroute("**/api/v1/folders/*");
     await page.getByRole("status").filter({ hasText: "已加载 2 封" }).waitFor();
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await combo(page, "权限").selectOption("folders"); await field(page, "名称").fill("folder automation"); await button(page, "创建 Key").click();
     const token = await page.getByTestId("new-key").textContent(); expect(await h.request("/api/v1/folders", { token, origin: null }));
     expect(await organize(h, alice, { messageIds: ids, trashed: true }, crypto.randomUUID(), { token, origin: null }), 403);

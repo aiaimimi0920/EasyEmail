@@ -40,9 +40,12 @@ test("Chrome: mixed subscription sources dispatch protected readers, paginate wh
     await detail.getByRole("button", { name: "加星标", exact: true }).click(); await button(detail, "取消星标").waitFor();
     await list.getByLabel("订阅来源", { exact: true }).selectOption("temporary"); await list.getByText("暂无匹配的订阅", { exact: true }).waitFor();
     await list.getByLabel("订阅来源", { exact: true }).selectOption("normal"); await button(list, "查看订阅 Updates").waitFor();
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("unified-subscriptions"); await page.getByLabel("名称", { exact: true }).fill("ordinary subscriptions"); await button(page, "创建 Key").click();
     const token = await page.getByTestId("new-key").textContent(); expect(await t.list(undefined, { cookie: undefined, token, origin: null }));
     expect(await t.h.request(`${t.base}/sync`, { method: "POST", token, origin: null, body: { expectedRevision: 1 }, headers: { "idempotency-key": crypto.randomUUID() } }), 403);
+    await button(page.getByRole("navigation"), "订阅邮件").click();
+    await button(list, "查看订阅 Updates").waitFor();
     await page.setViewportSize({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: path.join(t.h.directory, "normal-subscriptions-mobile.png"), fullPage: true });
     assert.equal(t.opens.length, 9); assert.equal(t.calls.some(line => /STORE|EXPUNGE|COPY|MOVE/.test(line)), false); assert.deepEqual(external, []); assert.deepEqual(errors, []);

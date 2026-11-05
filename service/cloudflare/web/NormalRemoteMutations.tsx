@@ -1,3 +1,4 @@
+import { Button, Notice } from '@neuro/ui';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ApiError, errorMessage } from "./api";
 import type { NormalMail } from "./normal-inbox";
@@ -42,10 +43,10 @@ export function NormalRemoteMutationsProvider({ children }: { children: ReactNod
   return <Context.Provider value={{ locked: attempt !== null, revision,
     submit: (message, body, destinationName) => run(false, { accountId: message.accountId, messageId: message.id, serverFolderId: message.serverFolderId,
       uid: message.uid, key: crypto.randomUUID(), body: structuredClone(body), sourceName: message.serverFolderName || "INBOX", subject: message.subject, destinationName }) }}>
-    {status && <p role="status">{status}</p>}{error && <p role="alert">{error}</p>}
+    {status && <Notice role="status" tone="info">{status}</Notice>}{error && <Notice role="alert" tone="danger">{error}</Notice>}
     {attempt && <section aria-label="待核对服务器移动或删除"><p>{attempt.subject || "（无主题）"} · {attempt.sourceName} → {attempt.body.action === "delete" ? "永久删除" : attempt.destinationName}</p>
       <p>原请求 <code data-testid="remote-mutation-request-key">{attempt.key}</code></p>
-      <button disabled={pending} onClick={() => void run(true)}>只读核对原移动／删除</button></section>}
+      <Button disabled={pending} onClick={() => void run(true)} wrap>只读核对原移动／删除</Button></section>}
     {children}
   </Context.Provider>;
 }

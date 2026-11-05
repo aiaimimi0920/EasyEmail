@@ -1,3 +1,4 @@
+import { useConfirmation } from "./Confirmation";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, errorMessage } from "./api";
 import { agentInboxPath } from "./agent-inbox-api";
@@ -30,9 +31,12 @@ export function useAgentInbound(accountId: string, onConfirmed: () => Promise<vo
       else { current.uncertain = true; setAttempt({ ...current }); }
     } finally { busy.current = false; if (active.current) setPending(false); }
   }
-  function abandon() {
-    if (busy.current || !held.current || !window.confirm("入站线程可能已创建。放弃本页核对不会撤销创建；请刷新邮件后再操作。确认放弃？")) return;
+  async function abandon() {
+    const original = held.current;
+    if (busy.current || !held.current || !(await confirm("入站线程可能已创建。放弃本页核对不会撤销创建；请刷新邮件后再操作。确认放弃？"))) return;
+    if (!active.current || busy.current || held.current !== original) return;
     held.current = null; setAttempt(null); setError("");
   }
+  const confirm = useConfirmation([accountId, attempt, pending]);
   return { attempt, operation, pending, error, locked: pending || !!attempt, submit, abandon };
 }

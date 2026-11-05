@@ -1,3 +1,5 @@
+import { useConfirmation } from "./Confirmation";
+import { Button, Field, Input, Notice, Panel, Textarea } from '@neuro/ui';
 import { useState, type FormEvent } from "react";
 import type { Contact } from "./contacts-api";
 import { useContacts } from "./useContacts";
@@ -13,34 +15,35 @@ export function Contacts({ visible }: { visible: boolean }) {
     void action.submit({ path: editing ? `/contacts/${editing.id}` : "/contacts", method: editing ? "PATCH" : "POST",
       body: { displayName: name, emailAddress: email, note, ...(editing ? { expectedVersion: editing.version } : {}) } });
   }
-  return <section className="card" aria-label="联系人管理"><h2>联系人</h2>
+  const confirm = useConfirmation([list.page, action.locked, visible, editing, name, email, note]);
+  return <Panel className="card" aria-label="联系人管理"><h2>联系人</h2>
     <form onSubmit={save}><fieldset disabled={action.locked}>
-      <label>联系人姓名<input value={name} maxLength={160} onChange={event => setName(event.target.value)} /></label>
-      <label>联系人邮箱<input value={email} maxLength={512} required onChange={event => setEmail(event.target.value)} /></label>
-      <label>联系人备注<textarea value={note} maxLength={2000} onChange={event => setNote(event.target.value)} /></label>
-      <div className="row"><button>{editing ? "保存联系人修改" : "新增或更新联系人"}</button>
-        {editing && <button type="button" className="secondary" onClick={() => edit(null)}>取消编辑联系人</button>}</div>
+      <Field label="联系人姓名"><Input value={name} maxLength={160} onChange={event => setName(event.target.value)} /></Field>
+      <Field label="联系人邮箱"><Input value={email} maxLength={512} required onChange={event => setEmail(event.target.value)} /></Field>
+      <Field label="联系人备注"><Textarea value={note} maxLength={2000} onChange={event => setNote(event.target.value)} /></Field>
+      <div className="row"><Button type="submit" wrap>{editing ? "保存联系人修改" : "新增或更新联系人"}</Button>
+        {editing && <Button type="button" onClick={() => edit(null)} variant="quiet" wrap>取消编辑联系人</Button>}</div>
     </fieldset></form>
-    {action.error && <p role="alert">{action.error}</p>}
+    {action.error && <Notice role="alert" tone="danger">{action.error}</Notice>}
     {action.attempt && <p>联系人操作键：<code data-testid="contact-operation-key">{action.attempt.key}</code></p>}
-    {action.locked && !action.pending && <button onClick={() => action.submit()}>核对并完成原联系人操作</button>}
+    {action.locked && !action.pending && <Button onClick={() => action.submit()} wrap>核对并完成原联系人操作</Button>}
     <form className="row" onSubmit={event => { event.preventDefault(); list.search(query); }}>
-      <label>搜索联系人<input value={query} maxLength={160} onChange={event => setQuery(event.target.value)} /></label>
-      <button disabled={list.pending || action.locked}>搜索联系人</button>
-      <button type="button" className="secondary" disabled={list.pending || action.locked} onClick={list.refresh}>刷新联系人</button>
+      <Field label="搜索联系人"><Input value={query} maxLength={160} onChange={event => setQuery(event.target.value)} /></Field>
+      <Button disabled={list.pending || action.locked} type="submit" wrap>搜索联系人</Button>
+      <Button type="button" disabled={list.pending || action.locked} onClick={list.refresh} variant="quiet" wrap>刷新联系人</Button>
     </form>
-    {list.error && <p role="alert">{list.error}</p>}
-    <p role="status">{list.pending ? "读取联系人…" : `已加载 ${list.page?.items.length ?? 0} 位联系人`}</p>
+    {list.error && <Notice role="alert" tone="danger">{list.error}</Notice>}
+    <Notice role="status" tone="info">{list.pending ? "读取联系人…" : `已加载 ${list.page?.items.length ?? 0} 位联系人`}</Notice>
     <ul>{list.page?.items.map(contact => <li key={contact.id}><article>
       <strong>{contact.displayName}</strong><small>{contact.emailAddress}</small>{contact.note && <pre>{contact.note}</pre>}
       <small>版本 {contact.version}</small>
-      <div className="row"><button className="secondary" disabled={action.locked || list.pending} onClick={() => edit(contact)}>编辑联系人 {contact.displayName}</button>
-        <button className="secondary" disabled={action.locked || list.pending} onClick={() => {
-          if (window.confirm(`删除联系人“${contact.displayName}”（${contact.emailAddress}）？不会删除邮件。`)) {
+      <div className="row"><Button disabled={action.locked || list.pending} onClick={() => edit(contact)} variant="quiet" wrap>编辑联系人 {contact.displayName}</Button>
+        <Button disabled={action.locked || list.pending} onClick={async () => {
+          if ((await confirm(`删除联系人“${contact.displayName}”（${contact.emailAddress}）？不会删除邮件。`))) {
             void action.submit({ path: `/contacts/${contact.id}`, method: "DELETE", body: { expectedVersion: contact.version } });
           }
-        }}>删除联系人 {contact.displayName}</button></div>
+        }} variant="quiet" wrap>删除联系人 {contact.displayName}</Button></div>
     </article></li>)}</ul>
-    {list.page?.nextCursor && <button disabled={list.pending || action.locked} onClick={list.loadMore}>加载更多联系人</button>}
-  </section>;
+    {list.page?.nextCursor && <Button disabled={list.pending || action.locked} onClick={list.loadMore} wrap>加载更多联系人</Button>}
+  </Panel>;
 }

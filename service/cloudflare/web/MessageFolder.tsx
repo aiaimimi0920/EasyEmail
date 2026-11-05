@@ -1,3 +1,4 @@
+import { Button, Field, Notice, Select } from '@neuro/ui';
 import { useEffect, useState } from "react";
 import { api, errorMessage } from "./api";
 import { folderOptions, loadFolders, type Folder } from "./folders-api";
@@ -18,10 +19,9 @@ export function MessageFolder({ path, id, onChanged, controller }: { path: strin
   }, [path, revision, controller?.revision]);
   return <section aria-label="邮件文件夹"><h4>邮件文件夹</h4>
     <p>当前位置：{current?.name ?? "默认位置"}</p>
-    <div className="row"><label>移动到文件夹<select disabled={pending || action.locked} value={target} onChange={event => setTarget(event.target.value)}>
-      <option value="">默认收件箱</option>{folderOptions(folders).map(({ folder, path: name }) => <option key={folder.id} value={folder.id}>{name}</option>)}</select></label>
-      <button disabled={pending || action.locked || (target !== "" && !folders.some(folder => folder.id === target))}
-        onClick={() => action.submit([id], { folderId: target || null })}>移动此邮件</button></div>
-    {error && <p role="alert">{error}</p>}{!controller && <OrganizationStatus action={fallback} />}
+    <div className="row"><Field label="移动到文件夹"><Select disabled={pending || action.locked} value={target} onChange={event => setTarget(event.target.value)}>
+      <option value="">默认收件箱</option>{folderOptions(folders).map(({ folder, path: name }) => <option key={folder.id} value={folder.id}>{name}</option>)}</Select></Field>
+      <Button disabled={pending || action.locked || (target !== "" && !folders.some(folder => folder.id === target))} onClick={() => action.submit([id], { folderId: target || null })} wrap>移动此邮件</Button></div>
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}{!controller && <OrganizationStatus action={fallback} />}
   </section>;
 }

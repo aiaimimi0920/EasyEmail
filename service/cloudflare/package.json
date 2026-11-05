@@ -7,6 +7,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "ui:sync": "node ../../../NeuroDesign/scripts/sync-consumer.mjs --package @neuro/ui",
     "release:plan": "node scripts/prepare-release.mjs plan",
     "release:prepare": "node scripts/prepare-release.mjs prepare",
     "release:verify": "node scripts/prepare-release.mjs verify",
@@ -34,6 +35,7 @@
     "wrangler": "4.154.0"
   },
   "dependencies": {
+    "@neuro/ui": "file:../../../NeuroDesign/packages/react/neuro-ui",
     "dompurify": "3.4.17",
     "entities": "9.0.0",
     "postal-mime": "4.1.4"

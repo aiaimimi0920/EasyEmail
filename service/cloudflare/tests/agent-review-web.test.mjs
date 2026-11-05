@@ -1,3 +1,4 @@
+import { confirmAction, observeConfirmations } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";
@@ -21,7 +22,7 @@ test("Chrome: attention queue, explicit manual linking, relinking and dismissal 
   try {
     const second = await t.task({ subject: "第二个人工目标" }), before = (await t.h.db.prepare("SELECT * FROM agent_outgoing_messages ORDER BY id").all()).results;
     browser = await chromium.launch({ executablePath, headless: true }); page = await browser.newPage({ viewport: { width: 1100, height: 900 } }); page.setDefaultTimeout(10000);
-    const errors = []; page.on("pageerror", e => errors.push(e.message)); page.on("dialog", dialog => dialog.accept());
+    const errors = []; page.on("pageerror", e => errors.push(e.message)); observeConfirmations(page, dialog => dialog.accept());
     const region = await open(page, t), filter = region.getByRole("combobox", { name: "Agent 处理筛选", exact: true });
     await filter.selectOption("attention"); await region.getByRole("button", { name: "任务回复", exact: true }).click();
     const detail = reviewDetail(region); await detail.getByRole("combobox", { name: "人工关联任务", exact: true }).selectOption(t.firstTask.id);
@@ -37,9 +38,11 @@ test("Chrome: attention queue, explicit manual linking, relinking and dismissal 
     await detail.getByRole("button", { name: "忽略此邮件", exact: true }).click(); await region.getByRole("button", { name: "任务回复", exact: true }).click();
     await detail.getByText("已忽略 · 发件身份未验证", { exact: true }).waitFor(); await detail.getByRole("button", { name: "重新关注", exact: true }).click();
     await region.getByText("暂无 Agent 邮件", { exact: true }).waitFor(); await filter.selectOption("attention"); await region.getByRole("button", { name: "任务回复", exact: true }).click();
+    await page.getByRole("navigation", { name: "邮件工作台", exact: true }).getByRole("button", { name: "API Key", exact: true }).click();
     await page.getByRole("combobox", { name: "权限", exact: true }).selectOption("agent-inbox-review"); await page.getByLabel("名称", { exact: true }).fill("manual classification");
     await page.getByRole("button", { name: "创建 Key", exact: true }).click(); const token = await page.getByTestId("new-key").textContent();
     expect(await t.targets("", { token })); expect(await t.h.request("/api/v1/agent-tasks", { method: "POST", token, body: {} }), 403);
+    await page.getByRole("navigation").getByRole("button", { name: "Agent 邮箱", exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: path.join(t.h.directory, "agent-review-mobile.png"), fullPage: true });
     const current = expect(await t.message(t.incoming.id)).message; assert.equal(current.association, "unmatched"); assert.equal(current.threadId, null); assert.equal(current.review.revision, 4);
@@ -59,9 +62,9 @@ test("Chrome: target pagination preserves explicit selection and cancelled confi
     const detail = reviewDetail(region), picker = detail.getByRole("combobox", { name: "人工关联任务", exact: true });
     await detail.getByRole("button", { name: "加载更多关联任务", exact: true }).waitFor(); assert.equal(await picker.inputValue(), "");
     assert.equal(await picker.locator(`option[value="${finalId}"]`).count(), 0); await detail.getByRole("button", { name: "加载更多关联任务", exact: true }).click();
-    await picker.selectOption(finalId); page.once("dialog", dialog => dialog.dismiss()); await detail.getByRole("button", { name: "关联所选任务", exact: true }).click();
+    await picker.selectOption(finalId); await confirmAction(page, async () => { await detail.getByRole("button", { name: "关联所选任务", exact: true }).click(); }, dialog => dialog.dismiss());
     assert.equal(await t.h.db.prepare("SELECT COUNT(*) n FROM agent_review_operations").first("n"), 0);
-    page.once("dialog", dialog => dialog.accept()); await detail.getByRole("button", { name: "关联所选任务", exact: true }).click();
+    await confirmAction(page, async () => { await detail.getByRole("button", { name: "关联所选任务", exact: true }).click(); }, dialog => dialog.accept());
     await region.getByRole("status").filter({ hasText: "人工处理已保存" }).waitFor(); assert.equal(expect(await t.message(t.incoming.id)).message.review.threadId, finalId);
     assert.equal(t.opens.length, 1);
   } finally { await browser?.close(); await t.close(); }

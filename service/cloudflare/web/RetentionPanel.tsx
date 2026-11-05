@@ -1,3 +1,5 @@
+import { useConfirmation } from "./Confirmation";
+import { Button, Checkbox, Field, Input, Notice, Panel } from '@neuro/ui';
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError, dateText, errorMessage } from "./api";
 import { retentionCounts, retentionFields, type RetentionPolicy, type RetentionPreview, type RetentionRun, type RetentionState, type NormalObjectCleanup } from "./retention";
@@ -39,18 +41,18 @@ export function RetentionPanel({ visible }: { visible: boolean }) {
     const value = await api<{ preview: RetentionPreview; normalObjects: NormalObjectCleanup }>("/admin/retention/preview", "POST", { expectedRevision: state.revision, policy: draft });
     if (active.current) { setPreview(value.preview); setState(old => old ? { ...old, normalObjects: value.normalObjects } : old); }
   }
-  function save(event: FormEvent) {
+  async function save(event: FormEvent) {
     event.preventDefault();
     if (!state || !draft || !preview || !changed || locked || busy.current) return;
-    if (!window.confirm("保存此平台保留策略？缓存清除不可恢复；新邮箱期限仅适用于后续分配，已设期限不会因关闭策略而延长。不删除上游资源。")) return;
+    if (!(await confirm("保存此平台保留策略？缓存清除不可恢复；新邮箱期限仅适用于后续分配，已设期限不会因关闭策略而延长。不删除上游资源。"))) return;
     void action(async () => {
       const value = await api<RetentionState>("/admin/retention", "PUT", { expectedRevision: state.revision, policy: draft, confirm: "APPLY RETENTION" });
       if (active.current) { setState(value); setDraft(value.policy); setPreview(null); setStatus("保留策略已保存，请重新预览后维护"); }
     });
   }
-  function maintain() {
+  async function maintain() {
     if (!state || busy.current || (!attempt.current && (!preview || changed))) return;
-    if (!attempt.current && !window.confirm("确认执行一批平台维护？每类最多 100 条，永久清除符合条件的临时及普通邮箱缓存、发送内容、供应商审计和到期凭据；保留防重放记录，不删除上游资源。普通原文和附件对象按批重试回收。")) return;
+    if (!attempt.current && !(await confirm("确认执行一批平台维护？每类最多 100 条，永久清除符合条件的临时及普通邮箱缓存、发送内容、供应商审计和到期凭据；保留防重放记录，不删除上游资源。普通原文和附件对象按批重试回收。"))) return;
     void action(async () => {
       attempt.current ??= { key: crypto.randomUUID(), revision: state.revision, uncertain: false };
       const current = attempt.current;
@@ -70,31 +72,31 @@ export function RetentionPanel({ visible }: { visible: boolean }) {
     });
   }
 
-  return <section className="card" aria-label="数据保留"><h2>数据保留</h2>
-    <button className="secondary" disabled={pending || locked} onClick={() => setRefresh((value) => value + 1)}>刷新保留策略</button>
-    {error && <p role="alert">{error}</p>}{status && <p role="status">{status}</p>}
+  const confirm = useConfirmation([state?.revision, draft, preview, locked, visible]);
+  return <Panel className="card" aria-label="数据保留"><h2>数据保留</h2>
+    <Button disabled={pending || locked} onClick={() => setRefresh((value) => value + 1)} variant="quiet" wrap>刷新保留策略</Button>
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}{status && <Notice role="status" tone="info">{status}</Notice>}
     {state && draft && <>
       <p>策略版本：{state.revision} · {state.policy.enabled ? "自动保留已启用" : "自动保留已关闭"}</p>
-      {state.normalObjects && <p role="status">普通对象待确认回收：{state.normalObjects.pending} · {state.normalObjects.available ? "后台分批重试" : "存储未配置"}</p>}
+      {state.normalObjects && <Notice role="status" tone="info">普通对象待确认回收：{state.normalObjects.pending} · {state.normalObjects.available ? "后台分批重试" : "存储未配置"}</Notice>}
       <form onSubmit={save}>
         <fieldset disabled={pending || locked}>
-          <label className="check"><input type="checkbox" checked={draft.enabled} onChange={(event) => update({ enabled: event.target.checked })} />启用自动保留策略</label>
-          <div className="row">{Object.entries(retentionFields).map(([key, label]) => <label key={key}>{label}<input type="number" min="0" max="3650" step="1" required
-            value={Number.isNaN(draft[key as keyof typeof retentionFields]) ? "" : draft[key as keyof typeof retentionFields]} onChange={(event) => update({ [key]: event.target.value === "" ? NaN : Number(event.target.value) })} /></label>)}</div>
+          <Checkbox checked={draft.enabled} onChange={(event) => update({ enabled: event.target.checked })} label="启用自动保留策略" />
+          <div className="row">{Object.entries(retentionFields).map(([key, label]) => <Field key={key} label={label}><Input type="number" min="0" max="3650" step="1" required value={Number.isNaN(draft[key as keyof typeof retentionFields]) ? "" : draft[key as keyof typeof retentionFields]} onChange={(event) => update({ [key]: event.target.value === "" ? NaN : Number(event.target.value) })} /></Field>)}</div>
           <p>0 表示不自动清理。邮箱期限仅用于新分配；关闭策略不延长已设期限。仅影响平台数据，不删除上游资源；缓存清除不可恢复。</p>
-          <div className="row"><button type="button" className="secondary" onClick={() => action(inspect)}>预览保留影响</button>
-            <button disabled={!changed || !preview}>保存保留策略</button></div>
+          <div className="row"><Button type="button" onClick={() => action(inspect)} variant="quiet" wrap>预览保留影响</Button>
+            <Button disabled={!changed || !preview} type="submit" wrap>保存保留策略</Button></div>
         </fieldset>
       </form>
       {preview && <section aria-label="保留预览"><h3>下一批预览</h3><small>{dateText(preview.checkedAt)} · 每类最多 {preview.batchLimit} 条 · 非锁定快照</small>
         <dl>{Object.entries(preview.counts).map(([key, value]) => <div key={key}><dt>{retentionCounts[key]}</dt><dd>{value}{preview.more[key] ? "（仍有积压）" : ""}</dd></div>)}</dl>
       </section>}
-      <button disabled={pending || (!locked && (!preview || changed))} onClick={maintain}>{unresolved ? "检查维护结果" : "执行一批维护"}</button>
-      {unresolved && <p role="status">维护结果待确认，请使用原幂等键核对，不要另起一批。</p>}
+      <Button disabled={pending || (!locked && (!preview || changed))} onClick={maintain} wrap>{unresolved ? "检查维护结果" : "执行一批维护"}</Button>
+      {unresolved && <Notice role="status" tone="info">维护结果待确认，请使用原幂等键核对，不要另起一批。</Notice>}
       {attempt.current && <p>维护幂等键：<code data-testid="retention-attempt-key">{attempt.current.key}</code></p>}
       {state.lastRun && <section aria-label="最近维护"><h3>最近维护结果</h3><small>{dateText(state.lastRun.completedAt)} · 策略版本 {state.lastRun.revision}</small>
         <dl>{Object.entries(state.lastRun.counts).map(([key, value]) => <div key={key}><dt>{retentionCounts[key]}</dt><dd>{value}</dd></div>)}</dl>
       </section>}
     </>}
-  </section>;
+  </Panel>;
 }

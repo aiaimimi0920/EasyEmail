@@ -1,3 +1,4 @@
+import { Button, Notice } from '@neuro/ui';
 import { useEffect, useId, useRef, useState } from "react";
 import { api, dateText, errorMessage } from "./api";
 import { OUTBOX_MAX_FILES, OUTBOX_TOTAL_BYTES, outboxPath, type OutboxAsset, type OutboxAttachment } from "./outbox-attachments";
@@ -43,16 +44,16 @@ export function OutboxAttachments({ value, disabled, supported, onChange, onLock
         setError(""); upload.start(file);
       }} />
     <small>每个文件 1 字节至 2 MiB，每封最多 5 个、合计 3 MiB；上传后保留 24 小时，保存草稿不续期。</small>
-    {available === false && <p role="status">发送附件存储未配置</p>}
-    {!!value.length && !supported && <p role="status">此发送通道不支持附件；保留原引用，不会去掉附件后发送。</p>}
+    {available === false && <Notice role="status" tone="info">发送附件存储未配置</Notice>}
+    {!!value.length && !supported && <Notice role="status" tone="info">此发送通道不支持附件；保留原引用，不会去掉附件后发送。</Notice>}
     <ul>{value.map(item => <li key={item.id}><div><strong>{item.filename}</strong><small>{item.size} 字节 · 到期 {dateText(item.expiresAt)}</small>
       {states[item.id] && states[item.id] !== "ready" && <span role="status">附件不可用，请移除引用或重新上传</span>}</div>
-      <button type="button" className="secondary" disabled={upload.hasJob} onClick={() => onChange(value.filter(row => row.id !== item.id))}>移除引用</button></li>)}</ul>
-    {!!value.length && <button type="button" className="secondary" disabled={upload.hasJob} onClick={() => { setError(""); setRefresh(old => old + 1); }}>核对附件状态</button>}
-    {upload.hasJob && <div><p role="status">{upload.pending ? "附件上传处理中" : "上传待确认，请核对原上传"} · {upload.filename}</p>
-      <button type="button" disabled={upload.pending} onClick={() => void upload.check()}>核对原上传</button>
-      <button type="button" disabled={upload.pending} onClick={() => void upload.retry()}>继续原上传</button>
-      <button type="button" className="secondary" disabled={upload.pending} onClick={() => void upload.discard()}>取消原上传</button></div>}
-    {(error || upload.error) && <p role="alert">{error || upload.error}</p>}
+      <Button type="button" disabled={upload.hasJob} onClick={() => onChange(value.filter(row => row.id !== item.id))} variant="quiet" wrap>移除引用</Button></li>)}</ul>
+    {!!value.length && <Button type="button" disabled={upload.hasJob} onClick={() => { setError(""); setRefresh(old => old + 1); }} variant="quiet" wrap>核对附件状态</Button>}
+    {upload.hasJob && <div><Notice role="status" tone="info">{upload.pending ? "附件上传处理中" : "上传待确认，请核对原上传"} · {upload.filename}</Notice>
+      <Button type="button" disabled={upload.pending} onClick={() => void upload.check()} wrap>核对原上传</Button>
+      <Button type="button" disabled={upload.pending} onClick={() => void upload.retry()} wrap>继续原上传</Button>
+      <Button type="button" disabled={upload.pending} onClick={() => void upload.discard()} variant="quiet" wrap>取消原上传</Button></div>}
+    {(error || upload.error) && <Notice role="alert" tone="danger">{error || upload.error}</Notice>}
   </fieldset>;
 }

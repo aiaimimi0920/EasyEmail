@@ -1,3 +1,4 @@
+import { confirmAction } from './confirmation-driver.mjs';
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { chromium } from "playwright-core";
@@ -98,7 +99,7 @@ test("Chrome: dirty IMAP/SMTP/composer reject replies and manual switching witho
       if (label === "IMAP 用户名") {
         await page.reload(); await page.getByRole("navigation").getByRole("button", { name: "普通邮箱", exact: true }).click(); await button(normal, "普通发信邮箱").click();
       } else if (label === "SMTP 用户名") {
-        page.once("dialog", d => d.accept()); await button(normal, "刷新 SMTP 配置").click();
+        await confirmAction(page, async () => { await button(normal, "刷新 SMTP 配置").click(); }, d => d.accept());
         await page.waitForFunction(() => document.querySelector('input') && [...document.querySelectorAll("input")].some(i => i.value === "Alice"));
         await send.getByLabel("普通邮件主题", { exact: true }).waitFor();
       }

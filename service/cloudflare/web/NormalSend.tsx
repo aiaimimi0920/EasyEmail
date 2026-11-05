@@ -1,3 +1,5 @@
+import { useConfirmation } from "./Confirmation";
+import { Button, Field, Input, Notice, Textarea } from '@neuro/ui';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { api, dateText, errorMessage, type Page } from "./api";
 import type { NormalAccount } from "./normal-accounts";
@@ -35,12 +37,15 @@ export function NormalSend({ account, smtp, disabled, onBusy, reply, replyGuard,
   const [uploadLocked, setUploadLocked] = useState(false), [assetsReady, setAssetsReady] = useState(true);
   const uploadBusy = useRef(false);
   const busy = useRef(false);
+  const active = useRef(false), latestAttempt = useRef(attempt);
+  latestAttempt.current = attempt;
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const basePath = `/normal-accounts/${account.id}/drafts`;
   const cloud = useCloudDraft(draft, next => {
     if (JSON.stringify(outboxRefs(next.attachments)) !== JSON.stringify(outboxRefs(draft.attachments))) setAssetsReady(!next.attachments?.length);
     if (openingDraft.current) resetSchedule();
     setDraft(next);
-  }, pending || !!attempt || uploadLocked || queueLocked, { basePath, createEmpty });
+  }, pending || !!attempt || uploadLocked || queueLocked, { basePath, createEmpty, replacementIdentity: `${account.id}:${account.revision}` });
   const baseLocked = pending || !!attempt || cloud.pending || cloud.saved?.state === "submitted" || queueLocked;
   const locked = baseLocked || uploadLocked;
   const staleSource = draft.accountRevision !== account.revision;
@@ -61,8 +66,11 @@ export function NormalSend({ account, smtp, disabled, onBusy, reply, replyGuard,
   }, [reply]);
   useEffect(() => { onBusy(navigationLocked); }, [navigationLocked, onBusy]);
   const update = (fields: Partial<ComposeDraft>) => setDraft(old => ({ ...old, ...fields }));
-  function startNew() {
-    if (busy.current || cloud.busy.current || uploadBusy.current || queueBusy.current || (attempt ? !window.confirm("原邮件可能已发送或排队。另起邮件不会撤销原操作，重复提交可能产生重复邮件。确认另起？") : !cloud.canReplace())) return;
+  async function startNew() {
+    const held = latestAttempt.current;
+    if (busy.current || cloud.busy.current || uploadBusy.current || queueBusy.current) return;
+    if (held ? !(await confirm("原邮件可能已发送或排队。另起邮件不会撤销原操作，重复提交可能产生重复邮件。确认另起？")) : !await cloud.canReplace()) return;
+    if (!active.current || busy.current || cloud.busy.current || uploadBusy.current || queueBusy.current || latestAttempt.current !== held) return;
     cloud.reset(); resetSchedule(); setJob(null); setAssetsReady(true); setDraft(createEmpty()); setAttempt(null); setReceipt(null); setNotice(""); setError("");
   }
   async function submit(event?: FormEvent) {
@@ -109,42 +117,43 @@ export function NormalSend({ account, smtp, disabled, onBusy, reply, replyGuard,
     } catch (failure) { setError(errorMessage(failure)); } finally { busy.current = false; setPending(false); }
   }
   const stateText = (state: string) => ({ accepted: "服务器已接受，投递未确认", rejected: "服务器未接受", pending: "处理中，禁止重复提交", unknown: "结果未知，禁止自动重发" }[state] ?? state);
+  const confirm = useConfirmation([account.id, account.revision, account.emailAddress, disabled, locked, draft, attempt, mode, time]);
   return <section aria-label="普通邮箱发信"><h3>普通邮箱发信</h3>
     <p>{attempt?.from ?? account.emailAddress}</p>
     {draft.replyToMessageId && <div><p>回复原邮件 {draft.replyToMessageId}</p>
-      <button className="secondary" disabled={disabled || locked} onClick={() => update({ replyToMessageId: undefined })}>改为新邮件</button></div>}
+      <Button disabled={disabled || locked} onClick={() => update({ replyToMessageId: undefined })} variant="quiet" wrap>改为新邮件</Button></div>}
     {staleSource && <div role="status">草稿关联账号版本 {draft.accountRevision}，当前版本 {account.revision}
-      <button disabled={disabled || locked} onClick={() => {
-        if (window.confirm(`账号身份或配置可能已变化。确认以当前发件地址 ${account.emailAddress} 继续编辑并重新保存此草稿？`)) update({ accountRevision: account.revision });
-      }}>关联到当前账号版本</button>
+      <Button disabled={disabled || locked} onClick={async () => {
+        if ((await confirm(`账号身份或配置可能已变化。确认以当前发件地址 ${account.emailAddress} 继续编辑并重新保存此草稿？`))) update({ accountRevision: account.revision });
+      }} wrap>关联到当前账号版本</Button>
     </div>}
     <form onSubmit={event => void submit(event)}>
       <ComposeRecipients ids="normal-send" value={draft} disabled={disabled || locked} onChange={update} />
-      <label htmlFor="normal-send-subject">普通邮件主题</label><input id="normal-send-subject" value={draft.subject} maxLength={200} required disabled={disabled || locked} onChange={event => update({ subject: event.target.value })} />
-      <label htmlFor="normal-send-text">普通邮件正文</label><textarea id="normal-send-text" value={draft.text} maxLength={6000} required disabled={disabled || locked} onChange={event => update({ text: event.target.value })} />
+      <Field label="普通邮件主题"><Input id="normal-send-subject" value={draft.subject} maxLength={200} required disabled={disabled || locked} onChange={event => update({ subject: event.target.value })} /></Field>
+      <Field label="普通邮件正文"><Textarea id="normal-send-text" value={draft.text} maxLength={6000} required disabled={disabled || locked} onChange={event => update({ text: event.target.value })} /></Field>
       <OutboxAttachments value={draft.attachments ?? []} disabled={disabled || baseLocked} supported
         onChange={attachments => { setAssetsReady(!attachments.length); update({ attachments }); }} onReady={setAssetsReady}
         onLock={value => { uploadBusy.current = value; setUploadLocked(value); }} />
       <SendSchedule mode={mode} time={time} disabled={disabled || locked} onChange={(next, value) => { setMode(next); setTime(value); }} />
-      <button disabled={disabled || locked || !assetsReady || staleSource || !!cloud.saved && cloud.dirty || !account.enabled || !smtp.enabled || !smtp.current || !smtp.credentialConfigured}>{mode === "direct" ? "发送普通邮件" : mode === "queued" ? "普通邮件加入队列" : "普通邮件定时发送"}</button>
+      <Button disabled={disabled || locked || !assetsReady || staleSource || !!cloud.saved && cloud.dirty || !account.enabled || !smtp.enabled || !smtp.current || !smtp.credentialConfigured} type="submit" wrap>{mode === "direct" ? "发送普通邮件" : mode === "queued" ? "普通邮件加入队列" : "普通邮件定时发送"}</Button>
     </form>
-    <button className="secondary" disabled={disabled || locked || staleSource} onClick={() => void cloud.save()}>保存普通邮箱云端草稿</button>
-    {(cloud.saved || cloud.error) && <button className="secondary" disabled={pending || cloud.pending || !!attempt || uploadLocked || queueLocked} onClick={() => void cloud.check()}>核对普通草稿云端版本</button>}
-    {cloud.saved && <p role="status">{cloud.saved.state === "submitted" ? "此普通草稿已提交发送，请查看发送记录" : cloud.dirty ? "有未保存的修改" : `已保存到云端 · 版本 ${cloud.saved.revision}`}</p>}
-    {cloud.error && <p role="alert">{cloud.error}</p>}
-    {!attempt && <button className="secondary" disabled={pending || cloud.pending || uploadLocked || queueLocked} onClick={startNew}>新建普通邮件</button>}
+    <Button disabled={disabled || locked || staleSource} onClick={() => void cloud.save()} variant="quiet" wrap>保存普通邮箱云端草稿</Button>
+    {(cloud.saved || cloud.error) && <Button disabled={pending || cloud.pending || !!attempt || uploadLocked || queueLocked} onClick={() => void cloud.check()} variant="quiet" wrap>核对普通草稿云端版本</Button>}
+    {cloud.saved && <Notice role="status" tone="info">{cloud.saved.state === "submitted" ? "此普通草稿已提交发送，请查看发送记录" : cloud.dirty ? "有未保存的修改" : `已保存到云端 · 版本 ${cloud.saved.revision}`}</Notice>}
+    {cloud.error && <Notice role="alert" tone="danger">{cloud.error}</Notice>}
+    {!attempt && <Button disabled={pending || cloud.pending || uploadLocked || queueLocked} onClick={startNew} variant="quiet" wrap>新建普通邮件</Button>}
     {attempt && <div><code>{attempt.key}</code>
-      <button disabled={pending || queueLocked} onClick={() => void check()}>{attempt.kind === "job" ? "核对原普通邮件入队" : "核对原普通邮件发送"}</button>
-      {attempt.maySubmit && <button disabled={disabled || pending || queueLocked} onClick={() => void submit()}>{attempt.kind === "job" ? "提交原普通邮件入队" : "提交原普通邮件发送"}</button>}
-      <button className="secondary" disabled={pending || queueLocked} onClick={startNew}>另起普通邮件</button>
+      <Button disabled={pending || queueLocked} onClick={() => void check()} wrap>{attempt.kind === "job" ? "核对原普通邮件入队" : "核对原普通邮件发送"}</Button>
+      {attempt.maySubmit && <Button disabled={disabled || pending || queueLocked} onClick={() => void submit()} wrap>{attempt.kind === "job" ? "提交原普通邮件入队" : "提交原普通邮件发送"}</Button>}
+      <Button disabled={pending || queueLocked} onClick={startNew} variant="quiet" wrap>另起普通邮件</Button>
     </div>}
-    {receipt && <p role="status">{stateText(receipt.state)}{receipt.error ? ` · ${receipt.error}` : ""}</p>}
-    {job && <p role="status">{jobState(job.state)} · {dateText(job.dueAt)}</p>}
-    {notice && <p role="status">{notice}</p>}{error && <p role="alert">{error}</p>}
-    <button className="secondary" disabled={pending || queueLocked} onClick={() => void loadHistory()}>刷新普通发送记录</button>
+    {receipt && <Notice role="status" tone="info">{stateText(receipt.state)}{receipt.error ? ` · ${receipt.error}` : ""}</Notice>}
+    {job && <Notice role="status" tone="info">{jobState(job.state)} · {dateText(job.dueAt)}</Notice>}
+    {notice && <Notice role="status" tone="info">{notice}</Notice>}{error && <Notice role="alert" tone="danger">{error}</Notice>}
+    <Button disabled={pending || queueLocked} onClick={() => void loadHistory()} variant="quiet" wrap>刷新普通发送记录</Button>
     <ul>{history?.items.map(row => <li key={row.id}><div><strong>{row.subject || "内容已清理"}</strong>
       <small>{stateText(row.state)} · {dateText(row.createdAt)}</small><code>{row.requestKey}</code></div></li>)}</ul>
-    {history?.nextCursor && <button disabled={pending || queueLocked} onClick={() => void loadHistory(true)}>更多普通发送记录</button>}
+    {history?.nextCursor && <Button disabled={pending || queueLocked} onClick={() => void loadHistory(true)} wrap>更多普通发送记录</Button>}
     <CloudDrafts visible revision={cloud.revision} disabled={disabled || pending || cloud.pending || !!attempt || uploadLocked || queueLocked}
       basePath={basePath} title="普通邮箱云端草稿" onOpen={id => { openingDraft.current = true; void cloud.open(id).finally(() => { openingDraft.current = false; }); }} onDelete={(id, revision) => void cloud.remove(id, revision)} />
     <SendJobs visible revision={queueRevision} basePath={`/normal-accounts/${account.id}/send-jobs`} title="普通邮箱发送队列"

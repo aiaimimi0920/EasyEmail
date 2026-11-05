@@ -1,3 +1,4 @@
+import { Button, Field, Input, Notice } from '@neuro/ui';
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, errorMessage, type Mailbox, type MailboxDeletion } from "./api";
 import { mailboxExpired } from "./mailbox-expiry";
@@ -37,21 +38,20 @@ export function MailboxRemoteDeletion({ mailbox, onSaved }: { mailbox: Mailbox; 
   function submit(event: FormEvent) { event.preventDefault(); if (address === mailbox.address) void change("delete"); }
   const credentialGone = mailbox.releasedAt !== null || mailbox.expiredAt !== null;
   return <section aria-label="远端邮箱删除">
-    {deletion && <p role="status">{STATES[deletion.state]}</p>}
+    {deletion && <Notice role="status" tone="info">{STATES[deletion.state]}</Notice>}
     {deletion && ["pending", "unknown"].includes(deletion.state) && <>
-      <button className="secondary" disabled={pending || credentialGone} onClick={() => change("check")}>核对远端邮箱结果</button>
-      {credentialGone && <p role="status">平台凭据已清除，无法继续核对上游结果</p>}
+      <Button disabled={pending || credentialGone} onClick={() => change("check")} variant="quiet" wrap>核对远端邮箱结果</Button>
+      {credentialGone && <Notice role="status" tone="info">平台凭据已清除，无法继续核对上游结果</Notice>}
     </>}
     {!deletion && loaded && available && !credentialGone && !mailboxExpired(mailbox) && !confirming &&
-      <button className="secondary" disabled={pending} onClick={() => setConfirming(true)}>删除上游邮箱</button>}
+      <Button disabled={pending} onClick={() => setConfirming(true)} variant="quiet" wrap>删除上游邮箱</Button>}
     {!deletion && loaded && confirming && <form onSubmit={submit}>
       <p>永久删除此代际的上游地址及 D1 邮件数据，无法撤销；平台缓存保留，不清理外部 KV/S3 副本。</p>
-      <label>确认删除上游邮箱的地址<input value={address} maxLength={320} autoComplete="off" disabled={pending}
-        onChange={(event) => setAddress(event.target.value)} /></label>
-      <div className="row"><button disabled={pending || address !== mailbox.address}>确认删除上游邮箱</button>
-        <button type="button" className="secondary" disabled={pending} onClick={() => { setConfirming(false); setAddress(""); }}>取消删除上游邮箱</button></div>
+      <Field label="确认删除上游邮箱的地址"><Input value={address} maxLength={320} autoComplete="off" disabled={pending} onChange={(event) => setAddress(event.target.value)} /></Field>
+      <div className="row"><Button disabled={pending || address !== mailbox.address} type="submit" wrap>确认删除上游邮箱</Button>
+        <Button type="button" disabled={pending} onClick={() => { setConfirming(false); setAddress(""); }} variant="quiet" wrap>取消删除上游邮箱</Button></div>
     </form>}
-    {!loaded && error && <button className="secondary" disabled={pending} onClick={() => change("refresh")}>刷新远端邮箱删除记录</button>}
-    {error && <p role="alert">{error}</p>}
+    {!loaded && error && <Button disabled={pending} onClick={() => change("refresh")} variant="quiet" wrap>刷新远端邮箱删除记录</Button>}
+    {error && <Notice role="alert" tone="danger">{error}</Notice>}
   </section>;
 }
