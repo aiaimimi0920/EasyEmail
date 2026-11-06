@@ -40,6 +40,13 @@ def pristine(config, material, api, runtime, store):
     version, _ = runtime.request('email', '/admin/db_version', headers=email_headers(material))
     require(isinstance(version, dict) and version.get('need_initialization') is True
             and version.get('current_db_version') is None and isinstance(version.get('code_db_version'), str), ERROR)
+    witness = uninitialized_databases(config, api)
+    empty_objects(store)
+    return witness
+
+
+def uninitialized_databases(config, api):
+    """Prove empty business tables, exact migration seeds and no consumed allocation counters."""
     witness = database_witness(config, api)
     for role, selected in witness.items():
         database = config[role]['database']['id']
@@ -54,5 +61,4 @@ def pristine(config, material, api, runtime, store):
             require(api.query(database, counts) == [{table: 0 for table in batch}], ERROR)
         if any(row['name'] == 'sqlite_sequence' for row in selected['schema']):
             require(api.query(database, "SELECT name,seq FROM sqlite_sequence WHERE name!='d1_migrations' AND seq!=0") == [], ERROR)
-    empty_objects(store)
     return witness

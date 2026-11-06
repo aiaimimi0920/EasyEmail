@@ -32,6 +32,14 @@ class ApplicationTests(unittest.TestCase):
             self.assertEqual(application.run(value, SCRATCH / 'preview-repair-operation')['status'], 'unknown')
         selected.assert_called_once_with(value, SCRATCH / 'preview-repair-operation'); bootstrap.assert_not_called()
 
+    def test_partial_publication_has_independent_dispatch_not_a_deploy_replay(self):
+        value = repair_request(); value['context']['repairId'] = 'complete-fresh-publication'
+        with patch.object(application, 'repair_publication', return_value={'status': 'unknown', 'checks': []}) as selected, \
+                patch.object(application, 'deploy') as deploy, patch.object(application, 'repair') as bootstrap:
+            self.assertEqual(application.run(value, SCRATCH / 'publication-operation')['status'], 'unknown')
+        selected.assert_called_once_with(value, SCRATCH / 'publication-operation')
+        deploy.assert_not_called(); bootstrap.assert_not_called()
+
     def test_destroy_preview_requires_a_directory_and_preserves_unknown_without_replay(self):
         value = request('destroy-preview')
         with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_DEPLOYMENT_DIRECTORY_REQUIRED'): application.run(value)

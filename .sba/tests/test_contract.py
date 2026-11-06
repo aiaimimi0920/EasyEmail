@@ -81,6 +81,16 @@ class ContractTests(unittest.TestCase):
         with patch('contract.subprocess.check_output', side_effect=self.git):
             self.assertEqual(validated_request(value, ROOT), value)
 
+    def test_fresh_publication_repair_uses_declared_template_and_authenticated_parent_fields(self):
+        from test_publication_repair import publication_request
+        value = publication_request()
+        with patch('contract.subprocess.check_output', side_effect=self.git):
+            self.assertEqual(validated_request(value, ROOT), value)
+        for change in ('errorCode', 'parentRunId', 'resultDigest'):
+            invalid = copy.deepcopy(value); invalid['context'][change] = 'invalid'
+            with self.subTest(change=change), patch('contract.subprocess.check_output', side_effect=self.git), self.assertRaises(DeploymentError):
+                validated_request(invalid, ROOT)
+
     def test_repair_rejects_unknown_operation_incomplete_parent_and_same_version(self):
         mutations = [lambda r: r['context'].update(repairId='arbitrary-replay'),
                      lambda r: r['context'].update(errorCode='EASYEMAIL_UNEXPECTED_FAILURE'),

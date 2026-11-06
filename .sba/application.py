@@ -14,6 +14,7 @@ from preview_cleanup import destroy_preview
 from bootstrap_repair import repair
 from preview_repair import repair_preview
 from cleanup_repair import repair_cleanup
+from publication_repair import repair_publication
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +39,7 @@ def run(request, directory=None):
         require(directory is not None, 'EASYEMAIL_DEPLOYMENT_DIRECTORY_REQUIRED')
         if request['context']['repairId'] == 'complete-preview-credentials': return repair_preview(request, directory)
         if request['context']['repairId'] == 'complete-preview-cleanup': return repair_cleanup(request, directory)
+        if request['context']['repairId'] == 'complete-fresh-publication': return repair_publication(request, directory)
         return repair(request, directory)
     raise DeploymentError('EASYEMAIL_REQUEST_INVALID')
 

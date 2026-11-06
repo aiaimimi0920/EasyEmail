@@ -6,44 +6,47 @@ from configuration import isolated
 from production_domains import listed_domains
 
 
+def verify_bindings(config, role, actual, expected, workers):
+    require(isinstance(actual, dict) and actual.get('compatibility_date') == expected['compatibility_date']
+                and sorted(actual.get('compatibility_flags', [])) == sorted(expected['compatibility_flags'])
+                and actual.get('tail_consumers', []) == [], 'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
+    rows = actual.get('bindings')
+    require(isinstance(rows, list) and all(isinstance(row, dict) and isinstance(row.get('name'), str) for row in rows),
+                'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
+    bindings = {row['name']: row for row in rows}
+    names = set(expected['vars']) | set(workers[role]) | {'DB'}
+    sends = expected.get('send_email', [])
+    names |= {row['name'] for row in sends}
+    if role == 'platform': names |= {'INBOX', 'OUTBOX', 'ASSETS'}
+    require(len(bindings) == len(rows) and set(bindings) == names, 'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
+    for name, value in expected['vars'].items():
+        row = bindings[name]
+        kind, key = ('plain_text', 'text') if isinstance(value, str) else ('json', 'json')
+        require(row.get('type') == kind and key in row and digest(row[key]) == digest(value), 'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
+    for name in workers[role]:
+        require(bindings[name].get('type') == 'secret_text', 'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
+    for send in sends:
+        row = bindings[send['name']]
+        require(row.get('type') == 'send_email' and set(row) == {'name', 'type', 'allowed_destination_addresses'}
+                    and isinstance(row.get('allowed_destination_addresses'), list)
+                    and sorted(row['allowed_destination_addresses']) == sorted(send['allowed_destination_addresses']),
+                    'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
+    database = config[role]['database']['id']; row = bindings['DB']
+    require(row.get('type') == 'd1' and row.get('id') == database and row.get('database_id', database) == database,
+                'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
+    if role == 'platform':
+        require(bindings['ASSETS'].get('type') == 'assets', 'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
+        for name, field in [('INBOX', 'inboxBucket'), ('OUTBOX', 'outboxBucket')]:
+            row = bindings[name]
+            require(row.get('type') == 'r2_bucket' and row.get('bucket_name') == config['platform'][field]
+                        and row.get('jurisdiction', 'default') in ('default', ''), 'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
+
+
 def verify_settings(config, api, release, workers, domains=None):
     for role in ('email', 'platform'):
         expected = json.loads((release / 'publish' / role / 'wrangler.json').read_text(encoding='utf8'))
         path = '/workers/scripts/' + config[role]['name']
-        actual = api.get(path + '/settings')
-        require(isinstance(actual, dict) and actual.get('compatibility_date') == expected['compatibility_date']
-                and sorted(actual.get('compatibility_flags', [])) == sorted(expected['compatibility_flags'])
-                and actual.get('tail_consumers', []) == [], 'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
-        rows = actual.get('bindings')
-        require(isinstance(rows, list) and all(isinstance(row, dict) and isinstance(row.get('name'), str) for row in rows),
-                'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
-        bindings = {row['name']: row for row in rows}
-        names = set(expected['vars']) | set(workers[role]) | {'DB'}
-        sends = expected.get('send_email', [])
-        names |= {row['name'] for row in sends}
-        if role == 'platform': names |= {'INBOX', 'OUTBOX', 'ASSETS'}
-        require(len(bindings) == len(rows) and set(bindings) == names, 'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
-        for name, value in expected['vars'].items():
-            row = bindings[name]
-            kind, key = ('plain_text', 'text') if isinstance(value, str) else ('json', 'json')
-            require(row.get('type') == kind and key in row and digest(row[key]) == digest(value), 'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
-        for name in workers[role]:
-            require(bindings[name].get('type') == 'secret_text', 'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
-        for send in sends:
-            row = bindings[send['name']]
-            require(row.get('type') == 'send_email' and set(row) == {'name', 'type', 'allowed_destination_addresses'}
-                    and isinstance(row.get('allowed_destination_addresses'), list)
-                    and sorted(row['allowed_destination_addresses']) == sorted(send['allowed_destination_addresses']),
-                    'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
-        database = config[role]['database']['id']; row = bindings['DB']
-        require(row.get('type') == 'd1' and row.get('id') == database and row.get('database_id', database) == database,
-                'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
-        if role == 'platform':
-            require(bindings['ASSETS'].get('type') == 'assets', 'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
-            for name, field in [('INBOX', 'inboxBucket'), ('OUTBOX', 'outboxBucket')]:
-                row = bindings[name]
-                require(row.get('type') == 'r2_bucket' and row.get('bucket_name') == config['platform'][field]
-                        and row.get('jurisdiction', 'default') in ('default', ''), 'EASYEMAIL_PUBLISHED_SETTINGS_MISMATCH')
+        verify_bindings(config, role, api.get(path + '/settings'), expected, workers)
         schedules = api.get(path + '/schedules')
         require(isinstance(schedules, dict) and isinstance(schedules.get('schedules'), list)
                 and all(isinstance(row, dict) and isinstance(row.get('cron'), str) for row in schedules['schedules'])

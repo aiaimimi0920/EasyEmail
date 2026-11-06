@@ -55,6 +55,36 @@ class DeploymentProcessTests(unittest.TestCase):
         self.assertFalse((process.directory / 'platform-secrets.json').exists())
         self.assertEqual(process.state.value['writes'], ['platform-worker-published'])
 
+    def test_publish_failure_exposes_only_numeric_cloudflare_code_not_raw_output(self):
+        process = self.process()
+
+        def run(args, **options):
+            if '--secrets-file' not in args: return SimpleNamespace(returncode=0)
+            self.assertEqual(options['env']['WRANGLER_LOG'], 'error')
+            self.assertEqual(options['stderr'], -2)
+            options['stdout'].write(b'[ERROR] Private value must not escape [code: 10000]\n')
+            return SimpleNamespace(returncode=1)
+
+        with patch('deployment_process.subprocess.run', side_effect=run):
+            with self.assertRaises(DeploymentError) as raised: process.publish('email')
+        self.assertEqual(raised.exception.code, 'EASYEMAIL_WORKER_DEPLOY_FAILED_CF_10000')
+        self.assertNotIn('Private', str(raised.exception))
+        self.assertEqual(process.state.value['writes'], ['email-worker-published'])
+        self.assertFalse(list(process.directory.glob('*.log')))
+
+    def test_unknown_cli_text_is_not_promoted_to_public_error_or_retried(self):
+        process = self.process(); writes = []
+
+        def run(args, **options):
+            if '--secrets-file' not in args: return SimpleNamespace(returncode=0)
+            writes.append(args)
+            options['stdout'].write(b'password=synthetic-private [code: not-a-number]\n')
+            return SimpleNamespace(returncode=1)
+
+        with patch('deployment_process.subprocess.run', side_effect=run):
+            with self.assertRaisesRegex(DeploymentError, '^EASYEMAIL_WORKER_DEPLOY_FAILED$'): process.publish('email')
+        self.assertEqual(len(writes), 1)
+
     def test_schema_commands_use_explicit_remote_config_and_are_not_replayed(self):
         process = self.process()
         with patch('deployment_process.subprocess.run', return_value=SimpleNamespace(returncode=0)) as runner:

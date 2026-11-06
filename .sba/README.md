@@ -6,6 +6,13 @@
 
 ## 当前入口与边界
 
+1.0.13 的 `complete-fresh-publication` 独立修复仅接受 1.0.12 正式 deploy 的准确 Worker 发布错误。
+`publication_state.py` / `worker_download.py` 要求 email 可执行模块与原固定源码重建字节完全相同、
+platform 不存在、两域空闲、入口/cron 未开放、路由中性、初始化双库无业务历史且双桶私有空态。
+写前重核身份后才独立发布、bootstrap、公开验真并绑定收信；不重放父任务或初始化数据库。
+CLI 输出只在私有临时文件处理，公开错误最多附唯一数字 Cloudflare code，不上传原始输出。
+该候选不等于真实云修复已通过；实际状态见 `docs/cloudflare-springbok.md`。
+
 - `springbok.ps1` → `application.py`：先严格核请求、源码 SHA、origin 与干净工作树，再分流动作，原子写安全回执。
 - `configuration.py`：公开配置、精确资源清单及既有发布描述；`routing=null` 不占用邮件身份。
 - `build_environment.py`：本地 Git 校验和所有构建子进程均不继承业务秘密；隔离 HOME、缓存和配置。它不是恶意依赖的执行沙箱。

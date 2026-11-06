@@ -2,8 +2,10 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from boundary import DeploymentError, digest, require
@@ -17,7 +19,7 @@ class DeploymentProcess:
         self.directory = Path(directory); self.directory.mkdir()
         self.environment = build_environment(self.directory)
         protect_directory(self.directory, self.environment)
-        self.environment.update(WRANGLER_LOG='none', WRANGLER_LOG_SANITIZE='true')
+        self.environment.update(WRANGLER_LOG='error', WRANGLER_LOG_SANITIZE='true')
         self.node = shutil.which('node', path=self.environment.get('PATH', self.environment.get('Path', '')))
         require(self.node, 'EASYEMAIL_TOOLCHAIN_UNAVAILABLE')
         self.source = self.release.parent / 'EasyEmail'
@@ -34,8 +36,14 @@ class DeploymentProcess:
         if token:
             environment['CLOUDFLARE_API_TOKEN'] = self.material.token
         try:
-            result = subprocess.run([self.node, *map(str, args)], cwd=self.directory, env=environment,
-                                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
+            # CLI output can echo credentials: keep it ephemeral in the protected directory, never in public logs.
+            with tempfile.TemporaryFile(dir=self.directory) as output:
+                result = subprocess.run([self.node, *map(str, args)], cwd=self.directory, env=environment,
+                                        stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT, timeout=600)
+                if result.returncode != 0 and code == 'EASYEMAIL_WORKER_DEPLOY_FAILED':
+                    output.seek(0)
+                    codes = re.findall(rb'\[code: ([0-9]{1,8})\]', output.read(65536))
+                    if len(set(codes)) == 1: code += '_CF_' + codes[0].decode('ascii')
         except (OSError, subprocess.TimeoutExpired):
             raise DeploymentError(code) from None
         require(result.returncode == 0, code)
