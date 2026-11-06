@@ -40,7 +40,7 @@ unknown；完整初始化后公开验真失败为 deployed-unverified，不自�
 
 这些调用已用真实打包双 Worker 和本地 D1/R2 串通，其中 Python 使用测试专有 loopback
 传输，真实 HTTPS URL、处理器、密钥格式和鉴权语义不变；这不是 Cloudflare 发布或 SpringBok
-任务回执。新 CI 仍未推送运行，平台已合并的 EMAIL-01/02 也尚未发布控制面或执行器。
+任务回执。新 CI 和平台控制面/执行器的最新发布进度见文末，不能以本地验收替代。
 
 ## 正式首次部署源码路径
 
@@ -122,9 +122,27 @@ subdomain、schedules 和可下载代码，并核备份前后活动部署与配�
 
 按已备份的真实变量、域名和既有 DO class 绑定准备 `0750b9f` 控制面本地 dry-run，通过原生
 Wrangler 构建；候选仅改变 Windows executor pin，保留 Linux pin 与现有其他变量，不读取秘密值。
-这是待批准发布的本地候选，不是已上线回执。新固定 executor tag 尚未创建，不能用旧 tag 冒充新代码。
+用户已批准候选发布，但仍须等待 EasyEmail 精确提交的 CI 通过；不是已上线回执。
+新固定 executor tag 的最新保护状态见下文，不能用旧 tag 冒充新代码。
 
 实查发现 Worker 自定义域名列表成功响应为 `errors:null`；适配器原先严格要求空数组，会阻断
 真实域名检查。已补先失败后通过的回归，只兼容该 GET 端点的显式 null，不接受缺字段或真实错误，
 不放宽其他端点和写请求。直接运行当前 CloudApi/listed_domains 对两个正式 HTTP 域名以及空列表
 的只读核对通过，总数/当前页完整性仍检查。完整 Python 回归已更新至 156 项，未为该问题更改业务或 Worker 代码。
+
+## 首次 CI 的 Windows ACL 阻塞与窄修
+
+124 文件迁移成果已提交推送到 `migration/cloudflare-web`，提交为 `44d315d`，未合并旧 main。
+其首个 Cloudflare SBA Local Contract 运行 `42135530875` 在 20 分钟上限被取消；日志还记录
+一次私有目录 PowerShell 调用超过 30 秒，不能视作 CI 通过。相同 Python 套件在本机不到一分钟，
+而 hosted Windows 多次 ACL 调用耗时约 24 秒。取消时仍在 Python 测试，未到打包运行门禁。
+
+修复仅针对私有目录的 Windows ACL 适配层：使用 .NET 构造、设置和独立读回权限，关闭该
+短脚本的模块自动加载，不再发现或加载 shell ACL cmdlet。仍只允许当前用户 SID 与 SYSTEM、
+禁止继承，保留设置后规则读回、30 秒有界等待和失败关闭；没有增加业务权限或延长 CI 超时。
+新增回归在旧实现准确失败，原生目录与秘密文件权限用例在新实现通过；完整 Python 157 项
+本地通过。新的精确提交 CI 和真实 SpringBok 隔离部署仍须分别验收，不用本机通过替代它们。
+
+SpringBok 固定 Windows executor `0750b9f` 的准确 tag 已建立更新/删除保护且无绕过者，
+既有 14 条规则未改。控制面已重新备份并核活动版本/配置稳定，尚未实际发布；Linux pin 保持。
+正常 owner 浏览器会话和已有 Cloudflare 连接已确认有效，未扩大或续期过期机器委托。

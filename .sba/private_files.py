@@ -14,18 +14,21 @@ def protect_directory(directory, environment):
         return
     script = r"""
 $ErrorActionPreference='Stop'
+$PSModuleAutoLoadingPreference='None'
 $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User
-$system=New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')
-$acl=New-Object System.Security.AccessControl.DirectorySecurity
+$system=[System.Security.Principal.SecurityIdentifier]::new('S-1-5-18')
+$acl=[System.Security.AccessControl.DirectorySecurity]::new()
 $acl.SetOwner($sid)
 $acl.SetAccessRuleProtection($true,$false)
 foreach($principal in @($sid,$system)) {
-  $rule=New-Object System.Security.AccessControl.FileSystemAccessRule($principal,'FullControl','ContainerInherit,ObjectInherit','None','Allow')
+  $rule=[System.Security.AccessControl.FileSystemAccessRule]::new($principal,'FullControl','ContainerInherit,ObjectInherit','None','Allow')
   $acl.AddAccessRule($rule)
 }
-# Persist only the access/owner sections modified above. Set-Acl can request SACL privilege unnecessarily.
-([System.IO.DirectoryInfo]::new($env:EASYEMAIL_PRIVATE_DIRECTORY)).SetAccessControl($acl)
-$actual=Get-Acl -LiteralPath $env:EASYEMAIL_PRIVATE_DIRECTORY
+# Direct framework calls avoid shell-module discovery in the credential-free environment.
+# Persist only the modified access/owner sections, without requesting SACL privilege.
+$directory=[System.IO.DirectoryInfo]::new($env:EASYEMAIL_PRIVATE_DIRECTORY)
+$directory.SetAccessControl($acl)
+$actual=$directory.GetAccessControl()
 if(-not $actual.AreAccessRulesProtected) { throw 'unprotected-directory' }
 $rules=$actual.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])
 if(@($rules).Count -ne 2) { throw 'unexpected-access-rules' }
