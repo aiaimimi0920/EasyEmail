@@ -1,4 +1,6 @@
 """Preview HTTP exposure and exact Worker/D1 identities; all DELETE acknowledgments require independent absence."""
+import time
+
 from boundary import matches, require
 from cleanup_buckets import timestamp
 from cleanup_references import listed
@@ -39,7 +41,12 @@ def remove_worker(config, role, api):
     exposure = api.get('/workers/scripts/' + config[role]['name'] + '/subdomain')
     require(isinstance(exposure, dict) and exposure.get('enabled') is False and exposure.get('previews_enabled') is False, ERROR)
     api.delete('/workers/scripts/' + config[role]['name'], write='cleanup-' + role + '-worker-deleted')
-    require(worker_absent(config, role, api), ERROR)
+    # A successful DELETE can precede list visibility. Retry only valid GET
+    # observations, never DELETE or transport/authentication/malformed-list errors.
+    for delay in (0, 1, 2, 4, 8):
+        if delay: time.sleep(delay)
+        if worker_absent(config, role, api): return
+    require(False, ERROR)
 
 
 def remove_database(config, role, expected, api):

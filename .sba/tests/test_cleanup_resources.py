@@ -2,6 +2,7 @@ import copy
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from boundary import DeploymentError
@@ -10,6 +11,45 @@ from cleanup_resources import database_identity, remove_database, remove_worker,
 
 
 class CleanupResourceTests(unittest.TestCase):
+    def setUp(self):
+        patcher = patch('time.sleep'); self.sleep = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_worker_delete_waits_for_list_visibility_without_reissuing_delete(self):
+        api = CleanupApi(); name = api.config['platform']['name']; original = api.request
+        api.exposures[name] = {'enabled': False, 'previews_enabled': False}; reads = []
+        stale = copy.deepcopy(original('GET', '/workers/scripts'))
+        def request(method, suffix, *args, **kwargs):
+            result = original(method, suffix, *args, **kwargs)
+            if suffix == '/workers/scripts':
+                reads.append(suffix)
+                if len(reads) <= 2: return copy.deepcopy(stale)
+            return result
+        api.request = request
+        remove_worker(api.config, 'platform', api)
+        self.assertEqual(api.writes, ['cleanup-platform-worker-deleted'])
+        self.assertEqual(len(reads), 3); self.assertEqual(self.sleep.call_count, 2)
+
+    def test_worker_list_wait_is_bounded_and_does_not_retry_invalid_or_failed_reads(self):
+        api = CleanupApi(); api.exposures[api.config['platform']['name']] = {'enabled': False, 'previews_enabled': False}
+        api.delete = lambda suffix, *, write: api.writes.append(write)
+        with self.assertRaises(DeploymentError): remove_worker(api.config, 'platform', api)
+        self.assertEqual([call.args[0] for call in self.sleep.call_args_list], [1, 2, 4, 8])
+        self.assertEqual(api.writes, ['cleanup-platform-worker-deleted'])
+        for broken in (True, False):
+            api = CleanupApi(); original = api.request; reads = []; self.sleep.reset_mock()
+            api.exposures[api.config['platform']['name']] = {'enabled': False, 'previews_enabled': False}
+            def request(method, suffix, *args, **kwargs):
+                if suffix == '/workers/scripts':
+                    reads.append(suffix)
+                    if broken: raise DeploymentError('EASYEMAIL_CLOUD_REQUEST_FAILED')
+                    return {'result': [], 'result_info': {'total_count': 1}}
+                return original(method, suffix, *args, **kwargs)
+            api.request = request
+            with self.assertRaises(DeploymentError): remove_worker(api.config, 'platform', api)
+            self.assertEqual(len(reads), 1); self.sleep.assert_not_called()
+            self.assertEqual(api.writes, ['cleanup-platform-worker-deleted'])
+
     def test_ingress_requires_both_acknowledgment_and_independent_disabled_readback(self):
         api = CleanupApi(); stop_ingress(api.config, 'platform', api)
         self.assertEqual(api.writes, ['cleanup-platform-ingress-stopped'])

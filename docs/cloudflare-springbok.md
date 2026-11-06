@@ -10,7 +10,42 @@
 共享 Zone、MX、现有凭据及非 EasyEmail 服务不因实例清理被删除。
 本阶段不修改现有正式服务、收信路由或 NAS，也不发真实邮件。
 
-## 2026-11-07 源升级/verify 成功，清理写前失败及独立恢复候选
+## 2026-11-07 最新清理现场：独立恢复已执行，部分删除仍待完成
+
+EasyEmail `1.0.7 / bf427b2` 精确 CI 通过；SpringBok PR #134 的精确 head 和合并后
+`974d9ae` 七项 CI 均通过。已发布兼容控制面及同 SHA 的受保护固定 Windows executor，
+独立下载 Worker 字节与封存 bundle 一致；旧版本保留，Linux/历史任务 pin、绑定、域名、
+秘密名称、DO namespace 和计划保持。平台配置/脚本有备份，但不是 DO 数据导出或全部
+远端静态资源字节备份。
+
+仅对用户已批准的同一测试副本，从正常 owner UI 审阅原八项清单并单次提交新 repair
+`dc-8870b316617b4e6eb3c03e47e50354a7` / run `42278766039`。artifact 的摘要、run、
+executor 和 request 绑定均独立认证；工作流 success，但应用结果是 unknown /
+`EASYEMAIL_PREVIEW_RESOURCE_CLEANUP_UNCONFIRMED`，不是清理成功。checks 仅有
+`preview-authority-verified` 和 `preview-ingress-stopped`。
+
+随后真实 GET-only reconciliation 确认：两 workers.dev/preview 入口均关闭，platform
+Worker 已不存在；email Worker、原 UUID 的两 D1、两 R2 仍在，OUTBOX 有三个对象，
+持久 cleanup authority 已消费。其他账号资源身份、custom domains、Zone routes、MX
+与前置清单一致；原隔离源会话及原草稿仍可读取。没有重放任务、清锁、重新打开入口或
+手工删除剩余资源。旧失败和新 unknown 回执全部保留。
+
+代码阻碍是删除 Worker 后只做一次即时列表观察；真实 Worker 随后已经不存在。1.0.8
+候选为该读回增加最多五次合法 GET、15 秒总等待的有界观察，DELETE 仍严格一次；失败、
+权限错误或畸形/不完整列表不重试，也不会被当成不存在。该候选尚未部署，不支持绕过
+已消费 authority。剩余清理需要独立的、可认证已消费授权及逐项部分状态的恢复合同；
+当前只支持写前失败的 repair 必须继续拒绝它，不能直接重复调用 destroy-preview。
+
+该读回回归先在旧源码准确复现同一错误，修复后完整 Python 211 项、检查器 19 项通过；
+ratchet 扫描 2258 文件，三个超限档位均为零，未运行 strict。回归覆盖短暂陈旧列表只发
+一次 DELETE、观察预算耗尽仍拒绝、权限/网络失败及畸形列表不重试。没有为该修复再次
+执行云清理；不能把本地通过写成旧 unknown 已恢复。
+
+证据为私有调查目录中的 `email34-run-42278766039.json`、
+`email34-cleanup-live-status.json`、`email34-cleanup-partial-reconciliation.json`。
+这轮仍未完成全量测试副本删除、其他实例清理、从零正式部署或真实邮件收发。
+
+## 2026-11-07 源升级/verify 成功，首次清理写前失败及独立恢复实现
 
 有数据隔离源的 update `dc-f6caa11c795b4e8caa0660bb31833eea` / run `42271067370`
 已取得摘要认证的 succeeded，11 项检查全通过；独立 HTTP 11 项检查证实原会话、草稿、

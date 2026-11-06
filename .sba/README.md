@@ -36,6 +36,7 @@
   1.0.6 额外只接受 1.0.5 的准确 `EASYEMAIL_SNAPSHOT_IMPORT_FAILED`：两个已发布标记须匹配父 1.0.5，platform 仍无业务 schema，email 原生导出的 schema/typed rows/分配器须精确匹配原认证快照；写前重复核对。仅导入尚未完成的 platform，绝不重放已完成的 email 导入。目标漂移或其他部分状态均拒绝，原 1.0.2 baseline 只用于保持来源/实例身份。
 - `preview_cleanup.py` / `cleanup_references.py` / `cleanup_resources.py` / `cleanup_buckets.py`：仅清理成功 preview 的准确八项资源；先核目标状态、外部 Worker/Pages/邮件/域名引用、D1/R2 创建身份及私有桶清单，条件写入持久一次性消费记录，再停两个入口、删两个 Worker、复查共享引用，最后删除两库两桶。所有删除均独立读回不存在；不提供普通正式实例删除入口。
 - `cleanup_repair.py`：1.0.7 新增独立 `complete-preview-cleanup`，仅接受认证写前失败的准确共享核验错误；继承原清理 SHA/version/context，不把修复候选当已部署目标。重新核原 provenance、完整状态、引用和未消费 authority 后调用同一清理路径，不发布 Worker、不修改云端秘密。已消费、目标漂移或 unknown/部分删除不能重放。需要兼容 SpringBok 控制面及固定 executor，源码验证不代表已上线。
+  1.0.8 候选仅补 Worker DELETE 成功后的有界列表观察：最多五次 GET，额外等待总计 15 秒；不重复 DELETE，不重试失败或畸形响应，耗尽仍为 unknown。该等待不是对部分清理的恢复授权，不能用于重放已经消费的旧任务。
 
 | SBA 动作 | 当前应用行为 |
 | --- | --- |
@@ -44,7 +45,7 @@
 | deploy（正式 custom domain） | 已接通应用源码；要求空闲域名、新空数据资源，以及可选的明确中性邮件目标；尚未通过真实 SpringBok 正式部署验收 |
 | update | 1.0.6 真实保数据升级 succeeded（11 项），另行 HTTP 11 项与独立 verify 5 项通过；原资源及业务身份保持 |
 | preview | 1.0.2 首次云任务及后续失败回执保留；1.0.6 独立 repair 已完成原副本的真实快照恢复、源未变和 HTTP 业务验收。不代表修正后从零开始的普通 preview 一次成功 |
-| destroy-preview | 首次真实清理在 Pages 共享核验写前 failed，资源及未消费 authority 保留；1.0.7 修复可选映射并提供独立恢复候选，尚未通过真实云清理验收 |
+| destroy-preview | 首次 Pages 写前失败历史保留；1.0.7 独立云恢复已消费授权、停止两入口并删除 platform Worker，但即时列表读回未确认而返回 unknown。email Worker、两库两桶仍保留；不重放或宣称全部删除 |
 | repair / complete-empty-bootstrap | 1.0.1 独立云 repair 与 verify 已通过；不支持已有业务数据或正式实例 |
 | repair / complete-preview-credentials | 1.0.6 固定 `587b28c` 已完成原部分副本的独立云修复；认证 artifact 的 14 项检查和另行真实 HTTP 的 13 项业务检查通过，父 UNKNOWN 保留。清理仍待真实云验 |
 
