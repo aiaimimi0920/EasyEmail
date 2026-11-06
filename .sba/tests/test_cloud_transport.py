@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, urlparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cloud_transport import CloudApi, OperationState
+from cloud_transport import CloudApi, OperationState, RuntimeClient
 from boundary import DeploymentError
 
 
@@ -52,6 +52,29 @@ def zone_page(page, rows, total, pages=None):
 class CloudTransportTests(unittest.TestCase):
     def state(self):
         return OperationState(Path(tempfile.mkdtemp(prefix='sba-operation-', dir=SCRATCH)), 'dc-' + '1' * 32)
+
+    def test_runtime_identifies_the_deployment_client_without_changing_auth_or_origin(self):
+        config = {role: {'origin': 'https://synthetic-' + role + '.example.com'} for role in ('email', 'platform')}
+        state = self.state(); opener = Opener(Response({'need_initialization': True}))
+        result, _ = RuntimeClient(config, state, opener).request('email', '/admin/db_version',
+            headers={'x-custom-auth': 'synthetic-site', 'x-admin-auth': 'synthetic-admin'})
+        self.assertEqual(result, {'need_initialization': True})
+        self.assertEqual(len(opener.calls), 1); self.assertFalse(state.attempted)
+        sent = opener.calls[0]
+        self.assertEqual(sent.get_header('User-agent'), 'EasyEmail-SBA/1.0')
+        self.assertEqual(sent.get_header('Origin'), config['email']['origin'])
+        self.assertEqual(sent.get_header('X-custom-auth'), 'synthetic-site')
+        self.assertEqual(sent.get_header('X-admin-auth'), 'synthetic-admin')
+        self.assertNotIn('synthetic-admin', sent.full_url)
+
+    def test_runtime_edge_rejection_of_a_write_remains_unknown_and_is_not_retried(self):
+        config = {role: {'origin': 'https://synthetic-' + role + '.example.com'} for role in ('email', 'platform')}
+        state = self.state(); opener = Opener(Response({'error_code': 1010}, status=403))
+        with self.assertRaisesRegex(DeploymentError, '^EASYEMAIL_CLOUD_REQUEST_FAILED$'):
+            RuntimeClient(config, state, opener).request('email', '/admin/db_initialize',
+                method='POST', write='email-version-initialized')
+        self.assertTrue(state.attempted); self.assertEqual(len(opener.calls), 1)
+        self.assertEqual(json.loads(state.path.read_text(encoding='utf8'))['writes'], ['email-version-initialized'])
 
     def test_read_query_does_not_claim_a_mutation_and_secrets_stay_in_headers(self):
         opener = Opener(Response({'success': True, 'errors': [], 'result': [{'success': True, 'results': []}]}))

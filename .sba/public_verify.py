@@ -26,7 +26,8 @@ class ReleaseReader:
         parsed = urlparse(url)
         origin('https://' + parsed.netloc)
         require(parsed.scheme == 'https' and not parsed.query and not parsed.fragment, VERIFY_ERROR)
-        request = urllib.request.Request(url, method='GET', headers={'Accept': '*/*', 'Cache-Control': 'no-cache'})
+        request = urllib.request.Request(url, method='GET', headers={'Accept': '*/*', 'Cache-Control': 'no-cache',
+                                                                    'User-Agent': 'EasyEmail-SBA/1.0'})
         try:
             try:
                 response = self.opener.open(request, timeout=15)

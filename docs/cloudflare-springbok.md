@@ -10,6 +10,34 @@
 共享 Zone、MX、现有凭据及非 EasyEmail 服务不因实例清理被删除。
 本阶段不修改现有正式服务、收信路由或 NAS，也不发真实邮件。
 
+## 2026-11-06 首次 SpringBok 云部署与边缘拒绝
+
+EasyEmail 固定提交 `ceb43ef` 的完整 CI 已通过。SpringBok PR #128 增加正常弹窗的
+指定仓库/固定 SHA 入口；PR #129 只修复浏览器测试自有预连接的关服方式。精确 PR 和
+合并 main `c393cfe` 的七工作流均通过后，控制面已发布并独立匹配下载的 Worker 字节，
+全部绑定、现有实例、域名、cron 和两个 executor pins 保持；Windows pin 仍为 `0750b9f`。
+旧控制面版本保留。配置备份不是 Durable Object 数据导出，也未逐字节回读全部线上资产。
+
+通过正常 owner UI 单次提交 `easyemail-migration-sb-3a8e7e8e`，任务
+`dc-7d2283274fc045bcabda310ea0bdd550`、GitHub run `42199525031`。流水线成功结束，
+但应用回执为 `unknown / EASYEMAIL_CLOUD_REQUEST_FAILED`，不能称为一键部署成功。
+资源空态、双库初始化和实际发布配置读回已通过；没有管理员或自营认证成功回执。
+只读核对聚合库已有 59 项迁移、用户和管理员均为 0，自营版本记录尚未初始化。
+
+真实 HTTP 原因已定位：Python 默认身份的健康请求被 Cloudflare 边缘以 HTTP403、
+Error 1010、`browser_signature_banned` 拒绝。相同入口使用如实标识的
+`User-Agent: EasyEmail-SBA/1.0` 返回 200；A/B 再核仍为默认身份 403、显式机器身份成功。
+本地窄修仅给 JsonTransport 和 ReleaseReader 设置部署客户端身份，不伪装浏览器，
+不更改云安全规则、TLS、鉴权、重定向、写前记录或不重试语义。新增身份回归旧源码准确
+2 failed；修复后完整 Python 160 项和检查器 19 项通过，ratchet 扫描 2246 文件，三个
+超限档位均 0，未运行 strict。现有云产物的两版本/配置摘要、Web 资源字节、健康与匿名
+拒绝五项公开验真，以及带原凭据的自营版本 GET 均通过；这些是只读核对，不是补做初始化。
+
+当前 unknown 任务不重放、不清锁、不手工续做 bootstrap。上述两客户端、两回归和本页
+的五文件修复尚未提交推送，也未部署；新的固定 SHA 和隔离试验仍需批准并通过 CI。
+现有测试资源与正式服务全部保留，未开始清理、域名/MX 切换或真实邮件验收。
+证据在 `linshi/easyemail-springbok-20261106/email17-*` 与 `email18-*`。
+
 ## 已完成的应用基础
 
 `.sba/` 使用 manifest v3、deployment v2，声明两 Worker、两 D1、两 R2、两个 HTTP origin，

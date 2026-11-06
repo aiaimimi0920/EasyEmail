@@ -41,7 +41,8 @@ class JsonTransport:
     def response(self, url, method='GET', payload=None, headers=None, status=200, write=None, allow_empty=False):
         body = None if payload is None else json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf8')
         request = urllib.request.Request(url, method=method, data=body,
-                                         headers={'Accept': 'application/json', 'Content-Type': 'application/json', **(headers or {})})
+                                         headers={'Accept': 'application/json', 'Content-Type': 'application/json',
+                                                  'User-Agent': 'EasyEmail-SBA/1.0', **(headers or {})})
         if write:
             self.state.before_write(write)
         try:

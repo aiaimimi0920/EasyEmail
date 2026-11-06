@@ -3,7 +3,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from boundary import DeploymentError, digest
@@ -12,6 +12,16 @@ from public_verify import ReleaseReader, verify_public
 
 
 class PublicVerifyTests(unittest.TestCase):
+    def test_release_reader_identifies_itself_without_cookies_credentials_or_a_browser_signature(self):
+        response = MagicMock(); response.status = 200; response.headers = {}
+        response.__enter__.return_value = response; response.read.return_value = b'OK'
+        opener = MagicMock(); opener.open.return_value = response
+        self.assertEqual(ReleaseReader(opener).read('https://public.example.com/health_check'), b'OK')
+        sent = opener.open.call_args.args[0]
+        self.assertEqual(sent.get_header('User-agent'), 'EasyEmail-SBA/1.0')
+        self.assertFalse(sent.has_header('Authorization') or sent.has_header('Cookie'))
+        self.assertEqual(sent.method, 'GET'); self.assertEqual(opener.open.call_count, 1)
+
     def setUp(self):
         self.request = request('verify')
         self.body = b'<html>synthetic</html>'
