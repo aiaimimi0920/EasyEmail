@@ -1,7 +1,8 @@
-"""Read-only authority for a schema-empty, object-restored preview repair."""
+"""Read-only authority for exact empty or email-imported, object-restored preview states."""
 from pathlib import Path
 
 from boundary import matches, require
+from d1_snapshot import export_database
 from object_snapshot import PRIVATE_PREFIX, business_inventory
 from snapshot_bundle import open_backup, private_directory
 from snapshot_links import rebind_outbox
@@ -32,6 +33,17 @@ def empty_database(config, role, api):
 
 def empty_databases(config, api):
     for role in ('email', 'platform'): empty_database(config, role, api)
+
+
+def reconcile_databases(config, api, backup, directory, *, imported_email=False, phase='repaircheck', exporter=export_database):
+    require(phase in ('repaircheck', 'repairready'), 'EASYEMAIL_PREVIEW_REPAIR_PHASE_INVALID')
+    if not imported_email:
+        empty_databases(config, api); return
+    empty_database(config, 'platform', api)
+    directory = private_directory(directory)
+    current = exporter(api, config['email']['database']['id'], 'email', directory, phase=phase)
+    require(current['witness'] == backup['manifest']['databases']['email']['witness'],
+            'EASYEMAIL_PREVIEW_REPAIR_IMPORTED_EMAIL_CHANGED')
 
 
 def reuse_objects(store, backup, output):

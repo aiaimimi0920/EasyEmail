@@ -52,7 +52,9 @@ class Process:
                                          headers={'Content-Type': 'application/json'})
         with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(request, timeout=60) as response: assert response.status == 200
     def restore_database(self, role, path):
-        self.state.before_write(role + '-snapshot-imported'); self.command('restore-' + role, Path(path).read_text(encoding='utf8'))
+        self.state.before_write(role + '-snapshot-imported')
+        if inputs.get('failImport') and role == 'platform': raise DeploymentError('EASYEMAIL_SNAPSHOT_IMPORT_FAILED')
+        self.command('restore-' + role, Path(path).read_bytes().decode('utf8'))
     def migrate_platform(self): self.state.before_write('platform-migrations-applied'); self.command('migrate')
 with ExitStack() as stack:
     stack.enter_context(patch.dict(os.environ, {**secret_environment(), 'EE_ADMIN_PASSWORD': 'Synthetic-release-password-735296'}))

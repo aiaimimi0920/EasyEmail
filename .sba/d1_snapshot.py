@@ -134,7 +134,7 @@ def live_sequences(api, database):
 
 
 def export_database(api, database, role, directory, pause=time.sleep, *, phase='backup'):
-    require(phase in ('backup', 'postupdate', 'sourcecheck', 'sourcefinal') and role in ('email', 'platform')
+    require(phase in ('backup', 'postupdate', 'sourcecheck', 'sourcefinal', 'repaircheck', 'repairready') and role in ('email', 'platform')
             and re.fullmatch(r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}', database),
             'EASYEMAIL_SNAPSHOT_SOURCE_INVALID')
     deadline = time.monotonic() + 180; bookmark = None

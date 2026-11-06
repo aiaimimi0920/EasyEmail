@@ -10,6 +10,50 @@
 共享 Zone、MX、现有凭据及非 EasyEmail 服务不因实例清理被删除。
 本阶段不修改现有正式服务、收信路由或 NAS，也不发真实邮件。
 
+## 2026-11-07 平台发布、真实导入停点与 1.0.6 候选
+
+SpringBok PR #132 合并为 `1cd69e5`，准确 PR/main 七工作流均 success/attempt=1。
+Windows 合成执行测试的阶段证据定位到 hosted 首次全局 cmdlet 自动发现/加载路径延迟；
+仅在测试脚本从 `$PSHOME` 显式导入内置 Utility/Management 后，43 passed/1 skipped，
+未更改产品执行器、断言或超时。精确 executor tag 已建立无绕过 update/delete 保护。
+控制面已发布为 `4cfa43f2-1842-4e00-a561-b64db3bf8a17`，下载字节摘要匹配封存候选；
+仅未来 Windows pin 改为 `1cd69e5`，Linux/历史任务 pins、域名、绑定及安全设置保持，旧版本保留。
+配置备份不是 DO 数据导出，也不宣称独立读回所有远程 asset 字节。
+
+EasyEmail 1.0.5 固定提交 `43f4cb3` 的完整 CI `42247551339` 通过后，经正常 owner UI
+单次发起原副本的独立 repair `dc-8187a9eef3f1498aa0bd2b24de8f5485`。
+run `42254255428` 的 workflow success，但经 artifact 摘要独立认证的应用结果为
+`unknown / EASYEMAIL_SNAPSHOT_IMPORT_FAILED`，仅 `partial-preview-state-verified` 通过。
+原失败和所有父 UNKNOWN 保留，没有重放、清锁、创建新环境或篡改成功回执。
+
+只读原生 export 证明：目标 email 的全部 schema/typed rows/分配器精确等于认证备份，
+platform 仍无业务 schema；两个公开发布标记均为 1.0.5/`43f4cb3`。源双库精确等于
+上次当前源诊断，未读取源鉴权业务 API；这不补写失败任务缺失的 sourcefinal 成功检查。
+原生 import poll 只返回 `Not currently importing anything.`，未取得云端历史原始错误。
+
+已联网核对 D1 官方外键文档及 workers-sdk #5438 维护者说明：remote `--file` 使用
+非单事务 `/import`，不能沿用 `/query` 或 batch 的跨语句 deferral 假设。
+真实认证 platform SQL 在单事务成功，开启 FK 的逐条 autocommit 在第 228 条
+`INSERT admin_audit` 报 `SQLITE_CONSTRAINT_FOREIGNKEY`，email 两种模式都成功。
+因此已确认恢复器的可复现顺序缺陷，与目标部分状态吻合；不冒充取得了本次云原始错误。
+
+1.0.6 在离线准备阶段按实际行依赖输出可逐条提交的 SQL，外键始终开启；循环依赖明确拒绝，
+不关闭校验或覆盖数据。真实双库准备 SQL 经新 emitter 输出后，37/353 条独立提交均成功，
+完整 typed witness 与认证输入相同。原生生命周期替身不再把导入包为一个 batch。
+新 repair 仅支持准确 1.0.5 导入错误和上述部分状态，先独立 export 验证已完成 email、
+核 platform 空态及父发布版本，写前复核后仅导入 platform；原副本 baseline 和对象不变。
+本候选的完整本地验证、精确提交 CI 与真实 SpringBok 后续修复仍须分别记录，不能称为云验成功。
+证据为 `linshi/easyemail-springbok-20261106/email29-*` 至 `email31-*`，SQL/会话只在私有目录。
+
+本地最终完整 Python 203 项、相邻打包运行 27 项、三个 preview/凭据失败后修复/部分导入后
+修复生命周期及检查器 19 项均通过，无失败或跳过。新流程保留失败父链、实际恢复后的 email、
+原会话撤销、重签邮箱同步、附件读取、认证 provenance 与源双库不变；仅 platform 再导入。
+首次新增流程暴露测试驱动的文本读入把 schema CRLF 改成 LF，导致精确 schema witness 拒绝；
+已按真实 CLI 改为保留原始 UTF-8 字节，未放宽 witness。目标两次 export 另用 repaircheck/
+repairready 的独立一次性 journal 阶段，不与源 sourcecheck/sourcefinal 冲突，回归保留重复拒绝。
+ratchet 扫描 2256 文件，三个超限档位均 0；未运行 strict。上述仍是本地原生业务数据演练，
+cloud metadata/export/publish/资源删除仍为显式替身，不是 Cloudflare 真实导入/删除成功证明。
+
 ## 2026-11-06 真实部署、独立验真及业务验收
 
 候选 `0d75771` 的 CI `42220468467` 通过，SpringBok PR #130 正常合并为 `d396528`，

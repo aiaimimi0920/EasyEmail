@@ -27,12 +27,13 @@
 - `update_deploy.py`：核原版本、实际资源/HTTP 域名/邮件目标归属和秘密认证；持久备份完成后才应用平台迁移、发布自营 Worker、调用原生邮件迁移并发布聚合 Worker。再核实际 settings、迁移/完整性、旧业务行和分配器不倒退、业务对象身份/字节，最后使用既有管理员登录与 self-provider 探测。不会重注册、重置密码、重新授予管理员或修改既有邮件路由。
 - `preview-release.mjs` / `preview-network.mjs`：仅预升级编译产物使用出网限制；聚合层只允许 HTTPS 访问指定测试自营 Worker，自营副本不允许 HTTP 出网，重定向不跟随，原始 socket/WebSocket 被阻断，Node 原生网络模块导入在构建时拒绝。预升级入口拒收原生 email 事件、不执行 scheduled。普通 deploy/update 的处理器保持原语义。它约束当前受信源码中的网络调用，不是运行任意恶意源码的安全沙箱。
 - `preview_credentials.py` / `preview-vault.mjs` / `preview_data.py`：预升级 SQL 准备使用原程序的 vault、Hono JWT 和供应商配置解析器；重新签署自营邮箱 token，保留地址/代际/过期时间但不把源 JWT/site/admin 密钥部署给副本。旧 vault 读密钥为保留既有凭据和幂等摘要可读性而保留在副本私有 keyring，新写使用独立 active key；这不是脱敏副本。副本撤销源 session/API key、改接自营副本、禁用外部供应商并清除其存储的供应商级秘密；其他密码、邮件和业务行不变。
-- `d1_restore.py`：双库恢复 SQL 先创建全部业务表及外键所需的约束索引，再导入数据/分配器，最后创建视图与触发器。保留 NUL/Unicode 文本、BLOB、精确 REAL 和自增高水位，避免 Python iterdump 的建表顺序及 NUL 截断问题；生成后以完整 typed witness 重新核验。没有创建或覆盖真实云数据库。
+- `d1_restore.py`：双库恢复 SQL 先创建全部业务表及外键所需的约束索引，再按实际行依赖导入数据/分配器，最后创建视图与触发器。离线 SQLite 始终开启外键并逐条 autocommit，只将外键尚未满足的行留到后续有进展的轮次；真正的数据依赖环在云写前明确拒绝，不关闭外键、不依赖跨语句 deferral 或单事务 batch。保留 NUL/Unicode 文本、BLOB、精确 REAL 和自增高水位，生成后核对完整 typed witness。
 - `preview_deploy.py` / `preview_copy.py`：预升级动作先核源版本/真实绑定和空目标，创建可独立恢复的持久备份，再发布封存的隔离副本、恢复两库两桶、重绑附件身份并重签自营凭据，最后执行候选迁移、保数据和既有管理员验收。SpringBok 继承的源公开配置仍进入配置摘要，但外部供应商、发信、IMAP/SMTP 只在副本运行配置中清空，不篡改平台请求或源配置。
   1.0.3 将凭据重签的 Node 入口明确绑定到 `prepare_release` 已固定源码并安装依赖的构建检出，不依赖执行器原始检出的 `node_modules`。秘密仍只走私有 stdin，子进程不继承业务环境或 `NODE_OPTIONS`。回归同时覆盖无依赖的干净执行器检出和构建入口的编排传递；不改变凭据算法或失败后不重放语义。
 - `preview_source.py` / `preview_provenance.py`：源 settings/资源归属前后核对，使用独立的 `sourcefinal` export 阶段验证源两库和业务对象；成功结果的完整身份、checks、lifecycle 及来源清单以独立密钥认证，条件写入目标私有 OUTBOX，并独立读回。清理必须认证该记录及平台批准的完整结果摘要，不能凭资源名称授权删除。
 - `preview_repair.py` / `preview_repair_state.py`：1.0.4 的 `complete-preview-credentials` 仅修复 1.0.2 的准确凭据错误及 1.0.0 隔离来源。须由兼容平台显式继承原 preview context，唯一认证备份、原目标版本/绑定、双库无业务 schema、目标双桶与归档逐对象元数据/字节完全相符才继续。只读复用已恢复对象并重绑原生版本，不重新 PUT/DELETE 业务对象、不创建资源、不重放父任务。SQL/凭据离线准备且源精确比对通过后才发布隔离候选并导入空库，完成迁移/保数据/管理员验收及源最终精确比对；成功 provenance 同时绑定原实例和新 repair 回执。任何写后不确定仍为 unknown。
   1.0.5 还接受 1.0.4 的准确 `EASYEMAIL_SOURCE_DATABASE_CHANGED`，要求平台认证继承原 1.0.2 候选与实例的 `previewBaseline`；不把失败修复版本当成已发布目标。目标仍恢复同一份原认证备份，源保护改为本次 target 写前取得完整双库/对象 witness、完成后 exact 比对，不排除限流/会话/任何业务表，不重采样替换原备份。provenance 的实例始终是原副本，而不是上一 repair task；当前候选仍需真实独立恢复验收。
+  1.0.6 额外只接受 1.0.5 的准确 `EASYEMAIL_SNAPSHOT_IMPORT_FAILED`：两个已发布标记须匹配父 1.0.5，platform 仍无业务 schema，email 原生导出的 schema/typed rows/分配器须精确匹配原认证快照；写前重复核对。仅导入尚未完成的 platform，绝不重放已完成的 email 导入。目标漂移或其他部分状态均拒绝，原 1.0.2 baseline 只用于保持来源/实例身份。
 - `preview_cleanup.py` / `cleanup_references.py` / `cleanup_resources.py` / `cleanup_buckets.py`：仅清理成功 preview 的准确八项资源；先核目标状态、外部 Worker/Pages/邮件/域名引用、D1/R2 创建身份及私有桶清单，条件写入持久一次性消费记录，再停两个入口、删两个 Worker、复查共享引用，最后删除两库两桶。所有删除均独立读回不存在；不提供普通正式实例删除入口。
 
 | SBA 动作 | 当前应用行为 |
@@ -70,7 +71,7 @@
 
 导出与下载前后核业务清单，并重新导出两库作精确 typed-multiset 比对；观察到并发变化就拒绝快照。这里**没有业务写冻结或跨 D1/R2 原子事务**，不能将这些检查描述为全局原子快照。恢复只允许空对象目标，逐个条件创建并独立读回，再生成附件引用重绑定 SQL。preview 已接入原生云导入命令，但实际 Cloudflare export/传输/恢复尚未云验；不能将本地 Miniflare 验收表述为云恢复已成功。
 
-独立 preview repair 是不同的受控路径：目标两库仍必须完全无业务 schema，但双桶必须恰好已有该唯一认证归档的全部业务对象且无私有记录；只读复用，不放宽普通 preview 的空对象目标要求。写前使用 `sourcecheck`、完成后使用 `sourcefinal` 导出分别证明源精确未变，不能冻结业务或隐式选择新快照；源已变、归档歧义或任何目标漂移均拒绝。
+独立 preview repair 是不同的受控路径：原凭据/源时间点错误要求目标双空业务库；准确 1.0.5 导入错误只接受 email 完整匹配认证快照、platform 空态。双桶必须恰好已有该唯一认证归档的全部业务对象且无私有记录；只读复用，不放宽普通 preview 的空对象目标要求。写前使用 `sourcecheck`、完成后使用 `sourcefinal` 导出分别证明源精确未变，不能冻结业务或隐式选择新快照；源已变、归档歧义或任何目标漂移均拒绝。
 
 update 已接线，但不使用恢复导入覆盖运行实例。备份失败不继续迁移；写入后任何迁移、读回、数据保全或私有验收的不确定结果均为 unknown，不自动重放或回滚覆盖新数据。只有数据保全和私有验收都通过、仅最终公开验真失败时，才返回带 backup-created/data-preserved 的 deployed-unverified。归档私有元数据保留来源 task/SHA/version，便于从持久备份定位恢复输入；不依赖随 runner 消失的本地配置文件。
 

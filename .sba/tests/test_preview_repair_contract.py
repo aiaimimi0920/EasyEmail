@@ -73,5 +73,12 @@ class PreviewRepairContractTests(unittest.TestCase):
         self.assertEqual(public['providers'], [])
         self.assertNotIn('EE_MASTER_KEY', json.dumps(public))
 
+    def test_import_failure_uses_the_new_candidate_manifest_and_authenticated_original_baseline(self):
+        value = preview_repair_request(); baseline = {**value['previous'], 'instanceId': value['context']['parentTaskId']}
+        value['previous'] = {'sourceSha': 'e' * 40, 'applicationVersion': '1.0.5'}
+        value['context'].update(errorCode='EASYEMAIL_SNAPSHOT_IMPORT_FAILED', previewBaseline=baseline)
+        with patch('contract.subprocess.check_output', side_effect=test_contract.ContractTests().git):
+            self.assertEqual(validated_request(value, ROOT), value)
+
 
 if __name__ == '__main__': unittest.main()

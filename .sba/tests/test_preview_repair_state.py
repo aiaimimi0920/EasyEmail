@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from boundary import DeploymentError
 from d1_snapshot import open_snapshot
-from preview_repair_state import load_source_backup, empty_databases, reuse_objects
+from preview_repair_state import load_source_backup, empty_databases, reconcile_databases, reuse_objects
 from snapshot_fixtures import MemoryStore, source_record, exporter_fixture
 from snapshot_lifecycle import capture_backup, restore_objects
 
@@ -70,6 +70,32 @@ class PreviewRepairStateTests(unittest.TestCase):
             api.rows = [{'type': 'table', 'name': name}]
             with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_PREVIEW_REPAIR_TARGET_NOT_EMPTY'):
                 empty_databases(config, api)
+
+    def test_completed_email_import_requires_exact_authenticated_witness_and_empty_platform(self):
+        config = self.source['configuration']; calls = []
+        class Api:
+            rows = []
+            def query(inner, database, sql):
+                self.assertEqual(database, config['platform']['database']['id'])
+                return inner.rows
+        api = Api(); expected = self.backup['manifest']['databases']['email']['witness']
+        def exporter(*args, **kwargs):
+            self.assertEqual(args[1:3], (config['email']['database']['id'], 'email'))
+            self.assertIn(kwargs, ({'phase': 'repaircheck'}, {'phase': 'repairready'})); calls.append(args)
+            return {'witness': copy.deepcopy(expected)}
+        reconcile_databases(config, api, self.backup, self.root / 'partial', imported_email=True, exporter=exporter)
+        self.assertEqual(len(calls), 1)
+        reconcile_databases(config, api, self.backup, self.root / 'ready', imported_email=True, phase='repairready', exporter=exporter)
+        self.assertEqual(len(calls), 2)
+        for change in ('schemaDigest', 'tables', 'sequences'):
+            changed = copy.deepcopy(expected); changed[change] = 'changed'
+            with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_PREVIEW_REPAIR_IMPORTED_EMAIL_CHANGED'):
+                reconcile_databases(config, api, self.backup, self.root / change, imported_email=True,
+                                    exporter=lambda *a, **kw: {'witness': changed})
+        api.rows = [{'type': 'table', 'name': 'partial'}]
+        with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_PREVIEW_REPAIR_TARGET_NOT_EMPTY'):
+            reconcile_databases(config, api, self.backup, self.root / 'nonempty', imported_email=True, exporter=exporter)
+        self.assertEqual(len(calls), 2, 'reject a nonempty platform before export')
 
 
 if __name__ == '__main__': unittest.main()

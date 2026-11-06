@@ -4,10 +4,10 @@ import http from 'node:http';
 import { migrationStatements } from '../../service/cloudflare/tests/migration-sql.mjs';
 import { upgradeRuntimeBridge } from './upgrade-runtime-bridge.mjs';
 
-export async function previewRuntimeBridge(source, target, configurations, { publish } = {}) {
+export async function previewRuntimeBridge(source, target, configurations, { publish, importedEmail = false } = {}) {
   const sourceBridge = await upgradeRuntimeBridge(source, configurations.source);
   const targetBridge = await upgradeRuntimeBridge(target, configurations.target);
-  const commands = [], errors = [], restored = new Set();
+  const commands = [], errors = [], restored = new Set(importedEmail ? ['email'] : []);
   const server = http.createServer(async (request, response) => {
     try {
       const chunks = []; for await (const chunk of request) chunks.push(chunk);
@@ -20,7 +20,8 @@ export async function previewRuntimeBridge(source, target, configurations, { pub
         const role = input.command.slice(8), database = role === 'email' ? target.emailDb : target.db;
         assert.equal((await database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT GLOB '_cf_*'").all()).results.length, 0);
         const statements = migrationStatements(input.sql).filter(sql => !/^\s*(?:BEGIN TRANSACTION|COMMIT)\s*;?\s*$/i.test(sql));
-        await database.batch([database.prepare('PRAGMA defer_foreign_keys=ON'), ...statements.map(sql => database.prepare(sql))]);
+        // Remote /import is not a single /query transaction; exercise every statement with FK enforcement.
+        for (const sql of statements) await database.prepare(sql).run();
         restored.add(role);
       } else {
         assert.deepEqual([...restored].sort(), ['email', 'platform']);

@@ -35,7 +35,8 @@ async function packaged(value, config, preview, version) {
   });
 }
 
-for (const repairing of [false,true]) test((repairing?'partial preview then independent repair':'preview')+' and authenticated cleanup preserve original native D1/R2', {timeout:300000},async()=>{
+for (const mode of ['preview','credentials','import']) test(mode+' lifecycle and authenticated cleanup preserve original native D1/R2', {timeout:300000},async()=>{
+  const repairing=mode!=='preview',importContinuation=mode==='import';
   const root=await fs.mkdtemp(path.join(process.env.EASYEMAIL_TEST_ROOT,'plife-'));
   const configurations={source:configuration('test-aaaabbbbcccc','11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222'),
     target:configuration('test-123456abcdef','33333333-3333-3333-3333-333333333333','44444444-4444-4444-4444-444444444444')};
@@ -63,21 +64,27 @@ for (const repairing of [false,true]) test((repairing?'partial preview then inde
     assert.equal((await source.dispatch(`/api/v1/outbox-attachments/${attachment}/content`,{method:'PUT',body:bytes,
       headers:{Origin:configurations.source.platform.origin,Cookie:user.cookie,'content-type':'application/octet-stream'}})).status,200);
     let platformSql=await dump(source.db);const emailSql=await dump(source.emailDb);
-    let candidate;
-    if(repairing){
-      const directory=path.join(root,'candidate');
+    let candidate,intermediate,activeCandidate;
+    async function repairCandidate(version,suffix){
+      const directory=path.join(root,suffix);
       const proof=await prepare({descriptor:values.target.descriptor,providers:[],preview:true,metadata:{applicationId:'easyemail',
-        applicationVersion:'1.0.5',sourceSha:releaseInputs().head,configurationDigest:digest(configurations.target)}},directory);
+        applicationVersion:version,sourceSha:releaseInputs().head,configurationDigest:digest(configurations.target)}},directory);
       const proofPath=path.join(directory,'sba-release.json'),checksum=sha256(await fs.readFile(proofPath));
-      candidate={directory,proof,proofPath,checksum};
       await verifyStampedRelease(path.join(directory,'publish'),proofPath,checksum,proof.metadata);
+      return {directory,proof,proofPath,checksum};
     }
-    bridge=await previewRuntimeBridge(source,target,configurations,repairing?{async publish(role){
+    if(repairing){
+      candidate=await repairCandidate('1.0.6','candidate');
+      if(importContinuation)intermediate=await repairCandidate('1.0.5','intermediate');
+      activeCandidate=intermediate??candidate;
+    }
+    const publish=async role=>{
       // CLI publication is a fixture, but both sealed candidate Workers really replace the original runtime.
       if(role==='platform'){
-        await fs.cp(path.join(candidate.directory,'publish'),target.candidate,{recursive:true});await target.restart();
+        await fs.cp(path.join(activeCandidate.directory,'publish'),target.candidate,{recursive:true});await target.restart();
       }
-    }}:{});
+    };
+    bridge=await previewRuntimeBridge(source,target,configurations,repairing?{publish}:{});
     const inventory=value=>{
       const row=(key,kind,remoteId,name=remoteId)=>({key,kind,accountId:value.accountId,remoteId,name});
       return [row('resource-emailDb','d1',value.email.database.id,value.email.database.name),row('resource-platformDb','d1',value.platform.database.id,value.platform.database.name),
@@ -92,7 +99,7 @@ for (const repairing of [false,true]) test((repairing?'partial preview then inde
           configuration:configurations.source,resources:inventory(configurations.source),resultDigest:'f'.repeat(64)},
         resources:inventory(configurations.target),urls:[configurations.target.email.origin,configurations.target.platform.origin]}};
     const originalPreview=structuredClone(request),input=path.join(root,'input.json');
-    const ports={sourcePort:bridge.source.port,targetPort:bridge.target.port,commandPort:bridge.port};
+    let ports={sourcePort:bridge.source.port,targetPort:bridge.target.port,commandPort:bridge.port};
     if(repairing){
       await fs.writeFile(input,JSON.stringify({request,release:path.join(target.directory,'prepared'),...ports,failCredentials:true}));
       const failedRun=await promisify(execFile)('python',[path.resolve('.sba/tests/preview-runtime-driver.py'),input,path.join(root,'failed-operation')],
@@ -105,19 +112,34 @@ for (const repairing of [false,true]) test((repairing?'partial preview then inde
       // An authenticated GET after the historical backup changes durable rate-limit state.
       assert.equal((await source.request('/api/v1/me',{cookie:user.cookie})).status,200);
       const currentSourceSql=await dump(source.db);assert.notEqual(currentSourceSql,platformSql);platformSql=currentSourceSql;
-      request={...request,action:'repair',taskId:'dc-'+'5'.repeat(32),applicationVersion:'1.0.5',
+      request={...request,action:'repair',taskId:'dc-'+'5'.repeat(32),applicationVersion:importContinuation?'1.0.5':'1.0.6',
         previous:{sourceSha:originalPreview.sourceSha,applicationVersion:'1.0.4'},context:{repairId:'complete-preview-credentials',
           parentTaskId:'dc-'+'6'.repeat(32),parentRunId:123,requestDigest:'e'.repeat(64),resultDigest:digest(failed),
           errorCode:'EASYEMAIL_SOURCE_DATABASE_CHANGED',preview:originalPreview.context,
           previewBaseline:{sourceSha:originalPreview.sourceSha,applicationVersion:initialVersion,instanceId:originalPreview.taskId}}};
+      if(importContinuation){
+        await fs.writeFile(input,JSON.stringify({request,release:intermediate.directory,...ports,failImport:true}));
+        const partialRun=await promisify(execFile)('python',[path.resolve('.sba/tests/preview-runtime-driver.py'),input,path.join(root,'import-failed-operation')],
+          {encoding:'utf8',windowsHide:true,timeout:180000,env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'}});
+        const partial=JSON.parse(partialRun.stdout);
+        assert.equal(partial.status,'unknown');assert.equal(partial.errorCode,'EASYEMAIL_SNAPSHOT_IMPORT_FAILED');
+        assert.deepEqual(bridge.commands,['publish-email','publish-platform','restore-email']);
+        assert.deepEqual(bridge.errors,[]);await bridge.close();
+        activeCandidate=candidate;
+        bridge=await previewRuntimeBridge(source,target,configurations,{publish,importedEmail:true});
+        ports={sourcePort:bridge.source.port,targetPort:bridge.target.port,commandPort:bridge.port};
+        request={...request,taskId:'dc-'+'7'.repeat(32),applicationVersion:'1.0.6',
+          previous:{sourceSha:originalPreview.sourceSha,applicationVersion:'1.0.5'},context:{...request.context,
+            parentTaskId:request.taskId,resultDigest:digest(partial),errorCode:'EASYEMAIL_SNAPSHOT_IMPORT_FAILED'}};
+      }
     }
     const repairStart=bridge.target.routes.length;
     await fs.writeFile(input,JSON.stringify({request,release:repairing?candidate.directory:path.join(target.directory,'prepared'),...ports}));
     const run=await promisify(execFile)('python',[path.resolve('.sba/tests/preview-runtime-driver.py'),input,path.join(root,'operation')],
       {encoding:'utf8',windowsHide:true,timeout:180000,env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'}});
     const result=JSON.parse(run.stdout);assert.equal(result.status,'succeeded',run.stdout);
-    assert.deepEqual(bridge.commands,[...(repairing?['publish-email','publish-platform']:[]),'restore-email','restore-platform','migrate']);
-    assert.equal(bridge.source.exports,repairing?8:6);assert.equal(bridge.target.exports,2);
+    assert.deepEqual(bridge.commands,[...(repairing?['publish-email','publish-platform']:[]),...(importContinuation?[]:['restore-email']),'restore-platform','migrate']);
+    assert.equal(bridge.source.exports,importContinuation?4:repairing?8:6);assert.equal(bridge.target.exports,importContinuation?4:2);
     if(repairing){
       assert.equal(bridge.target.routes.slice(repairStart).filter(row=>row.method==='PUT'&&row.path.startsWith('/__easyemail_sba/v1/')).length,1,
         'repair may persist provenance but must not rewrite existing business objects');
@@ -161,7 +183,7 @@ for (const repairing of [false,true]) test((repairing?'partial preview then inde
     assert.deepEqual(cleanupBridge.errors,[]);assert.deepEqual(bridge.target.errors,[]);
     await fs.writeFile(path.join(root,'preview-lifecycle-receipt.json'),JSON.stringify({status:'passed',cloudDeployment:false,
       cloudResourceDeletion:false,nativeR2Cleanup:true,sameCodeMigrationFixture:true,sourceUnchanged:true,dualBucketRestored:true,
-      attachmentReadable:true,independentRepair:repairing,realMailSent:false,result,cleanup},null,2)+'\n','utf8');
+      attachmentReadable:true,independentRepair:repairing,importContinuation,statementAutocommitRestore:true,realMailSent:false,result,cleanup},null,2)+'\n','utf8');
     console.log('Native preview lifecycle evidence: '+root);
   } finally {try {await cleanupBridge?.close();} finally {try {await bridge?.close();} finally {try {await target?.close();} finally {await source?.close();}}}}
 });

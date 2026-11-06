@@ -58,12 +58,13 @@ class PreviewRepairTests(unittest.TestCase):
             stack.enter_context(patch.object(preview_repair, 'capture_source_witness', side_effect=capture))
             stack.enter_context(patch.object(preview_repair, 'prove_source_unchanged', side_effect=final_proof))
             stack.enter_context(patch.object(preview_repair, 'business_inventory', return_value={'INBOX': [], 'OUTBOX': []}))
-            for name in ('verify_preview_policy', 'verify_settings', 'email_version', 'empty_databases', 'empty_database',
-                         'migrate_email', 'verify_database_initialization', 'prove_update_preserved', 'verify_administrator', 'persist_provenance'):
+            for name in ('verify_preview_policy', 'verify_settings', 'email_version', 'empty_database',
+                         'reconcile_databases', 'migrate_email', 'verify_database_initialization', 'prove_update_preserved', 'verify_administrator', 'persist_provenance'):
                 stack.enter_context(patch.object(preview_repair, name, side_effect=step(name)))
             def public(selected):
                 if selected['configuration'] == value['configuration'] and selected['sourceSha'] != value['sourceSha']:
-                    self.assertEqual(selected['applicationVersion'], '1.0.2', 'failed repair version is not the deployed baseline')
+                    self.assertEqual(selected['applicationVersion'], '1.0.5' if value['context']['errorCode'] == 'EASYEMAIL_SNAPSHOT_IMPORT_FAILED'
+                                     else '1.0.2', 'published parent depends on the exact failure stage')
                 role = 'source-public' if selected['configuration'] != value['configuration'] else 'previous-public' if selected['sourceSha'] == value['previous']['sourceSha'] else 'target-public'
                 return step(role, [{'id': 'public-proof', 'passed': True}])()
             stack.enter_context(patch.object(preview_repair, 'verify_public', side_effect=public))
@@ -76,16 +77,16 @@ class PreviewRepairTests(unittest.TestCase):
 
     def test_backup_empty_schema_objects_crypto_and_source_proof_all_precede_first_target_write(self):
         result, events = self.repair(); self.assertEqual(result['status'], 'succeeded', result)
-        for name in ('previous-public', 'backup-read', 'empty_databases', 'reuse-read', 'prepare-copy', 'capture-source'):
+        for name in ('previous-public', 'backup-read', 'reconcile_databases', 'reuse-read', 'prepare-copy', 'capture-source'):
             self.assertLess(events.index(name), events.index('publish-email'))
         self.assertLess(events.index('proof-sourcefinal'), events.index('persist_provenance'))
         self.assertEqual(events.count('restore-email'), 1); self.assertEqual(events.count('restore-platform'), 1)
-        self.assertEqual(events.count('empty_databases'), 2); self.assertEqual(events.count('empty_database'), 2)
+        self.assertEqual(events.count('reconcile_databases'), 2); self.assertEqual(events.count('empty_database'), 2)
         self.assertTrue({'repair-completed', 'data-preserved', 'unchanged-resources-verified', 'service-ready',
                          'snapshot-copied', 'migration-verified', 'source-unchanged', 'side-effects-isolated'} <= {row['id'] for row in result['checks']})
 
     def test_read_only_rejection_has_no_target_write_or_success_provenance(self):
-        for name in ('verify_preview_policy', 'previous-public', 'backup-read', 'empty_databases', 'reuse-read', 'prepare-copy', 'capture-source'):
+        for name in ('verify_preview_policy', 'previous-public', 'backup-read', 'reconcile_databases', 'reuse-read', 'prepare-copy', 'capture-source'):
             result, events = self.repair(fail=name)
             self.assertEqual(result['status'], 'failed', (name, result)); self.assertNotIn('publish-email', events)
             self.assertNotIn('persist_provenance', events); self.assertNotIn('lifecycle', result)
@@ -122,6 +123,20 @@ class PreviewRepairTests(unittest.TestCase):
                        lambda r: r['context'].update(errorCode='EASYEMAIL_CLOUD_REQUEST_FAILED'),
                        lambda r: r['context']['preview']['source']['configuration'].update(routing={'domain': 'example.com'})):
             value = preview_repair_request(); mutate(value)
+            with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_PREVIEW_REPAIR_NOT_SUPPORTED'): self.repair(value=value)
+
+    def test_exact_import_failure_continues_without_reimporting_the_completed_email_database(self):
+        value = preview_repair_request()
+        baseline = {**value['previous'], 'instanceId': value['context']['parentTaskId']}
+        value['previous'] = {'sourceSha': 'e' * 40, 'applicationVersion': '1.0.5'}
+        value['context'].update(errorCode='EASYEMAIL_SNAPSHOT_IMPORT_FAILED', previewBaseline=baseline)
+        result, events = self.repair(value=value)
+        self.assertEqual(result['status'], 'succeeded', result)
+        self.assertNotIn('restore-email', events); self.assertEqual(events.count('restore-platform'), 1)
+        self.assertEqual(events.count('reconcile_databases'), 2)
+        self.assertLess(events.index('reconcile_databases'), events.index('publish-email'))
+        for invalid_version in ('1.0.2', '1.0.4', '1.0.6'):
+            value['previous']['applicationVersion'] = invalid_version
             with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_PREVIEW_REPAIR_NOT_SUPPORTED'): self.repair(value=value)
 
 

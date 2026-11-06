@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "id": "easyemail",
   "name": "EasyEmail",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "entrypoint": "springbok.ps1",
   "runtime": { "runner": "windows-2025", "powershell": "5.1", "python": "3.12", "node": "22" },
   "actions": {
@@ -21,7 +21,7 @@
   }, {
     "id": "complete-preview-credentials",
     "name": "完成预升级副本",
-    "fromErrorCodes": ["EASYEMAIL_PREVIEW_CREDENTIAL_FAILED", "EASYEMAIL_SOURCE_DATABASE_CHANGED"],
+    "fromErrorCodes": ["EASYEMAIL_PREVIEW_CREDENTIAL_FAILED", "EASYEMAIL_SOURCE_DATABASE_CHANGED", "EASYEMAIL_SNAPSHOT_IMPORT_FAILED"],
     "fromActions": ["preview", "repair"],
     "secretNames": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"]
   }],

@@ -1,4 +1,4 @@
-"""Independent completion of the exact schema-empty, object-restored 1.0.2 preview failure."""
+"""Independent completion of exact authenticated partial preview states without replaying completed imports."""
 from boundary import DeploymentError, require
 from cloud_transport import CloudApi, OperationState, RuntimeClient
 from configuration import isolated
@@ -8,7 +8,7 @@ from object_snapshot import ObjectStore, business_inventory
 from preview_copy import prepare_restored_copy, verify_preview_policy
 from preview_credentials import preview_material
 from preview_provenance import persist_provenance
-from preview_repair_state import load_source_backup, empty_database, empty_databases, reuse_objects
+from preview_repair_state import load_source_backup, empty_database, reconcile_databases, reuse_objects
 from preview_source import source_state, prove_source_unchanged, capture_source_witness
 from public_verify import verify_public
 from published_settings import verify_settings
@@ -24,7 +24,8 @@ def repair_preview(request, directory):
     previous = request['previous']; baseline = context.get('previewBaseline', previous)
     initial = context['errorCode'] == 'EASYEMAIL_PREVIEW_CREDENTIAL_FAILED' and previous['applicationVersion'] == '1.0.2' and all(baseline[k] == previous[k] for k in previous)
     continuation = context['errorCode'] == 'EASYEMAIL_SOURCE_DATABASE_CHANGED' and previous['applicationVersion'] == '1.0.4' and 'previewBaseline' in context
-    require(context['repairId'] == 'complete-preview-credentials' and (initial or continuation)
+    imported_email = context['errorCode'] == 'EASYEMAIL_SNAPSHOT_IMPORT_FAILED' and previous['applicationVersion'] == '1.0.5' and 'previewBaseline' in context
+    require(context['repairId'] == 'complete-preview-credentials' and (initial or continuation or imported_email)
             and baseline['applicationVersion'] == '1.0.2' and source['applicationVersion'] == '1.0.0'
             and isolated(config) and isolated(source_config) and config['routing'] is source_config['routing'] is None,
             'EASYEMAIL_PREVIEW_REPAIR_NOT_SUPPORTED')
@@ -35,14 +36,14 @@ def repair_preview(request, directory):
         api = CloudApi(config['accountId'], original.token, state)
         process = DeploymentProcess(request, release, directory / 'cloud', state, copied); process.verify_seal()
         source_request = {**request, **source}
-        verify_public(source_request); verify_public({**request, **baseline})
+        verify_public(source_request); verify_public({**request, **(previous if imported_email else baseline)})
         before_source = source_state(source_config, api); before_target = source_state(config, api)
         verify_settings(config, api, release, copied.workers)
         email_version(original, RuntimeClient(source_config, state))
         source_store = ObjectStore(source_config, original.workers['platform']['EASYEMAIL_SBA_CONTROL_SECRET'], state)
         target_store = ObjectStore(config, copied.workers['platform']['EASYEMAIL_SBA_CONTROL_SECRET'], state)
         backup = load_source_backup(source, source_store, original.archive_key, directory / 'backup')
-        empty_databases(config, api)
+        reconcile_databases(config, api, backup, directory / 'targetbefore', imported_email=imported_email)
         restored = reuse_objects(target_store, backup, directory / 'platform-rebound.sql')
         prepared = prepare_restored_copy(backup, restored, source_config, config, original, copied, application_root=release.parent / 'EasyEmail')
         # Restore the original authenticated snapshot; compare the live source before/after this operation.
@@ -52,11 +53,11 @@ def repair_preview(request, directory):
         expected = {bucket: sorted([row['target'] for row in restored['copies'] if row['bucket'] == bucket], key=lambda row: row['key'])
                     for bucket in ('INBOX', 'OUTBOX')}
         require(business_inventory(target_store) == expected, 'EASYEMAIL_PREVIEW_REPAIR_OBJECTS_CHANGED')
-        empty_databases(config, api)
+        reconcile_databases(config, api, backup, directory / 'targetready', imported_email=imported_email, phase='repairready')
         checks.append({'id': 'partial-preview-state-verified', 'passed': True})
         for role in ('email', 'platform'): process.publish(role)
         verify_settings(config, api, release, copied.workers); target_state = source_state(config, api)
-        for role in ('email', 'platform'):
+        for role in (('platform',) if imported_email else ('email', 'platform')):
             empty_database(config, role, api); process.restore_database(role, prepared[role + 'Sql'])
         checks.append({'id': 'snapshot-copied', 'passed': True})
         process.migrate_platform(); runtime = RuntimeClient(config, state); migrate_email(copied, runtime)

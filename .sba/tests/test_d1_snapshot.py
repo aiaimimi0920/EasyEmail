@@ -113,6 +113,19 @@ class D1SnapshotTests(unittest.TestCase):
                 export_database(api, '11111111-1111-1111-1111-111111111111', 'email', directory)
             self.assertEqual(len(opener.calls), 1)
 
+    def test_repair_target_exports_and_source_witnesses_have_distinct_one_use_journal_labels(self):
+        phases = ('repaircheck', 'sourcecheck', 'repairready', 'sourcefinal')
+        responses = []
+        for _ in phases:
+            responses += [export_response('complete'), Binary(b'CREATE TABLE test(id);')]
+        api, state = self.client(ExportOpener(responses))
+        for phase in phases:
+            directory = self.root / phase; directory.mkdir()
+            export_database(api, '11111111-1111-1111-1111-111111111111', 'email', directory, phase=phase)
+        self.assertEqual(state.value['writes'], [phase + '-email-export-0' for phase in phases])
+        with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_WRITE_REPLAY_REFUSED'):
+            state.before_write('repaircheck-email-export-0')
+
     def test_lost_export_response_is_not_retried_and_bookmark_drift_is_not_polled(self):
         for index, values in enumerate([[urllib.error.URLError('synthetic-private-error')], [export_response('active'), export_response('active', bookmark='changed')]]):
             directory = self.root / str(index); directory.mkdir(); opener = ExportOpener(values)
