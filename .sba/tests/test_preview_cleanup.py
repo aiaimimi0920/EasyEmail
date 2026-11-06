@@ -22,9 +22,10 @@ from fixtures import preview_repair_request
 
 class PreviewCleanupTests(unittest.TestCase):
     def cleanup(self, *, fail=None, drift=False, foreign=False, late_binding=False, repeat=False, outbox_full=False,
-                repaired=False, tamper=None):
+                repaired=False, tamper=None, recovery=False):
         root = Path(tempfile.mkdtemp(prefix='preview-cleanup-', dir=os.environ['EASYEMAIL_TEST_ROOT']))
         selected = preview_repair_request() if repaired else test_contract.ContractTests().preview()
+        if recovery: selected.update(sourceSha='d' * 40, applicationVersion='1.0.6')
         preview = selected['context']['preview'] if repaired else selected['context']; config = selected['configuration']
         instance = selected['context']['parentTaskId'] if repaired else selected['taskId']
         events = []; original_state = {'syntheticIdentity': 'exact'}
@@ -41,7 +42,7 @@ class PreviewCleanupTests(unittest.TestCase):
                 if late_binding and write == 'cleanup-email-worker-deleted':
                     self.workers['other-service']['bindings'] = [{'type': 'd1', 'id': config['email']['database']['id']}]
                 if fail is not None and fail == write: raise DeploymentError('EASYEMAIL_SYNTHETIC_RESPONSE_LOST')
-        api = Api(config); values = {}; uploads = []
+        api = Api(config); api.verified_releases = []; values = {}; uploads = []
         class Store:
             state = OperationState(root, selected['taskId'])
             def list(self, bucket): return [value['metadata'] for value in values.values()]
@@ -77,6 +78,12 @@ class PreviewCleanupTests(unittest.TestCase):
                    'previous': {key: selected[key] for key in ('sourceSha', 'applicationVersion')}, 'context': {
                        'instanceId': instance, 'previewTaskId': selected['taskId'], 'resultDigest': digest(full),
                        'resources': preview['resources']}}
+        if recovery:
+            from cleanup_repair import repair_cleanup
+            original = request
+            request = {**request, 'action': 'repair', 'sourceSha': 'b' * 40, 'applicationVersion': '1.0.7',
+                       'previous': {key: original[key] for key in ('sourceSha', 'applicationVersion')}, 'context': {
+                           'cleanup': {**original['previous'], 'context': original['context']}}}
         if tamper: tamper(request)
         if foreign: api.workers['other-service']['bindings'] = [{'type': 'd1', 'id': config['email']['database']['id']}]
         def cloud(account, token, state): api.state = state; return api
@@ -86,9 +93,10 @@ class PreviewCleanupTests(unittest.TestCase):
             stack.enter_context(patch.object(preview_cleanup, 'CloudApi', side_effect=cloud))
             stack.enter_context(patch.object(preview_cleanup, 'ObjectStore', side_effect=objects))
             stack.enter_context(patch.object(preview_cleanup, 'source_state', return_value={'changed': True} if drift else original_state))
-            stack.enter_context(patch.object(preview_cleanup, 'verify_public', return_value=[]))
-            result = preview_cleanup.destroy_preview(request, root / 'operation')
-            if repeat: result = preview_cleanup.destroy_preview({**request, 'taskId': 'dc-' + '5' * 32}, root / 'operation-two')
+            stack.enter_context(patch.object(preview_cleanup, 'verify_public', side_effect=lambda value: api.verified_releases.append(value) or []))
+            operation = repair_cleanup if recovery else preview_cleanup.destroy_preview
+            result = operation(request, root / 'operation')
+            if repeat: result = operation({**request, 'taskId': 'dc-' + '5' * 32}, root / 'operation-two')
         return result, events, api, uploads
 
     def test_guard_then_both_ingress_stops_then_workers_then_data_with_absence_readbacks(self):
@@ -116,6 +124,22 @@ class PreviewCleanupTests(unittest.TestCase):
             result, events, api, uploads = self.cleanup(**options)
             self.assertEqual(result['status'], 'failed'); self.assertEqual(events, []); self.assertEqual(api.writes, [])
             self.assertNotIn('preview-cleanup-authority-consumed', uploads)
+
+    def test_independent_cleanup_repair_uses_original_provenance_without_publishing(self):
+        result, events, api, uploads = self.cleanup(recovery=True)
+        self.assertEqual(result['status'], 'succeeded', result)
+        self.assertIn({'id': 'repair-completed', 'passed': True}, result['checks'])
+        self.assertEqual(api.databases, {}); self.assertEqual(api.buckets, {})
+        self.assertTrue(all(row['status'] == 'removed' for row in result['lifecycle']['resources']))
+        self.assertFalse(any(method == 'PUT' for method, _, _ in api.calls))
+        self.assertEqual(api.verified_releases[0]['sourceSha'], 'd' * 40)
+        self.assertEqual(api.verified_releases[0]['applicationVersion'], '1.0.6')
+        for options in ({'drift': True}, {'foreign': True}):
+            result, events, api, uploads = self.cleanup(recovery=True, **options)
+            self.assertEqual(result['status'], 'failed'); self.assertEqual(events, [])
+        result, events, api, uploads = self.cleanup(recovery=True, fail='guard', repeat=True)
+        self.assertEqual(result['errorCode'], 'EASYEMAIL_PREVIEW_CLEANUP_ALREADY_ATTEMPTED')
+        self.assertEqual(events, ['authority-consumed']); self.assertEqual(len(api.databases), 2)
 
     def test_guard_capacity_is_reserved_before_consuming_authority(self):
         result, events, api, uploads = self.cleanup(outbox_full=True)

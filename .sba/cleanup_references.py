@@ -52,20 +52,25 @@ def verify_email_unreferenced(config, api):
 
 
 def verify_pages_unshared(config, api):
+    workers = {config[role]['name'] for role in ('email', 'platform')}
     identities = {'d1_databases': {config[role]['database']['id'] for role in ('email', 'platform')},
-                  'r2_buckets': {config['platform'][field] for field in ('inboxBucket', 'outboxBucket')}}
+                  'r2_buckets': {config['platform'][field] for field in ('inboxBucket', 'outboxBucket')},
+                  'services': workers, 'durable_object_namespaces': workers}
+    identity_fields = {'d1_databases': 'id', 'r2_buckets': 'name', 'services': 'service', 'durable_object_namespaces': 'service'}
     for project in listed(api, '/pages/projects?page=1'):
         require(isinstance(project, dict) and matches(r'[a-z0-9][a-z0-9_-]{0,62}', project.get('name'))
                 and isinstance(project.get('deployment_configs'), dict), ERROR)
         deployments = listed(api, '/pages/projects/' + project['name'] + '/deployments?page=1')
         for deployment in deployments:
-            require(isinstance(deployment, dict) and (deployment.get('uses_functions') is False or all(field in deployment for field in identities)), ERROR)
+            # Pages omits unset binding maps even for an explicit Functions deployment.
+            # Unknown Functions metadata is still a blocker; present maps are checked below.
+            require(isinstance(deployment, dict) and type(deployment.get('uses_functions')) is bool, ERROR)
         for value in [*project['deployment_configs'].values(), *deployments]:
             require(isinstance(value, dict), ERROR)
             for field, selected in identities.items():
                 bindings = value.get(field, {}); require(isinstance(bindings, dict), ERROR)
                 for binding in bindings.values():
-                    identity = binding.get('name' if field == 'r2_buckets' else 'id') if isinstance(binding, dict) else None
+                    identity = binding.get(identity_fields[field]) if isinstance(binding, dict) else None
                     require(isinstance(identity, str) and identity not in selected, ERROR)
 
 

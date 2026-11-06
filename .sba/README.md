@@ -35,17 +35,18 @@
   1.0.5 还接受 1.0.4 的准确 `EASYEMAIL_SOURCE_DATABASE_CHANGED`，要求平台认证继承原 1.0.2 候选与实例的 `previewBaseline`；不把失败修复版本当成已发布目标。目标仍恢复同一份原认证备份，源保护改为本次 target 写前取得完整双库/对象 witness、完成后 exact 比对，不排除限流/会话/任何业务表，不重采样替换原备份。provenance 的实例始终是原副本，而不是上一 repair task；当前候选仍需真实独立恢复验收。
   1.0.6 额外只接受 1.0.5 的准确 `EASYEMAIL_SNAPSHOT_IMPORT_FAILED`：两个已发布标记须匹配父 1.0.5，platform 仍无业务 schema，email 原生导出的 schema/typed rows/分配器须精确匹配原认证快照；写前重复核对。仅导入尚未完成的 platform，绝不重放已完成的 email 导入。目标漂移或其他部分状态均拒绝，原 1.0.2 baseline 只用于保持来源/实例身份。
 - `preview_cleanup.py` / `cleanup_references.py` / `cleanup_resources.py` / `cleanup_buckets.py`：仅清理成功 preview 的准确八项资源；先核目标状态、外部 Worker/Pages/邮件/域名引用、D1/R2 创建身份及私有桶清单，条件写入持久一次性消费记录，再停两个入口、删两个 Worker、复查共享引用，最后删除两库两桶。所有删除均独立读回不存在；不提供普通正式实例删除入口。
+- `cleanup_repair.py`：1.0.7 新增独立 `complete-preview-cleanup`，仅接受认证写前失败的准确共享核验错误；继承原清理 SHA/version/context，不把修复候选当已部署目标。重新核原 provenance、完整状态、引用和未消费 authority 后调用同一清理路径，不发布 Worker、不修改云端秘密。已消费、目标漂移或 unknown/部分删除不能重放。需要兼容 SpringBok 控制面及固定 executor，源码验证不代表已上线。
 
 | SBA 动作 | 当前应用行为 |
 | --- | --- |
 | verify | 已实现无部署凭据的公开版本验真；需先有本适配器发布的版本证明 |
 | deploy（隔离） | 1.0.0 的真实 SpringBok 部署、独立 verify 和基础 Web/API 业务验收已通过；后续候选不因此取得 deploy 成功证明 |
 | deploy（正式 custom domain） | 已接通应用源码；要求空闲域名、新空数据资源，以及可选的明确中性邮件目标；尚未通过真实 SpringBok 正式部署验收 |
-| update | 已接通同实例持久备份、原生迁移/发布、保数据和既有身份验收；仍待 SpringBok 云升级验收 |
-| preview | 1.0.2 首次真实云任务在凭据重签阶段返回 unknown，持久备份已独立下载恢复核对；1.0.3 修正构建入口，整体云验收仍未通过，不重放原任务 |
-| destroy-preview | 已接通认证来源、持久一次性消费、先停入口、精确有界删除和独立不存在读回；会执行真实云写，尚未通过 SpringBok 云清理验收 |
+| update | 1.0.6 真实保数据升级 succeeded（11 项），另行 HTTP 11 项与独立 verify 5 项通过；原资源及业务身份保持 |
+| preview | 1.0.2 首次云任务及后续失败回执保留；1.0.6 独立 repair 已完成原副本的真实快照恢复、源未变和 HTTP 业务验收。不代表修正后从零开始的普通 preview 一次成功 |
+| destroy-preview | 首次真实清理在 Pages 共享核验写前 failed，资源及未消费 authority 保留；1.0.7 修复可选映射并提供独立恢复候选，尚未通过真实云清理验收 |
 | repair / complete-empty-bootstrap | 1.0.1 独立云 repair 与 verify 已通过；不支持已有业务数据或正式实例 |
-| repair / complete-preview-credentials | 窄范围独立修复已通过本地原生双 Worker/D1/R2 恢复、认证清理回归；仍待兼容平台发布、固定 SHA CI 与原失败副本的真实云修复验收 |
+| repair / complete-preview-credentials | 1.0.6 固定 `587b28c` 已完成原部分副本的独立云修复；认证 artifact 的 14 项检查和另行真实 HTTP 的 13 项业务检查通过，父 UNKNOWN 保留。清理仍待真实云验 |
 
 平台可能在调用应用前准备资源，因此不能把拒绝尚未实现的动作理解成整个平台一定没有写入。两类 deploy 均不是 dry-run。完整生命周期实现并验收前，不应将此中间版本登记为可用发布。
 
@@ -69,7 +70,7 @@
 
 备份使用原生 D1 export，不将账号 token 转发到短期下载 URL。单库 SQL 上限 64 MiB、业务对象总量上限 128 MiB、完整加密归档上限 256 MiB；实际可传输容量还受部署账号的 HTTP 请求限制约束，超出时明确失败，不拆包后冒充完整成功。只排除 OUTBOX 的适配器保留命名空间，INBOX 同名对象仍作为业务数据保存。现有业务附件清理器只列举 `outbox/v1/`，不清除此归档前缀；归档保留与删除以后应由明确的应用生命周期操作承担，不擅自新增云资源。
 
-导出与下载前后核业务清单，并重新导出两库作精确 typed-multiset 比对；观察到并发变化就拒绝快照。这里**没有业务写冻结或跨 D1/R2 原子事务**，不能将这些检查描述为全局原子快照。恢复只允许空对象目标，逐个条件创建并独立读回，再生成附件引用重绑定 SQL。preview 已接入原生云导入命令，但实际 Cloudflare export/传输/恢复尚未云验；不能将本地 Miniflare 验收表述为云恢复已成功。
+导出与下载前后核业务清单，并重新导出两库作精确 typed-multiset 比对；观察到并发变化就拒绝快照。这里**没有业务写冻结或跨 D1/R2 原子事务**，不能将这些检查描述为全局原子快照。恢复只允许空对象目标，逐个条件创建并独立读回，再生成附件引用重绑定 SQL。真实 Cloudflare export/认证归档传输/原部分副本的独立恢复已在 1.0.6 repair 链通过；普通 preview 的一次成功和真实清理仍待云验，本地 Miniflare 回归不代替上述证据。
 
 独立 preview repair 是不同的受控路径：原凭据/源时间点错误要求目标双空业务库；准确 1.0.5 导入错误只接受 email 完整匹配认证快照、platform 空态。双桶必须恰好已有该唯一认证归档的全部业务对象且无私有记录；只读复用，不放宽普通 preview 的空对象目标要求。写前使用 `sourcecheck`、完成后使用 `sourcefinal` 导出分别证明源精确未变，不能冻结业务或隐式选择新快照；源已变、归档歧义或任何目标漂移均拒绝。
 

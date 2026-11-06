@@ -10,6 +10,15 @@ from cleanup_fixtures import CleanupApi
 
 
 class CleanupReferenceTests(unittest.TestCase):
+    def test_explicit_functions_deployments_may_omit_unset_binding_maps(self):
+        for deployment in ({'uses_functions': True, 'd1_databases': {'DB': {'id': 'foreign'}}},
+                           {'uses_functions': True, 'r2_buckets': {'BUCKET': {'name': 'foreign'}}},
+                           {'uses_functions': True}):
+            api = CleanupApi(); api.projects = [{'name': 'functions-pages', 'deployment_configs': {'production': {}}}]
+            api.deployments['functions-pages'] = [deployment]
+            verify_unshared(api.config, api)
+            self.assertEqual(api.writes, [])
+
     def test_private_unshared_preview_passes_but_never_writes(self):
         api = CleanupApi(); verify_unshared(api.config, api)
         self.assertEqual(api.writes, [])
@@ -33,13 +42,31 @@ class CleanupReferenceTests(unittest.TestCase):
 
     def test_pages_current_or_old_functions_bindings_and_unknown_history_are_blockers(self):
         for config, deployment in [({'r2_buckets': {'x': {'name': CleanupApi().config['platform']['outboxBucket']}}}, []),
-                                   ({}, [{'uses_functions': True}]),
+                                   ({}, [{'uses_functions': None}]),
                                    ({}, [{'uses_functions': True, 'd1_databases': {'db': {'id': CleanupApi().config['email']['database']['id']}}, 'r2_buckets': {}}])]:
             api = CleanupApi(); api.projects = [{'name': 'foreign-pages', 'deployment_configs': {'production': config}}]
             api.deployments['foreign-pages'] = deployment
             with self.assertRaises(DeploymentError): verify_unshared(api.config, api)
         api = CleanupApi(); api.projects = [{'name': 'static-pages', 'deployment_configs': {'production': {}}}]
         api.deployments['static-pages'] = [{'uses_functions': False}]; verify_unshared(api.config, api)
+
+    def test_missing_functions_flag_or_invalid_optional_map_is_not_empty(self):
+        for deployment in ({}, {'uses_functions': 'true'}, {'uses_functions': True, 'r2_buckets': None},
+                           {'uses_functions': True, 'd1_databases': []},
+                           {'uses_functions': True, 'r2_buckets': {'B': {'name': CleanupApi().config['platform']['inboxBucket']}}}):
+            api = CleanupApi(); api.projects = [{'name': 'functions-pages', 'deployment_configs': {'production': {}}}]
+            api.deployments['functions-pages'] = [deployment]
+            with self.assertRaises(DeploymentError): verify_unshared(api.config, api)
+            self.assertEqual(api.writes, [])
+
+    def test_pages_service_and_durable_object_worker_references_are_not_storage_only(self):
+        for field in ('services', 'durable_object_namespaces'):
+            for historical in (True, False):
+                api = CleanupApi(); bindings = {field: {'B': {'service': api.config['email']['name']}}}
+                api.projects = [{'name': 'functions-pages', 'deployment_configs': {'production': {} if historical else bindings}}]
+                api.deployments['functions-pages'] = [{'uses_functions': True, **(bindings if historical else {})}]
+                with self.assertRaises(DeploymentError): verify_unshared(api.config, api)
+                self.assertEqual(api.writes, [])
 
     def test_all_email_pages_are_checked_including_disabled_rules(self):
         api = CleanupApi(); api.email = [{'id': str(i), 'actions': [{'type': 'drop'}]} for i in range(50)]

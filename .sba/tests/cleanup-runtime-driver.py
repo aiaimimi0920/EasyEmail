@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import preview_cleanup
+from cleanup_repair import repair_cleanup
 from boundary import digest
 from cleanup_fixtures import CleanupApi
 from object_snapshot import ObjectStore
@@ -29,7 +30,11 @@ def command(command, bucket, keys=None):
 
 
 class Api(CleanupApi):
-    def __init__(self, account, token, state): super().__init__(config); self.state = state
+    def __init__(self, account, token, state):
+        super().__init__(config); self.state = state
+        self.projects = [{'name': 'foreign-pages', 'deployment_configs': {'production': {}}}]
+        self.deployments['foreign-pages'] = [{'uses_functions': None if inputs.get('failReferences') else True,
+                                            'd1_databases': {'DB': {'id': 'foreign'}}}]
     def request(self, method, suffix, payload=None, write=None, zone=None):
         if write: self.state.before_write(write); events.append(write)
         if suffix.startswith('/r2/buckets/') and '/objects' in suffix:
@@ -47,5 +52,6 @@ with ExitStack() as stack:
     stack.enter_context(patch.object(preview_cleanup, 'ObjectStore', side_effect=lambda config, key, state: ObjectStore(config, key, state, bridge)))
     stack.enter_context(patch.object(preview_cleanup, 'verify_public', side_effect=lambda value: verify_public(value, ReleaseReader(bridge).read)))
     stack.enter_context(patch.object(preview_cleanup, 'source_state', side_effect=lambda config, api: {'localConfigurationDigest': digest(config)}))
-    result = preview_cleanup.destroy_preview(request, Path(sys.argv[2]))
+    operation = repair_cleanup if request['action'] == 'repair' else preview_cleanup.destroy_preview
+    result = operation(request, Path(sys.argv[2]))
 print(json.dumps({'result': {**{field: request[field] for field in RESULT_IDENTITY}, **result}, 'events': events}))

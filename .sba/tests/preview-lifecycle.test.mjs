@@ -165,14 +165,28 @@ for (const mode of ['preview','credentials','import']) test(mode+' lifecycle and
       ({key:row.key,size:row.size,etag:row.etag,version:row.version,uploaded:row.uploaded.toISOString()}));
     const sourceObjects={};for(const binding of ['INBOX','OUTBOX'])sourceObjects[binding]=await objectIdentities(binding,source);
     cleanupBridge=await cleanupRuntimeBridge(target,configurations.target);
-    const cleanupRequest={...request,taskId:'dc-'+'4'.repeat(32),action:'destroy-preview',
+    let cleanupRequest={...request,taskId:'dc-'+'4'.repeat(32),action:'destroy-preview',
       previous:{sourceSha:request.sourceSha,applicationVersion:request.applicationVersion},context:{instanceId:originalPreview.taskId,
       previewTaskId:request.taskId,resultDigest:digest(result),resources:originalPreview.context.resources}};
-    const cleanupInput=path.join(root,'cleanup-input.json');await fs.writeFile(cleanupInput,JSON.stringify({request:cleanupRequest,
+    const cleanupInput=path.join(root,'cleanup-input.json');
+    if(!repairing){
+      await fs.writeFile(cleanupInput,JSON.stringify({request:cleanupRequest,failReferences:true,targetPort:bridge.target.port,cleanupPort:cleanupBridge.port}));
+      const failedRun=await promisify(execFile)('python',[path.resolve('.sba/tests/cleanup-runtime-driver.py'),cleanupInput,path.join(root,'blocked-cleanup')],
+        {encoding:'utf8',windowsHide:true,timeout:120000,env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'}});
+      const blocked=JSON.parse(failedRun.stdout);assert.equal(blocked.result.status,'failed');assert.deepEqual(blocked.events,[]);
+      assert.equal(blocked.result.errorCode,'EASYEMAIL_PREVIEW_CLEANUP_SHARED_OR_UNVERIFIED');
+      assert.deepEqual(cleanupBridge.commands,[]);
+      cleanupRequest={...cleanupRequest,taskId:'dc-'+'8'.repeat(32),action:'repair',applicationVersion:'1.0.7',context:{
+        repairId:'complete-preview-cleanup',parentTaskId:cleanupRequest.taskId,parentRunId:123,requestDigest:'a'.repeat(64),
+        resultDigest:digest(blocked.result),errorCode:blocked.result.errorCode,
+        cleanup:{sourceSha:request.sourceSha,applicationVersion:request.applicationVersion,context:cleanupRequest.context}}};
+    }
+    await fs.writeFile(cleanupInput,JSON.stringify({request:cleanupRequest,
       targetPort:bridge.target.port,cleanupPort:cleanupBridge.port}));
     const cleanupRun=await promisify(execFile)('python',[path.resolve('.sba/tests/cleanup-runtime-driver.py'),cleanupInput,path.join(root,'cleanup-operation')],
       {encoding:'utf8',windowsHide:true,timeout:120000,env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'}});
     const cleanup=JSON.parse(cleanupRun.stdout);assert.equal(cleanup.result.status,'succeeded',cleanupRun.stdout);
+    if(!repairing)assert.ok(cleanup.result.checks.some(row=>row.id==='repair-completed'&&row.passed));
     assert.ok(cleanup.result.lifecycle.resources.every(row=>row.status==='removed'));
     assert.deepEqual(cleanupBridge.commands.map(row=>row.bucket),[configurations.target.platform.inboxBucket,configurations.target.platform.outboxBucket]);
     for(const binding of ['INBOX','OUTBOX']){

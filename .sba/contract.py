@@ -7,13 +7,15 @@ from urllib.parse import urlparse
 from boundary import DeploymentError, digest, exact, matches, name, require, version
 from configuration import configuration, inventory, isolated
 from build_environment import local_git_environment
+from cleanup_repair import validate_cleanup
 
 
 def validate_repair(request, manifest):
     context = request['context']
     is_preview = 'preview' in context
     has_baseline = 'previewBaseline' in context
-    exact(context, ['repairId', 'parentTaskId', 'parentRunId', 'requestDigest', 'resultDigest', 'errorCode'] + (['preview'] if is_preview else []) + (['previewBaseline'] if has_baseline else []))
+    is_cleanup = 'cleanup' in context
+    exact(context, ['repairId', 'parentTaskId', 'parentRunId', 'requestDigest', 'resultDigest', 'errorCode'] + (['preview'] if is_preview else []) + (['previewBaseline'] if has_baseline else []) + (['cleanup'] if is_cleanup else []))
     require(isinstance(context['parentTaskId'], str) and re.fullmatch(r'dc-[a-f0-9]{32}', context['parentTaskId'])
             and context['parentTaskId'] != request['taskId'])
     require(type(context['parentRunId']) is int and context['parentRunId'] > 0)
@@ -23,6 +25,11 @@ def validate_repair(request, manifest):
     require(len(repairs) == 1 and context['errorCode'] in repairs[0]['fromErrorCodes'])
     require(is_preview or context['repairId'] != 'complete-preview-credentials')
     actions = repairs[0].get('fromActions', ['deploy', 'update', 'repair'])
+    require(is_cleanup == (context['repairId'] == 'complete-preview-cleanup'))
+    if is_cleanup:
+        require('destroy-preview' in actions)
+        validate_cleanup(request, validate_context)
+        return
     if is_preview:
         require('preview' in actions and context['parentTaskId'] not in
                 (context['preview']['source']['instanceId'], context['preview']['source']['taskId']))
@@ -86,7 +93,7 @@ def validated_request(value, root):
             require(current > previous and value['sourceSha'] != value['previous']['sourceSha'])
         else:
             require(current == previous and value['sourceSha'] == value['previous']['sourceSha'])
-    configuration(value['configuration'], preview=value['action'] in ('preview', 'destroy-preview') or 'preview' in value.get('context', {}))
+    configuration(value['configuration'], preview=value['action'] in ('preview', 'destroy-preview') or any(field in value.get('context', {}) for field in ('preview', 'cleanup')))
     if value['action'] in ('preview', 'destroy-preview'):
         validate_context(value)
     if value['action'] == 'repair':

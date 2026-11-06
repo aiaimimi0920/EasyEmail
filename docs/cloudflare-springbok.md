@@ -10,7 +10,79 @@
 共享 Zone、MX、现有凭据及非 EasyEmail 服务不因实例清理被删除。
 本阶段不修改现有正式服务、收信路由或 NAS，也不发真实邮件。
 
-## 2026-11-07 平台发布、真实导入停点与 1.0.6 候选
+## 2026-11-07 源升级/verify 成功，清理写前失败及独立恢复候选
+
+有数据隔离源的 update `dc-f6caa11c795b4e8caa0660bb31833eea` / run `42271067370`
+已取得摘要认证的 succeeded，11 项检查全通过；独立 HTTP 11 项检查证实原会话、草稿、
+附件原生身份/内容、邮箱凭据及密码保持，self-provider/关闭发信保持。随后 verify
+`dc-bc2248b3890440db9146bd08dca02fc6` / run `42271749730` 另行 succeeded，5 项
+检查通过。原资源复用、版本为 1.0.6；这不是从零重建正式服务。
+
+用户仅明确批准删除 `test-0c1ab5a774e8`。经正常审阅单次提交 destroy-preview
+`dc-d51c4bfe7dcf49238b0b46dbfc213079` / run `42272280483`，工作流 success，但独立
+认证应用结果 failed / `EASYEMAIL_PREVIEW_CLEANUP_SHARED_OR_UNVERIFIED`，checks 为空。
+只读追踪定位到 Pages 历史 Functions 部署缺少未设置的 r2_buckets 字段；列表和独立详情
+均明确 uses_functions=true，只有另一独立 D1 绑定。不是发现真实共享，也不是分页遗漏。
+两 Worker/入口、两 D1、两 R2 均保留，持久 cleanup authority 未消费。失败回执不重放。
+
+1.0.7 候选按 Pages API 的可选映射语义处理省略字段，仍拒绝未知 Functions 标记、畸形
+映射、不完整列表和真实共享；同步核验 Pages service/DO 对目标 Worker 的引用，不能仅
+核存储。完整账号级共享检查已在真实 Cloudflare GET-only 通过。平台现有 failed-cleanup
+没有合法继续入口，因此新增独立 cleanup repair 合同与受控 lane 接管；不清锁、不改旧
+回执、不换资源、不发布业务 Worker。应用仍需以原版本/provenance、当前完整目标和未
+消费 authority 重验，才进入原精确清理路径；unknown/部分删除仍禁止恢复。
+
+当前为本地验证阶段，真实恢复尚未提交、清理尚未成功。候选必须精确提交/完整 CI、兼容
+控制面和新固定 Windows executor 发布后，才可由正常 UI 审阅已批准的原八项清单并执行。
+不扩大到其他实例、正式域名/MX、共享路由、凭据或本地备份。证据为 email33-*、email34-*。
+
+候选完整 Python 208 项通过，随后新增 Pages service/DO 引用回归及受影响清理 20 项通过；
+三个原生 D1/R2 生命周期通过，普通 preview 分支实际覆盖写前清理拒绝→新独立清理 repair，
+原对象条件消费/有界删除、源库和对象不变。cloud metadata/资源 DELETE 为显式替身，
+不是云删除成功证明。检查器 19 项、ratchet 扫描 2258 文件三个超限档位全 0，未跑 strict。
+SpringBok 合同/workerd/共享文档 43 项、真实 Chrome/workerd 修复与删除语义及四页
+Neuro 五宽度通过；正常固定 SHA CI/发布及真实清理仍待完成。
+
+## 2026-11-07 原副本修复与真实业务验收通过
+
+1.0.6 固定提交 `587b28c` 的完整 CI `42260874160` 通过后，经正常 owner UI 单次
+发起独立 repair `dc-37e17e5a0da248219b7d8f07dd32c1da`，仍针对原副本
+`test-0c1ab5a774e8`，不创建替代环境或重放任何 UNKNOWN 父任务。run `42265364514`
+的 artifact 摘要、任务、固定源码和 executor 身份已独立认证，应用结果为 succeeded，
+14 项检查全部通过：认证快照恢复、迁移、源完整当前状态未变、副作用隔离、保数据、
+管理员和服务就绪等均取得云回执。页面已显示该原副本部署成功，父失败链仍保留。
+
+随后真实 HTTP 的 13 项业务检查通过：两个固定发布/网页资产/健康/匿名拒绝；原密码
+登录副本；原草稿及附件引用完整；恢复到 R2 后重绑原生版本的 60 字节附件可读且摘要
+匹配；重签后的原邮箱凭据能在副本完成同步；self-provider 仅指向副本且发信关闭；
+源会话在副本被拒绝，原实例仍可用原会话读取原草稿。原只读 API key 此时已到期，
+没有将它的 401 冒充撤销证明；另由两库独立查询确认 key 行仅在副本有 revoked_at。
+验收期间源鉴权 GET 可增加持久限流计数，发生在适配器 source-unchanged 证明结束后。
+
+这证明原部分副本经独立 repair 后的完整恢复与业务路径，不宣称修正后从零开始的普通
+preview 一次成功、真实 destroy-preview 或同实例 update 已完成。无真实发信、外部
+供应商或正式域名/MX/routing 变更。证据为 `email31-run-42265364514.json`、
+`email31-preview-business-receipt.json`，秘密、原生 SQL 和完整回执保存在私有目录。
+
+继续通过 SpringBok 审阅隔离源的 1.0.0→1.0.6 update 时，平台把锁定原配置的
+`routing: null` 渲染/提交成 `{}`，被后台正确拒绝；两次计划均未提交部署任务。
+SpringBok 的一行 JSON 初值修正及真实浏览器 null/undefined 保真回归已通过本地检查，
+PR #133 正常合并为 `4188b42`。完整精确 main 门禁、控制面发布和实际云升级须分别
+记录，不能把浏览器合成 update 当成真实云成功；全部 executor pins 保持。
+
+精确 PR 七工作流均首次通过；main 的六个源码/安全/浏览器工作流首次通过，文档 build
+首次通过而 Pages publish 在 `deployment_queued` 后失败。保留原日志后仅重试失败 publish
+一次并成功；另核 GitHub 为复用 build 复制的第二次元数据与原开始/完成时间、steps 完全
+相同，没有把它误算为又跑了一次构建。main 七门禁最终均成功，未延长或修改任何门禁。
+随后已备份配置/旧版本并发布最小控制面 `6bc0420f-12ad-4d11-857a-09d2204047f9`；
+独立下载字节匹配封存 bundle，所有 pins/绑定/域名/安全设置保持。备份不包含 DO 数据
+导出，且没有独立读回全部远程 asset 字节；不能称为完整平台数据备份。
+
+线上正常 UI 已独立显示/提交 `routing: null` 并通过同实例计划校验，原资源与原秘密
+复用。单次 update `dc-f6caa11c795b4e8caa0660bb31833eea` 已被受理，run `42271067370`
+使用原 Windows executor `1cd69e5`。当前仅记录任务受理，不预报应用升级或业务验收成功。
+
+## 2026-11-07 平台发布、真实导入停点与 1.0.6 候选（历史）
 
 SpringBok PR #132 合并为 `1cd69e5`，准确 PR/main 七工作流均 success/attempt=1。
 Windows 合成执行测试的阶段证据定位到 hosted 首次全局 cmdlet 自动发现/加载路径延迟；
