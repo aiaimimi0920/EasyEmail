@@ -49,7 +49,8 @@ class TargetApi:
                 return {'result': copy.deepcopy(self.domains), 'result_info': {
                     'page': 1, 'per_page': len(self.domains), 'count': len(self.domains), 'total_count': self.domain_total}}
             assert suffix.startswith('/dns_records?')
-            return {'result': copy.deepcopy(self.dns), 'result_info': {'total_count': len(self.dns)}}
+            return {'result': copy.deepcopy(self.dns), 'result_info': {
+                'page': 1, 'count': len(self.dns), 'total_count': len(self.dns)}}
         assert method == 'PUT' and write == 'email-routing-bound'
         self.writes.append(copy.deepcopy(payload))
         if self.lose_write: raise DeploymentError('EASYEMAIL_CLOUD_REQUEST_FAILED')
@@ -73,12 +74,46 @@ class ProductionTargetsTests(unittest.TestCase):
             targets = free_domains(config, api)
             if change == 'account': api.zone['account']['id'] = 'd' * 32
             if change == 'zone': api.zone['name'] = 'other.example.com'
-            if change == 'dns': api.dns = [{'type': 'TXT', 'content': 'unrelated'}]
+            if change == 'dns': api.dns = [{'name': 'mail.example.com', 'type': 'A', 'content': '192.0.2.1'}]
             if change == 'domain': api.domains = [{'hostname': 'mail.example.com', 'service': 'foreign'}]
             if change == 'drift': api.zone['status'] = 'pending'
             with self.subTest(change=change), self.assertRaises(DeploymentError):
                 recheck_domain(config, 'platform', api, targets['platform'])
             self.assertEqual(api.writes, [])
+
+    def test_mail_dns_can_coexist_with_a_new_http_target_without_being_changed(self):
+        config, api = production_configuration(), TargetApi()
+        target = free_domains(config, api)['platform']
+        api.dns = [{'name': 'mail.example.com', 'type': 'MX', 'content': 'route1.mx.cloudflare.net', 'priority': 10},
+                   {'name': 'mail.example.com', 'type': 'TXT', 'content': 'v=spf1 include:_spf.mx.cloudflare.net ~all'}]
+        before = copy.deepcopy(api.dns)
+        recheck_domain(config, 'platform', api, target)
+        self.assertEqual(api.dns, before)
+        self.assertEqual(api.writes, [])
+
+    def test_conflicting_or_unrecognized_dns_records_still_block_publication(self):
+        config, api = production_configuration(), TargetApi()
+        target = free_domains(config, api)['platform']
+        for kind in ('A', 'AAAA', 'CNAME', 'NS', 'HTTPS', 'SVCB', 'SRV', 'unknown'):
+            api.dns = [{'name': 'mail.example.com', 'type': kind, 'content': 'foreign.example.com'}]
+            with self.subTest(kind=kind), self.assertRaises(DeploymentError):
+                recheck_domain(config, 'platform', api, target)
+        api.dns = [{'name': 'other.example.com', 'type': 'MX', 'content': 'route1.mx.cloudflare.net'}]
+        with self.assertRaises(DeploymentError): recheck_domain(config, 'platform', api, target)
+        self.assertEqual(api.writes, [])
+
+    def test_truncated_dns_listing_cannot_hide_an_http_conflict(self):
+        config, api = production_configuration(), TargetApi()
+        target = free_domains(config, api)['platform']
+        request = api.request
+        def truncated(method, suffix, *args, **kwargs):
+            value = request(method, suffix, *args, **kwargs)
+            if suffix.startswith('/dns_records?'):
+                value['result_info']['total_count'] += 1
+            return value
+        with patch.object(api, 'request', side_effect=truncated), self.assertRaises(DeploymentError):
+            recheck_domain(config, 'platform', api, target)
+        self.assertEqual(api.writes, [])
 
     def test_most_specific_owned_zone_wins_and_nonlabel_suffix_never_matches(self):
         config, api = production_configuration(), TargetApi()

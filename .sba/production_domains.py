@@ -1,4 +1,4 @@
-"""Resolve only owned Zones and refuse to replace existing DNS or Worker domains."""
+"""Resolve owned Zones; preserve mail DNS while refusing HTTP conflicts or existing Worker domains."""
 from urllib.parse import urlencode, urlparse
 
 from boundary import matches, origin, require
@@ -43,9 +43,15 @@ def recheck_domain(config, role, api, selected):
     current = zone_identity(api.get('', zone=selected['zoneId']), config['accountId'])
     require(current == {key: selected[key] for key in ('zoneId', 'zoneName')}
             and (hostname == current['zoneName'] or hostname.endswith('.' + current['zoneName'])), 'EASYEMAIL_DOMAIN_ZONE_MISMATCH')
-    dns = api.request('GET', '/dns_records?' + urlencode({'name': hostname, 'per_page': 5}), zone=selected['zoneId'])
-    require(dns['result'] == [] and isinstance(dns.get('result_info'), dict)
-            and type(dns['result_info'].get('total_count')) is int and dns['result_info']['total_count'] == 0,
+    dns = api.request('GET', '/dns_records?' + urlencode({'name': hostname, 'per_page': 100}), zone=selected['zoneId'])
+    records, info = dns.get('result'), dns.get('result_info')
+    require(isinstance(records, list) and len(records) <= 100 and isinstance(info, dict)
+            and type(info.get('page')) is int and info['page'] == 1
+            and type(info.get('count')) is int and info['count'] == len(records)
+            and type(info.get('total_count')) is int and info['total_count'] == len(records),
+            'EASYEMAIL_DOMAIN_DNS_NOT_EMPTY')
+    # MX/TXT do not route HTTP and must not be removed to make a mail UI deployable.
+    require(all(isinstance(row, dict) and row.get('name') == hostname and row.get('type') in ('MX', 'TXT') for row in records),
             'EASYEMAIL_DOMAIN_DNS_NOT_EMPTY')
     require(listed_domains(api, {'hostname': hostname}) == [], 'EASYEMAIL_DOMAIN_ALREADY_USED')
 

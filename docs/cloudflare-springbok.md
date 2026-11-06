@@ -10,7 +10,28 @@
 共享 Zone、MX、现有凭据及非 EasyEmail 服务不因实例清理被删除。
 当前已获准确清单的重建授权；NAS 及未列资源仍不在清理范围。
 
-## 2026-11-07 正式重建前置与可编辑收件后缀（1.0.11）
+## 2026-11-07 24 项清理独立核验与邮件 DNS 共存（1.0.12）
+
+1.0.11 固定提交 `a110881` 的完整 CI `42306602543` 首次通过，正常 SpringBok 表单已
+显示可编辑的收件后缀，并填入正式两入口、`aiaimimi.com` 和独立秘密；尚未提交部署。
+最后的旧正式组仅执行一次清理，原 journal 记录停用 catch-all、解除两旧域绑定及删除
+两 Worker、两 D1、两 R2。脚本在末尾要求 DNS 完全为空的断言停止，未重放任何删除。
+
+独立 GET-only 核验确认批准的四组 24 项资源全部不存在，旧两绑定均不存在、catch-all
+处于 disabled/drop。`mail.aiaimimi.com` 的 3 条旧 MX 和 SPF TXT 与备份完整值一致，
+原 Worker 管理的 AAAA 已移除；`email-api.aiaimimi.com` 没有 DNS 记录。全部 MX 保持。
+只读结果另存 `email49-cleanup-preflight.json`，不把原失败脚本回执改写为成功。
+
+该现场暴露应用前置检查把所有 DNS 非空都当作 HTTP 冲突。1.0.12 仅允许同一精确主机名
+的 MX/TXT 与新 Worker Custom Domain 共存；A/AAAA/CNAME、其他类型、外部主机名、
+不完整列表或已有 Worker 域绑定仍阻断。该检查只读，不移除邮件 DNS、不启用覆盖已有
+地址记录；原 Zone 身份与收信路由 neutral-rule 检查保持。已联网核对 Cloudflare 官方
+Custom Domains 文档，并用修正后的实际 `free_domains` / `prepare_routing` 对正式目标
+做只读验真，通过后仍等待固定提交的完整 CI，才创建新正式实例。
+新增共存回归先在旧实现失败，修正后完整 Python 228 项、检查器 19 项通过，无失败或
+跳过；ratchet 扫描 2267 文件，三个超限档位均为 0，未运行 strict。
+
+## 2026-11-07 正式重建前置与可编辑收件后缀（1.0.11，历史）
 
 用户随后明确批准 `email38-next-cleanup-proposal.json` 的 24 项资源清单清理和从零部署。
 原提案及其历史未批准状态保留，不回写历史。8 Worker、8 D1、8 R2 的备份已完成，108
