@@ -46,6 +46,9 @@ class PreviewTests(unittest.TestCase):
         def source_state(*args):
             events.append('source-state')
             return {'witness': 'changed' if changed and events.count('source-state') > 1 else 'original'}
+        def prepare_copy(*args, **kwargs):
+            self.assertEqual(kwargs['application_root'], root / 'EasyEmail')
+            return step('prepare-copy', {'emailSql': root / 'email.sql', 'platformSql': root / 'platform.sql', 'backup': {}})()
         with ExitStack() as stack:
             stack.enter_context(patch.dict(os.environ, secret_environment()))
             stack.enter_context(patch.object(preview_deploy, 'prepare_release', return_value=root / 'release'))
@@ -55,8 +58,7 @@ class PreviewTests(unittest.TestCase):
             stack.enter_context(patch.object(preview_deploy, 'ObjectStore', side_effect=store))
             stack.enter_context(patch.object(preview_deploy, 'capture_backup', side_effect=backup))
             stack.enter_context(patch.object(preview_deploy, 'source_state', side_effect=source_state))
-            stack.enter_context(patch.object(preview_deploy, 'prepare_copy', side_effect=step('prepare-copy',
-                {'emailSql': root / 'email.sql', 'platformSql': root / 'platform.sql', 'backup': {}})))
+            stack.enter_context(patch.object(preview_deploy, 'prepare_copy', side_effect=prepare_copy))
             for name in ('verify_preview_policy', 'fresh_resources', 'verify_settings', 'email_version', 'migrate_email',
                          'verify_database_initialization', 'prove_update_preserved', 'verify_administrator', 'prove_source_unchanged'):
                 stack.enter_context(patch.object(preview_deploy, name, side_effect=step(name)))

@@ -29,16 +29,17 @@
 - `preview_credentials.py` / `preview-vault.mjs` / `preview_data.py`：预升级 SQL 准备使用原程序的 vault、Hono JWT 和供应商配置解析器；重新签署自营邮箱 token，保留地址/代际/过期时间但不把源 JWT/site/admin 密钥部署给副本。旧 vault 读密钥为保留既有凭据和幂等摘要可读性而保留在副本私有 keyring，新写使用独立 active key；这不是脱敏副本。副本撤销源 session/API key、改接自营副本、禁用外部供应商并清除其存储的供应商级秘密；其他密码、邮件和业务行不变。
 - `d1_restore.py`：双库恢复 SQL 先创建全部业务表及外键所需的约束索引，再导入数据/分配器，最后创建视图与触发器。保留 NUL/Unicode 文本、BLOB、精确 REAL 和自增高水位，避免 Python iterdump 的建表顺序及 NUL 截断问题；生成后以完整 typed witness 重新核验。没有创建或覆盖真实云数据库。
 - `preview_deploy.py` / `preview_copy.py`：预升级动作先核源版本/真实绑定和空目标，创建可独立恢复的持久备份，再发布封存的隔离副本、恢复两库两桶、重绑附件身份并重签自营凭据，最后执行候选迁移、保数据和既有管理员验收。SpringBok 继承的源公开配置仍进入配置摘要，但外部供应商、发信、IMAP/SMTP 只在副本运行配置中清空，不篡改平台请求或源配置。
+  1.0.3 将凭据重签的 Node 入口明确绑定到 `prepare_release` 已固定源码并安装依赖的构建检出，不依赖执行器原始检出的 `node_modules`。秘密仍只走私有 stdin，子进程不继承业务环境或 `NODE_OPTIONS`。回归同时覆盖无依赖的干净执行器检出和构建入口的编排传递；不改变凭据算法或失败后不重放语义。
 - `preview_source.py` / `preview_provenance.py`：源 settings/资源归属前后核对，使用独立的 `sourcefinal` export 阶段验证源两库和业务对象；成功结果的完整身份、checks、lifecycle 及来源清单以独立密钥认证，条件写入目标私有 OUTBOX，并独立读回。清理必须认证该记录及平台批准的完整结果摘要，不能凭资源名称授权删除。
 - `preview_cleanup.py` / `cleanup_references.py` / `cleanup_resources.py` / `cleanup_buckets.py`：仅清理成功 preview 的准确八项资源；先核目标状态、外部 Worker/Pages/邮件/域名引用、D1/R2 创建身份及私有桶清单，条件写入持久一次性消费记录，再停两个入口、删两个 Worker、复查共享引用，最后删除两库两桶。所有删除均独立读回不存在；不提供普通正式实例删除入口。
 
 | SBA 动作 | 当前应用行为 |
 | --- | --- |
 | verify | 已实现无部署凭据的公开版本验真；需先有本适配器发布的版本证明 |
-| deploy（隔离） | 1.0.0 的真实 SpringBok 部署、独立 verify 和基础 Web/API 业务验收已通过；1.0.2 对象传输窄修候选仍待验 |
+| deploy（隔离） | 1.0.0 的真实 SpringBok 部署、独立 verify 和基础 Web/API 业务验收已通过；后续候选不因此取得 deploy 成功证明 |
 | deploy（正式 custom domain） | 已接通应用源码；要求空闲域名、新空数据资源，以及可选的明确中性邮件目标；尚未通过真实 SpringBok 正式部署验收 |
 | update | 已接通同实例持久备份、原生迁移/发布、保数据和既有身份验收；仍待 SpringBok 云升级验收 |
-| preview | 已接通持久备份、隔离双库双桶副本、迁移、源未变证明和私有来源记录；会执行真实云写，尚未通过 SpringBok 云验收 |
+| preview | 1.0.2 首次真实云任务在凭据重签阶段返回 unknown，持久备份已独立下载恢复核对；1.0.3 修正构建入口，整体云验收仍未通过，不重放原任务 |
 | destroy-preview | 已接通认证来源、持久一次性消费、先停入口、精确有界删除和独立不存在读回；会执行真实云写，尚未通过 SpringBok 云清理验收 |
 | repair / complete-empty-bootstrap | 1.0.1 独立云 repair 与 verify 已通过；不支持已有业务数据或正式实例 |
 

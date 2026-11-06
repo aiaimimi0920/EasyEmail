@@ -31,7 +31,7 @@ def preview_material(source, target, environment=None):
     return original, copied
 
 
-def rewrite_self(rows, providers, source, target, original, copied):
+def rewrite_self(rows, providers, source, target, original, copied, *, application_root=None):
     value = {'configuration': {'sourceEmail': source['email']['origin'], 'sourcePlatform': source['platform']['origin'],
                              'targetEmail': target['email']['origin'], 'targetPlatform': target['platform']['origin'], 'mailDomain': target['mailDomain']},
              'sourceEnv': {'MAILBOX_KEYRING': original.workers['platform']['MAILBOX_KEYRING']},
@@ -42,9 +42,10 @@ def rewrite_self(rows, providers, source, target, original, copied):
     require(len(payload) <= 67108864, 'EASYEMAIL_PREVIEW_DATA_TOO_LARGE')
     environment = system_environment(); node = shutil.which('node', path=environment.get('PATH', environment.get('Path', '')))
     require(node, 'EASYEMAIL_TOOLCHAIN_UNAVAILABLE')
+    runtime = (Path(application_root) if application_root is not None else Path(__file__).resolve().parents[1]) / '.sba/preview-vault.mjs'
     try:
-        result = subprocess.run([node, str(Path(__file__).with_name('preview-vault.mjs'))], env=environment,
-                                cwd=Path(__file__).resolve().parent, input=payload, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=180)
+        result = subprocess.run([node, str(runtime)], env=environment,
+                                cwd=runtime.parent, input=payload, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=180)
         require(result.returncode == 0 and len(result.stdout) <= 67108864, 'EASYEMAIL_PREVIEW_CREDENTIAL_FAILED')
         return json.loads(result.stdout.decode('utf8'))
     except (OSError, ValueError, UnicodeError, subprocess.TimeoutExpired):

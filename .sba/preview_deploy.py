@@ -41,7 +41,7 @@ def preview(request, directory):
         verify_settings(config, api, release, copied.workers)
         target_state = source_state(config, api)
         store = ObjectStore(config, copied.workers['platform']['EASYEMAIL_SBA_CONTROL_SECRET'], state)
-        prepared = prepare_copy(backup, store, source_config, config, original, copied)
+        prepared = prepare_copy(backup, store, source_config, config, original, copied, application_root=release.parent / 'EasyEmail')
         for role in ('email', 'platform'): process.restore_database(role, prepared[role + 'Sql'])
         checks.append({'id': 'snapshot-copied', 'passed': True})
         process.migrate_platform(); runtime = RuntimeClient(config, state); migrate_email(copied, runtime)

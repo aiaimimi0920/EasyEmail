@@ -13,6 +13,7 @@ import preview_deploy
 from boundary import digest
 from cloud_transport import CloudApi, RuntimeClient
 from object_snapshot import ObjectStore
+from preview_copy import prepare_copy
 from preview_provenance import RESULT_IDENTITY
 from public_verify import ReleaseReader, verify_public
 from runtime_bridge import Bridge
@@ -49,6 +50,9 @@ class Process:
 with ExitStack() as stack:
     stack.enter_context(patch.dict(os.environ, {**secret_environment(), 'EE_ADMIN_PASSWORD': 'Synthetic-release-password-735296'}))
     stack.enter_context(patch.object(preview_deploy, 'prepare_release', return_value=Path(inputs['release'])))
+    # The packaged fixture replaces the build checkout; execute its installed application runtime.
+    stack.enter_context(patch.object(preview_deploy, 'prepare_copy', side_effect=lambda *args, **kwargs:
+        prepare_copy(*args, **{**kwargs, 'application_root': Path(__file__).resolve().parents[2]})))
     stack.enter_context(patch.object(preview_deploy, 'DeploymentProcess', Process))
     stack.enter_context(patch.object(preview_deploy, 'CloudApi', side_effect=lambda account, token, state: CloudApi(account, token, state, router)))
     stack.enter_context(patch.object(preview_deploy, 'RuntimeClient', side_effect=lambda config, state: RuntimeClient(config, state, router)))
