@@ -11,7 +11,8 @@ from build_environment import local_git_environment
 
 def validate_repair(request, manifest):
     context = request['context']
-    exact(context, ['repairId', 'parentTaskId', 'parentRunId', 'requestDigest', 'resultDigest', 'errorCode'])
+    is_preview = 'preview' in context
+    exact(context, ['repairId', 'parentTaskId', 'parentRunId', 'requestDigest', 'resultDigest', 'errorCode'] + (['preview'] if is_preview else []))
     require(isinstance(context['parentTaskId'], str) and re.fullmatch(r'dc-[a-f0-9]{32}', context['parentTaskId'])
             and context['parentTaskId'] != request['taskId'])
     require(type(context['parentRunId']) is int and context['parentRunId'] > 0)
@@ -19,6 +20,16 @@ def validate_repair(request, manifest):
                 for key in ('requestDigest', 'resultDigest')))
     repairs = [row for row in manifest['repairs'] if row['id'] == context['repairId']]
     require(len(repairs) == 1 and context['errorCode'] in repairs[0]['fromErrorCodes'])
+    actions = repairs[0].get('fromActions', ['deploy', 'update', 'repair'])
+    if is_preview:
+        require('preview' in actions and context['parentTaskId'] not in
+                (context['preview']['source']['instanceId'], context['preview']['source']['taskId']))
+        source = context['preview']['source']
+        require(source['sourceSha'] not in (request['sourceSha'], request['previous']['sourceSha']))
+        validate_context({**request, 'action': 'preview', 'context': context['preview'],
+                          'previous': {field: source[field] for field in ('sourceSha', 'applicationVersion')}})
+    else:
+        require(any(action != 'preview' for action in actions))
 
 
 def validate_context(request):
@@ -68,7 +79,7 @@ def validated_request(value, root):
             require(current > previous and value['sourceSha'] != value['previous']['sourceSha'])
         else:
             require(current == previous and value['sourceSha'] == value['previous']['sourceSha'])
-    configuration(value['configuration'], preview=value['action'] in ('preview', 'destroy-preview'))
+    configuration(value['configuration'], preview=value['action'] in ('preview', 'destroy-preview') or 'preview' in value.get('context', {}))
     if value['action'] in ('preview', 'destroy-preview'):
         validate_context(value)
     if value['action'] == 'repair':

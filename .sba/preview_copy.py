@@ -19,8 +19,12 @@ def verify_preview_policy(release, config):
 
 
 def prepare_copy(backup, store, source, target, original, copied, *, application_root):
+    restored = restore_objects(store, backup['manifest'], Path(backup['directory']))
+    return prepare_restored_copy(backup, restored, source, target, original, copied, application_root=application_root)
+
+
+def prepare_restored_copy(backup, restored, source, target, original, copied, *, application_root):
     directory = Path(backup['directory'])
-    restored = restore_objects(store, backup['manifest'], directory)
     email_sql = directory / 'email-restore.sql'
     database = open_snapshot(restored['emailSql'])
     try: write_restore_sql(database, email_sql)

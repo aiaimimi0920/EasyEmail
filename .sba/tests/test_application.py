@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import application
 from boundary import DeploymentError
 from build_environment import BuildRunner, build_environment
-from fixtures import request
+from fixtures import request, repair_request, preview_repair_request
 
 
 LOCAL_SCRATCH = Path('C:/Users/Public/nas_home/AI/GameEditor/linshi')
@@ -19,11 +19,18 @@ SCRATCH = Path(os.environ.get('EASYEMAIL_TEST_ROOT', str(LOCAL_SCRATCH if LOCAL_
 
 class ApplicationTests(unittest.TestCase):
     def test_repair_is_an_independent_dispatch_with_a_required_directory(self):
-        value = request('repair')
+        value = repair_request()
         with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_DEPLOYMENT_DIRECTORY_REQUIRED'): application.run(value)
         with patch.object(application, 'repair', return_value={'status': 'unknown', 'checks': []}) as selected:
             self.assertEqual(application.run(value, SCRATCH / 'repair-operation')['status'], 'unknown')
         selected.assert_called_once_with(value, SCRATCH / 'repair-operation')
+
+    def test_preview_repair_uses_its_own_dispatch_without_bootstrap_or_replay(self):
+        value = preview_repair_request()
+        with patch.object(application, 'repair_preview', return_value={'status': 'unknown', 'checks': []}) as selected, \
+                patch.object(application, 'repair') as bootstrap:
+            self.assertEqual(application.run(value, SCRATCH / 'preview-repair-operation')['status'], 'unknown')
+        selected.assert_called_once_with(value, SCRATCH / 'preview-repair-operation'); bootstrap.assert_not_called()
 
     def test_destroy_preview_requires_a_directory_and_preserves_unknown_without_replay(self):
         value = request('destroy-preview')

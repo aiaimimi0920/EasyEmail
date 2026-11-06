@@ -16,9 +16,11 @@ RESULT_IDENTITY = ('schemaVersion', 'taskId', 'action', 'sourceSha', 'applicatio
 
 def persist_provenance(request, result, state, store, key, directory):
     full_result = {**{field: request[field] for field in RESULT_IDENTITY}, **result}
+    context = request['context'].get('preview', request['context'])
     payload = {'schemaVersion': 1, 'previewTaskId': request['taskId'], 'configurationDigest': digest(request['configuration']),
-               'resources': request['context']['resources'], 'source': request['context']['source'],
+               'resources': context['resources'], 'source': context['source'],
                'state': state, 'result': full_result, 'resultDigest': digest(full_result)}
+    if request['action'] == 'repair': payload['instanceId'] = request['context']['parentTaskId']
     signature = hmac.new(bytes.fromhex(key), digest(payload).encode('ascii'), hashlib.sha256).hexdigest()
     path = directory / 'preview-provenance.json'
     with secret_file(path) as output:
@@ -56,19 +58,25 @@ def load_provenance(request, store, key, directory):
     exact(record, ['payload', 'signature']); payload = record['payload']
     require(isinstance(payload, dict) and matches(r'[a-f0-9]{64}', record['signature'])
             and hmac.compare_digest(record['signature'], hmac.new(bytes.fromhex(key), digest(payload).encode('ascii'), hashlib.sha256).hexdigest()), error)
-    exact(payload, ['schemaVersion', 'previewTaskId', 'configurationDigest', 'resources', 'source', 'state', 'result', 'resultDigest'])
+    exact(payload, ['schemaVersion', 'previewTaskId', 'configurationDigest', 'resources', 'source', 'state', 'result', 'resultDigest']
+          + (['instanceId'] if 'instanceId' in payload else []))
     result = payload['result']; exact(result, [*RESULT_IDENTITY, 'status', 'checks', 'lifecycle'])
-    require(payload['schemaVersion'] == 1 and payload['previewTaskId'] == context['previewTaskId'] == context['instanceId']
+    require(payload['schemaVersion'] == 1 and payload['previewTaskId'] == context['previewTaskId']
+            and payload.get('instanceId', payload['previewTaskId']) == context['instanceId']
             and payload['configurationDigest'] == digest(request['configuration']) and payload['resources'] == context['resources']
             and payload['resultDigest'] == context['resultDigest'] == digest(result), error)
     require(result['schemaVersion'] == request['schemaVersion'] and result['taskId'] == context['previewTaskId']
-            and result['action'] == 'preview' and result['status'] == 'succeeded'
+            and result['action'] in ('preview', 'repair') and result['status'] == 'succeeded'
             and all(result[field] == request[field] for field in ('sourceSha', 'applicationVersion')), error)
     checks = result['checks']; lifecycle = result['lifecycle']; exact(lifecycle, ['resources', 'urls', 'snapshot'])
     require(isinstance(checks, list) and 4 <= len(checks) <= 30
             and all(isinstance(row, dict) and set(row) == {'id', 'passed'} and matches(r'[a-z][a-z0-9-]{1,62}', row['id'])
                     and row['passed'] is True for row in checks) and len({row['id'] for row in checks}) == len(checks), error)
     require({'snapshot-copied', 'migration-verified', 'source-unchanged', 'side-effects-isolated'} <= {row['id'] for row in checks}, error)
+    require(('instanceId' in payload) is (result['action'] == 'repair'), error)
+    if result['action'] == 'repair':
+        require(matches(r'dc-[a-f0-9]{32}', payload['instanceId']) and payload['instanceId'] != payload['previewTaskId']
+                and {'repair-completed', 'data-preserved', 'unchanged-resources-verified', 'service-ready'} <= {row['id'] for row in checks}, error)
     require(lifecycle['resources'] == [{'key': row['key'], 'status': 'created'} for row in context['resources']], error)
     exact(lifecycle['snapshot'], ['id', 'createdAt'])
     require(matches(r'[a-f0-9]{64}', lifecycle['snapshot']['id']) and type(lifecycle['snapshot']['createdAt']) is int

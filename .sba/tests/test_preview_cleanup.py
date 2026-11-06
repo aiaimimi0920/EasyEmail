@@ -17,12 +17,16 @@ from preview_provenance import persist_provenance
 from cleanup_fixtures import CleanupApi
 from test_deploy_secrets import secret_environment
 import test_contract
+from fixtures import preview_repair_request
 
 
 class PreviewCleanupTests(unittest.TestCase):
-    def cleanup(self, *, fail=None, drift=False, foreign=False, late_binding=False, repeat=False, outbox_full=False):
+    def cleanup(self, *, fail=None, drift=False, foreign=False, late_binding=False, repeat=False, outbox_full=False,
+                repaired=False, tamper=None):
         root = Path(tempfile.mkdtemp(prefix='preview-cleanup-', dir=os.environ['EASYEMAIL_TEST_ROOT']))
-        selected = test_contract.ContractTests().preview(); config = selected['configuration']
+        selected = preview_repair_request() if repaired else test_contract.ContractTests().preview()
+        preview = selected['context']['preview'] if repaired else selected['context']; config = selected['configuration']
+        instance = selected['context']['parentTaskId'] if repaired else selected['taskId']
         events = []; original_state = {'syntheticIdentity': 'exact'}
         class Api(CleanupApi):
             state = None
@@ -58,8 +62,11 @@ class PreviewCleanupTests(unittest.TestCase):
         store = Store(); material = deployment_secrets(config, secret_environment())
         result = {'status': 'succeeded', 'checks': [{'id': name, 'passed': True} for name in
                   ('snapshot-copied', 'migration-verified', 'source-unchanged', 'side-effects-isolated')], 'lifecycle': {
-                    'resources': [{'key': row['key'], 'status': 'created'} for row in selected['context']['resources']],
-                    'urls': selected['context']['urls'], 'snapshot': {'id': 'a' * 64, 'createdAt': 7}}}
+                    'resources': [{'key': row['key'], 'status': 'created'} for row in preview['resources']],
+                    'urls': preview['urls'], 'snapshot': {'id': 'a' * 64, 'createdAt': 7}}}
+        if repaired:
+            result['checks'] += [{'id': name, 'passed': True} for name in
+                                 ('repair-completed', 'data-preserved', 'unchanged-resources-verified', 'service-ready')]
         persist_provenance(selected, result, original_state, store, material.archive_key, root)
         if outbox_full:
             api.objects[config['platform']['outboxBucket']] += [{'key': f'object-{index:04}', 'size': 1, 'etag': 'a' * 32,
@@ -68,8 +75,9 @@ class PreviewCleanupTests(unittest.TestCase):
         full = {**{key: selected[key] for key in ('schemaVersion', 'taskId', 'action', 'sourceSha', 'applicationVersion')}, **result}
         request = {**selected, 'taskId': 'dc-' + '4' * 32, 'action': 'destroy-preview',
                    'previous': {key: selected[key] for key in ('sourceSha', 'applicationVersion')}, 'context': {
-                       'instanceId': selected['taskId'], 'previewTaskId': selected['taskId'], 'resultDigest': digest(full),
-                       'resources': selected['context']['resources']}}
+                       'instanceId': instance, 'previewTaskId': selected['taskId'], 'resultDigest': digest(full),
+                       'resources': preview['resources']}}
+        if tamper: tamper(request)
         if foreign: api.workers['other-service']['bindings'] = [{'type': 'd1', 'id': config['email']['database']['id']}]
         def cloud(account, token, state): api.state = state; return api
         def objects(config, key, state): store.state = state; return store
@@ -92,6 +100,16 @@ class PreviewCleanupTests(unittest.TestCase):
         self.assertEqual(events, order)
         self.assertEqual(set(api.workers), {'other-service'}); self.assertEqual(api.databases, {}); self.assertEqual(api.buckets, {})
         self.assertTrue(all(row['status'] == 'removed' for row in result['lifecycle']['resources']))
+
+    def test_repaired_preview_cleanup_is_bound_to_original_instance_and_new_repair_result(self):
+        result, events, api, uploads = self.cleanup(repaired=True)
+        self.assertEqual(result['status'], 'succeeded', result); self.assertEqual(api.databases, {})
+        for mutate in (lambda r: r['context'].update(instanceId=r['context']['previewTaskId']),
+                       lambda r: r['context'].update(previewTaskId=r['context']['instanceId']),
+                       lambda r: r['context'].update(resultDigest='0' * 64)):
+            result, events, api, uploads = self.cleanup(repaired=True, tamper=mutate)
+            self.assertEqual(result['status'], 'failed', result); self.assertEqual(events, [])
+            self.assertNotIn('preview-cleanup-authority-consumed', uploads); self.assertEqual(api.writes, [])
 
     def test_target_drift_or_foreign_binding_fails_before_guard_or_deletion(self):
         for options in [{'drift': True}, {'foreign': True}]:

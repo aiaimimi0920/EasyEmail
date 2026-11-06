@@ -49,11 +49,12 @@ def prepare_release(request, output):
     platform, email = source / 'service/cloudflare', source / 'upstreams/cloudflare_temp_email/worker'
     runner.run([node, npm, 'ci', '--no-audit', '--no-fund'], platform, 'platform-install')
     runner.run([node, pnpm, 'install', '--frozen-lockfile'], email, 'email-install')
-    runtime_config = preview_configuration(request['configuration']) if request['action'] == 'preview' else request['configuration']
+    preview = request['action'] == 'preview' or request['action'] == 'repair' and 'preview' in request['context']
+    runtime_config = preview_configuration(request['configuration']) if preview else request['configuration']
     public_input = {'descriptor': descriptor(runtime_config), 'providers': runtime_config['settings']['providers'],
                     'metadata': {**{key: request[key] for key in ('applicationId', 'applicationVersion', 'sourceSha')},
                                  'configurationDigest': digest(request['configuration'])}}
-    if request['action'] == 'preview': public_input['preview'] = True
+    if preview: public_input['preview'] = True
     input_path = output / 'release-input.json'
     input_path.write_text(json.dumps(public_input, ensure_ascii=False) + '\n', encoding='utf8')
     runner.run([node, source / '.sba/prepare.mjs', input_path, output / 'release'], source, 'release-prepare')

@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "id": "easyemail",
   "name": "EasyEmail",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "entrypoint": "springbok.ps1",
   "runtime": { "runner": "windows-2025", "powershell": "5.1", "python": "3.12", "node": "22" },
   "actions": {
@@ -17,6 +17,12 @@
     "id": "complete-empty-bootstrap",
     "name": "完成空实例初始化",
     "fromErrorCodes": ["EASYEMAIL_CLOUD_REQUEST_FAILED"],
+    "secretNames": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"]
+  }, {
+    "id": "complete-preview-credentials",
+    "name": "完成预升级副本",
+    "fromErrorCodes": ["EASYEMAIL_PREVIEW_CREDENTIAL_FAILED"],
+    "fromActions": ["preview"],
     "secretNames": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"]
   }],
   "secrets": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"]

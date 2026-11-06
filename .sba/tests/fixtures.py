@@ -22,9 +22,9 @@ def request(action='deploy'):
     return copy.deepcopy({
         'schemaVersion': 3, 'taskId': 'dc-' + '1' * 32, 'action': action,
         'repository': 'aiaimimi0920/EasyEmail', 'sourceSha': 'b' * 40,
-        'applicationId': 'easyemail', 'applicationVersion': '1.0.3',
+        'applicationId': 'easyemail', 'applicationVersion': '1.0.4',
         'environment': 'test-123456abcdef', 'configuration': configuration(),
-        'previous': None if action == 'deploy' else {'sourceSha': 'b' * 40, 'applicationVersion': '1.0.3'},
+        'previous': None if action == 'deploy' else {'sourceSha': 'b' * 40, 'applicationVersion': '1.0.4'},
     })
 
 
@@ -34,4 +34,23 @@ def repair_request():
     value['context'] = {'repairId': 'complete-empty-bootstrap', 'parentTaskId': 'dc-' + '2' * 32,
                         'parentRunId': 123, 'requestDigest': 'e' * 64, 'resultDigest': 'f' * 64,
                         'errorCode': 'EASYEMAIL_CLOUD_REQUEST_FAILED'}
+    return value
+
+
+def preview_repair_request():
+    from configuration import inventory
+    value = repair_request(); source = configuration()
+    prefix = 'test-aaaabbbbcccc'
+    source['email'].update(name=prefix + '-email', origin='https://' + prefix + '-email.synthetic.workers.dev',
+                           database={'id': '33333333-3333-3333-3333-333333333333', 'name': prefix + '-email-db'})
+    source['platform'].update(name=prefix + '-platform', origin='https://' + prefix + '-platform.synthetic.workers.dev',
+                              database={'id': '44444444-4444-4444-4444-444444444444', 'name': prefix + '-platform-db'},
+                              inboxBucket=prefix + '-inbox', outboxBucket=prefix + '-outbox')
+    source['mailDomain'] = prefix + '.test'
+    value['previous'] = {'sourceSha': 'd' * 40, 'applicationVersion': '1.0.2'}
+    value['context'].update(repairId='complete-preview-credentials', errorCode='EASYEMAIL_PREVIEW_CREDENTIAL_FAILED', preview={
+        'source': {'sourceSha': 'a' * 40, 'applicationVersion': '1.0.0', 'instanceId': 'dc-' + '3' * 32,
+                   'taskId': 'dc-' + '4' * 32, 'environment': 'source', 'configuration': source,
+                   'resources': inventory(source), 'resultDigest': 'a' * 64},
+        'resources': inventory(value['configuration']), 'urls': [value['configuration'][role]['origin'] for role in ('email', 'platform')]})
     return value

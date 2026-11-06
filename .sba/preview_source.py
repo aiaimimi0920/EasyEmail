@@ -28,10 +28,10 @@ def source_state(config, api):
     return {'managed': managed, 'settingsDigest': digest(settings)}
 
 
-def prove_source_unchanged(backup, api, store, config, directory, *, exporter=export_database):
+def prove_source_unchanged(backup, api, store, config, directory, *, exporter=export_database, phase='sourcefinal'):
     directory = private_directory(directory)
     for role in ('email', 'platform'):
-        latest = exporter(api, config[role]['database']['id'], role, directory, phase='sourcefinal')
+        latest = exporter(api, config[role]['database']['id'], role, directory, phase=phase)
         prove_preserved(backup['manifest']['databases'][role]['witness'], latest['path'], exact=True)
     expected = {bucket: sorted([row['source'] for row in backup['manifest']['objects'] if row['bucket'] == bucket], key=lambda row: row['key'])
                 for bucket in ('INBOX', 'OUTBOX')}
