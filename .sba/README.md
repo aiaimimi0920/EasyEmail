@@ -19,7 +19,7 @@
 - `private_files.py`：临时秘密目录先限制并读回权限；Windows 只允许当前用户 SID 与 SYSTEM，POSIX 目录 0700 / 文件 0600。`published_settings.py` 独立读回实际 bindings、vars、cron、workers.dev/preview 和 custom-domain 状态，不只信任 CLI 退出码。
 - `initial_bootstrap.py`：复用真实自营初始化及平台注册/登录处理器，授予管理员、核自营供应商认证并注销验收会话；没有另写密码散列算法。
 - `bootstrap_repair.py` / `bootstrap_pristine.py`：1.0.1 的可选独立 repair 仅处理 1.0.0 隔离实例的 `EASYEMAIL_CLOUD_REQUEST_FAILED`。先核原公开版本、原资源/秘密、schema/59 迁移、无历史自增业务使用、全部业务表空态和两个 R2 全空；四张迁移预置状态表必须逐字段保持源码初值，不能只比较行数。保留 schema/迁移及预置行证明后，仅发布新 Worker 并执行原生 bootstrap，不重建资源、不重新应用 schema、不重放父 deploy。发布后再次复核空态；任何写后不确定均为 unknown，无自动重试。跨请求核对不是全局原子快照，独立外部写入者仍需停止。
-- `cloud_transport.py`：有界 HTTPS、禁止重定向与继承代理、写前私有记录；应用不重放已尝试的写步骤。写后失败或不确定结果为 `unknown`，不能笼统报 `failed`。
+- `cloud_transport.py`：有界 HTTPS、禁止重定向与继承代理、写前私有记录；应用不重放已尝试的写步骤。写后失败或不确定结果为 `unknown`，不能笼统报 `failed`。JSON、公开验真及 ObjectStore 二进制 GET/PUT 均显式标识 `EasyEmail-SBA/1.0`，不伪装浏览器或修改边缘安全策略。
   实查 Worker 自定义域名列表 GET 的成功响应允许显式 `errors:null`；仅这个准确读取端点接受该形式，不接受缺失字段，不放宽其他接口或写请求，也不跳过域名清单完整性检查。
 - `object-control.mjs`：仅封存后的聚合 Worker 提供独立秘密认证的 R2 控制入口；匿名或错误密钥为 opaque 404。允许有界列表、读取和带 SHA-256 的条件创建，不提供删除或覆盖。
 - `snapshot_lifecycle.py` / `snapshot_bundle.py` / `archive-crypto.mjs`：两 D1 导出、两业务桶字节与原生元数据进入同一 AES-256-GCM 归档；以独立用途的派生密钥和快照 ID 认证。归档写入私有 OUTBOX 的 `_easyemail-sba/backups/`，独立下载、解密、重建 SQLite 并验证后才返回备份成功；不上传明文 SQL、邮件对象、密钥或私有回执为 CI artifact。
@@ -35,12 +35,12 @@
 | SBA 动作 | 当前应用行为 |
 | --- | --- |
 | verify | 已实现无部署凭据的公开版本验真；需先有本适配器发布的版本证明 |
-| deploy（隔离） | 已接通应用代码与本地运行验收；会执行真实云写，尚未通过 SpringBok 云部署验收 |
+| deploy（隔离） | 1.0.0 的真实 SpringBok 部署、独立 verify 和基础 Web/API 业务验收已通过；1.0.2 对象传输窄修候选仍待验 |
 | deploy（正式 custom domain） | 已接通应用源码；要求空闲域名、新空数据资源，以及可选的明确中性邮件目标；尚未通过真实 SpringBok 正式部署验收 |
 | update | 已接通同实例持久备份、原生迁移/发布、保数据和既有身份验收；仍待 SpringBok 云升级验收 |
 | preview | 已接通持久备份、隔离双库双桶副本、迁移、源未变证明和私有来源记录；会执行真实云写，尚未通过 SpringBok 云验收 |
 | destroy-preview | 已接通认证来源、持久一次性消费、先停入口、精确有界删除和独立不存在读回；会执行真实云写，尚未通过 SpringBok 云清理验收 |
-| repair / complete-empty-bootstrap | 本地原生 bootstrap/空态门禁和编排回归已接通；不支持已有业务数据或正式实例，尚未通过 SpringBok 云修复验收 |
+| repair / complete-empty-bootstrap | 1.0.1 独立云 repair 与 verify 已通过；不支持已有业务数据或正式实例 |
 
 平台可能在调用应用前准备资源，因此不能把拒绝尚未实现的动作理解成整个平台一定没有写入。两类 deploy 均不是 dry-run。完整生命周期实现并验收前，不应将此中间版本登记为可用发布。
 

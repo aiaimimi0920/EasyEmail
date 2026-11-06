@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from boundary import DeploymentError
 from cloud_transport import OperationState
 from object_snapshot import ObjectStore, business_inventory
-from test_cloud_transport import SequenceOpener
+from test_cloud_transport import Response, SequenceOpener
 from fixtures import configuration
 
 
@@ -49,6 +49,25 @@ class ObjectSnapshotTests(unittest.TestCase):
         self.assertEqual(checksum, hashlib.sha256(b'abc').hexdigest()); self.assertEqual((root / '0.object').read_bytes(), b'abc')
         self.assertFalse(store.state.attempted)
         self.assertIn('key=folder%2F', opener.calls[0].full_url); self.assertNotIn('a1' * 32, opener.calls[0].full_url)
+        self.assertEqual(opener.calls[0].get_header('User-agent'), 'EasyEmail-SBA/1.0')
+        self.assertEqual(opener.calls[0].get_header('Authorization'), 'Bearer ' + 'a1' * 32)
+
+    def test_binary_upload_and_independent_readback_identify_the_same_client(self):
+        row = object_metadata()
+        class Uploaded:
+            def __init__(self): self.calls = []
+            def open(self, request, timeout):
+                self.calls.append(request)
+                return Response(row, status=201) if request.get_method() == 'PUT' else BinaryResponse(b'abc', row)
+        opener = Uploaded(); store, root = self.store(opener); file = root / 'upload.object'; file.write_bytes(b'abc')
+        actual = store.put('OUTBOX', row['key'], file, row, hashlib.sha256(b'abc').hexdigest(), 'object-copied-0')
+        self.assertEqual(actual, row)
+        self.assertEqual([request.get_method() for request in opener.calls], ['PUT', 'GET'])
+        for request in opener.calls:
+            self.assertEqual(request.get_header('User-agent'), 'EasyEmail-SBA/1.0')
+            self.assertEqual(request.get_header('Authorization'), 'Bearer ' + 'a1' * 32)
+            self.assertNotIn('a1' * 32, request.full_url)
+        self.assertEqual(store.state.value['writes'], ['object-copied-0'])
 
     def test_changed_metadata_wrong_length_and_missing_content_are_not_a_snapshot(self):
         for change in ('version', 'truncated', 'extra', 'missing-header'):

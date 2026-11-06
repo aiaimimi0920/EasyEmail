@@ -42,7 +42,8 @@ class ObjectStore:
         if key is not None: query['key'] = key
         if cursor is not None: query['cursor'] = cursor
         return urllib.request.Request(self.origin + '/__easyemail_sba/v1/' + operation + '?' + urlencode(query),
-                                      headers={'Authorization': 'Bearer ' + self.secret, **kwargs.pop('headers', {})}, **kwargs)
+                                      headers={'User-Agent': 'EasyEmail-SBA/1.0', 'Authorization': 'Bearer ' + self.secret,
+                                               **kwargs.pop('headers', {})}, **kwargs)
 
     def list(self, bucket):
         rows, cursors, cursor = [], set(), None
