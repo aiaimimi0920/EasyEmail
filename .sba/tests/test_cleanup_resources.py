@@ -84,15 +84,45 @@ class CleanupResourceTests(unittest.TestCase):
             with self.assertRaises(DeploymentError): remove_database(api.config, 'email', before, api)
             self.assertEqual(api.writes, [])
 
-    def test_truncated_absence_list_does_not_confirm_deletion(self):
+    def test_database_absence_uses_exact_uuid_not_account_list_metadata_after_delete(self):
         api = CleanupApi(); before = database_identity(api.config, 'email', api); original = api.request
         def request(method, suffix, *args, **kwargs):
             result = copy.deepcopy(original(method, suffix, *args, **kwargs))
             if suffix.startswith('/d1/database?'): result['result_info'] = {'total_count': 2}
             return result
         api.request = request
-        with self.assertRaises(DeploymentError): remove_database(api.config, 'email', before, api)
+        remove_database(api.config, 'email', before, api)
         self.assertEqual(api.writes, ['cleanup-email-database-deleted'])
+        self.assertFalse(any(path.startswith('/d1/database?') for method, path, zone in api.calls))
+
+    def test_database_uuid_read_waits_only_for_valid_presence_and_never_redeletes(self):
+        api = CleanupApi(); before = database_identity(api.config, 'email', api); original = api.read_response; reads = []
+        saved = copy.deepcopy(api.databases[before['id']])
+        def response(suffix, **kwargs):
+            reads.append(suffix)
+            if len(reads) <= 2: return {'success': True, 'errors': [], 'result': saved}, 200
+            return original(suffix, **kwargs)
+        api.read_response = response
+        remove_database(api.config, 'email', before, api)
+        self.assertEqual(api.writes, ['cleanup-email-database-deleted']); self.assertEqual(len(reads), 3)
+        self.assertEqual([call.args[0] for call in self.sleep.call_args_list], [1, 2])
+
+    def test_database_wrong_uuid_malformed_not_found_and_failed_reads_never_confirm_absence(self):
+        for body, status in [({'success': False, 'errors': [{'code': 10000}], 'result': None}, 404),
+                             ({'success': True, 'errors': [{'code': 7404}], 'result': None}, 404),
+                             ({'success': False, 'errors': [{'code': 7404}], 'result': {}}, 404),
+                             ({'success': False, 'errors': [{'code': 7404}, {'code': 10000}], 'result': None}, 404),
+                             ({'success': True, 'errors': [], 'result': {'uuid': 'f' * 36, 'name': 'foreign'}}, 200)]:
+            api = CleanupApi(); before = database_identity(api.config, 'email', api); reads = []; self.sleep.reset_mock()
+            def response(suffix, **kwargs): reads.append(suffix); return body, status
+            api.read_response = response
+            with self.subTest(status=status, body=body), self.assertRaises(DeploymentError): remove_database(api.config, 'email', before, api)
+            self.assertEqual(len(reads), 1); self.sleep.assert_not_called()
+            self.assertEqual(api.writes, ['cleanup-email-database-deleted'])
+        api = CleanupApi(); before = database_identity(api.config, 'email', api); self.sleep.reset_mock()
+        api.read_response = lambda *args, **kwargs: (_ for _ in ()).throw(DeploymentError('EASYEMAIL_CLOUD_REQUEST_FAILED'))
+        with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_CLOUD_REQUEST_FAILED'): remove_database(api.config, 'email', before, api)
+        self.sleep.assert_not_called(); self.assertEqual(api.writes, ['cleanup-email-database-deleted'])
 
 
 if __name__ == '__main__': unittest.main()

@@ -72,6 +72,10 @@ class CleanupApi:
 
     def read_response(self, suffix, *, statuses):
         self.calls.append(('GET', suffix, None))
+        if suffix.startswith('/d1/database/'):
+            row = self.databases.get(suffix.rsplit('/', 1)[1])
+            if row is not None: return {'success': True, 'errors': [], 'result': copy.deepcopy(row)}, 200
+            return {'success': False, 'errors': [{'code': 7404}], 'result': None}, 404
         if self.notifications is None: return {'success': False, 'errors': [{'code': 11015}], 'result': None}, 404
         return self.notifications
 

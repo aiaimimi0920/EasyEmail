@@ -23,10 +23,18 @@ def worker_absent(config, role, api):
 
 
 def database_absent(config, role, api):
-    rows = listed(api, '/d1/database?per_page=1000&page=1')
-    require(all(isinstance(row, dict) and matches(r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}', row.get('uuid')) for row in rows)
-            and len({row['uuid'] for row in rows}) == len(rows), ERROR)
-    return all(row['uuid'] != config[role]['database']['id'] for row in rows)
+    expected = config[role]['database']
+    body, status = api.read_response('/d1/database/' + expected['id'], statuses=(200, 404))
+    require(isinstance(body, dict), ERROR)
+    if status == 404:
+        errors = body.get('errors')
+        require(body.get('success') is False and 'result' in body and body['result'] is None and
+                isinstance(errors, list) and len(errors) == 1 and isinstance(errors[0], dict) and errors[0].get('code') == 7404, ERROR)
+        return True
+    row = body.get('result')
+    require(status == 200 and body.get('success') is True and body.get('errors') == [] and isinstance(row, dict) and
+            row.get('uuid') == expected['id'] and row.get('name') == expected['name'], ERROR)
+    return False
 
 
 def stop_ingress(config, role, api):
@@ -52,4 +60,8 @@ def remove_worker(config, role, api):
 def remove_database(config, role, expected, api):
     require(database_identity(config, role, api) == expected, ERROR)
     api.delete('/d1/database/' + expected['id'], write='cleanup-' + role + '-database-deleted')
-    require(database_absent(config, role, api), ERROR)
+    # Observe the immutable UUID directly, not an account-wide list/count after a deletion.
+    for delay in (0, 1, 2, 4, 8):
+        if delay: time.sleep(delay)
+        if database_absent(config, role, api): return
+    require(False, ERROR)

@@ -22,9 +22,9 @@ def request(action='deploy'):
     return copy.deepcopy({
         'schemaVersion': 3, 'taskId': 'dc-' + '1' * 32, 'action': action,
         'repository': 'aiaimimi0920/EasyEmail', 'sourceSha': 'b' * 40,
-        'applicationId': 'easyemail', 'applicationVersion': '1.0.9',
+        'applicationId': 'easyemail', 'applicationVersion': '1.0.10',
         'environment': 'test-123456abcdef', 'configuration': configuration(),
-        'previous': None if action == 'deploy' else {'sourceSha': 'b' * 40, 'applicationVersion': '1.0.9'},
+        'previous': None if action == 'deploy' else {'sourceSha': 'b' * 40, 'applicationVersion': '1.0.10'},
     })
 
 
