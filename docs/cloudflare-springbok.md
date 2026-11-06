@@ -10,6 +10,34 @@
 共享 Zone、MX、现有凭据及非 EasyEmail 服务不因实例清理被删除。
 本阶段不修改现有正式服务、收信路由或 NAS，也不发真实邮件。
 
+## 2026-11-06 独立修复准备与账号执行 lane
+
+显式部署客户端修复已提交为 `072bb38` 并推送迁移分支，精确 CI run `42201795310`
+全部通过。随后经正常 owner UI 单次提交第二个隔离任务
+`dc-36f4d06288bd43c4a1dc810f6c98d583`，环境 `easyemail-migration-sb-3a8e7e8e-r2`。
+该任务停在 preparation-unconfirmed，尚无 GitHub run，真实只读核对六个新资源均不存在。
+平台按 Cloudflare 账号持有唯一 deployment lane，原 UNKNOWN 未完成，独立环境也不能绕过；
+没有清锁、重复初始提交或创建第三套环境，也没有把无资源创建误报为成功部署。
+
+当前候选升级适配器为 1.0.1，提供独立 `complete-empty-bootstrap` repair。只接受旧
+1.0.0 隔离实例的准确错误，复用原资源与原密钥；原版本/配置、schema/59 项迁移、
+业务表空态、四张迁移预置表逐字段初值、无业务自增高水位和两个 R2 全空都须通过。
+先保留只读证明，再发布双 Worker，重新核空态后走原生 bootstrap；不重做 schema/
+迁移、不重放父部署、不重注册已有用户。成功才返回 repair-completed、data-preserved、
+unchanged-resources-verified 和 service-ready；这里的数据保全范围是空业务实例的 schema/
+迁移/预置行，不是有数据实例的通用恢复，也不是跨库/桶原子快照。
+
+新门禁对原云实例的只读实测通过：43/429 个 schema 对象、原发布的五项公开证据及
+资源身份前后不变，无业务写入。D1 原生运行暴露并定位内部 `_cf_METADATA` 访问限制、
+复合 SELECT 项数与结果列数限制；只排除两个准确 D1 内部表，采用每批最多 32 列的
+独立计数，并补受限 SQLite 回归，不泛化忽略 `_cf_*` 或跳过业务表。
+本地完整 Python 176 项、SBA JavaScript 28 项（含真实打包双 Worker 的五项）和检查器
+19 项全部通过，无失败或跳过；包括 bootstrap 前后空态门禁、原生注册/登录/self-provider、
+MIME 聚合与后续保数据升级。ratchet 扫描 2250 文件，三个超限档位均 0，未运行 strict。
+固定提交 CI、SpringBok 生命周期固定 SHA 入口发布和真正云 repair 仍须依次完成，
+尚未宣称云修复成功。
+证据在 `linshi/easyemail-springbok-20261106/email20-*` 至 `email22-*`。
+
 ## 2026-11-06 首次 SpringBok 云部署与边缘拒绝
 
 EasyEmail 固定提交 `ceb43ef` 的完整 CI 已通过。SpringBok PR #128 增加正常弹窗的
@@ -34,7 +62,7 @@ Error 1010、`browser_signature_banned` 拒绝。相同入口使用如实标识�
 拒绝五项公开验真，以及带原凭据的自营版本 GET 均通过；这些是只读核对，不是补做初始化。
 
 当前 unknown 任务不重放、不清锁、不手工续做 bootstrap。上述两客户端、两回归和本页
-的五文件修复尚未提交推送，也未部署；新的固定 SHA 和隔离试验仍需批准并通过 CI。
+的五文件修复随后已提交推送并通过 CI（见上节）；原云实例尚未发布该修复。
 现有测试资源与正式服务全部保留，未开始清理、域名/MX 切换或真实邮件验收。
 证据在 `linshi/easyemail-springbok-20261106/email17-*` 与 `email18-*`。
 

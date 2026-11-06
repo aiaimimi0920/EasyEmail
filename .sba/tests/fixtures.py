@@ -22,7 +22,16 @@ def request(action='deploy'):
     return copy.deepcopy({
         'schemaVersion': 3, 'taskId': 'dc-' + '1' * 32, 'action': action,
         'repository': 'aiaimimi0920/EasyEmail', 'sourceSha': 'b' * 40,
-        'applicationId': 'easyemail', 'applicationVersion': '1.0.0',
+        'applicationId': 'easyemail', 'applicationVersion': '1.0.1',
         'environment': 'test-123456abcdef', 'configuration': configuration(),
-        'previous': None if action == 'deploy' else {'sourceSha': 'b' * 40, 'applicationVersion': '1.0.0'},
+        'previous': None if action == 'deploy' else {'sourceSha': 'b' * 40, 'applicationVersion': '1.0.1'},
     })
+
+
+def repair_request():
+    value = request('repair')
+    value['previous'] = {'sourceSha': 'd' * 40, 'applicationVersion': '1.0.0'}
+    value['context'] = {'repairId': 'complete-empty-bootstrap', 'parentTaskId': 'dc-' + '2' * 32,
+                        'parentRunId': 123, 'requestDigest': 'e' * 64, 'resultDigest': 'f' * 64,
+                        'errorCode': 'EASYEMAIL_CLOUD_REQUEST_FAILED'}
+    return value

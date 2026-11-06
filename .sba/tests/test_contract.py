@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from boundary import DeploymentError
 from configuration import inventory
 from contract import validate_context, validated_request
-from fixtures import request
+from fixtures import repair_request, request
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -75,6 +75,25 @@ class ContractTests(unittest.TestCase):
         selected = self.preview(); selected['configuration']['routing'] = selected['context']['source']['configuration']['routing']
         selected['context']['resources'] = inventory(selected['configuration'])
         with self.assertRaises(DeploymentError): validate_context(selected)
+
+    def test_repair_accepts_a_newer_fixed_version_and_explicit_parent_evidence(self):
+        value = repair_request()
+        with patch('contract.subprocess.check_output', side_effect=self.git):
+            self.assertEqual(validated_request(value, ROOT), value)
+
+    def test_repair_rejects_unknown_operation_incomplete_parent_and_same_version(self):
+        mutations = [lambda r: r['context'].update(repairId='arbitrary-replay'),
+                     lambda r: r['context'].update(errorCode='EASYEMAIL_UNEXPECTED_FAILURE'),
+                     lambda r: r['context'].update(parentTaskId=r['taskId']),
+                     lambda r: r['context'].update(parentRunId=True),
+                     lambda r: r['context'].update(requestDigest='bad'),
+                     lambda r: r['context'].update(extra='not-permitted'),
+                     lambda r: r.update(previous={'sourceSha': r['sourceSha'], 'applicationVersion': r['applicationVersion']})]
+        for mutate in mutations:
+            with self.subTest(mutate=mutate):
+                value = repair_request(); mutate(value)
+                with patch('contract.subprocess.check_output', side_effect=self.git), self.assertRaises(DeploymentError):
+                    validated_request(value, ROOT)
 
 
 if __name__ == '__main__':

@@ -59,9 +59,11 @@ test('Python bootstrap uses real dual-Worker secrets, upstream DB version, regis
       routes.push({ method: input.method, origin: url.origin, path: url.pathname });
       let result;
       if (url.origin === 'https://api.cloudflare.com') {
-        assert.equal(input.method, 'POST'); assert.equal(url.pathname, `/client/v4/accounts/${configuration.accountId}/d1/database/${configuration.platform.database.id}/query`);
+        assert.equal(input.method, 'POST');
+        const role = ['email', 'platform'].find(role => url.pathname === `/client/v4/accounts/${configuration.accountId}/d1/database/${configuration[role].database.id}/query`);
+        assert.ok(role, 'unexpected cloud query target');
         const value = JSON.parse(Buffer.from(input.body, 'base64').toString('utf8'));
-        const query = await fixture.db.prepare(value.sql).bind(...value.params).all();
+        const query = await (role === 'email' ? fixture.emailDb : fixture.db).prepare(value.sql).bind(...value.params).all();
         result = new Response(JSON.stringify({ success: true, errors: [], result: [{ success: true, results: query.results, meta: query.meta }] }));
       } else {
         assert.ok([fixture.target.email.origin, fixture.target.platform.origin].includes(url.origin));
@@ -77,7 +79,7 @@ test('Python bootstrap uses real dual-Worker secrets, upstream DB version, regis
   try {
     const result = await promisify(execFile)('python', [driver, 'bootstrap', configurationPath, String(server.address().port), operation],
       { timeout: 60000, windowsHide: true, encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } });
-    assert.equal(JSON.parse(result.stdout).status, 'passed'); assert.deepEqual(errors, []);
+    assert.equal(JSON.parse(result.stdout).status, 'passed'); assert.equal(JSON.parse(result.stdout).pristineRepairGatePassed, true); assert.deepEqual(errors, []);
     assert.equal((await fixture.db.prepare('SELECT COUNT(*) AS n FROM platform_admins').first()).n, 1);
     assert.equal((await fixture.db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE revoked_at IS NULL').first()).n, 0);
     assert.match((await fixture.db.prepare('SELECT password_hash FROM users WHERE username=?').bind(configuration.settings.adminUsername).first()).password_hash,

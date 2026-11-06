@@ -18,6 +18,13 @@ SCRATCH = Path(os.environ.get('EASYEMAIL_TEST_ROOT', str(LOCAL_SCRATCH if LOCAL_
 
 
 class ApplicationTests(unittest.TestCase):
+    def test_repair_is_an_independent_dispatch_with_a_required_directory(self):
+        value = request('repair')
+        with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_DEPLOYMENT_DIRECTORY_REQUIRED'): application.run(value)
+        with patch.object(application, 'repair', return_value={'status': 'unknown', 'checks': []}) as selected:
+            self.assertEqual(application.run(value, SCRATCH / 'repair-operation')['status'], 'unknown')
+        selected.assert_called_once_with(value, SCRATCH / 'repair-operation')
+
     def test_destroy_preview_requires_a_directory_and_preserves_unknown_without_replay(self):
         value = request('destroy-preview')
         with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_DEPLOYMENT_DIRECTORY_REQUIRED'): application.run(value)
