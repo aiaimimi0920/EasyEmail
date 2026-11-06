@@ -79,7 +79,7 @@ export function remoteId(value: unknown): string {
 export function receivedTime(value: unknown, sqlite = false): number | null {
   if (typeof value !== "string") return null;
   const raw = sqlite && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value) ? value.replace(" ", "T") + "Z" : value;
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(raw)) return null;
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(raw)) return null;
   const ms = Date.parse(raw);
   return Number.isFinite(ms) ? Math.floor(ms / 1000) : null;
 }

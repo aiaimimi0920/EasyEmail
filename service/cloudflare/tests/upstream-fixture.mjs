@@ -24,8 +24,18 @@ export async function upstreamFixture(bindings = {}, captureSend = false) {
     await writeFile(scriptPath, `import worker from './worker.js';
 export default { ...worker, fetch(request, env, ctx) {
   return worker.fetch(request, { ...env, SEND_MAIL: { async send(message) {
+    const attachments = message.attachments?.map(item => {
+      const binary = typeof item.content !== 'string';
+      let content = item.content;
+      if (binary) {
+        const bytes = ArrayBuffer.isView(content) ? new Uint8Array(content.buffer, content.byteOffset, content.byteLength) : new Uint8Array(content);
+        let raw = ''; for (let i = 0; i < bytes.length; i += 32768) raw += String.fromCharCode(...bytes.subarray(i, i + 32768));
+        content = btoa(raw);
+      }
+      return { ...item, content, contentKind: binary ? 'binary' : 'string' };
+    });
     const response = await fetch('https://synthetic-send-binding.test/capture', {
-      method: 'POST', body: JSON.stringify(message) });
+      method: 'POST', body: JSON.stringify({ ...message, ...(attachments ? { attachments } : {}) }) });
     if (!response.ok) throw Error('Synthetic binding rejected');
     return response.json();
   } } }, ctx);

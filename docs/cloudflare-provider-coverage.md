@@ -1,13 +1,13 @@
 # Cloudflare 供应商迁移覆盖
 
-截至 2026-11-01，以下是迁移分支的本地实现范围，不是生产发布或真实投递验收清单。
+截至 2026-11-05，以下区分本地实现与正式实例验收范围，不把一个供应商的成功外推到其余供应商。正式 Web/API 已使用 `mail.aiaimimi.com`，邮箱后缀为 `aiaimimi.com`，部署与独立回执见 [正式域名部署](cloudflare-production.md)。
 旧 SDK 的 12 类供应商仍是范围参照；暂停或待迁移不表示取消目标，也不因合同差异伪造统一能力。
 各阶段是否通过以各自独立 `verification.json` 的实际 `status` 为准。
 
 | 旧 SDK 类型 | 迁移状态 | 具体边界 |
 | --- | --- | --- |
-| `cloudflare_temp_email` | 已有本地纵向链路 | 聚合侧类型 `cloudflare`；自营收件、受控创建及已配置发信等见各切片，仍需云端验收 |
-| `temporam` | 已有本地纵向链路 | 随机分配、收件等；不把旧 NAS 真实投递证据算作新 Cloudflare 部署验收 |
+| `cloudflare_temp_email` | 正式实例核心链路已验收 | 聚合侧类型 `cloudflare`；根域收信、受控创建/发信、真实附件、提码与分钟队列通过；不是任意外发或全部管理操作的公网验收 |
+| `temporam` | 正式实例核心链路已验收 | 平台随机分配、真实收件、正文、蛇形发收件字段、六位小数收件时间及新鲜提码通过；无远端 lease API，不伪报远端创建或发信能力 |
 | `moemail` | W12a 本地已验收 | 授权实例、随机分配、持久 cursor、Web/API；见 [MoEmail](cloudflare-moemail-slice.md) |
 | `gptmail` | W12b 本地已验收 | 管理员域名、本地随机地址、有界列表摘要续批；见 [GPTMail](cloudflare-gptmail-slice.md) |
 | `duckmail` | W12c 本地已验收 | 临时账户、显式匿名/Key 模式、数值分页；见 [DuckMail](cloudflare-duckmail-slice.md) |

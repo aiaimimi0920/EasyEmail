@@ -55,6 +55,7 @@
     "tests/normal-flags-storage.test.mjs",
     "tests/normal-flags-migration.test.mjs",
     "tests/deployment-config.test.mjs",
+    "tests/deployment-production.test.mjs",
     "tests/release-inputs.test.mjs",
     "tests/release-artifacts.test.mjs",
     "tests/release-runtime.test.mjs",
@@ -416,6 +417,7 @@
   ],
   "release": [
     "tests/deployment-config.test.mjs",
+    "tests/deployment-production.test.mjs",
     "tests/release-inputs.test.mjs",
     "tests/release-artifacts.test.mjs",
     "tests/release-runtime.test.mjs",

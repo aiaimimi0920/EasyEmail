@@ -6,6 +6,8 @@
 本页后面的初始阶段安排保留为历史规划，不能用其中“未完成”推断当前代码状态。
 最新供应商进度见 [迁移覆盖表](cloudflare-provider-coverage.md)，各能力切片与本地验收入口见 [迁移计划](cloudflare-migration.md)。
 
+2026-11-05 已完成 [正式域名部署与核心真实验收](cloudflare-production.md)：用户经 `mail.aiaimimi.com` 使用网页与统一 API，邮箱地址为 `xxx@aiaimimi.com`。自营、Temporam、正文、附件字节一致性、提码、权限及真实 cron 已在受控范围内验证；邀请注册且仅允许明确验收收件人发信。普通 IMAP/SMTP、Google OAuth、Agent 公网互操作和其余供应商仍未实际验收，不能把部署成功当作本清单全部完成。
+
 ## 1. 产品边界
 
 - Cloudflare Email：自营临时邮箱供应商，负责地址、收信、原始邮件及附件。

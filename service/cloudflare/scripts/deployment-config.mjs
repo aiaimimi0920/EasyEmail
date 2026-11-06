@@ -34,7 +34,8 @@ function isolatedAcceptance(value, email, platform) {
   const settings = record(value.acceptance, ['workersDev'], 'acceptance');
   if (typeof settings.workersDev !== 'boolean') invalid('acceptance.workersDev');
   const names = [email.name, platform.name, email.database.name, platform.database.name, platform.inboxBucket, platform.outboxBucket];
-  if (names.some(name => !name.startsWith('easyemail-migration-'))) invalid('acceptance resource prefix');
+  const prefix = /^(easyemail-migration-|test-[a-f0-9]{12}-)/.exec(email.name)?.[1];
+  if (!prefix || names.some(name => !name.startsWith(prefix))) invalid('acceptance resource prefix');
   const subdomains = [email, platform].map(component => {
     const labels = new URL(component.origin).hostname.split('.');
     if (labels.length !== 4 || labels[0] !== component.name || labels[2] !== 'workers' || labels[3] !== 'dev') invalid('acceptance origin');

@@ -1,6 +1,8 @@
 # Cloudflare EasyEmail 迁移边界
 
 这里是新聚合服务的迁移入口，包含可本地运行的 Workers、D1 身份模型和 React 网页。
+2026-11-05 的正式域名及受控真实验收状态见[正式部署说明](../../docs/cloudflare-production.md)。
+SpringBok 一键部署正在接入，当前动作边界和未完成编排见[接入进度](../../docs/cloudflare-springbok.md)，不能将本地合同或构建通过视为已完成 SpringBok 云部署。
 新的 Web 工作台在迁移分支接入 [NeuroDesign 标准控件](../../docs/cloudflare-neuro-ui.md)，本轮前端资源已发布并通过线上浏览器验收，见 [UI 发布记录](../../docs/cloudflare-neuro-ui-release.md)；[第一阶段](../../docs/cloudflare-web-workbench.md)及以下 W/M 切片文字保留各阶段当时的验收边界。
 最新临时邮箱 W15a 见[有效凭据恢复访问](../../docs/cloudflare-mailbox-access-recovery-slice.md)：自营活体身份合同、聚合导入／恢复与 Web/API 原键回执；不按地址认领、不自动启用、同步或发信。新增0059，真实云端验收和发布仍未完成。
 最新网页 W14d3 见[普通邮箱移动／永久删除网页](../../docs/cloudflare-normal-mutation-web-slice.md)：共享详情接入显式目标、分别确认、跨导航原键和 pending/unknown 只读恢复，不自动同步或重试。后端 W14d2 见[持久回执与物理锁](../../docs/cloudflare-normal-mutation-operations-slice.md)；无新迁移，缓存身份不搬移，真实互操作和发布仍未完成。

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 3,
+  "id": "easyemail",
+  "name": "EasyEmail",
+  "version": "1.0.0",
+  "entrypoint": "springbok.ps1",
+  "runtime": { "runner": "windows-2025", "powershell": "5.1", "python": "3.12", "node": "22" },
+  "actions": {
+    "deploy": { "timeoutSeconds": 3600 },
+    "update": { "timeoutSeconds": 3600 },
+    "verify": { "timeoutSeconds": 180 },
+    "preview": { "timeoutSeconds": 3600 },
+    "destroy-preview": { "timeoutSeconds": 1800 }
+  },
+  "secrets": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"]
+}

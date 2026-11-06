@@ -163,6 +163,22 @@ test("missing detail on an early page remains visible at the end of traversal", 
   assert.equal((await sync(temp.id)).body.sync.missing, 0);
 });
 
+test("Temporam live snake-case fields preserve sender, recipient identity and microsecond receipt time for fresh OTP", async () => {
+  const temp = (await allocate(h, alice.cookie, "temporam")).body.mailbox;
+  const message = { id: "live-snake-case", from_email: "noreply@example.test", to_email: temp.address,
+    subject: "Live contract", content: "Your verification code is 583921.", created_at: "2026-10-28T09:00:00.902554+08:00" };
+  fixture.messages.set(temp.address, [message]);
+  assert.equal((await sync(temp.id)).status, 200);
+  const item = (await list(temp.id)).body.items[0];
+  assert.equal(item.sender, message.from_email);
+  assert.equal(item.receivedAt, Date.parse("2026-10-28T01:00:00Z") / 1000);
+  const extracted = await h.request(`/api/v1/mailboxes/${temp.id}/extractions?since=1793149199&kind=otp`, { cookie: alice.cookie });
+  assert.equal(extracted.body.items[0].otp.code, "583921");
+  fixture.messages.set(temp.address, [{ ...message, to_email: "another-user@temp.example.test" }]);
+  assert.equal((await sync(temp.id)).body.error.code, "provider_recipient_mismatch");
+  assert.equal((await list(temp.id)).body.items.length, 1);
+});
+
 test("rotating vault key retains old readability; removing an old key fails closed", async () => {
   const ring = JSON.stringify({ active: "k2", keys: { k1: "a3".repeat(32), k2: "b4".repeat(32) } });
   try {

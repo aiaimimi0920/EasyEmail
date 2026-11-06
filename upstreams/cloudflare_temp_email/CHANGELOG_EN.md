@@ -22,6 +22,7 @@
 
 ### Bug Fixes
 
+- fix: |Sending| Decode base64 HTTP attachments into binary content before the native binding and reject invalid encodings before dispatch; prevent literal base64 delivery without weakening download digest checks
 - fix: |Receive| Reject database storage failures and stop forwarding/auto-reply instead of reporting success; use EmailMessage consistently in test and production auto-reply
 - fix: |Cleanup| Delete all related D1 rows before administrator mailbox removal in one transaction; roll back scheduled mailbox cleanup on failure and bind one cutoff across all four address-cleanup modes to prevent cross-second selection drift and orphaned mail, without changing user-delete permission switches
 - fix: |Dependencies| Update AWS S3 SDK and SimpleWebAuthn to verified security releases; correct WebAuthn credential metadata placement and actual D1/attachment types

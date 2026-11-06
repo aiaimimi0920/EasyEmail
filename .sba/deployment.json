@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 2,
+  "target": "cloudflare-workers",
+  "accountMode": "single",
+  "accountPath": ["accountId"],
+  "accounts": [{ "key": "runtime", "label": "Cloudflare 账户", "path": ["accountId"], "secret": "CLOUDFLARE_API_TOKEN" }],
+  "applicationSecrets": ["EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"],
+  "defaults": {
+    "routing": null,
+    "settings": { "adminUsername": "admin", "sendRecipients": [], "providers": [], "providerOrigins": [], "imapEndpoints": [], "smtpEndpoints": [] }
+  },
+  "fields": [
+    { "path": ["email", "name"], "label": "自营收信 Worker", "type": "text", "required": true, "template": "{instance}-email" },
+    { "path": ["email", "origin"], "label": "自营邮箱 API", "type": "text", "required": true, "template": "https://{instance}-email.{subdomain:runtime}.workers.dev" },
+    { "path": ["platform", "name"], "label": "Web/API Worker", "type": "text", "required": true, "template": "{instance}-platform" },
+    { "path": ["platform", "origin"], "label": "网页与统一 API", "type": "text", "required": true, "template": "https://{instance}-platform.{subdomain:runtime}.workers.dev" },
+    { "path": ["mailDomain"], "label": "收件后缀", "type": "text", "required": true, "template": "{instance}.test" },
+    { "path": ["settings"], "label": "应用配置", "type": "json", "required": true, "template": null },
+    { "path": ["routing"], "label": "收信路由", "type": "json", "required": false, "template": null }
+  ],
+  "resources": [
+    { "key": "emailDb", "label": "自营邮箱数据库", "kind": "d1", "idPath": ["email", "database", "id"], "namePath": ["email", "database", "name"], "account": "runtime", "nativeAccount": "runtime", "nameTemplate": "{instance}-email-db" },
+    { "key": "platformDb", "label": "聚合数据库", "kind": "d1", "idPath": ["platform", "database", "id"], "namePath": ["platform", "database", "name"], "account": "runtime", "nativeAccount": "runtime", "nameTemplate": "{instance}-platform-db" },
+    { "key": "inbox", "label": "邮件内容", "kind": "r2", "idPath": ["platform", "inboxBucket"], "namePath": null, "account": "runtime", "nativeAccount": "runtime", "nameTemplate": "{instance}-inbox" },
+    { "key": "outbox", "label": "发件附件与私有备份", "kind": "r2", "idPath": ["platform", "outboxBucket"], "namePath": null, "account": "runtime", "nativeAccount": "runtime", "nameTemplate": "{instance}-outbox" }
+  ],
+  "targets": [
+    { "kind": "worker", "path": ["email", "name"], "account": "runtime" },
+    { "kind": "domain", "path": ["email", "origin"], "account": "runtime" },
+    { "kind": "worker", "path": ["platform", "name"], "account": "runtime" },
+    { "kind": "domain", "path": ["platform", "origin"], "account": "runtime" },
+    { "kind": "email-routing", "path": ["routing"], "account": "runtime", "workerPath": ["email", "name"] }
+  ]
+}

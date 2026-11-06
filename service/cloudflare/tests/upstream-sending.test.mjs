@@ -29,10 +29,26 @@ test("two complete Workers preserve To/CC/BCC, 2 MiB exact binary and real sourc
       headers: { "In-Reply-To": "<real-source@example.test>", References: "<real-source@example.test>" } });
     assert.equal(attachments.length, 1); assert.equal(attachments[0].filename, metadata.filename);
     assert.equal(attachments[0].type, metadata.mimeType); assert.equal(attachments[0].disposition, "attachment");
+    assert.equal(attachments[0].contentKind, "binary", "HTTP base64 must become bytes before calling the native binding");
     const actual = new Uint8Array(Buffer.from(attachments[0].content, "base64")); assert.deepEqual(actual, bytes); assert.equal(bytesHash(actual), metadata.sha256);
     assert.equal(result.body.outgoing.delivery, "unconfirmed");
     await h.restart(); assert.equal((await sendRequest(h, alice.cookie, box, key, body)).status, 200);
     assert.equal(f.sent.length, 1); assert.deepEqual(f.externalRequests, []);
     console.log(`Structured binding capture only, not public delivery: ${f.directory}`);
   } finally { try { await h?.close(); } finally { await f.close(); } }
+});
+
+test("invalid base64 attachments are rejected before the native send and valid binary bytes are not sent as text", { timeout: 120000 }, async () => {
+  const f = await upstreamFixture({ E2E_TEST_MODE: "false", SEND_MAIL_DOMAINS: '["cf.example.test"]' }, true);
+  try {
+    const body = { from: "sender@cf.example.test", to: ["recipient@example.test"], subject: "Attachment validation", text: "Synthetic test",
+      attachments: [{ filename: "sample.bin", type: "application/octet-stream", disposition: "attachment", content: "not%base64" }] };
+    const rejected = await f.request("/admin/send_mail_by_binding", { method: "POST", admin: true, body });
+    assert.equal(rejected.status, 400); assert.equal(f.sent.length, 0);
+    body.attachments[0].content = "AAH/";
+    const accepted = await f.request("/admin/send_mail_by_binding", { method: "POST", admin: true, body });
+    assert.equal(accepted.status, 200, accepted.text); assert.equal(f.sent.length, 1);
+    assert.equal(f.sent[0].attachments[0].contentKind, "binary");
+    assert.deepEqual([...Buffer.from(f.sent[0].attachments[0].content, "base64")], [0, 1, 255]);
+  } finally { await f.close(); }
 });

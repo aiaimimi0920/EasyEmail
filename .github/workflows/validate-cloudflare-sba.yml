@@ -1,0 +1,82 @@
+name: Cloudflare SBA Local Contract
+
+on:
+  pull_request:
+    paths:
+      - '.sba/**'
+      - '.github/workflows/validate-cloudflare-sba.yml'
+      - 'service/cloudflare/**'
+      - 'service/base/src/**'
+      - 'upstreams/cloudflare_temp_email/worker/**'
+      - 'upstreams/cloudflare_temp_email/db/**'
+      - 'apps/desktop/src/components/AppIcons.tsx'
+  push:
+    branches: [migration/cloudflare-web]
+    paths:
+      - '.sba/**'
+      - '.github/workflows/validate-cloudflare-sba.yml'
+      - 'service/cloudflare/**'
+      - 'service/base/src/**'
+      - 'upstreams/cloudflare_temp_email/worker/**'
+      - 'upstreams/cloudflare_temp_email/db/**'
+      - 'apps/desktop/src/components/AppIcons.tsx'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-contract:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: EasyEmail
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          path: EasyEmail
+          persist-credentials: false
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: aiaimimi0920/NeuroDesign
+          ref: 7e36ef4287f53208073ae305020537b6c2847171
+          path: NeuroDesign
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.22.2'
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Install the pinned local build tools
+        run: npm install --global npm@11.21.1 pnpm@10.10.0
+      - name: Build the pinned Neuro React library
+        working-directory: NeuroDesign
+        run: |
+          npm ci --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/build.mjs --library --theme neuro
+      - name: Install the two Worker build dependencies
+        run: |
+          npm --prefix service/cloudflare ci --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm --dir upstreams/cloudflare_temp_email/worker install --frozen-lockfile
+      - name: Validate the application contract and packaged local runtime without cloud secrets
+        env:
+          EASYEMAIL_TEST_ROOT: ${{ runner.temp }}/easyemail-sba-tests
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:EASYEMAIL_TEST_ROOT | Out-Null
+          python -m unittest discover -s .sba/tests -p 'test_*.py' -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test --test-concurrency=1 .sba/tests/release-stamp.test.mjs .sba/tests/release-runtime.test.mjs .sba/tests/archive-crypto.test.mjs .sba/tests/object-control.test.mjs .sba/tests/preview-network.test.mjs .sba/tests/preview-runtime.test.mjs .sba/tests/preview-vault.test.mjs .sba/tests/preview-copy.test.mjs .sba/tests/preview-lifecycle.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test scripts/tests/effective-code-lines.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/effective-code-lines.mjs --mode ratchet
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --check

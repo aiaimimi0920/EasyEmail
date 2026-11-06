@@ -1,5 +1,7 @@
 # Cloudflare Web 分支迁移计划
 
+当前部署（2026-11-05）：[正式域名部署与真实验收](cloudflare-production.md)已完成 `mail.aiaimimi.com` Web/API、`@aiaimimi.com` 根域邮箱、自营与 Temporam 真实投递、附件字节一致性、提码、权限及真实 cron 验收。当前为邀请注册、受控收件人发信的开发部署；未迁入旧数据，未合并主干或退役 NAS。下列各切片“未发布”描述保留为当时阶段边界，不覆盖本次明确验收的范围；普通 IMAP/SMTP、Google OAuth、Agent 公网互操作和其余供应商仍须各自验收。
+
 当前网页补齐：见[单邮箱缓存邮件搜索](cloudflare-mailbox-search.md)。复用既有单邮箱与聚合查询，补齐关键词、发件人、时间及清除入口，保留显式同步与原分页合同；无新 schema、依赖或部署。本地结果以独立候选的验证收据为准。
 
 当前运行可靠性修复：见[维护 cron 失败隔离](cloudflare-scheduled-maintenance.md)。八项既有维护保序、逐项捕获异常，全部尝试后仍报告失败；不新增调度、远端迁移或部署。
@@ -75,7 +77,7 @@ Agent 目录切片：见 [远程服务目录（W11a）](cloudflare-agent-service
 ## 1. 授权与隔离
 
 用户已确认功能范围，并要求在独立分支和目录实际迁移，可用后再合并主干。
-本次授权不包括发布到生产、切换域名、停用 NAS、删除旧源码或清理数据。
+最初的分支开发授权不包括发布到生产、切换域名、停用 NAS、删除旧源码或清理数据。后续已按用户确认完成正式域名的新实例部署，见页首记录；NAS 退役、旧资源删除与主干合并不在本次范围内。
 
 - 原工作区：`C:\Users\Public\nas_home\AI\GameEditor\EasyEmail`
 - 原分支：`main`

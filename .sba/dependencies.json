@@ -1,0 +1,8 @@
+{
+  "neuroDesign": {
+    "repository": "https://github.com/aiaimimi0920/NeuroDesign.git",
+    "commit": "7e36ef4287f53208073ae305020537b6c2847171"
+  },
+  "npm": "11.21.1",
+  "pnpm": "10.10.0"
+}

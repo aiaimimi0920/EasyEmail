@@ -32,9 +32,9 @@ export function temporamProvider(config: ProviderConfig, secret: ProviderSecret,
         if (detail === null) { missing++; continue; }
         const row = object(detail);
         if (remoteId(row.id) !== id) throw new HttpError(502, "provider_invalid_response");
-        const recipient = optionalString(row, ["toEmail", "email", "to"], 320).toLowerCase();
+        const recipient = optionalString(row, ["to_email", "toEmail", "email", "to"], 320).toLowerCase();
         if (recipient && recipient !== address) throw new HttpError(502, "provider_recipient_mismatch");
-        items.push({ remoteId: id, recipient: address, sender: optionalString(row, ["fromEmail", "from", "sender"], 2048),
+        items.push({ remoteId: id, recipient: address, sender: optionalString(row, ["from_email", "fromEmail", "from", "sender"], 2048),
           subject: optionalString(row, ["subject"], 4096),
           textBody: optionalString(row, ["textBody", "text_body", "text", "plainText", "plain", "content", "body", "message"]),
           htmlBody: optionalString(row, ["htmlBody", "html_body", "html"]), attachments: [],

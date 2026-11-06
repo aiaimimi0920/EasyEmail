@@ -13,13 +13,13 @@ const sitePassword = 'synthetic-release-site-password', adminPassword = 'synthet
 const expectedMigrations = 59;
 
 // Only packaged production bundles run here. No test Worker, provider adapter or HTTP mail-injection route.
-export async function releaseRuntimeFixture(target = deploymentFixture()) {
+export async function releaseRuntimeFixture(target = deploymentFixture(), { prepare = prepareRelease, verify = verifyRelease, workerSecrets = {}, initialize = true } = {}) {
   const root = process.env.EASYEMAIL_TEST_ROOT;
   assert.ok(root && path.isAbsolute(root), 'Set an absolute isolated EASYEMAIL_TEST_ROOT');
   const directory = await fs.mkdtemp(path.join(root, 'rel-'));
-  const prepared = await prepareRelease(target, path.join(directory, 'prepared'));
+  const prepared = await prepare(target, path.join(directory, 'prepared'));
   const candidate = path.join(directory, 'moved'); await fs.cp(prepared.directory, candidate, { recursive: true });
-  await verifyRelease(candidate, prepared.manifestSha256);
+  await verify(candidate, prepared.manifestSha256);
   const configs = Object.fromEntries(await Promise.all(['email', 'platform'].map(async component =>
     [component, JSON.parse(await fs.readFile(path.join(candidate, component, 'wrangler.json'), 'utf8'))])));
   const external = [], forwarded = [], state = path.join(directory, 's'); let email, platform, db, emailDb;
@@ -30,7 +30,7 @@ export async function releaseRuntimeFixture(target = deploymentFixture()) {
     unsafeTriggerHandlers: true });
   const emailSettings = { ...settings('email'), bindings: { ...configs.email.vars,
     JWT_SECRET: 'synthetic-release-jwt-secret-32bytes-minimum', PASSWORDS: JSON.stringify([sitePassword]),
-    ADMIN_PASSWORDS: JSON.stringify([adminPassword]) },
+    ADMIN_PASSWORDS: JSON.stringify([adminPassword]), ...workerSecrets.email },
     outboundService(request) { external.push(request.url); return new Response('Unexpected external request', { status: 502 }); } };
   const platformSettings = { ...settings('platform'),
     assets: { directory: path.join(candidate, 'platform/web'), binding: configs.platform.assets.binding,
@@ -38,7 +38,7 @@ export async function releaseRuntimeFixture(target = deploymentFixture()) {
     r2Buckets: Object.fromEntries(configs.platform.r2_buckets.map(row => [row.binding, row.bucket_name])),
     bindings: { ...configs.platform.vars, REGISTRATION_TOKEN: RELEASE_INVITE,
       MAILBOX_KEYRING: JSON.stringify({ active: 'k1', keys: { k1: 'a3'.repeat(32) } }),
-      PROVIDER_SECRETS: JSON.stringify({ self: { apiKey: adminPassword, sitePassword } }) },
+      PROVIDER_SECRETS: JSON.stringify({ self: { apiKey: adminPassword, sitePassword } }), ...workerSecrets.platform },
     async outboundService(request) {
       if (new URL(request.url).origin !== target.email.origin) { external.push(request.url); return new Response('Unexpected external request', { status: 502 }); }
       forwarded.push({ method: request.method, path: new URL(request.url).pathname });
@@ -71,9 +71,11 @@ export async function releaseRuntimeFixture(target = deploymentFixture()) {
   }
   try {
     await start();
-    const schema = await fs.readFile(path.join(candidate, 'email/schema.sql'), 'utf8');
-    for (const sql of schema.trim().split(/\r?\n\s*\r?\n/)) await emailDb.prepare(sql).run();
-    assert.equal((await migrate()).length, expectedMigrations); assert.deepEqual(await migrate(), []);
+    if (initialize) {
+      const schema = await fs.readFile(path.join(candidate, 'email/schema.sql'), 'utf8');
+      for (const sql of schema.trim().split(/\r?\n\s*\r?\n/)) await emailDb.prepare(sql).run();
+      assert.equal((await migrate()).length, expectedMigrations); assert.deepEqual(await migrate(), []);
+    }
     return { directory, candidate, prepared, target, configs, external, forwarded,
       get db() { return db; }, get emailDb() { return emailDb; },
       async dispatch(route, options = {}) { return platform.dispatchFetch(new URL(route, target.platform.origin).href, options); },
@@ -87,7 +89,7 @@ export async function releaseRuntimeFixture(target = deploymentFixture()) {
         return { status: response.status, headers: response.headers, text, body: JSON.parse(text), cookie: response.headers.get('set-cookie')?.split(';')[0] };
       },
       async register(username) {
-        const response = await this.request('/api/v1/auth/register', { method: 'POST', body: { username, password: RELEASE_PASSWORD, invite: RELEASE_INVITE } });
+        const response = await this.request('/api/v1/auth/register', { method: 'POST', body: { username, password: RELEASE_PASSWORD, invite: platformSettings.bindings.REGISTRATION_TOKEN } });
         assert.equal(response.status, 201, response.text); return { ...response.body.user, cookie: response.cookie };
       },
       allocate(cookie, prefix) { return this.request('/api/v1/mailboxes', { method: 'POST', cookie, headers: { 'idempotency-key': crypto.randomUUID() },
@@ -99,12 +101,13 @@ export async function releaseRuntimeFixture(target = deploymentFixture()) {
         const body = await response.json(); assert.equal(response.status, 200, JSON.stringify(body)); assert.equal(body.outcome, 'ok'); return body;
       },
       bucket: binding => platform.getR2Bucket(binding),
+      reapplyMigrations: migrate,
       async restart() { await platform.dispose(); await email.dispose(); await start(); },
       async checkIntegrity() {
         assert.deepEqual((await db.prepare('PRAGMA foreign_key_check').all()).results, []);
         assert.deepEqual((await emailDb.prepare('PRAGMA foreign_key_check').all()).results, []);
         assert.equal((await db.prepare('SELECT COUNT(*) n FROM d1_migrations').first()).n, expectedMigrations);
-        await verifyRelease(candidate, prepared.manifestSha256);
+        await verify(candidate, prepared.manifestSha256);
       },
       async scheduled() {
         for (const cron of configs.platform.triggers.crons) assert.equal((await (await platform.getWorker()).scheduled({ cron, scheduledTime: Date.now() })).outcome, 'ok');
