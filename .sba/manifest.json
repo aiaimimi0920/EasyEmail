@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "id": "easyemail",
   "name": "EasyEmail",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "entrypoint": "springbok.ps1",
   "runtime": { "runner": "windows-2025", "powershell": "5.1", "python": "3.12", "node": "22" },
   "actions": {

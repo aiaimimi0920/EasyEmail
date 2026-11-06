@@ -8,9 +8,62 @@
 
 最终入口仍为 `mail.aiaimimi.com`、`email-api.aiaimimi.com` 和 `xxx@aiaimimi.com`。
 共享 Zone、MX、现有凭据及非 EasyEmail 服务不因实例清理被删除。
-本阶段不修改现有正式服务、收信路由或 NAS，也不发真实邮件。
+当前已获准确清单的重建授权；NAS 及未列资源仍不在清理范围。
 
-## 2026-11-07 部分清理首次恢复现场与 D1 UUID 验真（1.0.10 候选）
+## 2026-11-07 正式重建前置与可编辑收件后缀（1.0.11）
+
+用户随后明确批准 `email38-next-cleanup-proposal.json` 的 24 项资源清单清理和从零部署。
+原提案及其历史未批准状态保留，不回写历史。8 Worker、8 D1、8 R2 的备份已完成，108
+文件的大小和哈希独立读回，8 份 D1 导出经 SQLite integrity/witness 核验；R2 共 4 对象、
+267107 bytes。备份不等于导出 secret values、DO 数据或全局原子快照。
+
+两组 SpringBok 管理实例和手动 `easyemail-migration` 已清理，共 18/24 资源。
+SpringBok PR #137 合并为 `96465d1`，精确 PR/main 七项 CI 首次通过后仅发布控制面。
+普通删除的 D1 验真改为原 UUID，新增 owner/Access/CSRF 保护的只读“核对删除结果”；
+仅全部原资源不存在才由原 operation/digest 正常收尾，不重发 DELETE、不清锁或抹掉失败。
+Windows executor 仍固定 `60c264d`，Linux/历史 pin 不变。
+旧正式组 6 项及两入口、catch-all 尚未停用，MX 保持；正式重建和真实邮件验收尚未完成。
+
+准备普通部署表单时确认 `mailDomain` 的非空模板隐藏了“收件后缀”，无法填写真实域。
+1.0.11 只把该字段改为必填可编辑文本，默认 `example.test` 保持隔离语义；正式部署显式
+填写 `aiaimimi.com`。原路由域必须精确匹配收件后缀、隔离环境禁真实路由/供应商的校验
+不变，不硬编码正式收件域，不通过隐藏 API 绕过页面。秘密复用已准备的私有输入，不重置。
+此声明修正待固定提交的完整 CI 和正常表单验收通过后，才停旧正式服务并从零部署。
+
+本地先红后绿的 3 项回归覆盖字段可编辑、隔离默认与正式配置提交；完整 Python 225 项、
+检查器 19 项通过，无失败或跳过。ratchet 扫描 2267 文件，三个超限档位均为 0，未运行
+strict。验证和部署证据继续分别记录，不以本地配置解析或 CI 成功代替真实正式部署。
+
+## 2026-11-07 已批准测试副本清理闭环（1.0.10，历史授权边界）
+
+1.0.10 固定提交 `ae9dac2bfddf5e7c4ed7661aedf8af39c042d734` 的完整 CI
+`42295802853` 首次通过后，经正常 owner UI 单次提交原副本的独立 cleanup repair，任务
+`dc-8544d9157eae49c28f018985a9f4529a` / run `42297287931`。仍使用已发布的
+`60c264d` Windows executor，不再更新平台或 pin。认证 artifact 的摘要、任务、请求摘要、
+固定源码和 executor 匹配；应用结果为 succeeded，`cleanup-resume-claim-persisted`、
+`preview-resources-removed`、`repair-completed` 三项检查全部通过。
+
+SpringBok 正常服务页已显示原实例 `dc-06706d283af546a7b2cadd556e76e1cb` 为“已删除”，
+删除按钮禁用，历史八次执行记录保留。没有再次派发删除、重放父任务或改写旧失败回执。
+随后独立 GET-only 核验确认 `test-0c1ab5a774e8` 的 email/platform Worker、两个原 UUID
+D1、inbox/outbox R2 均不存在；两个 Worker 的 subdomain 查询均为 HTTP 404，两个 D1
+另由精确 UUID 的 404/7404 合同确认不存在。原副本的数据已随对应存储删除。
+
+账号其他 Worker/D1/R2 身份、自定义域绑定、51 个 Zone 的 Worker routes/MX 与删除前
+清单一致；原隔离源的原会话仍能读取同一草稿。该对照不等于对其他服务全部业务数据或
+所有运行设置做完整快照验真，源鉴权 GET 也可能增加应用限流计数。
+
+证据在私有调查目录的 `email38-run-42297287931.json`、
+`email38-cleanup-independent-readback.json`、`email39-exact-absence-readback.json` 和
+`email38-cleanup-deleted.png`。后两次独立验真没有显式远程写入，也没有重发删除。
+本轮仅补记录和只读验真，没有变更运行源码或重新执行已通过的本地套件；前轮 Python
+222 项、打包原生 31 项、检查器 19 项与 ratchet 结果仍对应上述固定提交。
+
+本次授权只覆盖该测试副本。其他隔离实例、旧正式实例、正式域名/收信路由和本地备份均
+保留；其余实例清理、SpringBok 正式从零部署及真实邮件收发验收尚未完成，不能由本次
+cleanup repair 成功推定。`email38-next-cleanup-proposal.json` 仍是未获删除授权的提案。
+
+## 2026-11-07 部分清理首次恢复现场与 D1 UUID 验真（1.0.10，历史候选记录）
 
 SpringBok PR #136 的精确 head 与合并后 `60c264d` 七项 CI 均首次通过。兼容控制面和
 同 SHA 的受保护固定 Windows executor 已发布；下载 Worker 字节匹配封存 bundle，旧

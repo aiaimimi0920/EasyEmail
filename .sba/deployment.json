@@ -6,6 +6,7 @@
   "accounts": [{ "key": "runtime", "label": "Cloudflare 账户", "path": ["accountId"], "secret": "CLOUDFLARE_API_TOKEN" }],
   "applicationSecrets": ["EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"],
   "defaults": {
+    "mailDomain": "example.test",
     "routing": null,
     "settings": { "adminUsername": "admin", "sendRecipients": [], "providers": [], "providerOrigins": [], "imapEndpoints": [], "smtpEndpoints": [] }
   },
@@ -14,7 +15,7 @@
     { "path": ["email", "origin"], "label": "自营邮箱 API", "type": "text", "required": true, "template": "https://{instance}-email.{subdomain:runtime}.workers.dev" },
     { "path": ["platform", "name"], "label": "Web/API Worker", "type": "text", "required": true, "template": "{instance}-platform" },
     { "path": ["platform", "origin"], "label": "网页与统一 API", "type": "text", "required": true, "template": "https://{instance}-platform.{subdomain:runtime}.workers.dev" },
-    { "path": ["mailDomain"], "label": "收件后缀", "type": "text", "required": true, "template": "{instance}.test" },
+    { "path": ["mailDomain"], "label": "收件后缀", "type": "text", "required": true, "template": null },
     { "path": ["settings"], "label": "应用配置", "type": "json", "required": true, "template": null },
     { "path": ["routing"], "label": "收信路由", "type": "json", "required": false, "template": null }
   ],
