@@ -12,7 +12,8 @@ from build_environment import local_git_environment
 def validate_repair(request, manifest):
     context = request['context']
     is_preview = 'preview' in context
-    exact(context, ['repairId', 'parentTaskId', 'parentRunId', 'requestDigest', 'resultDigest', 'errorCode'] + (['preview'] if is_preview else []))
+    has_baseline = 'previewBaseline' in context
+    exact(context, ['repairId', 'parentTaskId', 'parentRunId', 'requestDigest', 'resultDigest', 'errorCode'] + (['preview'] if is_preview else []) + (['previewBaseline'] if has_baseline else []))
     require(isinstance(context['parentTaskId'], str) and re.fullmatch(r'dc-[a-f0-9]{32}', context['parentTaskId'])
             and context['parentTaskId'] != request['taskId'])
     require(type(context['parentRunId']) is int and context['parentRunId'] > 0)
@@ -20,6 +21,7 @@ def validate_repair(request, manifest):
                 for key in ('requestDigest', 'resultDigest')))
     repairs = [row for row in manifest['repairs'] if row['id'] == context['repairId']]
     require(len(repairs) == 1 and context['errorCode'] in repairs[0]['fromErrorCodes'])
+    require(is_preview or context['repairId'] != 'complete-preview-credentials')
     actions = repairs[0].get('fromActions', ['deploy', 'update', 'repair'])
     if is_preview:
         require('preview' in actions and context['parentTaskId'] not in
@@ -28,8 +30,13 @@ def validate_repair(request, manifest):
         require(source['sourceSha'] not in (request['sourceSha'], request['previous']['sourceSha']))
         validate_context({**request, 'action': 'preview', 'context': context['preview'],
                           'previous': {field: source[field] for field in ('sourceSha', 'applicationVersion')}})
+        if has_baseline:
+            baseline = context['previewBaseline']; exact(baseline, ['sourceSha', 'applicationVersion', 'instanceId'])
+            require(matches(r'[a-f0-9]{40}', baseline['sourceSha']) and baseline['sourceSha'] not in (request['sourceSha'], source['sourceSha'])
+                    and matches(r'dc-[a-f0-9]{32}', baseline['instanceId']) and baseline['instanceId'] not in (request['taskId'], source['instanceId'], source['taskId'])
+                    and version(source['applicationVersion']) < version(baseline['applicationVersion']) <= version(request['previous']['applicationVersion']))
     else:
-        require(any(action != 'preview' for action in actions))
+        require(not has_baseline and any(action != 'preview' for action in actions))
 
 
 def validate_context(request):

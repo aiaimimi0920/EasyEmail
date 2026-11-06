@@ -62,12 +62,12 @@ for (const repairing of [false,true]) test((repairing?'partial preview then inde
     assert.equal(reserved.status,201,reserved.text);const attachment=reserved.body.attachment.id;
     assert.equal((await source.dispatch(`/api/v1/outbox-attachments/${attachment}/content`,{method:'PUT',body:bytes,
       headers:{Origin:configurations.source.platform.origin,Cookie:user.cookie,'content-type':'application/octet-stream'}})).status,200);
-    const platformSql=await dump(source.db),emailSql=await dump(source.emailDb);
+    let platformSql=await dump(source.db);const emailSql=await dump(source.emailDb);
     let candidate;
     if(repairing){
       const directory=path.join(root,'candidate');
       const proof=await prepare({descriptor:values.target.descriptor,providers:[],preview:true,metadata:{applicationId:'easyemail',
-        applicationVersion:'1.0.4',sourceSha:releaseInputs().head,configurationDigest:digest(configurations.target)}},directory);
+        applicationVersion:'1.0.5',sourceSha:releaseInputs().head,configurationDigest:digest(configurations.target)}},directory);
       const proofPath=path.join(directory,'sba-release.json'),checksum=sha256(await fs.readFile(proofPath));
       candidate={directory,proof,proofPath,checksum};
       await verifyStampedRelease(path.join(directory,'publish'),proofPath,checksum,proof.metadata);
@@ -102,10 +102,14 @@ for (const repairing of [false,true]) test((repairing?'partial preview then inde
       for(const database of [target.db,target.emailDb])assert.deepEqual((await database.prepare("SELECT name FROM sqlite_master WHERE name NOT GLOB 'sqlite_*' AND name NOT IN ('_cf_METADATA','_cf_KV')").all()).results,[]);
       const copied=await(await target.bucket('OUTBOX')).list();assert.equal(copied.objects.length,1);
       assert.notEqual(copied.objects[0].version,(await(await source.bucket('OUTBOX')).head(copied.objects[0].key)).version);
-      request={...request,action:'repair',taskId:'dc-'+'5'.repeat(32),applicationVersion:'1.0.4',
-        previous:{sourceSha:originalPreview.sourceSha,applicationVersion:initialVersion},context:{repairId:'complete-preview-credentials',
-          parentTaskId:originalPreview.taskId,parentRunId:123,requestDigest:'e'.repeat(64),resultDigest:digest(failed),
-          errorCode:failed.errorCode,preview:originalPreview.context}};
+      // An authenticated GET after the historical backup changes durable rate-limit state.
+      assert.equal((await source.request('/api/v1/me',{cookie:user.cookie})).status,200);
+      const currentSourceSql=await dump(source.db);assert.notEqual(currentSourceSql,platformSql);platformSql=currentSourceSql;
+      request={...request,action:'repair',taskId:'dc-'+'5'.repeat(32),applicationVersion:'1.0.5',
+        previous:{sourceSha:originalPreview.sourceSha,applicationVersion:'1.0.4'},context:{repairId:'complete-preview-credentials',
+          parentTaskId:'dc-'+'6'.repeat(32),parentRunId:123,requestDigest:'e'.repeat(64),resultDigest:digest(failed),
+          errorCode:'EASYEMAIL_SOURCE_DATABASE_CHANGED',preview:originalPreview.context,
+          previewBaseline:{sourceSha:originalPreview.sourceSha,applicationVersion:initialVersion,instanceId:originalPreview.taskId}}};
     }
     const repairStart=bridge.target.routes.length;
     await fs.writeFile(input,JSON.stringify({request,release:repairing?candidate.directory:path.join(target.directory,'prepared'),...ports}));

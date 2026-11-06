@@ -13,7 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from boundary import DeploymentError, digest
 from preview_copy import verify_preview_policy
 from preview_provenance import persist_provenance, RESULT_IDENTITY
-from preview_source import source_state, prove_source_unchanged
+from preview_source import source_state, prove_source_unchanged, capture_source_witness
+from d1_snapshot import witness, prove_preserved
 import test_contract
 
 
@@ -82,6 +83,42 @@ class PreviewProofTests(unittest.TestCase):
         self.assertEqual(payload['resources'], request['context']['resources'])
         self.assertEqual(payload['configurationDigest'], digest(request['configuration']))
         self.assertIn('/previews/' + request['taskId'], uploads[0][1]); self.assertNotIn(key, (root / 'preview-provenance.json').read_text())
+
+    def test_current_source_witness_keeps_all_tables_and_hashes_every_business_object(self):
+        root = Path(tempfile.mkdtemp(prefix='source-capture-', dir=os.environ['EASYEMAIL_TEST_ROOT']))
+        config = test_contract.ContractTests().preview()['context']['source']['configuration']
+        inventories = {'INBOX': [{'key': 'raw'}], 'OUTBOX': [{'key': 'attachment'}]}
+        exported = []; reads = []
+        def exporter(api, database, role, directory, *, phase):
+            exported.append((role, phase))
+            return {'witness': {'tables': {'auth_rate_limits': {'rows': {'new-row': 1}}, 'drafts': {'rows': {'old-row': 1}}}}}
+        class Store:
+            def get(self, bucket, row): reads.append((bucket, row['key'])); return 'a' * 64
+        with patch('preview_source.business_inventory', return_value=inventories):
+            current = capture_source_witness(object(), Store(), config, root / 'current', exporter=exporter)
+        self.assertEqual(exported, [('email', 'sourcecheck'), ('platform', 'sourcecheck')])
+        self.assertEqual(reads, [('INBOX', 'raw'), ('OUTBOX', 'attachment')])
+        self.assertIn('auth_rate_limits', current['manifest']['databases']['platform']['witness']['tables'])
+        self.assertEqual(len(current['manifest']['objects']), 2)
+        with patch('preview_source.business_inventory', side_effect=[inventories, {'INBOX': [], 'OUTBOX': []}]), \
+                self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_SOURCE_OBJECTS_CHANGED'):
+            capture_source_witness(object(), Store(), config, root / 'drift', exporter=exporter)
+
+    def test_historical_restore_point_is_not_the_live_guard_and_rate_changes_during_operation_still_fail(self):
+        root = Path(tempfile.mkdtemp(prefix='source-timepoint-', dir=os.environ['EASYEMAIL_TEST_ROOT']))
+        config = test_contract.ContractTests().preview()['context']['source']['configuration']
+        sql = 'CREATE TABLE auth_rate_limits(bucket TEXT PRIMARY KEY, attempts INTEGER, expires_at INTEGER);'
+        historical = root / 'historical.sql'; historical.write_text(sql, encoding='utf8')
+        live = root / 'live.sql'; live.write_text(sql + "INSERT INTO auth_rate_limits VALUES('read-after-backup',1,123);", encoding='utf8')
+        with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_SOURCE_DATABASE_CHANGED'):
+            prove_preserved(witness(historical), live, exact=True)
+        def exporter(*args, **kwargs): return {'witness': witness(live), 'path': live}
+        with patch('preview_source.business_inventory', return_value={'INBOX': [], 'OUTBOX': []}):
+            current = capture_source_witness(object(), object(), config, root / 'before', exporter=exporter)
+            prove_source_unchanged(current, object(), object(), config, root / 'unchanged', exporter=exporter)
+            live.write_text(live.read_text(encoding='utf8') + "UPDATE auth_rate_limits SET attempts=2;", encoding='utf8')
+            with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_SOURCE_DATABASE_CHANGED'):
+                prove_source_unchanged(current, object(), object(), config, root / 'changed', exporter=exporter)
 
 
 if __name__ == '__main__': unittest.main()

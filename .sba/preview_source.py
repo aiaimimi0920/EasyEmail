@@ -28,6 +28,18 @@ def source_state(config, api):
     return {'managed': managed, 'settingsDigest': digest(settings)}
 
 
+def capture_source_witness(api, store, config, directory, *, exporter=export_database):
+    """Preserve the current source operation boundary, independently of the historical restore point."""
+    directory = private_directory(directory)
+    databases = {role: {'witness': exporter(api, config[role]['database']['id'], role, directory, phase='sourcecheck')['witness']}
+                 for role in ('email', 'platform')}
+    inventory = business_inventory(store)
+    objects = [{'bucket': bucket, 'source': row, 'sha256': store.get(bucket, row)}
+               for bucket in ('INBOX', 'OUTBOX') for row in inventory[bucket]]
+    require(business_inventory(store) == inventory, 'EASYEMAIL_SOURCE_OBJECTS_CHANGED')
+    return {'manifest': {'databases': databases, 'objects': objects}}
+
+
 def prove_source_unchanged(backup, api, store, config, directory, *, exporter=export_database, phase='sourcefinal'):
     directory = private_directory(directory)
     for role in ('email', 'platform'):

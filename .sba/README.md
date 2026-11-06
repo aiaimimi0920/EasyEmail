@@ -32,6 +32,7 @@
   1.0.3 将凭据重签的 Node 入口明确绑定到 `prepare_release` 已固定源码并安装依赖的构建检出，不依赖执行器原始检出的 `node_modules`。秘密仍只走私有 stdin，子进程不继承业务环境或 `NODE_OPTIONS`。回归同时覆盖无依赖的干净执行器检出和构建入口的编排传递；不改变凭据算法或失败后不重放语义。
 - `preview_source.py` / `preview_provenance.py`：源 settings/资源归属前后核对，使用独立的 `sourcefinal` export 阶段验证源两库和业务对象；成功结果的完整身份、checks、lifecycle 及来源清单以独立密钥认证，条件写入目标私有 OUTBOX，并独立读回。清理必须认证该记录及平台批准的完整结果摘要，不能凭资源名称授权删除。
 - `preview_repair.py` / `preview_repair_state.py`：1.0.4 的 `complete-preview-credentials` 仅修复 1.0.2 的准确凭据错误及 1.0.0 隔离来源。须由兼容平台显式继承原 preview context，唯一认证备份、原目标版本/绑定、双库无业务 schema、目标双桶与归档逐对象元数据/字节完全相符才继续。只读复用已恢复对象并重绑原生版本，不重新 PUT/DELETE 业务对象、不创建资源、不重放父任务。SQL/凭据离线准备且源精确比对通过后才发布隔离候选并导入空库，完成迁移/保数据/管理员验收及源最终精确比对；成功 provenance 同时绑定原实例和新 repair 回执。任何写后不确定仍为 unknown。
+  1.0.5 还接受 1.0.4 的准确 `EASYEMAIL_SOURCE_DATABASE_CHANGED`，要求平台认证继承原 1.0.2 候选与实例的 `previewBaseline`；不把失败修复版本当成已发布目标。目标仍恢复同一份原认证备份，源保护改为本次 target 写前取得完整双库/对象 witness、完成后 exact 比对，不排除限流/会话/任何业务表，不重采样替换原备份。provenance 的实例始终是原副本，而不是上一 repair task；当前候选仍需真实独立恢复验收。
 - `preview_cleanup.py` / `cleanup_references.py` / `cleanup_resources.py` / `cleanup_buckets.py`：仅清理成功 preview 的准确八项资源；先核目标状态、外部 Worker/Pages/邮件/域名引用、D1/R2 创建身份及私有桶清单，条件写入持久一次性消费记录，再停两个入口、删两个 Worker、复查共享引用，最后删除两库两桶。所有删除均独立读回不存在；不提供普通正式实例删除入口。
 
 | SBA 动作 | 当前应用行为 |

@@ -37,6 +37,20 @@ class PreviewRepairContractTests(unittest.TestCase):
                     self.assertRaises(DeploymentError):
                 validated_request(value, ROOT)
 
+    def test_continuation_baseline_is_bounded_and_not_the_source_or_current_candidate(self):
+        value = preview_repair_request(); baseline = {**value['previous'], 'instanceId': value['context']['parentTaskId']}
+        value['previous'] = {'sourceSha': 'e' * 40, 'applicationVersion': '1.0.4'}
+        value['context'].update(errorCode='EASYEMAIL_SOURCE_DATABASE_CHANGED', previewBaseline=baseline)
+        with patch('contract.subprocess.check_output', side_effect=test_contract.ContractTests().git):
+            self.assertEqual(validated_request(value, ROOT), value)
+        import copy
+        for invalid_baseline in ({**baseline, 'extra': True}, {**baseline, 'sourceSha': value['sourceSha']},
+                                 {**baseline, 'sourceSha': value['context']['preview']['source']['sourceSha']},
+                                 {**baseline, 'applicationVersion': '9.0.0'}):
+            invalid = copy.deepcopy(value); invalid['context']['previewBaseline'] = invalid_baseline
+            with patch('contract.subprocess.check_output', side_effect=test_contract.ContractTests().git), self.assertRaises(DeploymentError):
+                validated_request(invalid, ROOT)
+
     def test_repair_build_uses_full_preview_isolation_policy_with_original_configuration_digest(self):
         root = Path(tempfile.mkdtemp(prefix='repair-build-', dir=os.environ['EASYEMAIL_TEST_ROOT']))
         output = root / 'build'

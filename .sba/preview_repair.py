@@ -9,7 +9,7 @@ from preview_copy import prepare_restored_copy, verify_preview_policy
 from preview_credentials import preview_material
 from preview_provenance import persist_provenance
 from preview_repair_state import load_source_backup, empty_database, empty_databases, reuse_objects
-from preview_source import source_state, prove_source_unchanged
+from preview_source import source_state, prove_source_unchanged, capture_source_witness
 from public_verify import verify_public
 from published_settings import verify_settings
 from release import prepare_release
@@ -21,8 +21,11 @@ from update_preservation import prove_update_preserved
 def repair_preview(request, directory):
     context = request['context']; preview = context['preview']; config = request['configuration']
     source = preview['source']; source_config = source['configuration']
-    require(context['repairId'] == 'complete-preview-credentials' and context['errorCode'] == 'EASYEMAIL_PREVIEW_CREDENTIAL_FAILED'
-            and request['previous']['applicationVersion'] == '1.0.2' and source['applicationVersion'] == '1.0.0'
+    previous = request['previous']; baseline = context.get('previewBaseline', previous)
+    initial = context['errorCode'] == 'EASYEMAIL_PREVIEW_CREDENTIAL_FAILED' and previous['applicationVersion'] == '1.0.2' and all(baseline[k] == previous[k] for k in previous)
+    continuation = context['errorCode'] == 'EASYEMAIL_SOURCE_DATABASE_CHANGED' and previous['applicationVersion'] == '1.0.4' and 'previewBaseline' in context
+    require(context['repairId'] == 'complete-preview-credentials' and (initial or continuation)
+            and baseline['applicationVersion'] == '1.0.2' and source['applicationVersion'] == '1.0.0'
             and isolated(config) and isolated(source_config) and config['routing'] is source_config['routing'] is None,
             'EASYEMAIL_PREVIEW_REPAIR_NOT_SUPPORTED')
     original, copied = preview_material(source_config, config)
@@ -32,7 +35,7 @@ def repair_preview(request, directory):
         api = CloudApi(config['accountId'], original.token, state)
         process = DeploymentProcess(request, release, directory / 'cloud', state, copied); process.verify_seal()
         source_request = {**request, **source}
-        verify_public(source_request); verify_public({**request, **request['previous']})
+        verify_public(source_request); verify_public({**request, **baseline})
         before_source = source_state(source_config, api); before_target = source_state(config, api)
         verify_settings(config, api, release, copied.workers)
         email_version(original, RuntimeClient(source_config, state))
@@ -42,8 +45,8 @@ def repair_preview(request, directory):
         empty_databases(config, api)
         restored = reuse_objects(target_store, backup, directory / 'platform-rebound.sql')
         prepared = prepare_restored_copy(backup, restored, source_config, config, original, copied, application_root=release.parent / 'EasyEmail')
-        # Source exports are independently checked before any target write, then again after completion.
-        prove_source_unchanged(backup, api, source_store, source_config, directory / 'sourcebefore', phase='sourcecheck')
+        # Restore the original authenticated snapshot; compare the live source before/after this operation.
+        current_source = capture_source_witness(api, source_store, source_config, directory / 'sourcebefore')
         require(source_state(source_config, api) == before_source and source_state(config, api) == before_target,
                 'EASYEMAIL_SOURCE_INSTANCE_CHANGED')
         expected = {bucket: sorted([row['target'] for row in restored['copies'] if row['bucket'] == bucket], key=lambda row: row['key'])
@@ -64,7 +67,7 @@ def repair_preview(request, directory):
         require(source_state(config, api) == target_state, 'EASYEMAIL_PREVIEW_TARGET_CHANGED')
         verify_administrator(config, copied, runtime); checks.extend(verify_public(request))
         verify_public(source_request)
-        prove_source_unchanged(backup, api, source_store, source_config, directory / 'sourcefinal')
+        prove_source_unchanged(current_source, api, source_store, source_config, directory / 'sourcefinal')
         require(source_state(source_config, api) == before_source, 'EASYEMAIL_SOURCE_INSTANCE_CHANGED')
         checks += [{'id': name, 'passed': True} for name in ('source-unchanged', 'side-effects-isolated', 'repair-completed',
                     'data-preserved', 'unchanged-resources-verified', 'service-ready')]

@@ -37,6 +37,11 @@ class PreviewRepairTests(unittest.TestCase):
             event = role + '-state'; events.append(event)
             return {'witness': 'changed' if drift == role and events.count(event) > 1 else 'original'}
         def proof(*args, **kwargs): step('proof-' + kwargs.get('phase', 'sourcefinal'))()
+        current_source = {'manifest': {'current-complete-witness': True}}
+        def capture(*args, **kwargs): return step('capture-source', current_source)()
+        def final_proof(*args, **kwargs):
+            self.assertIs(args[0], current_source, 'source preservation compares this operation, not a historical backup')
+            return proof(*args, **kwargs)
         def prepared(*args, **kwargs):
             self.assertEqual(kwargs['application_root'], root / 'EasyEmail')
             return step('prepare-copy', {'emailSql': root / 'email.sql', 'platformSql': root / 'platform.sql', 'backup': {}})()
@@ -50,12 +55,15 @@ class PreviewRepairTests(unittest.TestCase):
             stack.enter_context(patch.object(preview_repair, 'load_source_backup', side_effect=step('backup-read', backup)))
             stack.enter_context(patch.object(preview_repair, 'reuse_objects', side_effect=step('reuse-read', {'copies': []})))
             stack.enter_context(patch.object(preview_repair, 'prepare_restored_copy', side_effect=prepared))
-            stack.enter_context(patch.object(preview_repair, 'prove_source_unchanged', side_effect=proof))
+            stack.enter_context(patch.object(preview_repair, 'capture_source_witness', side_effect=capture))
+            stack.enter_context(patch.object(preview_repair, 'prove_source_unchanged', side_effect=final_proof))
             stack.enter_context(patch.object(preview_repair, 'business_inventory', return_value={'INBOX': [], 'OUTBOX': []}))
             for name in ('verify_preview_policy', 'verify_settings', 'email_version', 'empty_databases', 'empty_database',
                          'migrate_email', 'verify_database_initialization', 'prove_update_preserved', 'verify_administrator', 'persist_provenance'):
                 stack.enter_context(patch.object(preview_repair, name, side_effect=step(name)))
             def public(selected):
+                if selected['configuration'] == value['configuration'] and selected['sourceSha'] != value['sourceSha']:
+                    self.assertEqual(selected['applicationVersion'], '1.0.2', 'failed repair version is not the deployed baseline')
                 role = 'source-public' if selected['configuration'] != value['configuration'] else 'previous-public' if selected['sourceSha'] == value['previous']['sourceSha'] else 'target-public'
                 return step(role, [{'id': 'public-proof', 'passed': True}])()
             stack.enter_context(patch.object(preview_repair, 'verify_public', side_effect=public))
@@ -68,7 +76,7 @@ class PreviewRepairTests(unittest.TestCase):
 
     def test_backup_empty_schema_objects_crypto_and_source_proof_all_precede_first_target_write(self):
         result, events = self.repair(); self.assertEqual(result['status'], 'succeeded', result)
-        for name in ('previous-public', 'backup-read', 'empty_databases', 'reuse-read', 'prepare-copy', 'proof-sourcecheck'):
+        for name in ('previous-public', 'backup-read', 'empty_databases', 'reuse-read', 'prepare-copy', 'capture-source'):
             self.assertLess(events.index(name), events.index('publish-email'))
         self.assertLess(events.index('proof-sourcefinal'), events.index('persist_provenance'))
         self.assertEqual(events.count('restore-email'), 1); self.assertEqual(events.count('restore-platform'), 1)
@@ -77,7 +85,7 @@ class PreviewRepairTests(unittest.TestCase):
                          'snapshot-copied', 'migration-verified', 'source-unchanged', 'side-effects-isolated'} <= {row['id'] for row in result['checks']})
 
     def test_read_only_rejection_has_no_target_write_or_success_provenance(self):
-        for name in ('verify_preview_policy', 'previous-public', 'backup-read', 'empty_databases', 'reuse-read', 'prepare-copy', 'proof-sourcecheck'):
+        for name in ('verify_preview_policy', 'previous-public', 'backup-read', 'empty_databases', 'reuse-read', 'prepare-copy', 'capture-source'):
             result, events = self.repair(fail=name)
             self.assertEqual(result['status'], 'failed', (name, result)); self.assertNotIn('publish-email', events)
             self.assertNotIn('persist_provenance', events); self.assertNotIn('lifecycle', result)
@@ -92,6 +100,21 @@ class PreviewRepairTests(unittest.TestCase):
             self.assertLessEqual(events.count('restore-platform'), 1)
         result, events = self.repair(fail='restore-platform', repeat=True)
         self.assertEqual(result['status'], 'failed'); self.assertEqual(events.count('publish-email'), 1)
+
+    def test_sourcecheck_failure_can_continue_only_with_exact_original_baseline(self):
+        value = preview_repair_request()
+        baseline = {**value['previous'], 'instanceId': value['context']['parentTaskId']}
+        value['previous'] = {'sourceSha': 'e' * 40, 'applicationVersion': '1.0.4'}
+        value['context'].update(errorCode='EASYEMAIL_SOURCE_DATABASE_CHANGED', previewBaseline=baseline)
+        result, events = self.repair(value=value)
+        self.assertEqual(result['status'], 'succeeded', result)
+        for mutate in (lambda r: r['context'].pop('previewBaseline'),
+                       lambda r: r['context']['previewBaseline'].update(applicationVersion='1.0.3'),
+                       lambda r: r['previous'].update(applicationVersion='1.0.3')):
+            import copy
+            invalid = copy.deepcopy(value); mutate(invalid)
+            with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_PREVIEW_REPAIR_NOT_SUPPORTED'):
+                self.repair(value=invalid)
 
     def test_only_exact_supported_version_and_isolated_source_are_eligible(self):
         for mutate in (lambda r: r['previous'].update(applicationVersion='1.0.1'),

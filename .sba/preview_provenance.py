@@ -20,7 +20,8 @@ def persist_provenance(request, result, state, store, key, directory):
     payload = {'schemaVersion': 1, 'previewTaskId': request['taskId'], 'configurationDigest': digest(request['configuration']),
                'resources': context['resources'], 'source': context['source'],
                'state': state, 'result': full_result, 'resultDigest': digest(full_result)}
-    if request['action'] == 'repair': payload['instanceId'] = request['context']['parentTaskId']
+    if request['action'] == 'repair':
+        payload['instanceId'] = request['context'].get('previewBaseline', {}).get('instanceId', request['context']['parentTaskId'])
     signature = hmac.new(bytes.fromhex(key), digest(payload).encode('ascii'), hashlib.sha256).hexdigest()
     path = directory / 'preview-provenance.json'
     with secret_file(path) as output:
