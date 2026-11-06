@@ -10,6 +10,28 @@
 共享 Zone、MX、现有凭据及非 EasyEmail 服务不因实例清理被删除。
 本阶段不修改现有正式服务、收信路由或 NAS，也不发真实邮件。
 
+## 2026-11-07 部分清理独立恢复候选（1.0.9，未部署）
+
+1.0.9 显式声明 `resumeCleanup: true`，只为已批准副本的已消费 authority 提供新独立
+repair，不重放旧 destroy-preview。平台从完成且认证的父 run 派生原消费 task/permitAt、
+原 baseline 和完整父结果；计划、原账号 lane 再核，不接受客户端替换。旧模板仍拒绝部分清理。
+
+应用经 R2 管理 GET 读取原签名 provenance/消费记录，不重新打开 Worker。初次 anchor
+依靠原受信执行在消费前通过的整体 state 校验，并要求现存 Worker 创建时间不晚于原
+permitAt、精确 DB/R2 绑定、关闭入口、无 cron 或外部引用；两 D1/两 R2 创建身份须仍与
+签名 proof 完全匹配。不声称在 platform Worker 已删除后还能重算原整体 settings digest。
+后继固定同一 Worker 创建身份及 settings/schedules 摘要，桶对象仅接受原 metadata 清单子集。
+
+签名 witness 和唯一 task/parent claim 写入待删 platform D1，独立读回后才删除剩余目标；
+platform D1 最后删除。INSERT 响应丢失可从精确父行恢复，缺少 passed check 不代表没写入。
+若只提交 CREATE 而无签名行，或 journal 丢失/损坏，明确停止，不自动重建日志或采样新
+authority。最后 D1 回执丢失只在认证父其他七项均完成、八项全部独立不存在时只读收尾。
+
+Cloudflare 名称型 DELETE 没有本实现可用的原子身份条件，仍依赖清理期间无人并发重建
+这些已批准对象；跨系统时间也不构成绝对的密码学身份保证。不会把这些限制写成已消除。
+当前仍是候选实现/本地验收，未发布控制面、executor 或执行新的云清理；其他实例、
+正式域名/MX、原隔离源及备份保留。
+
 ## 2026-11-07 最新清理现场：独立恢复已执行，部分删除仍待完成
 
 EasyEmail `1.0.7 / bf427b2` 精确 CI 通过；SpringBok PR #134 的精确 head 和合并后

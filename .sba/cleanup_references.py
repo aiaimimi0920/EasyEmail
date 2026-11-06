@@ -74,7 +74,7 @@ def verify_pages_unshared(config, api):
                     require(isinstance(identity, str) and identity not in selected, ERROR)
 
 
-def verify_unshared(config, api, *, workers_present=True):
+def verify_unshared(config, api, *, workers_present=True, live_roles=None):
     selected = {config[role]['name'] for role in ('email', 'platform')}
     storage = {('d1', config[role]['database']['id']) for role in ('email', 'platform')}
     storage |= {('r2_bucket', config['platform'][field]) for field in ('inboxBucket', 'outboxBucket')}
@@ -82,7 +82,10 @@ def verify_unshared(config, api, *, workers_present=True):
     require(all(isinstance(row, dict) and matches(r'[a-z0-9][a-z0-9_-]{0,62}', row.get('id')) for row in workers)
             and len({row['id'] for row in workers}) == len(workers), ERROR)
     live = {row['id'] for row in workers}
-    require(selected <= live if workers_present else not selected & live, ERROR)
+    if live_roles is None:
+        require(selected <= live if workers_present else not selected & live, ERROR)
+    else:
+        require(set(live_roles) <= {'email', 'platform'} and selected & live == {config[role]['name'] for role in live_roles}, ERROR)
     for worker in workers:
         value = api.get('/workers/scripts/' + worker['id'] + '/settings')
         require(isinstance(value, dict) and isinstance(value.get('bindings'), list) and len(value['bindings']) <= 128, ERROR)

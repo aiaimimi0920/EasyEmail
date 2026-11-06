@@ -15,7 +15,8 @@ def validate_repair(request, manifest):
     is_preview = 'preview' in context
     has_baseline = 'previewBaseline' in context
     is_cleanup = 'cleanup' in context
-    exact(context, ['repairId', 'parentTaskId', 'parentRunId', 'requestDigest', 'resultDigest', 'errorCode'] + (['preview'] if is_preview else []) + (['previewBaseline'] if has_baseline else []) + (['cleanup'] if is_cleanup else []))
+    has_progress = 'cleanupProgress' in context
+    exact(context, ['repairId', 'parentTaskId', 'parentRunId', 'requestDigest', 'resultDigest', 'errorCode'] + (['preview'] if is_preview else []) + (['previewBaseline'] if has_baseline else []) + (['cleanup'] if is_cleanup else []) + (['cleanupProgress'] if has_progress else []))
     require(isinstance(context['parentTaskId'], str) and re.fullmatch(r'dc-[a-f0-9]{32}', context['parentTaskId'])
             and context['parentTaskId'] != request['taskId'])
     require(type(context['parentRunId']) is int and context['parentRunId'] > 0)
@@ -26,6 +27,7 @@ def validate_repair(request, manifest):
     require(is_preview or context['repairId'] != 'complete-preview-credentials')
     actions = repairs[0].get('fromActions', ['deploy', 'update', 'repair'])
     require(is_cleanup == (context['repairId'] == 'complete-preview-cleanup'))
+    require(not has_progress or is_cleanup and repairs[0].get('resumeCleanup') is True)
     if is_cleanup:
         require('destroy-preview' in actions)
         validate_cleanup(request, validate_context)

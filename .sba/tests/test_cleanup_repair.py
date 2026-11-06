@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from boundary import DeploymentError
+from boundary import digest
 from contract import validated_request
 from configuration import inventory
 from fixtures import repair_request
@@ -37,6 +38,26 @@ class CleanupRepairContractTests(unittest.TestCase):
                        lambda r: r['context']['cleanup']['context']['resources'].pop(),
                        lambda r: r['configuration'].update(routing={'zoneId': 'c' * 32, 'domain': 'example.com'})):
             invalid = copy.deepcopy(cleanup_request()); mutate(invalid)
+            with patch('contract.subprocess.check_output', side_effect=test_contract.ContractTests().git), self.assertRaises(DeploymentError):
+                validated_request(invalid, test_contract.ROOT)
+
+    def test_partial_cleanup_context_requires_the_exact_parent_result_and_original_consumption_identity(self):
+        value = cleanup_request(); context = value['context']
+        parent = {'schemaVersion': 3, 'taskId': context['parentTaskId'], 'action': 'repair', **value['previous'],
+            'status': 'unknown', 'errorCode': context['errorCode'], 'checks': [], 'lifecycle': {
+                'resources': [{'key': row['key'], 'status': 'unknown'} for row in context['cleanup']['context']['resources']]}}
+        context['resultDigest'] = digest(parent)
+        context['cleanupProgress'] = {'consumedTaskId': context['parentTaskId'], 'permitAt': 1793923200000,
+                                      'journalTaskId': None, 'parentResult': parent}
+        with patch('contract.subprocess.check_output', side_effect=test_contract.ContractTests().git):
+            self.assertEqual(validated_request(value, test_contract.ROOT), value)
+        for mutate in (lambda r: r['context'].update(resultDigest='0' * 64),
+                       lambda r: r['context']['cleanupProgress'].update(permitAt=True),
+                       lambda r: r['context']['cleanupProgress'].update(consumedTaskId=r['taskId']),
+                       lambda r: r['context']['cleanupProgress'].update(journalTaskId=r['taskId']),
+                       lambda r: r['context']['cleanupProgress']['parentResult'].update(taskId=r['taskId']),
+                       lambda r: r['context']['cleanupProgress']['parentResult']['lifecycle']['resources'].pop()):
+            invalid = copy.deepcopy(value); mutate(invalid)
             with patch('contract.subprocess.check_output', side_effect=test_contract.ContractTests().git), self.assertRaises(DeploymentError):
                 validated_request(invalid, test_contract.ROOT)
 

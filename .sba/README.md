@@ -37,6 +37,7 @@
 - `preview_cleanup.py` / `cleanup_references.py` / `cleanup_resources.py` / `cleanup_buckets.py`：仅清理成功 preview 的准确八项资源；先核目标状态、外部 Worker/Pages/邮件/域名引用、D1/R2 创建身份及私有桶清单，条件写入持久一次性消费记录，再停两个入口、删两个 Worker、复查共享引用，最后删除两库两桶。所有删除均独立读回不存在；不提供普通正式实例删除入口。
 - `cleanup_repair.py`：1.0.7 新增独立 `complete-preview-cleanup`，仅接受认证写前失败的准确共享核验错误；继承原清理 SHA/version/context，不把修复候选当已部署目标。重新核原 provenance、完整状态、引用和未消费 authority 后调用同一清理路径，不发布 Worker、不修改云端秘密。已消费、目标漂移或 unknown/部分删除不能重放。需要兼容 SpringBok 控制面及固定 executor，源码验证不代表已上线。
   1.0.8 候选仅补 Worker DELETE 成功后的有界列表观察：最多五次 GET，额外等待总计 15 秒；不重复 DELETE，不重试失败或畸形响应，耗尽仍为 unknown。该等待不是对部分清理的恢复授权，不能用于重放已经消费的旧任务。
+- `cleanup_resume.py` / `cleanup_evidence.py` / `cleanup_journal.py` / `cleanup_resume_state.py`：1.0.9 显式部分清理候选。管理 GET 复用原签名验证，不恢复 Worker 入口；以认证父执行的历史校验、消费记录及现存精确身份建立 witness。待删 platform D1 内的签名唯一 task/parent claim 独立读回后，才处理尚在的获批资源，日志数据库最后删除。INSERT 丢响应优先查精确父行；CREATE-only/日志缺失或损坏停止，不能重采样 authority。桶仅允许原 metadata 子集，后继 Worker 创建身份和设置摘要不得变化。只读终态必须证明原八项全部 absent 且父回执其他七项均完成。仍依赖清理期间无人外部重建及供应商时间语义，未声称消除名称 DELETE 的 TOCTOU。候选未部署，详见接入进度。
 
 | SBA 动作 | 当前应用行为 |
 | --- | --- |

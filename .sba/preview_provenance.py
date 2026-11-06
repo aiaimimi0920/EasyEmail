@@ -49,16 +49,26 @@ def load_provenance(request, store, key, directory):
             and matches(r'[a-f0-9]{64}', selected[0]['customMetadata'].get('sha256')), error)
     path = directory / 'provenance-download.json'; checksum = selected[0]['customMetadata']['sha256']
     require(store.get('OUTBOX', selected[0], path) == checksum and file_digest(path) == checksum, error)
+    return validate_provenance(request, signed_payload(path.read_bytes(), key))
+
+
+def signed_payload(content, key):
+    error = 'EASYEMAIL_PREVIEW_PROVENANCE_INVALID'
     def unique(pairs):
         result = {}
         for name, value in pairs:
             require(name not in result, error); result[name] = value
         return result
-    try: record = json.loads(path.read_text(encoding='utf8'), object_pairs_hook=unique)
+    try: record = json.loads(content.decode('utf8'), object_pairs_hook=unique)
     except (ValueError, UnicodeError): raise DeploymentError(error) from None
     exact(record, ['payload', 'signature']); payload = record['payload']
     require(isinstance(payload, dict) and matches(r'[a-f0-9]{64}', record['signature'])
             and hmac.compare_digest(record['signature'], hmac.new(bytes.fromhex(key), digest(payload).encode('ascii'), hashlib.sha256).hexdigest()), error)
+    return payload
+
+
+def validate_provenance(request, payload):
+    error = 'EASYEMAIL_PREVIEW_PROVENANCE_INVALID'; context = request['context']
     exact(payload, ['schemaVersion', 'previewTaskId', 'configurationDigest', 'resources', 'source', 'state', 'result', 'resultDigest']
           + (['instanceId'] if 'instanceId' in payload else []))
     result = payload['result']; exact(result, [*RESULT_IDENTITY, 'status', 'checks', 'lifecycle'])

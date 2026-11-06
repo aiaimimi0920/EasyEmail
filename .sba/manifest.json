@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "id": "easyemail",
   "name": "EasyEmail",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "entrypoint": "springbok.ps1",
   "runtime": { "runner": "windows-2025", "powershell": "5.1", "python": "3.12", "node": "22" },
   "actions": {
@@ -26,9 +26,10 @@
     "secretNames": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"]
   }, {
     "id": "complete-preview-cleanup",
-    "name": "清理写前失败的测试副本",
-    "fromErrorCodes": ["EASYEMAIL_PREVIEW_CLEANUP_SHARED_OR_UNVERIFIED"],
+    "name": "清理未完成的测试副本",
+    "fromErrorCodes": ["EASYEMAIL_PREVIEW_CLEANUP_SHARED_OR_UNVERIFIED", "EASYEMAIL_PREVIEW_RESOURCE_CLEANUP_UNCONFIRMED", "EASYEMAIL_PREVIEW_BUCKET_CLEANUP_UNCONFIRMED", "EASYEMAIL_CLEANUP_RESUME_UNCONFIRMED", "EASYEMAIL_CLOUD_REQUEST_FAILED"],
     "fromActions": ["destroy-preview", "repair"],
+    "resumeCleanup": true,
     "secretNames": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD"]
   }],
   "secrets": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"]
