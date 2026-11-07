@@ -10,7 +10,48 @@
 共享 Zone、MX、现有凭据及非 EasyEmail 服务不因实例清理被删除。
 当前已获准确清单的重建授权；NAS 及未列资源仍不在清理范围。
 
-## 2026-11-07 已发布双 Worker 的 HTML 边缘转换与验真候选（1.0.14）
+## 2026-11-07 正式重建与真实业务验收完成（1.0.14）
+
+批准清单的四组 24 个旧资源已备份、删除并独立核验；新正式实例由 SpringBok 创建，
+没有接管旧资源或导入旧数据。首次 deploy 和前次 publication repair 的失败回执保留，
+本次通过独立修复完成原新实例，不能将过程描述为首次部署一次成功。
+
+应用固定提交为 `d8d7b1f8a59a8373baa4e86c3cba4ec3d64ccd86`，完整 CI
+`42318783326` 首次通过。正常 owner UI 生成新鲜计划后，单次确认任务
+`dc-5bf304004ac84868a336fb83db43eb71`，run `42320264279` 使用固定 Windows executor
+`60c264d36695111df9e23a90f1fd83940df98734`。已独立认证请求、artifact 摘要及应用回执，
+结果为 succeeded，15 项检查全部通过；SpringBok 正式服务卡显示 1.0.14 部署成功。
+前一份跨上下文保留的预览提交未确认；刷新后原实例仍只有两项执行记录且 GitHub 无对应
+run，保留现场后才重新生成有效计划，没有重放已受理或已消费的执行。
+
+两 Worker、两 D1 和两 R2 保持原新实例身份。修复先保存并读回加密备份，发布后证明数据
+保留、验证既有管理员和自营供应商，精确核对公开版本、配置、二进制首页证据及 JS/CSS，
+并另验正常网页入口，最后恢复 catch-all 到新 email Worker。正式入口为
+`https://mail.aiaimimi.com`、`https://email-api.aiaimimi.com`，收件后缀为 `@aiaimimi.com`。
+未修改共享 MX、WAF、Analytics 或 JavaScript Detections；正常 HTML 的边缘转换保留。
+
+后续独立公开验真六项、真实 HTTP 业务验收 17 项（含六项公开检查）通过，包括真实
+Temporam 域名查询/分配/同步、自营随机与自定义地址、创建幂等性、跨 Worker 同步、R2
+附件上传下载哈希、草稿 revision 冲突、只读 API Key 写拒绝、CSRF 和第二用户数据隔离。
+正式 Neuro 网页已实际查看收到的邮件正文、云端草稿及其附件，验收数据保留；不在文档
+保存登录密码、会话、API Key 或备份内容。
+
+真实原生邮件只发送一次，从新自营随机邮箱发到 `acceptance@aiaimimi.com`，随后通过
+Email Routing 收件并由聚合层同步，正文含唯一验收标记且在网页可见。此项证明本次同域
+发信/收信闭环，不等于任意外域投递或所有邮件业务均已验收；发送记录仍准确标示渠道
+accepted/unconfirmed，独立收件证据不伪造提供方送达回执。
+
+最终只读比较 51 个 Zone 的全部 MX/Worker routes 及非目标 Worker/D1/R2/域绑定身份，
+与清理前基线一致，`easyemail-service-configs` 保留；这不是其他服务全部业务数据或运行
+设置的比较。初次 1.0.12 CLI 丢弃的历史底层响应仍无法追回，不归因为 DNS/权限/网络。
+本轮没有为交付文档重新发布应用；线上仍是上述固定 SHA。代码验证沿用该 SHA 已通过的
+254 项 Python、15 项相关原生运行测试、19 项检查器，以及 2278 文件 ratchet（三档超限
+均 0），没有运行 strict，不将其称为 strict-clean。
+
+完整证据保留在 `C:/Users/Public/nas_home/AI/GameEditor/linshi/easyemail-springbok-20261106`
+的 `email64-*`、`email58-*`、`email59-*`、`email60-*`、`email65-*`，不提交私密产物。
+
+## 2026-11-07 已发布双 Worker 的 HTML 边缘转换与验真候选（1.0.14，历史）
 
 `8cd1d69` 的完整 CI `42315800143` 首次通过。正常 owner 修复入口单次派发
 `dc-c2e01514e3e24214a1b49095688c910c` / run `42316713412`，原 deploy 未重放。
