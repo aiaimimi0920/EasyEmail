@@ -44,7 +44,7 @@ class PublicationRepairTests(unittest.TestCase):
 
         with ExitStack() as stack:
             stack.enter_context(patch.dict(os.environ, secret_environment()))
-            stack.enter_context(patch.object(publication_repair, 'prepare_release', return_value=root / 'release'))
+            build = stack.enter_context(patch.object(publication_repair, 'prepare_release', return_value=root / 'release'))
             stack.enter_context(patch.object(publication_repair, 'DeploymentProcess', Process))
             for name in ('CloudApi', 'RuntimeClient'): stack.enter_context(patch.object(publication_repair, name))
             for name, result in [('partial_state', {'identity': 'synthetic-identity', 'databases': {'synthetic': 'schema'}}), ('verify_uploaded_email', None),
@@ -54,6 +54,10 @@ class PublicationRepairTests(unittest.TestCase):
                 ('verify_public', [{'id': 'synthetic-public', 'passed': True}]), ('bind_routing', None)]:
                 stack.enter_context(patch.object(publication_repair, name, side_effect=step(name, result)))
             result = publication_repair.repair_publication(publication_request(), root / 'operation')
+            if build.called:
+                self.assertEqual(build.call_args_list[0].kwargs, {'fetch_source': True})
+                self.assertEqual(build.call_args_list[0].args[0]['sourceSha'], publication_request()['previous']['sourceSha'])
+                if build.call_count == 2: self.assertEqual(build.call_args_list[1].kwargs, {})
         return result, events
 
     def test_independent_repair_checks_partial_old_state_before_any_write_and_never_initializes_schema(self):

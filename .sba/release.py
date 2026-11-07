@@ -13,7 +13,18 @@ from contract import validated_request
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def prepare_release(request, output):
+def checkout_application(runner, git, output, source_sha, *, fetch_source=False):
+    source = output / 'EasyEmail'
+    runner.run([git, 'clone', '--no-hardlinks', '--no-checkout', ROOT, source], output, 'application-clone')
+    runner.run([git, 'remote', 'set-url', 'origin', 'https://github.com/aiaimimi0920/EasyEmail.git'], source, 'application-origin')
+    if fetch_source:
+        runner.run([git, '-c', 'http.sslVerify=true', 'fetch', '--depth=1', 'origin', source_sha], source, 'application-fetch')
+    runner.run([git, 'checkout', '--detach', source_sha], source, 'application-checkout')
+    require(runner.output([git, 'rev-parse', 'HEAD'], source) == source_sha, 'EASYEMAIL_SOURCE_MISMATCH')
+    return source
+
+
+def prepare_release(request, output, *, fetch_source=False):
     """The entrypoint must pass the request returned by validated_request(), before any build outputs exist."""
     output = Path(output).resolve()
     require(not output.is_relative_to(ROOT) and not output.exists(), 'EASYEMAIL_BUILD_PATH_INVALID')
@@ -25,11 +36,7 @@ def prepare_release(request, output):
     neuro = dependencies['neuroDesign']
     require(neuro['repository'] == 'https://github.com/aiaimimi0920/NeuroDesign.git' and matches(r'[a-f0-9]{40}', neuro['commit']))
     require(matches(r'\d+\.\d+\.\d+', dependencies['npm']) and matches(r'\d+\.\d+\.\d+', dependencies['pnpm']))
-    source = output / 'EasyEmail'
-    runner.run([git, 'clone', '--no-hardlinks', '--no-checkout', ROOT, source], output, 'application-clone')
-    runner.run([git, 'remote', 'set-url', 'origin', 'https://github.com/aiaimimi0920/EasyEmail.git'], source, 'application-origin')
-    runner.run([git, 'checkout', '--detach', request['sourceSha']], source, 'application-checkout')
-    require(runner.output([git, 'rev-parse', 'HEAD'], source) == request['sourceSha'], 'EASYEMAIL_SOURCE_MISMATCH')
+    source = checkout_application(runner, git, output, request['sourceSha'], fetch_source=fetch_source)
     design = output / 'NeuroDesign'
     runner.run([git, 'init', design], output, 'design-init')
     runner.run([git, 'remote', 'add', 'origin', neuro['repository']], design, 'design-origin')

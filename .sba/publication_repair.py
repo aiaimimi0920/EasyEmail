@@ -29,7 +29,7 @@ def repair_publication(request, directory):
     try:
         api = CloudApi(config['accountId'], material.token, state); runtime = RuntimeClient(config, state)
         parent = {**request, **request['previous'], 'taskId': context['parentTaskId'], 'action': 'deploy', 'previous': None}
-        previous = prepare_release(parent, directory / 'parent')
+        previous = prepare_release(parent, directory / 'parent', fetch_source=True)
         verify_uploaded_email(config, api, previous)
         before = partial_state(config, api, previous, material.workers)
         domains = free_domains(config, api); routing = prepare_routing(config, api)
