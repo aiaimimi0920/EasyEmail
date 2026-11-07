@@ -105,6 +105,12 @@ class ContractTests(unittest.TestCase):
                 with patch('contract.subprocess.check_output', side_effect=self.git), self.assertRaises(DeploymentError):
                     validated_request(value, ROOT)
 
+    def test_readiness_repair_is_an_explicit_newer_template_with_original_parent_evidence(self):
+        from test_readiness_repair import readiness_request
+        value = readiness_request()
+        with patch('contract.subprocess.check_output', side_effect=self.git):
+            self.assertEqual(validated_request(value, ROOT), value)
+
 
 if __name__ == '__main__':
     unittest.main()

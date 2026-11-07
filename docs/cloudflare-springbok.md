@@ -10,6 +10,33 @@
 共享 Zone、MX、现有凭据及非 EasyEmail 服务不因实例清理被删除。
 当前已获准确清单的重建授权；NAS 及未列资源仍不在清理范围。
 
+## 2026-11-07 已发布双 Worker 的 HTML 边缘转换与验真候选（1.0.14）
+
+`8cd1d69` 的完整 CI `42315800143` 首次通过。正常 owner 修复入口单次派发
+`dc-c2e01514e3e24214a1b49095688c910c` / run `42316713412`，原 deploy 未重放。
+artifact 摘要、请求、固定 SHA 和 executor 已认证，应用仍为 unknown /
+`EASYEMAIL_PUBLIC_VERIFICATION_FAILED`；父部分空态、发布设置、管理员登录与自营供应商
+认证四项 passed。两 Worker 和 HTTP 域已经发布，catch-all 尚未绑定；不能报收信已恢复。
+
+独立无凭据 HTTP 证明两端 marker 与 JS/CSS 字节正确。首页原始 353 bytes，但公开 HTML
+包含 Cloudflare Analytics beacon 和 JavaScript Detections 注入，因此原始哈希不一致。
+已联网核对官方 Origin Cache Control、Web Analytics、JavaScript Detections 文档；不通过
+关闭检测、修改共享 Zone/WAF 或忽略哈希来修复。请求侧 no-transform 的只读实验也未恢复
+原始字节，保留结果，不将实验视为有效修正。该原因只解释此次公开验真失败，不能反推首次
+1.0.12 Worker 发布的历史底层错误。
+
+1.0.14 候选增加公开二进制原始首页证据，marker 仅允许根 asset 声明固定同源证据路径。
+正常 HTML 与安全头不变，精确 HTML/JS/CSS 哈希、版本与配置摘要仍须匹配，并另核浏览入口。
+独立 `complete-fresh-readiness` 认证已发布父双 Worker 可执行字节、原 marker、网络 JS/CSS
+和重建封存首页，先持久化加密备份，再发布候选、证明数据未变、验证既有管理员和公开入口，
+最后绑定收信。不重放父任务、不 bootstrap、不应用迁移或导入旧数据。候选及测试不等同于
+固定提交 CI 或真实云端修复成功，仍须分别验收。
+本地完整 Python 254 项、原生双 Worker/D1/R2 与签章/对象控制 15 项、检查器 19 项通过；
+ratchet 扫描 2278 文件，三个超限档位均为 0，未运行 strict。首次原生验真夹具未读取新增
+证据路径而失败；补上真实路径采集、二进制响应头及与普通首页字节等值断言后，15 项全部
+通过，未改产品断言或超时。当前正式网页的既有管理员登录及 Neuro 工作台可真实访问，
+但这不代表 catch-all 已绑定、正式应用回执成功或真实邮件已投递。
+
 ## 2026-11-07 父版本重建的浅层源码边界（1.0.13 后续候选）
 
 修复候选 `46b321e` 已精确提交推送。核对真实 SpringBok 执行器后确认应用源码由

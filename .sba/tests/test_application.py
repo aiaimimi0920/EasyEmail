@@ -47,6 +47,15 @@ class ApplicationTests(unittest.TestCase):
             self.assertEqual(application.run(value, SCRATCH / 'destroy-preview-operation')['status'], 'unknown')
         selected.assert_called_once_with(value, SCRATCH / 'destroy-preview-operation')
 
+    def test_readiness_completion_never_replays_publication_or_bootstrap(self):
+        from test_readiness_repair import readiness_request
+        value = readiness_request()
+        with patch.object(application, 'repair_readiness', return_value={'status': 'unknown', 'checks': []}) as selected, \
+                patch.object(application, 'repair_publication') as publication, patch.object(application, 'repair') as bootstrap:
+            self.assertEqual(application.run(value, SCRATCH / 'readiness-operation')['status'], 'unknown')
+        selected.assert_called_once_with(value, SCRATCH / 'readiness-operation')
+        publication.assert_not_called(); bootstrap.assert_not_called()
+
     def test_preview_dispatch_requires_a_directory(self):
         with self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_DEPLOYMENT_DIRECTORY_REQUIRED'): application.run(request('preview'))
         value = request('preview')

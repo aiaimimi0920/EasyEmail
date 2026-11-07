@@ -6,6 +6,15 @@
 
 ## 当前入口与边界
 
+1.0.14 将原始首页通过 `/.well-known/easyemail-entry.bin` 作为公开二进制证据提供，并在
+原首页的 asset 记录中声明唯一 `verificationPath`。校验仍精确核原 HTML/JS/CSS 字节，
+同时核正常 HTML 入口可用；不关闭 Cloudflare Analytics、JavaScript Detections 或 WAF，
+不改变正常浏览器的 HTML、CSP 或认证。旧 marker 仍按原合同检查，不默默放宽其哈希要求。
+`complete-fresh-readiness` 仅接受 1.0.13 repair 的准确公开验真错误：重建并独立下载认证
+双 Worker 字节、核原 marker 和网络 JS/CSS；原入口只核重建封存 HTML，不声称公开 HTML
+原字节已经通过。先创建并独立读回加密持久备份，再发布修正、证明原数据和资源保持、
+验证既有管理员及新公开证据，最后才绑定中性 catch-all。不会重新 bootstrap、迁移或导入数据。
+
 1.0.13 的 `complete-fresh-publication` 独立修复仅接受 1.0.12 正式 deploy 的准确 Worker 发布错误。
 `publication_state.py` / `worker_download.py` 要求 email 可执行模块与原固定源码重建字节完全相同、
 platform 不存在、两域空闲、入口/cron 未开放、路由中性、初始化双库无业务历史且双桶私有空态。

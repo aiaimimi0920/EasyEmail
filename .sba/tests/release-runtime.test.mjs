@@ -93,12 +93,19 @@ test('real dual Workers expose fixed release evidence; Python public verify acce
   const responses = {};
   for (const role of ['email', 'platform']) {
     const base = fixture.target[role].origin;
-    const paths = [releasePath, ...(role === 'email' ? ['/health_check'] : ['/healthz', '/api/v1/me', ...proof.markers.platform.assets.map(row => row.path)])];
+    const paths = [releasePath, ...(role === 'email' ? ['/health_check'] : ['/healthz', '/api/v1/me',
+      ...proof.markers.platform.assets.flatMap(row => row.verificationPath ? [row.path, row.verificationPath] : [row.path])])];
     for (const route of paths) {
       const response = role === 'email' ? await fixture.emailRequest(route) : await fixture.dispatch(route);
+      if (route.endsWith('easyemail-entry.bin')) {
+        assert.equal(response.headers.get('content-type'), 'application/octet-stream');
+        assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+      }
       responses[base + route] = { status: response.status, body: Buffer.from(await response.arrayBuffer()).toString('base64') };
     }
   }
+  const base = fixture.target.platform.origin;
+  assert.equal(responses[base + '/'].body, responses[base + '/.well-known/easyemail-entry.bin'].body);
   const selected = { schemaVersion: 3, taskId: 'dc-' + '1'.repeat(32), action: 'verify', repository: 'aiaimimi0920/EasyEmail',
     sourceSha: proof.metadata.sourceSha, applicationId: 'easyemail', applicationVersion: '1.0.0', environment: 'local-test', configuration,
     previous: { sourceSha: proof.metadata.sourceSha, applicationVersion: '1.0.0' } };

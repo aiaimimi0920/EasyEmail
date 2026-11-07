@@ -70,6 +70,30 @@ class PublicVerifyTests(unittest.TestCase):
                     verify_public(self.request, self.read)
                 self.markers['platform'][field] = original
 
+    def test_binary_origin_entry_is_exact_even_when_the_delivered_html_has_edge_injections(self):
+        self.markers['platform']['assets'][0]['verificationPath'] = '/.well-known/easyemail-entry.bin'
+        self.body = b'<!doctype html><html><div id="root"></div><script type="module" src="/assets/app.js"></script></html>'
+        asset = self.markers['platform']['assets'][0]
+        asset.update(bytes=len(self.body), sha256=hashlib.sha256(self.body).hexdigest())
+        def read(url, **kwargs):
+            if url.endswith('/.well-known/easyemail-entry.bin'): return self.body
+            if url.endswith('/'): return self.body.replace(b'</html>', b'<script>edge-generated</script></html>')
+            return self.read(url, **kwargs)
+        checks = verify_public(self.request, read)
+        self.assertIn('public-entrypoint-ready', [row['id'] for row in checks])
+        with self.assertRaises(DeploymentError):
+            verify_public(self.request, lambda url, **kwargs: b'foreign' if url.endswith('.bin') else read(url, **kwargs))
+        with self.assertRaises(DeploymentError):
+            verify_public(self.request, lambda url, **kwargs: b'not-an-entry' if url.endswith('/') else read(url, **kwargs))
+
+    def test_origin_entry_evidence_cannot_redirect_or_replace_a_non_entry_asset(self):
+        for value in ('https://foreign.example.com/source', '/api/v1/admin', '/.well-known/easyemail-entry.bin?query=1'):
+            self.markers['platform']['assets'][0]['verificationPath'] = value
+            with self.subTest(value=value), self.assertRaises(DeploymentError): verify_public(self.request, self.read)
+        del self.markers['platform']['assets'][0]['verificationPath']
+        self.markers['platform']['assets'][1]['verificationPath'] = '/.well-known/easyemail-entry.bin'
+        with self.assertRaises(DeploymentError): verify_public(self.request, self.read)
+
     def test_corrupted_or_foreign_asset_rejected(self):
         self.script += b'changed'
         with self.assertRaises(DeploymentError):

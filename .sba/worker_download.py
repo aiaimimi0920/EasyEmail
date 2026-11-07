@@ -8,10 +8,11 @@ import urllib.request
 from boundary import DeploymentError, require
 
 
-def verify_uploaded_email(config, api, release):
-    expected = release.parent / 'email-dry-run/sba-entry.mjs'
+def verify_uploaded_worker(config, api, release, role='email'):
+    require(role in ('email', 'platform'), 'EASYEMAIL_PARENT_WORKER_UNVERIFIED')
+    expected = release.parent / (role + '-dry-run/sba-entry.mjs')
     raw_expected = expected.read_bytes()
-    url = 'https://api.cloudflare.com/client/v4/accounts/' + api.account + '/workers/scripts/' + config['email']['name']
+    url = 'https://api.cloudflare.com/client/v4/accounts/' + api.account + '/workers/scripts/' + config[role]['name']
     request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + api.token, 'User-Agent': 'EasyEmail-SBA/1.0'})
     try:
         with api.transport.opener.open(request, timeout=30) as response:
@@ -27,3 +28,6 @@ def verify_uploaded_email(config, api, release):
     require(names in (['sba-entry.mjs'], ['sba-entry.mjs', 'sba-entry.mjs.map'])
             and parts[0].get_payload(decode=True) == raw_expected, 'EASYEMAIL_PARENT_WORKER_UNVERIFIED')
     return hashlib.sha256(raw_expected).hexdigest()
+
+
+verify_uploaded_email = verify_uploaded_worker

@@ -10,25 +10,28 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from boundary import DeploymentError
 from fixtures import configuration
-from worker_download import verify_uploaded_email
+from worker_download import verify_uploaded_email, verify_uploaded_worker
 
 
 SCRATCH = Path(os.environ.get('EASYEMAIL_TEST_ROOT', tempfile.gettempdir()))
 
 
 class WorkerDownloadTests(unittest.TestCase):
-    def check(self, modules):
-        root = Path(tempfile.mkdtemp(prefix='sba-worker-bytes-', dir=SCRATCH)); (root / 'email-dry-run').mkdir()
-        (root / 'email-dry-run/sba-entry.mjs').write_bytes(b'export default {};\n')
+    def check(self, modules, role='email'):
+        root = Path(tempfile.mkdtemp(prefix='sba-worker-bytes-', dir=SCRATCH)); (root / (role + '-dry-run')).mkdir()
+        (root / (role + '-dry-run/sba-entry.mjs')).write_bytes(b'export default {};\n')
         parts = [b'--fixture\r\nContent-Disposition: form-data; name="' + name.encode() + b'"\r\n\r\n' + value + b'\r\n'
                  for name, value in modules]
         class Response(io.BytesIO):
             status = 200
             headers = {'Content-Type': 'multipart/form-data; boundary=fixture'}
         response = Response(b''.join(parts) + b'--fixture--\r\n')
+        def open_response(request, timeout):
+            self.assertTrue(request.full_url.endswith('/workers/scripts/' + configuration()[role]['name']))
+            return response
         api = SimpleNamespace(account='a' * 32, token='synthetic', transport=SimpleNamespace(
-            opener=SimpleNamespace(open=lambda request, timeout: response)))
-        return verify_uploaded_email(configuration(), api, root / 'release')
+            opener=SimpleNamespace(open=open_response)))
+        return verify_uploaded_worker(configuration(), api, root / 'release', role)
 
     def test_exact_executable_bytes_match_with_or_without_nonexecuted_map_sidecar(self):
         modules = [('sba-entry.mjs', b'export default {};\n')]
@@ -40,3 +43,8 @@ class WorkerDownloadTests(unittest.TestCase):
         for rows in ([('sba-entry.mjs', b'foreign code')], [module, module], [module, ('extra.js', b'foreign code')]):
             with self.subTest(rows=rows), self.assertRaisesRegex(DeploymentError, 'EASYEMAIL_PARENT_WORKER_UNVERIFIED'):
                 self.check(rows)
+
+    def test_platform_bytes_use_its_own_immutable_module_and_target_not_the_email(self):
+        self.assertIs(verify_uploaded_email, verify_uploaded_worker)
+        self.assertEqual(self.check([('sba-entry.mjs', b'export default {};\n')], 'platform'),
+                         hashlib.sha256(b'export default {};\n').hexdigest())

@@ -10,6 +10,7 @@ from boundary import DeploymentError, digest, exact, matches, origin, require
 
 
 RELEASE_PATH = '/.well-known/easyemail-release.json'
+UI_SOURCE_PATH = '/.well-known/easyemail-entry.bin'
 VERIFY_ERROR = 'EASYEMAIL_PUBLIC_VERIFICATION_FAILED'
 
 
@@ -50,8 +51,11 @@ def marker(value, request, component):
     assets = value['assets']
     require(isinstance(assets, list) and len(assets) <= 4, VERIFY_ERROR)
     for row in assets:
-        exact(row, ['path', 'bytes', 'sha256'])
+        require(isinstance(row, dict), VERIFY_ERROR)
+        exact(row, ['path', 'bytes', 'sha256'] + (['verificationPath'] if 'verificationPath' in row else []))
         require(isinstance(row['path'], str) and (row['path'] == '/' or re.fullmatch(r'/assets/[a-zA-Z0-9_-]+\.(?:js|css)', row['path'])), VERIFY_ERROR)
+        if 'verificationPath' in row:
+            require(component == 'platform' and row['path'] == '/' and row['verificationPath'] == UI_SOURCE_PATH, VERIFY_ERROR)
         require(type(row['bytes']) is int and 0 < row['bytes'] <= 8 * 1024 * 1024 and matches(r'[a-f0-9]{64}', row['sha256']), VERIFY_ERROR)
     require(len({row['path'] for row in assets}) == len(assets), VERIFY_ERROR)
     require((not assets) if component == 'email' else {'/', '/assets/app.js'} <= {row['path'] for row in assets}, VERIFY_ERROR)
@@ -73,8 +77,13 @@ def verify_public(request, read=None):
         assets = marker(json_body(read(base + RELEASE_PATH, limit=16384)), request, component)
         checks.append({'id': component + '-release-matched', 'passed': True})
         for asset in assets:
-            body = read(base + asset['path'], limit=asset['bytes'])
+            body = read(base + asset.get('verificationPath', asset['path']), limit=asset['bytes'])
             require(len(body) == asset['bytes'] and hashlib.sha256(body).hexdigest() == asset['sha256'], VERIFY_ERROR)
+            if 'verificationPath' in asset:
+                delivered = read(base + '/', limit=128 * 1024)
+                require(b'<div id="root"></div>' in delivered and b'src="/assets/app.js"' in delivered
+                        and b'<!doctype html>' in delivered.lower(), VERIFY_ERROR)
+                checks.append({'id': 'public-entrypoint-ready', 'passed': True})
     require(read(config['email']['origin'] + '/health_check', limit=4096) == b'OK', VERIFY_ERROR)
     require(json_body(read(config['platform']['origin'] + '/healthz', limit=4096)) ==
             {'service': 'easyemail-cloudflare', 'status': 'alive'}, VERIFY_ERROR)

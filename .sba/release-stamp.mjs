@@ -8,6 +8,7 @@ import { artifactManifest, sha256 } from '../service/cloudflare/scripts/release-
 import { previewBuildOptions, previewPolicy } from './preview-release.mjs';
 
 export const releasePath = '/.well-known/easyemail-release.json';
+export const uiSourcePath = '/.well-known/easyemail-entry.bin';
 const write = (file, value) => fs.writeFile(file, JSON.stringify(value, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
 const { build } = createRequire(new URL('../service/cloudflare/package.json', import.meta.url))('esbuild');
 
@@ -23,6 +24,15 @@ export default { ...application, ${preview ? `email(message) { message.setReject
       headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }
     });
   }
+  ${marker.component === 'platform' ? `if (new URL(request.url).pathname === ${JSON.stringify(uiSourcePath)}) {
+    if (request.method !== 'GET' && request.method !== 'HEAD') return new Response(null, { status: 405 });
+    const original = await application.fetch(new Request(new URL('/', request.url), { method: request.method }), env, context);
+    const headers = new Headers(original.headers);
+    headers.set('content-type', 'application/octet-stream'); headers.set('cache-control', 'no-store');
+    headers.set('content-disposition', 'attachment; filename="easyemail-index.html"');
+    headers.set('x-content-type-options', 'nosniff');
+    return new Response(original.body, { status: original.status, headers });
+  }` : ''}
   return application.fetch(request, env, context);
 } };
 `;
@@ -46,7 +56,8 @@ export async function stampRelease(candidate, destination, metadata, descriptor)
     const directory = path.join(destination, component), configPath = path.join(directory, 'wrangler.json');
     const config = JSON.parse(await fs.readFile(configPath, 'utf8'));
     const assets = component === 'email' ? [] : (await artifactManifest(path.join(directory, 'web'))).map(row => ({
-      path: row.path === 'index.html' ? '/' : '/' + row.path, bytes: row.bytes, sha256: row.sha256
+      path: row.path === 'index.html' ? '/' : '/' + row.path, bytes: row.bytes, sha256: row.sha256,
+      ...(row.path === 'index.html' ? { verificationPath: uiSourcePath } : {})
     }));
     const marker = { schemaVersion: 1, ...metadata, component, assets }; markers[component] = marker;
     const main = path.resolve(directory, config.main), entry = path.join(path.dirname(main), 'sba-entry.mjs');

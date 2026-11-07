@@ -48,6 +48,7 @@ test('sealed base is unchanged, stamped assets are hashed and publish drift is r
   const publish = path.join(root, 'publish'), proof = await stampRelease(candidate, publish, metadata, { providers: [] });
   assert.equal(await fs.readFile(path.join(candidate, 'platform/wrangler.json'), 'utf8'), base);
   assert.equal(proof.markers.platform.assets.length, 2);
+  assert.equal(proof.markers.platform.assets.find(row => row.path === '/').verificationPath, '/.well-known/easyemail-entry.bin');
   const config = JSON.parse(await fs.readFile(path.join(publish, 'platform/wrangler.json'), 'utf8'));
   assert.equal(config.main, './server/sba-entry.mjs');
   assert.ok(JSON.parse(await fs.readFile(path.join(publish, 'required-secrets.json'), 'utf8')).required.platform.includes('EASYEMAIL_SBA_CONTROL_SECRET'));
@@ -57,6 +58,30 @@ test('sealed base is unchanged, stamped assets are hashed and publish drift is r
   await assert.rejects(verifyStampedRelease(publish, proofPath, digest, metadata), /artifacts changed/);
   await write(proofPath, { ...proof, metadata: { ...metadata, sourceSha: 'd'.repeat(40) } });
   await assert.rejects(verifyStampedRelease(publish, proofPath, digest, metadata), /release proof changed/);
+});
+
+test('origin HTML evidence is binary and byte exact without changing normal browser HTML or security headers', async () => {
+  const root = await fs.mkdtemp(path.join(scratch, 'easyemail-ui-source-'));
+  const html = '<!doctype html><html><body><div id="root"></div></body></html>';
+  await fs.writeFile(path.join(root, 'application.mjs'), `export default { fetch(request) {
+    if (new URL(request.url).pathname !== '/') return new Response('not-found', {status:404});
+    return new Response(request.method === 'HEAD' ? null : ${JSON.stringify(html)}, {headers:{
+      'content-type':'text/html', 'content-security-policy':"default-src 'self'", 'cache-control':'no-store'
+    }});
+  } };`, 'utf8');
+  const marker = { schemaVersion: 1, ...metadata, component: 'platform', assets: [] };
+  await fs.writeFile(path.join(root, 'entry.mjs'), releaseEntry(marker, './application.mjs'), 'utf8');
+  const { default: app } = await import(pathToFileURL(path.join(root, 'entry.mjs')).href);
+  const binary = await app.fetch(new Request('https://public.example.com/.well-known/easyemail-entry.bin'));
+  assert.equal(binary.headers.get('content-type'), 'application/octet-stream');
+  assert.equal(binary.headers.get('content-security-policy'), "default-src 'self'");
+  assert.equal(binary.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(binary.headers.get('cache-control'), 'no-store');
+  assert.equal(await binary.text(), html);
+  const normal = await app.fetch(new Request('https://public.example.com/'));
+  assert.equal(normal.headers.get('content-type'), 'text/html'); assert.equal(await normal.text(), html);
+  assert.equal((await app.fetch(new Request('https://public.example.com/.well-known/easyemail-entry.bin', {method:'POST'}))).status, 405);
+  assert.equal(await (await app.fetch(new Request('https://public.example.com/.well-known/easyemail-entry.bin', {method:'HEAD'}))).text(), '');
 });
 
 function descriptor() {
