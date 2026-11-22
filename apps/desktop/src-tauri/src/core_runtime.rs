@@ -422,6 +422,7 @@ mod tests {
         let state = root.join("state");
         fs::create_dir_all(&state).unwrap();
         let config_path = root.join("runtime-config.yaml");
+        fs::write(&config_path, "stale-or-partial-config").unwrap();
 
         write_runtime_config(&config_path, &state, 32123, "test-token").unwrap();
         let config = fs::read_to_string(&config_path).unwrap();
@@ -434,6 +435,7 @@ mod tests {
         ));
         assert!(config.contains("driver: file"));
         assert!(config.contains("activeProbeEnabled: false"));
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 2);
         fs::remove_dir_all(root).unwrap();
     }
 

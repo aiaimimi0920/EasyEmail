@@ -1,7 +1,7 @@
-import { type AccountDto, type ManualImapAccountCreateRequest } from "../api/mailAccountClient";
-import { positivePort } from "../compose/composeDateUtils";
+import { type AccountDto } from "../api/mailAccountClient";
 import { asErrorDto, isQqMailAddress } from "./appDomain";
 import { mailAccountClient } from "./appRuntime";
+import { validateNormalImapAccount } from "./normalImapAccountValidation";
 import type { AppState } from "./useAppState";
 
 type Dependencies = {
@@ -17,17 +17,6 @@ export function useNormalAccountController(appState: AppState, dependencies: Dep
   const {
     loadNormalAccounts,
   } = dependencies;
-  function normalImapAccountRequest(): ManualImapAccountCreateRequest {
-      return {
-        display_name: normalDisplayName,
-        email_address: normalEmailAddress,
-        imap_host: normalImapHost,
-        imap_port: positivePort(normalImapPort),
-        imap_security: normalImapSecurity,
-        imap_username: normalImapUsername.trim() || mailboxLoginUsername(),
-        imap_password: normalImapPassword,
-      };
-    }
   function mailboxLoginUsername() {
       return normalEmailAddress.trim().toLowerCase();
     }
@@ -84,9 +73,23 @@ export function useNormalAccountController(appState: AppState, dependencies: Dep
       }
     }
   async function addManualImapAccount() {
+      const validation = validateNormalImapAccount({
+        displayName: normalDisplayName,
+        emailAddress: normalEmailAddress,
+        imapHost: normalImapHost,
+        imapPort: normalImapPort,
+        imapSecurity: normalImapSecurity,
+        imapUsername: normalImapUsername,
+        imapPassword: normalImapPassword,
+      });
+      if (!validation.ok) {
+        setNormalImapTest(null);
+        setError(validation.error);
+        return;
+      }
       setBusy(true);
       try {
-        const result = await mailAccountClient.addManualImapAccount(normalImapAccountRequest());
+        const result = await mailAccountClient.addManualImapAccount(validation.request);
         await loadNormalAccounts();
         setSelectedNormalAccountId(result.account.id);
         setMailSourceId(`account:${result.account.id}`);
@@ -95,7 +98,7 @@ export function useNormalAccountController(appState: AppState, dependencies: Dep
           const testResult = await mailAccountClient.testImap(result.account);
           setNormalImapTest(testResult);
           setStatusMessage(
-            `Added ${result.account.display_name}; IMAP authenticated (${testResult.capability_summary}). SMTP and synchronization remain unavailable until M5/M6.`,
+            `Added ${result.account.display_name}; IMAP authenticated (${testResult.capability_summary}).`,
           );
           setError(null);
         } catch (testError: unknown) {

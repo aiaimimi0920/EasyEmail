@@ -32,6 +32,8 @@ export function MailAccountSetupPanel({ controller }: { controller: AppControlle
         <label>
           Email address
           <input
+            autoComplete="email"
+            type="email"
             value={normalEmailAddress}
             placeholder="work@example.com"
             onChange={(event) => updateNormalEmailAddress(event.currentTarget.value)}
@@ -40,6 +42,7 @@ export function MailAccountSetupPanel({ controller }: { controller: AppControlle
         <label className="nt-wide-field">
           Authorization code
           <input
+            autoComplete="off"
             type="password"
             value={normalImapPassword}
             placeholder="QQ authorization code, not QQ login password"
@@ -68,6 +71,7 @@ export function MailAccountSetupPanel({ controller }: { controller: AppControlle
             <label>
               IMAP host
               <input
+                autoComplete="off"
                 value={normalImapHost}
                 placeholder="imap.example.com"
                 onChange={(event) => setNormalImapHost(event.currentTarget.value)}

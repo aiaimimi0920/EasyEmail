@@ -1,5 +1,6 @@
 use super::*;
 use crate::secret::fake::FakeSecretVaultAdapter;
+use std::time::Instant;
 
 struct FixedAuthorizer(ScopeDecision);
 
@@ -25,15 +26,22 @@ fn post_broker(
     broker: &DesktopCredentialBroker,
     bearer_token: Option<&str>,
 ) -> (u16, serde_json::Value) {
-    let body = serde_json::to_vec(&request_body()).unwrap();
-    let address = broker.base_url().trim_start_matches("http://");
-    let mut stream = TcpStream::connect(address).unwrap();
     let authorization = bearer_token
         .map(|token| format!("Authorization: Bearer {token}\r\n"))
         .unwrap_or_default();
+    post_broker_with_authorization_headers(broker, &authorization)
+}
+
+fn post_broker_with_authorization_headers(
+    broker: &DesktopCredentialBroker,
+    authorization_headers: &str,
+) -> (u16, serde_json::Value) {
+    let body = serde_json::to_vec(&request_body()).unwrap();
+    let address = broker.base_url().trim_start_matches("http://");
+    let mut stream = TcpStream::connect(address).unwrap();
     write!(
         stream,
-        "POST {RESOLVE_PATH} HTTP/1.1\r\nHost: {address}\r\n{authorization}Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        "POST {RESOLVE_PATH} HTTP/1.1\r\nHost: {address}\r\n{authorization_headers}Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         body.len()
     )
     .unwrap();
@@ -71,6 +79,73 @@ fn broker_authenticates_scope_checks_and_resolves_without_listing() {
     assert_eq!(response["status"], "resolved");
     assert_eq!(response["secret"], "broker-secret-canary");
     broker.stop();
+    broker.stop();
+}
+
+#[test]
+fn slow_client_does_not_block_an_authenticated_resolution() {
+    let vault = Arc::new(FakeSecretVaultAdapter::default());
+    let key = request_body()["secretKey"].as_str().unwrap().to_string();
+    vault
+        .save_secret(&key, "broker-concurrency-canary")
+        .unwrap();
+    let broker = DesktopCredentialBroker::start_with_dependencies(
+        vault,
+        Arc::new(FixedAuthorizer(ScopeDecision::Allowed)),
+    )
+    .unwrap();
+    let address = broker.base_url().trim_start_matches("http://");
+    let mut slow_client = TcpStream::connect(address).unwrap();
+    write!(
+        slow_client,
+        "POST {RESOLVE_PATH} HTTP/1.1\r\nHost: {address}\r\n"
+    )
+    .unwrap();
+    slow_client.flush().unwrap();
+    thread::sleep(Duration::from_millis(100));
+
+    let started = Instant::now();
+    let (status, response) = post_broker(&broker, Some(broker.bearer_token()));
+
+    assert_eq!(status, 200);
+    assert_eq!(response["secret"], "broker-concurrency-canary");
+    assert!(started.elapsed() < Duration::from_secs(1));
+    drop(slow_client);
+    broker.stop();
+}
+
+#[test]
+fn broker_rejects_duplicate_authorization_headers() {
+    let vault = Arc::new(FakeSecretVaultAdapter::default());
+    let key = request_body()["secretKey"].as_str().unwrap().to_string();
+    vault.save_secret(&key, "broker-secret-canary").unwrap();
+    let broker = DesktopCredentialBroker::start_with_dependencies(
+        vault,
+        Arc::new(FixedAuthorizer(ScopeDecision::Allowed)),
+    )
+    .unwrap();
+    let lowercase_header = format!(
+        "X-Test-Header: before-authorization\r\nauthorization: Bearer {}\r\n",
+        broker.bearer_token()
+    );
+    let (status, response) = post_broker_with_authorization_headers(&broker, &lowercase_header);
+    assert_eq!(status, 200);
+    assert_eq!(response["secret"], "broker-secret-canary");
+
+    for headers in [
+        format!(
+            "Authorization: Bearer {}\r\nauthorization: Bearer attacker\r\n",
+            broker.bearer_token()
+        ),
+        format!(
+            "Authorization: Bearer attacker\r\nauthorization: Bearer {}\r\n",
+            broker.bearer_token()
+        ),
+    ] {
+        let (status, response) = post_broker_with_authorization_headers(&broker, &headers);
+        assert_eq!(status, 400);
+        assert_eq!(response["code"], "invalid_request");
+    }
     broker.stop();
 }
 

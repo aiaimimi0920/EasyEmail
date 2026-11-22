@@ -20,6 +20,7 @@ export function AppOverlays({ controller }: { controller: AppController }) {
     platformAccountInitial,
     platformAccountPopoverTitle,
     platformAccountPopoverEmail,
+    choosePlatformAvatarFile,
     signOutPlatformAccount,
     signInPlatformAccount,
     railModePickerOpen,
@@ -91,14 +92,19 @@ export function AppOverlays({ controller }: { controller: AppController }) {
 
             <div className="nt-platform-account-popover__actions">
               {platformAccountSignedIn ? (
-                <button
-                  type="button"
-                  className="nt-platform-account-popover__danger"
-                  onClick={signOutPlatformAccount}
-                  disabled={busy}
-                >
-                  退出预览账户
-                </button>
+                <>
+                  <button type="button" onClick={choosePlatformAvatarFile} disabled={busy}>
+                    更换账户图标
+                  </button>
+                  <button
+                    type="button"
+                    className="nt-platform-account-popover__danger"
+                    onClick={signOutPlatformAccount}
+                    disabled={busy}
+                  >
+                    退出预览账户
+                  </button>
+                </>
               ) : (
                 <button
                   type="button"

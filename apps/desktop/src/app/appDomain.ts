@@ -1,7 +1,6 @@
 import { EasyEmailHttpError } from "../api/easyEmailHttpClient";
-import { filterVisibleMailMessagesForMailbox } from "../mail/mailSelectors";
 import { temporaryMailboxRefreshFailureMessage } from "../mail/temporaryMailboxAdapter";
-import type { ErrorDto, MailSearchScope, TempRefreshDto, VisibleMailMessage } from "./appTypes";
+import type { ErrorDto, TempRefreshDto } from "./appTypes";
 
 export function asErrorDto(value: unknown): ErrorDto {
   if (value instanceof EasyEmailHttpError) {
@@ -106,16 +105,6 @@ export function mergeByIdentity<T>(
     seen.add(key);
     return true;
   });
-}
-
-export function applyMailSearchScopeFilter(
-  messages: VisibleMailMessage[],
-  scope: MailSearchScope,
-): VisibleMailMessage[] {
-  if (scope === "snoozed" || scope === "scheduled") {
-    return [];
-  }
-  return filterVisibleMailMessagesForMailbox(messages, scope);
 }
 
 export function isQqMailAddress(value: string): boolean {

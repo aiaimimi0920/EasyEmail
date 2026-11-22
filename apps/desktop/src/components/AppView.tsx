@@ -3,6 +3,7 @@ import type { AppController } from "../app/useAppController";
 import { AgentWorkspace } from "./app/AgentWorkspace";
 import { AppOverlays } from "./app/AppOverlays";
 import { ComposeOverlays } from "./app/ComposeOverlays";
+import { DesktopChrome, WorkspacePageHeader } from "./app/DesktopChrome";
 import { EasyEmailSetupPanel } from "./app/EasyEmailSetupPanel";
 import { MailAccountSetupPanel } from "./app/MailAccountSetupPanel";
 import { MailWorkspace } from "./app/MailWorkspace";
@@ -37,8 +38,14 @@ export function AppView({ controller }: { controller: AppController }) {
       <AppOverlays controller={controller} />
       <ComposeOverlays controller={controller} />
       <SideRail controller={controller} />
+      <DesktopChrome />
 
-      <section className="nt-workspace-board">
+      <section
+        className={`nt-workspace-board ${
+          activeView === "setup" ? "nt-workspace-board--settings" : ""
+        }`}
+      >
+        {activeView !== "setup" ? <WorkspacePageHeader controller={controller} /> : null}
         {activeView === "mail" ? <MailWorkspace controller={controller} /> : null}
 
         {activeView === "agent" ? <AgentWorkspace controller={controller} /> : null}
@@ -46,14 +53,10 @@ export function AppView({ controller }: { controller: AppController }) {
         {activeView === "queue" ? <QueueWorkspace controller={controller} /> : null}
 
         {activeView === "setup" ? (
-          <section className="nt-board-view">
-            <div className="nt-board-head">
-              <div>
-                <p className="nt-kicker">SETUP</p>
-                <h1>Provider and mailbox ignition</h1>
-                <span>Configure EasyEmail, long-lived IMAP accounts, and temporary mailbox creation.</span>
-              </div>
-            </div>
+          <section className="nt-board-view nt-settings-page">
+            <header className="nt-settings-page__heading">
+              <h1>设置</h1>
+            </header>
 
             <div className="nt-two-column">
               <EasyEmailSetupPanel controller={controller} />

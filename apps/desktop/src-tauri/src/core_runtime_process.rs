@@ -126,10 +126,45 @@ pub(super) fn write_runtime_config(
          maintenance:\n  enabled: true\n  intervalMs: 30000\n  keepRecentCount: 5\n  keepRecentSessionCount: 5000\n  activeProbeEnabled: false\n\
          persistence:\n  enabled: true\n  driver: file\n  intervalMs: 5000\n  filePath: \"{state_path}/easy-email-state.json\"\n"
     );
-    let mut file = fs::File::create(config_path)
-        .map_err(|error| format!("Could not create EasyEmail core config: {error}"))?;
-    file.write_all(config.as_bytes())
-        .map_err(|error| format!("Could not write EasyEmail core config: {error}"))
+    let file_name = config_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "EasyEmail core config path has no valid file name.".to_string())?;
+    let staging_path = config_path.with_file_name(format!(
+        ".{file_name}.{}.tmp",
+        uuid::Uuid::new_v4().simple()
+    ));
+    let staged = (|| -> Result<(), String> {
+        let mut file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&staging_path)
+            .map_err(|error| format!("Could not stage EasyEmail core config: {error}"))?;
+        file.write_all(config.as_bytes())
+            .map_err(|error| format!("Could not write EasyEmail core config: {error}"))?;
+        file.sync_all()
+            .map_err(|error| format!("Could not flush EasyEmail core config: {error}"))
+    })();
+    if let Err(error) = staged {
+        let _ = fs::remove_file(&staging_path);
+        return Err(error);
+    }
+
+    if let Err(error) = fs::rename(&staging_path, config_path) {
+        if !config_path.exists() {
+            let _ = fs::remove_file(&staging_path);
+            return Err(format!("Could not publish EasyEmail core config: {error}"));
+        }
+        fs::remove_file(config_path).map_err(|remove_error| {
+            let _ = fs::remove_file(&staging_path);
+            format!("Could not replace stale EasyEmail core config: {remove_error}")
+        })?;
+        fs::rename(&staging_path, config_path).map_err(|rename_error| {
+            let _ = fs::remove_file(&staging_path);
+            format!("Could not publish EasyEmail core config: {rename_error}")
+        })?;
+    }
+    Ok(())
 }
 
 pub(super) fn spawn_core(

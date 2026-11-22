@@ -32,7 +32,7 @@ export function useAppState() {
   const [activeView, setActiveView] = useState<AppView>("mail");
   const [railMode, setRailMode] = useState<RailMode>("mail");
   const [railModePickerOpen, setRailModePickerOpen] = useState(false);
-  const [railCollapsed, setRailCollapsed] = useState(true);
+  const [railCollapsed, setRailCollapsed] = useState(false);
   const [railExpandedReady, setRailExpandedReady] = useState(false);
   const [pendingMailTaxonomyAutoOpenKind, setPendingMailTaxonomyAutoOpenKind] =
       useState<MailTaxonomyKind | null>(null);

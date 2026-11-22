@@ -38,5 +38,19 @@ export default defineConfig(async () => ({
     // user's machine rather than being served, and without them a production
     // stack trace only names minified symbols.
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const normalizedId = id.replace(/\\/g, "/");
+          if (
+            normalizedId.includes("/node_modules/react/") ||
+            normalizedId.includes("/node_modules/react-dom/") ||
+            normalizedId.includes("/node_modules/scheduler/")
+          ) {
+            return "react-vendor";
+          }
+        },
+      },
+    },
   },
 }));

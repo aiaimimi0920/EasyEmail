@@ -25,6 +25,10 @@ test("accepts HTTPS services and loopback HTTP but rejects remote plaintext", ()
     "http://127.0.0.1:18081",
   );
   assert.equal(
+    normalizeEasyEmailHttpBaseUrl("http://127.0.0.2:18081/"),
+    "http://127.0.0.2:18081",
+  );
+  assert.equal(
     normalizeEasyEmailHttpBaseUrl("https://mail.example.test/api/"),
     "https://mail.example.test/api",
   );
@@ -61,6 +65,7 @@ test("sends authenticated canonical mailbox requests without persisting the toke
   assert.equal(calls.length, 1);
   assert.equal(calls[0]?.url, "http://127.0.0.1:18081/mail/mailboxes/open");
   assert.equal(calls[0]?.init?.method, "POST");
+  assert.equal(calls[0]?.init?.redirect, "error");
   const headers = new Headers(calls[0]?.init?.headers);
   assert.equal(headers.get("authorization"), "Bearer runtime-only-token");
   assert.equal(headers.get("content-type"), "application/json");
@@ -445,6 +450,38 @@ test("surfaces structured HTTP failures without including the bearer token", asy
       assert.equal(error.status, 404);
       assert.equal(error.message, "Mailbox missing.");
       assert.doesNotMatch(error.message, /do-not-leak/);
+      return true;
+    },
+  );
+});
+
+test("preserves empty success responses and rejects invalid success JSON", async () => {
+  const responses = [
+    new Response(null, { status: 204 }),
+    new Response("not-json", { status: 200, headers: { "content-type": "text/plain" } }),
+  ];
+  const client = createEasyEmailHttpClient({
+    baseUrl: "http://localhost:8080",
+    fetch: async () => responses.shift() ?? new Response(null, { status: 204 }),
+  });
+
+  assert.equal(await client.request({ path: "/empty" }), undefined);
+  await assert.rejects(client.request({ path: "/invalid-json" }), /returned invalid JSON/);
+});
+
+test("surfaces plain-text HTTP failures as structured errors", async () => {
+  const client = createEasyEmailHttpClient({
+    baseUrl: "http://localhost:8080",
+    fetch: async () => new Response("upstream unavailable", { status: 503 }),
+  });
+
+  await assert.rejects(
+    client.request({ path: "/health" }),
+    (error: unknown) => {
+      assert.ok(error instanceof EasyEmailHttpError);
+      assert.equal(error.status, 503);
+      assert.equal(error.message, "EasyEmail HTTP request failed with status 503.");
+      assert.equal(error.payload, "upstream unavailable");
       return true;
     },
   );

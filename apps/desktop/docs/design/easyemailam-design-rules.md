@@ -1,14 +1,14 @@
 # EasyEmailAM Design Rules
 
-Last updated: 2026-09-03
+Last updated: 2026-09-06
 
 ## Window and layout baseline
 
-- EasyEmailAM designs use `1024x768` as the minimum supported content resolution.
-- The default desktop window size is also `1024x768`.
+- EasyEmailAM uses Loom's `1120x760` desktop window as its primary design baseline.
+- The native window does not impose a minimum size; sub-1024 CSS remains a defensive fallback.
 - Users may expand the window to gain more reading and list space; layouts may reflow upward for larger canvases.
-- Designs must not rely on dimensions below `1024x768`. Sub-1024 CSS exists only as a defensive fallback, not as a supported product state.
-- At `1024x768`, the Mail view must keep the primary workflow readable:
+- Designs must not rely on dimensions below `1120x760` for their primary composition.
+- At `1120x760`, the Mail view must keep the primary workflow readable:
   - compact left navigation rail
   - command bar with source/search/actions
   - message list with readable sender, subject, preview, state, and received time
@@ -38,8 +38,8 @@ Last updated: 2026-09-03
   to color.
 - Runtime cascade ownership:
   - `src/App.css` owns product layout and component-specific behavior.
-  - `src/styles/neuro-canonical.css` is imported last and owns the cross-product
-    Neuro appearance contract.
+  - `src/styles/neuro-canonical.css` owns the cross-product Neuro appearance contract.
+  - `src/styles/loom-desktop-shell.css` is imported last and owns only the desktop shell geometry.
 - Preserve the current mail information architecture:
   - top-level module rail
   - Mail command bar

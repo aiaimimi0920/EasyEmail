@@ -96,6 +96,6 @@ npm run tauri -- build --debug --no-bundle
 - [Tracked implementation phases](docs/progress/MASTER.md)
 - [2026-08-15 code review and optimization plan](docs/reviews/2026-08-15-code-review-and-optimization.md)
 
-The minimum supported content resolution and default desktop window size are
-both `1024x768`. Larger windows may use responsive layouts, but new UI work must
-continue to support that baseline.
+The primary desktop design baseline and default window size are `1120x760`,
+matching Loom. The native window has no forced minimum; sub-1024 responsive CSS
+is retained as a defensive fallback.

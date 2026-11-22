@@ -33,6 +33,22 @@ fn serve_once_with_status(status: &'static str, body: &'static str) -> String {
     format!("http://{address}")
 }
 
+fn serve_once_redirect(location: &'static str) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
+    let address = listener.local_addr().expect("server address");
+    thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept request");
+        let _ = read_http_request(&mut stream);
+        let response =
+            format!("HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\n\r\n");
+        stream
+            .write_all(response.as_bytes())
+            .expect("write response");
+    });
+
+    format!("http://{address}")
+}
+
 fn serve_once_capture(body: &'static str) -> (String, Arc<Mutex<String>>) {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
     let address = listener.local_addr().expect("server address");
@@ -149,6 +165,24 @@ fn easyemail_unreachable_maps_to_retryable_error() {
         .as_deref()
         .unwrap_or_default()
         .contains("one-shot-token"));
+}
+
+#[test]
+fn easyemail_redirects_are_not_followed() {
+    let base_url = serve_once_redirect("http://127.0.0.1:9/private-target");
+    let adapter = HttpEasyEmailAdapter::with_timeout_millis(1_000);
+    let settings = EasyEmailConnectionSettings {
+        service_url: base_url,
+        api_token: Some("must-not-be-forwarded".to_string()),
+    };
+
+    let error = adapter
+        .health_check(&settings)
+        .expect_err("redirecting service should fail closed");
+
+    assert_eq!(error.code, "easyemail_redirect_refused");
+    assert_eq!(error.category, ErrorCategory::Protocol);
+    assert!(!error.retryable);
 }
 
 #[test]

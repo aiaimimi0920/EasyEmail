@@ -1,7 +1,19 @@
+mod account_crud_repository;
+mod account_lists;
 mod account_models;
 pub mod account_repository;
+#[cfg(test)]
+mod account_repository_tests;
+mod account_source_mutations;
+mod account_source_queries;
+mod agent_message_repository;
+mod agent_models;
 pub mod agent_repository;
 mod agent_repository_support;
+#[cfg(test)]
+mod agent_repository_tests;
+mod agent_service_repository;
+mod agent_thread_repository;
 pub mod contact_repository;
 pub mod credential_repository;
 pub mod db;

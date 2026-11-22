@@ -14,7 +14,7 @@ mod protocol;
 
 use protocol::{
     invalid_json_error, map_ureq_error, observed_messages_route, open_mailbox_payload,
-    CATALOG_ROUTE, OBSERVED_MESSAGES_ROUTE, OPEN_MAILBOX_ROUTE,
+    redirect_refused_error, CATALOG_ROUTE, OBSERVED_MESSAGES_ROUTE, OPEN_MAILBOX_ROUTE,
 };
 
 #[derive(Debug, Clone)]
@@ -38,7 +38,10 @@ impl HttpEasyEmailAdapter {
     }
 
     fn agent(&self) -> ureq::Agent {
-        ureq::AgentBuilder::new().timeout(self.timeout).build()
+        ureq::AgentBuilder::new()
+            .timeout(self.timeout)
+            .redirects(0)
+            .build()
     }
 
     fn endpoint(settings: &EasyEmailConnectionSettings, route: &str) -> Result<String, AppError> {
@@ -57,6 +60,16 @@ impl HttpEasyEmailAdapter {
             _ => request,
         }
     }
+
+    fn reject_redirect(
+        response: ureq::Response,
+        endpoint: &'static str,
+    ) -> Result<ureq::Response, AppError> {
+        if (300..400).contains(&response.status()) {
+            return Err(redirect_refused_error(endpoint));
+        }
+        Ok(response)
+    }
 }
 
 impl EasyEmailAdapter for HttpEasyEmailAdapter {
@@ -68,6 +81,7 @@ impl EasyEmailAdapter for HttpEasyEmailAdapter {
         let response = Self::apply_headers(self.agent().get(&endpoint), settings)
             .call()
             .map_err(|err| map_ureq_error(err, CATALOG_ROUTE))?;
+        let response = Self::reject_redirect(response, CATALOG_ROUTE)?;
         let body: Value = response
             .into_json()
             .map_err(|err| invalid_json_error(CATALOG_ROUTE, err.to_string()))?;
@@ -101,6 +115,7 @@ impl EasyEmailAdapter for HttpEasyEmailAdapter {
             .set("Content-Type", "application/json")
             .send_json(payload)
             .map_err(|err| map_ureq_error(err, OPEN_MAILBOX_ROUTE))?;
+        let response = Self::reject_redirect(response, OPEN_MAILBOX_ROUTE)?;
         let body: Value = response
             .into_json()
             .map_err(|err| invalid_json_error(OPEN_MAILBOX_ROUTE, err.to_string()))?;
@@ -119,6 +134,7 @@ impl EasyEmailAdapter for HttpEasyEmailAdapter {
         let response = Self::apply_headers(self.agent().get(&endpoint), settings)
             .call()
             .map_err(|err| map_ureq_error(err, OBSERVED_MESSAGES_ROUTE))?;
+        let response = Self::reject_redirect(response, OBSERVED_MESSAGES_ROUTE)?;
         let body: Value = response
             .into_json()
             .map_err(|err| invalid_json_error(OBSERVED_MESSAGES_ROUTE, err.to_string()))?;

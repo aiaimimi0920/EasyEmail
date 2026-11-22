@@ -86,6 +86,19 @@
   background: var(--nt-action-primary-hover) !important;
 }
 
+.nt-compose-popover__send:disabled,
+.nt-contact-modal__actions .nt-contact-modal__primary:disabled,
+.nt-mail-taxonomy-modal__primary:disabled,
+.nt-mail-search-submit:disabled {
+  border-color: var(--nt-disabled-border) !important;
+  color: var(--nt-disabled-ink) !important;
+  background: var(--nt-disabled-surface) !important;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+  box-shadow: none;
+}
+
 .nt-compose-popover__send-menu {
   border-color: var(--nt-reading-border);
   color: var(--nt-reading-ink);
@@ -97,6 +110,95 @@
   border-color: var(--nt-reading-border-hover);
   color: var(--nt-reading-ink);
   background: var(--nt-reading-hover);
+}
+
+.nt-compose-emoji-popover {
+  border-color: var(--nt-reading-border);
+  border-radius: var(--nt-radius-md);
+  color: var(--nt-reading-ink);
+  background: var(--nt-reading-surface);
+  box-shadow: var(--nt-shadow-floating);
+}
+
+.nt-compose-emoji-tabs {
+  border-bottom-color: var(--nt-reading-border);
+  color: var(--nt-reading-muted);
+}
+
+.nt-compose-emoji-tab {
+  color: var(--nt-reading-muted) !important;
+}
+
+.nt-compose-emoji-tab:hover {
+  color: var(--nt-reading-ink) !important;
+  background: var(--nt-reading-hover) !important;
+}
+
+.nt-compose-emoji-tab--active,
+.nt-compose-emoji-tab--active:hover {
+  color: var(--nt-action-primary-ink) !important;
+  background: var(--nt-action-primary) !important;
+}
+
+.nt-compose-emoji-search {
+  border-color: var(--nt-reading-border);
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-reading-muted);
+  background: var(--nt-reading-control);
+  transition:
+    border-color var(--nt-motion-fast),
+    box-shadow var(--nt-motion-fast),
+    background var(--nt-motion-fast);
+}
+
+.nt-compose-emoji-search:focus-within {
+  border-color: var(--nt-border-focus);
+  background: var(--nt-reading-surface);
+  box-shadow: 0 0 0 3px var(--nt-focus-ring);
+}
+
+.nt-compose-emoji-search input {
+  color: var(--nt-reading-ink);
+  background: transparent;
+}
+
+.nt-compose-emoji-search input::placeholder {
+  color: var(--nt-reading-muted);
+  opacity: 1;
+}
+
+.nt-compose-emoji-search input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.nt-compose-emoji-search button {
+  border-radius: var(--nt-radius-sm) !important;
+  color: var(--nt-reading-muted) !important;
+  background: transparent !important;
+}
+
+.nt-compose-emoji-search button:hover,
+.nt-compose-emoji-grid button:hover {
+  color: var(--nt-reading-ink) !important;
+  background: var(--nt-reading-hover) !important;
+}
+
+.nt-compose-emoji-scroll {
+  background: var(--nt-reading-surface);
+}
+
+.nt-compose-emoji-scroll h4,
+.nt-compose-emoji-empty {
+  color: var(--nt-reading-muted);
+}
+
+.nt-mail-taxonomy-modal__editor input:focus-visible,
+.nt-mail-taxonomy-modal__editor select:focus-visible {
+  outline: 2px solid var(--nt-border-focus);
+  outline-offset: 2px;
+  border-color: var(--nt-border-focus);
+  box-shadow: 0 0 0 3px var(--nt-focus-ring);
 }
 
 .nt-compose-popover__toolbar button:hover,

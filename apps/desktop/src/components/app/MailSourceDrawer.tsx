@@ -2,7 +2,7 @@ import type { AppController } from "../../app/useAppController";
 
 export function MailSourceDrawer({ controller }: { controller: AppController }) {
   const {
-    setMailSourceDrawerOpen, mailSources, mailSourceId, selectMailSource, createTempMailbox, busy,
+    setMailSourceDrawerOpen, mailSources, mailSourceId, selectMailSource, createAndSelectTempMailbox, busy,
   } = controller;
   return (
     <aside id="mail-source-drawer" className="nt-source-drawer" aria-label="邮件来源抽屉">
@@ -37,7 +37,7 @@ export function MailSourceDrawer({ controller }: { controller: AppController }) 
       <button
         type="button"
         className="nt-btn nt-btn--primary"
-        onClick={createTempMailbox}
+        onClick={createAndSelectTempMailbox}
         disabled={busy}
       >
         New temp mailbox
