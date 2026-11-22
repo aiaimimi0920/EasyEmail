@@ -8,6 +8,7 @@ monorepo.
 
 ## Where To Change Code
 
+- `service/cloudflare`: current Cloudflare Worker/API and Web application; shared React controls use NeuroDesign's `@neuro/ui`. See `docs/cloudflare-neuro-ui.md` for installation, synchronization and validation.
 - `service/base`: local EasyEmail service runtime
 - `runtimes/userscript`: browser-side userscript runtime
 - `upstreams/cloudflare_temp_email`: upstream-tracked Cloudflare temp mail code

@@ -18,12 +18,15 @@ import db_api from './db_api'
 import ip_blacklist_settings from './ip_blacklist_settings'
 import ai_extract_settings from './ai_extract_settings'
 import e2e_test_api from './e2e_test_api'
+import { customAddressCapability, createCustomAddress } from './custom_address'
 
 export const api = new Hono<HonoCustomType>()
 
 // address
 api.get('/admin/address', address_api.listAddresses)
 api.post('/admin/new_address', address_api.createNewAddress)
+api.get('/admin/custom_address_capability', customAddressCapability)
+api.post('/admin/custom_address', createCustomAddress)
 api.delete('/admin/delete_address/:id', address_api.deleteAddress)
 api.delete('/admin/clear_inbox/:id', address_api.clearInbox)
 api.delete('/admin/clear_sent_items/:id', address_api.clearSentItems)

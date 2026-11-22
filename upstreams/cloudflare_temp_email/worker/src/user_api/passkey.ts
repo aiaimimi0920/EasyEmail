@@ -62,7 +62,7 @@ export default {
         const options = await generateRegistrationOptions({
             rpName: c.env.TITLE || "Temp Mail",
             rpID: domain,
-            userID: new TextEncoder().encode(user.user_id.toString()),
+            userID: new Uint8Array(new TextEncoder().encode(user.user_id.toString())),
             userName: user.user_email,
             userDisplayName: user.user_email,
             attestationType: 'none',
@@ -98,9 +98,10 @@ export default {
 
         const {
             id: credentialID, publicKey,
-            counter, deviceType, backedUp,
+            counter,
             transports,
         } = registrationInfo.credential;
+        const { credentialDeviceType: deviceType, credentialBackedUp: backedUp } = registrationInfo;
 
         // Base64URL encode ArrayBuffers.
         const base64PublicKey = isoBase64URL.fromBuffer(publicKey);

@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 3,
+  "id": "easyemail",
+  "name": "EasyEmail",
+  "version": "1.0.15",
+  "entrypoint": "springbok.ps1",
+  "runtime": { "runner": "windows-2025", "powershell": "5.1", "python": "3.12", "node": "22" },
+  "actions": {
+    "deploy": { "timeoutSeconds": 3600 },
+    "update": { "timeoutSeconds": 3600 },
+    "verify": { "timeoutSeconds": 180 },
+    "preview": { "timeoutSeconds": 3600 },
+    "destroy-preview": { "timeoutSeconds": 1800 },
+    "repair": { "timeoutSeconds": 3600 }
+  },
+  "repairs": [{
+    "id": "complete-fresh-readiness",
+    "name": "完成已发布实例验真与收信",
+    "fromErrorCodes": ["EASYEMAIL_PUBLIC_VERIFICATION_FAILED"],
+    "fromActions": ["repair"],
+    "secretNames": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"]
+  }, {
+    "id": "complete-fresh-publication",
+    "name": "完成空实例发布",
+    "fromErrorCodes": ["EASYEMAIL_WORKER_DEPLOY_FAILED"],
+    "fromActions": ["deploy"],
+    "secretNames": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"]
+  }, {
+    "id": "complete-empty-bootstrap",
+    "name": "完成空实例初始化",
+    "fromErrorCodes": ["EASYEMAIL_CLOUD_REQUEST_FAILED"],
+    "secretNames": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"]
+  }, {
+    "id": "complete-preview-credentials",
+    "name": "完成预升级副本",
+    "fromErrorCodes": ["EASYEMAIL_PREVIEW_CREDENTIAL_FAILED", "EASYEMAIL_SOURCE_DATABASE_CHANGED", "EASYEMAIL_SNAPSHOT_IMPORT_FAILED"],
+    "fromActions": ["preview", "repair"],
+    "secretNames": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"]
+  }, {
+    "id": "complete-preview-cleanup",
+    "name": "清理未完成的测试副本",
+    "fromErrorCodes": ["EASYEMAIL_PREVIEW_CLEANUP_SHARED_OR_UNVERIFIED", "EASYEMAIL_PREVIEW_RESOURCE_CLEANUP_UNCONFIRMED", "EASYEMAIL_PREVIEW_BUCKET_CLEANUP_UNCONFIRMED", "EASYEMAIL_CLEANUP_RESUME_UNCONFIRMED", "EASYEMAIL_CLOUD_REQUEST_FAILED"],
+    "fromActions": ["destroy-preview", "repair"],
+    "resumeCleanup": true,
+    "secretNames": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD"]
+  }],
+  "secrets": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"]
+}

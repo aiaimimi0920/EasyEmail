@@ -5,6 +5,7 @@ import { getBooleanValue } from '../utils';
 import { handleMailListQuery, deleteAddressWithData, updateAddressUpdatedAt } from '../common'
 import { resolveRawEmailRow } from '../gzip'
 import { getSendBalanceState } from './send_balance';
+import type { RawMailRow } from '../models';
 
 const listMails = async (c: Context<HonoCustomType>) => {
     const { address } = c.get("jwtPayload")
@@ -25,7 +26,7 @@ const getMail = async (c: Context<HonoCustomType>) => {
     const { mail_id } = c.req.param();
     const result = await c.env.DB.prepare(
         `SELECT * FROM raw_mails where id = ? and address = ?`
-    ).bind(mail_id, address).first();
+    ).bind(mail_id, address).first<RawMailRow>();
     if (!result) return c.json(null);
     return c.json(await resolveRawEmailRow(result));
 };

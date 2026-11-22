@@ -70,29 +70,14 @@ const createNewAddress = async (c: Context<HonoCustomType>) => {
 const deleteAddress = async (c: Context<HonoCustomType>) => {
     const msgs = i18n.getMessagesbyContext(c);
     const { id } = c.req.param();
-    const { success } = await c.env.DB.prepare(
-        `DELETE FROM address WHERE id = ? `
-    ).bind(id).run();
-    if (!success) {
-        return c.text(msgs.OperationFailedMsg, 500)
-    }
-    const { success: mailSuccess } = await c.env.DB.prepare(
-        `DELETE FROM raw_mails WHERE address IN`
-        + ` (select name from address where id = ?) `
-    ).bind(id).run();
-    if (!mailSuccess) {
-        return c.text(msgs.OperationFailedMsg, 500)
-    }
-    const { success: sendAccess } = await c.env.DB.prepare(
-        `DELETE FROM address_sender WHERE address IN`
-        + ` (select name from address where id = ?) `
-    ).bind(id).run();
-    const { success: usersAddressSuccess } = await c.env.DB.prepare(
-        `DELETE FROM users_address WHERE address_id = ?`
-    ).bind(id).run();
-    return c.json({
-        success: success && mailSuccess && sendAccess && usersAddressSuccess
-    })
+    // Resolve name-keyed rows inside one transaction, before removing their owning address.
+    const statements = ['raw_mails', 'address_sender', 'sendbox', 'auto_reply_mails'].map((table) =>
+        c.env.DB.prepare(`DELETE FROM ${table} WHERE address IN (SELECT name FROM address WHERE id=?)`).bind(id));
+    statements.push(c.env.DB.prepare('DELETE FROM users_address WHERE address_id=?').bind(id));
+    statements.push(c.env.DB.prepare('DELETE FROM address WHERE id=?').bind(id));
+    const results = await c.env.DB.batch(statements);
+    if (results.some((result) => !result.success)) return c.text(msgs.OperationFailedMsg, 500);
+    return c.json({ success: true });
 };
 
 const clearInbox = async (c: Context<HonoCustomType>) => {

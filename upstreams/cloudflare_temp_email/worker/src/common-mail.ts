@@ -4,6 +4,11 @@ import { getAnotherWorkerList, getBooleanValue } from './utils';
 import { CONSTANTS } from './constants';
 import { AdminWebhookSettings, WebhookMail, WebhookSettings } from './models';
 
+function attachmentBytes(content: ArrayBuffer | Uint8Array | string): Uint8Array {
+    if (typeof content === 'string') throw new TypeError('Unexpected string attachment content');
+    return new Uint8Array(content);
+}
+
 export const commonParseMail = async (parsedEmailContext: ParsedEmailContext): Promise<{
     sender: string,
     subject: string,
@@ -47,7 +52,7 @@ export const commonParseMail = async (parsedEmailContext: ParsedEmailContext): P
     // }
     try {
         const { default: PostalMime } = await import('postal-mime');
-        const parsedEmail = await PostalMime.parse(raw_mail);
+        const parsedEmail = await PostalMime.parse(raw_mail, { attachmentEncoding: 'arraybuffer' });
         parsedEmailContext.parsedEmail = {
             sender: parsedEmail.from ? `${parsedEmail.from.name} <${parsedEmail.from.address}>` : "",
             subject: parsedEmail.subject || "",
@@ -57,7 +62,7 @@ export const commonParseMail = async (parsedEmailContext: ParsedEmailContext): P
             attachments: (parsedEmail.attachments || []).map(att => ({
                 filename: att.filename || "attachment",
                 mimeType: att.mimeType || "application/octet-stream",
-                content: new Uint8Array(att.content),
+                content: attachmentBytes(att.content),
                 disposition: att.disposition || "attachment",
             })),
         };

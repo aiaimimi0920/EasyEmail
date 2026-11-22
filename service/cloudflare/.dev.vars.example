@@ -1,0 +1,15 @@
+# Copy to the ignored .dev.vars only for local development.
+# Set an independently generated random secret of at least 32 characters to allow registration.
+REGISTRATION_TOKEN=""
+# Platform-only provider configuration; see docs/cloudflare-mail-slice.md.
+PROVIDER_CONFIG="[]"
+PROVIDER_SECRETS="{}"
+# Optional deployment-owned HTTPS origins allowed for new admin-configured providers.
+PROVIDER_ENDPOINT_ORIGINS="[]"
+MAILBOX_KEYRING="{}"
+# Deployment-owned IMAP endpoints. See docs/cloudflare-google-oauth-slice.md for explicit Google OAuth mode.
+IMAP_ENDPOINTS="[]"
+SMTP_ENDPOINTS="[]"
+# Local placeholders only. Store a real web application's secret as a Worker secret, never in wrangler.toml.
+GOOGLE_OAUTH_CLIENT_ID=""
+GOOGLE_OAUTH_CLIENT_SECRET=""

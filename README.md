@@ -1,5 +1,34 @@
 # EasyEmail
 
+> **Cloudflare Web 与主干统一说明**：原 `migration/cloudflare-web` 分支上的双 Cloudflare Worker 服务（自营 Cloudflare Email 与承载 Web 页面、聚合业务及开放 API 的 Cloudflare EasyEmail `service/cloudflare` + `.sba/`）现已合入 `main` 主干。
+> Cloudflare 生产入口与 SpringBok 生命周期状态见 [SpringBok 接入进度](docs/cloudflare-springbok.md) 与 [正式部署记录](docs/cloudflare-production.md)；桌面端与本地服务边界见 [`product-contract.json`](product-contract.json)。
+> 功能范围见 [功能确认清单](docs/cloudflare-feature-scope.md)，
+> 阶段、数据边界及合并条件见 [迁移计划](docs/cloudflare-migration.md)。
+> 当前可本地运行的 Worker 与网页见 [Cloudflare 入口](service/cloudflare/README.md)，
+> API 和安全边界见 [身份切片](docs/cloudflare-identity.md)、
+> [收件与提取](docs/cloudflare-mail-slice.md)、[整理与聚合收件箱](docs/cloudflare-workspace-slice.md)
+> [写信、回复与发送状态](docs/cloudflare-send-slice.md)及 [安全正文与附件](docs/cloudflare-content-slice.md)。
+> 此前普通邮箱进度见 [多目录远端标记（W14c3）](docs/cloudflare-normal-folder-flags-slice.md)：非 INBOX 显式服务器已读／星标、精确来源 fence 与永久原键恢复；回复见 W14c2、平台整理见 W14c1、聚合读取见 W14b3，远端移动／删除与真实生产验收仍待完成。
+> 远端移动／永久删除已推进至 [W14d3 网页](docs/cloudflare-normal-mutation-web-slice.md)：共享详情支持显式目标、分别确认、跨导航原键和严格只读恢复；后端见 [W14d2](docs/cloudflare-normal-mutation-operations-slice.md)。不自动同步或重试，真实互操作及生产迁移仍未完成。
+> 最新临时邮箱切片：[W15a 有效凭据恢复访问](docs/cloudflare-mailbox-access-recovery-slice.md)，接通自营活体身份验证、私有导入／恢复及 Web/API 原键回执。不能只凭地址认领，不复活过期或删除记录，不自动启用、同步或发信。
+> 平台停用、释放、回收站和缓存清理见 [生命周期切片](docs/cloudflare-lifecycle-slice.md)，不等于远端删除。
+> 管理员隔离、供应商/域名配置、只写凭据及显式探测见 [管理后台切片](docs/cloudflare-admin-slice.md)。
+> 平台期限、数据保留预览与原子维护见 [保留切片](docs/cloudflare-retention-slice.md)，默认关闭且不删除上游资源。
+> 自动分配、供应商冷却及不确定创建边界见 [分配切片](docs/cloudflare-allocation-slice.md)，未知写入不自动换供应商重试。
+> 创建历史、刷新恢复与另起分配风险确认见 [创建历史切片](docs/cloudflare-creation-slice.md)，不会取消或重放原请求。
+> 新验证码/认证链接的有界等待及单次检查 API 见 [提取等待切片](docs/cloudflare-extraction-slice.md)，不访问提取出的链接。
+> 自营邮件的版本条件远端删除、独立权限及未知结果核对见 [远端删除切片](docs/cloudflare-remote-delete-slice.md)，不使用旧无条件删除接口。
+> 已有本地业务实现，但尚未完成新服务的真实供应商及邮件投递验收。
+
+## 当前 Web UI 开发方式
+
+Cloudflare Web 采用独立设计系统 [NeuroDesign](../NeuroDesign/README.md) 的 `@neuro/ui` React 标准实现，
+不再以旧桌面主题令牌或自写基础控件皮肤作为实现来源。参考 [接入说明](../NeuroDesign/docs/INTEGRATION.md)，
+在 `service/cloudflare` 使用 npm 11+ 执行 `npm run ui:sync`，业务状态、权限与 API 仍留在 EasyEmail。
+当前替换范围、异步确认的行为边界与本地验证见 [Neuro UI 接入](docs/cloudflare-neuro-ui.md)。
+构建后的网页不依赖本机设计仓库，用户不需要安装桌面客户端。
+本轮主题已发布至 [mail.aiaimimi.com](https://mail.aiaimimi.com)，提交范围、线上验证与回滚版本见 [Neuro UI 发布记录](docs/cloudflare-neuro-ui-release.md)。
+
 EasyEmail is the public monorepo entrypoint for the EasyEmail ecosystem.
 
 It contains:

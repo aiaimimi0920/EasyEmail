@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "accountId": "bea2e3be0577ee4f7b3ffae4df6f53bb",
+  "email": {
+    "name": "easyemail-production-email",
+    "origin": "https://email-api.aiaimimi.com",
+    "domains": ["aiaimimi.com"],
+    "sendRecipients": ["acceptance@aiaimimi.com", "ee67a26f7150d749fe4a4aed75e2d2a37d@temporam.edu.kg"],
+    "database": {
+      "name": "easyemail-production-email-db",
+      "id": "4bc3745b-00f6-41e3-b890-c1da0d70f020"
+    }
+  },
+  "platform": {
+    "name": "easyemail-production-platform",
+    "origin": "https://mail.aiaimimi.com",
+    "database": {
+      "name": "easyemail-production-platform-db",
+      "id": "499edbbf-f835-41dd-af9d-e5a339e5a986"
+    },
+    "inboxBucket": "easyemail-production-inbox",
+    "outboxBucket": "easyemail-production-outbox",
+    "providerEndpointOrigins": ["https://api.temporam.com"]
+  }
+}

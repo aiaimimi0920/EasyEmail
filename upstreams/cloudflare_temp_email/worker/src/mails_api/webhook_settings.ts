@@ -46,7 +46,7 @@ async function testWebhookSettings(c: Context<HonoCustomType>): Promise<Response
     const parsedEmailContext: ParsedEmailContext = { rawEmail: raw };
     const parsedEmail = await commonParseMail(parsedEmailContext);
     const res = await sendWebhook(settings, {
-        id: mailId || "0",
+        id: String(mailId ?? 0),
         url: c.env.FRONTEND_URL ? `${c.env.FRONTEND_URL}?mail_id=${mailId}` : "",
         from: parsedEmail?.sender || "test@test.com",
         to: address,

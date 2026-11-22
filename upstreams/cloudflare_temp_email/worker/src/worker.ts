@@ -17,6 +17,7 @@ import { email } from './email';
 import { scheduled } from './scheduled';
 import { getPasswords, getBooleanValue, getStringArray, checkIsAdmin } from './utils';
 import { checkAccessControl } from './ip_blacklist';
+import { withAddressGeneration } from './address-generation';
 
 const API_PATHS = [
 	"/api/",
@@ -175,9 +176,14 @@ app.use('/api/*', async (c, next) => {
 	}
 
 	try {
-		return await jwt({ secret: c.env.JWT_SECRET, alg: "HS256" })(c, next);
+		return await jwt({ secret: c.env.JWT_SECRET, alg: "HS256" })(c, async () => {
+			c.res = await withAddressGeneration(c.req.raw, c.env.DB, c.get('jwtPayload'), async () => {
+				await next();
+				return c.res;
+			});
+		});
 	} catch (e) {
-		console.warn(e);
+		console.warn('Address credential validation failed');
 		const lang = c.get("lang") || c.env.DEFAULT_LANG;
 		const msgs = i18n.getMessages(lang);
 		return c.text(msgs.InvalidAddressCredentialMsg, 401)

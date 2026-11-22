@@ -1,4 +1,4 @@
-﻿declare const fetch: (
+declare const fetch: (
   input: string,
   init?: {
     method?: string;

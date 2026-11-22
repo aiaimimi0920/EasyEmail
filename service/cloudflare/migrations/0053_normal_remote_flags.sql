@@ -1,0 +1,28 @@
+CREATE TABLE normal_remote_flag_operations (
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  account_id TEXT NOT NULL REFERENCES normal_accounts(id),
+  message_id TEXT NOT NULL REFERENCES normal_inbox_messages(id),
+  account_revision INTEGER NOT NULL,
+  source_hash TEXT NOT NULL,
+  epoch_id TEXT NOT NULL,
+  cache_generation INTEGER NOT NULL,
+  uid_validity TEXT NOT NULL,
+  uid INTEGER NOT NULL CHECK (uid BETWEEN 1 AND 4294967295),
+  request_key TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  flag TEXT NOT NULL CHECK (flag IN ('\Seen','\Flagged')),
+  value INTEGER NOT NULL CHECK (value IN (0,1)),
+  acknowledged_unknown_id TEXT REFERENCES normal_remote_flag_operations(id),
+  state TEXT NOT NULL CHECK (state IN ('pending','confirmed','failed','unknown')),
+  remote_flags TEXT CHECK (remote_flags IS NULL OR json_valid(remote_flags)),
+  error_code TEXT,
+  created_at INTEGER NOT NULL,
+  dispatched_at INTEGER,
+  finished_at INTEGER,
+  UNIQUE(user_id,request_key),
+  CHECK (state<>'confirmed' OR (dispatched_at IS NOT NULL AND remote_flags IS NOT NULL AND finished_at IS NOT NULL)),
+  CHECK (state<>'failed' OR dispatched_at IS NULL)
+);
+CREATE INDEX normal_remote_flags_target ON normal_remote_flag_operations(message_id,sequence DESC);

@@ -181,9 +181,14 @@ test("soft-limit files require an exact exception once changed or added", () => 
   assert.equal(withException.violations.length, 0);
 });
 
-test("exception validation rejects stale, expired, and over-limit records", () => {
+test("exception validation rejects stale, expired, and over-limit records", (context) => {
   const current = row("src/cohesive.ts", 600, "current");
-  const policyHash = digest(fs.readFileSync(policyPath));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "effective-policy-eol-"));
+  context.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const fixturePolicyPath = path.join(root, "policy.json");
+  const policySource = decodeUtf8(fs.readFileSync(policyPath), "policy fixture").replace(/\r\n|\r/g, "\n");
+  fs.writeFileSync(fixturePolicyPath, policySource.replace(/\n/g, "\r\n"), "utf8");
+  const policyHash = digest(policySource);
   const validEntry = {
     path: current.path,
     effectiveLines: current.effectiveLines,
@@ -202,23 +207,29 @@ test("exception validation rejects stale, expired, and over-limit records", () =
     policySha256: policyHash,
     exceptions: [validEntry],
   };
-  assert.equal(validateExceptions(document, [current], policyPath, "2026-08-23").size, 1);
+  assert.equal(validateExceptions(document, [current], fixturePolicyPath, "2026-08-23").size, 1);
   assert.throws(
-    () => validateExceptions({ ...document, exceptions: [{ ...validEntry, sourceSha256: "stale" }] }, [current], policyPath, "2026-08-23"),
+    () => validateExceptions({ ...document, exceptions: [{ ...validEntry, sourceSha256: "stale" }] }, [current], fixturePolicyPath, "2026-08-23"),
     /source hash is stale/,
   );
   assert.throws(
-    () => validateExceptions({ ...document, exceptions: [{ ...validEntry, reviewBy: "2026-01-01" }] }, [current], policyPath, "2026-08-23"),
+    () => validateExceptions({ ...document, exceptions: [{ ...validEntry, reviewBy: "2026-01-01" }] }, [current], fixturePolicyPath, "2026-08-23"),
     /exception expired/,
   );
   assert.throws(
-    () => validateExceptions({ ...document, exceptions: [{ ...validEntry, approvedBy: validEntry.owner }] }, [current], policyPath, "2026-08-23"),
+    () => validateExceptions({ ...document, exceptions: [{ ...validEntry, approvedBy: validEntry.owner }] }, [current], fixturePolicyPath, "2026-08-23"),
     /independent reviewer/,
   );
   assert.throws(
-    () => validateExceptions({ ...document, exceptions: [{ ...validEntry, effectiveLines: 701 }] }, [{ ...current, effectiveLines: 701 }], policyPath, "2026-08-23"),
+    () => validateExceptions({ ...document, exceptions: [{ ...validEntry, effectiveLines: 701 }] }, [{ ...current, effectiveLines: 701 }], fixturePolicyPath, "2026-08-23"),
     /exceptions cannot exceed 700/,
   );
+  for (const source of [policySource, policySource.replace(/\n/g, "\r\n"), "\uFEFF" + policySource]) {
+    fs.writeFileSync(fixturePolicyPath, source, "utf8");
+    assert.equal(validateExceptions(document, [current], fixturePolicyPath, "2026-08-23").size, 1);
+  }
+  fs.writeFileSync(fixturePolicyPath, policySource + "\n", "utf8");
+  assert.throws(() => validateExceptions(document, [current], fixturePolicyPath, "2026-08-23"), /policy hash mismatch/);
 });
 
 test("repository scan excludes declared generated paths and rejects symlink inputs", (context) => {

@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Check Out Repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set Up Node.js
         uses: actions/setup-node@v6
@@ -62,7 +64,7 @@ jobs:
       - name: Install Cloudflare Worker Dependencies
         shell: pwsh
         working-directory: upstreams/cloudflare_temp_email/worker
-        run: corepack pnpm install --no-frozen-lockfile
+        run: corepack pnpm install --frozen-lockfile
 
       - name: Install Cloudflare Frontend Dependencies
         shell: pwsh

@@ -3,6 +3,7 @@ import { isSendMailBindingEnabled } from "../common";
 import i18n from "../i18n";
 import { sendMail } from "../mails_api/send_mail_api";
 import { ensureSendMailLimit, increaseSendMailLimitCount } from "../mails_api/send_mail_limit_utils";
+import { bindingAttachments } from "./binding_attachments";
 
 const getAdminSendMailErrorMessage = (
     msgs: ReturnType<typeof i18n.getMessagesbyContext>,
@@ -82,6 +83,7 @@ export const sendMailByBindingAdmin = async (c: Context<HonoCustomType>) => {
         return c.text(msgs.EnableSendMailForDomainMsg, 400)
     }
     try {
+        const binaryAttachments = attachments?.length ? bindingAttachments(attachments) : undefined;
         await ensureSendMailLimit(c);
         await c.env.SEND_MAIL.send({
             from,
@@ -92,7 +94,7 @@ export const sendMailByBindingAdmin = async (c: Context<HonoCustomType>) => {
             ...(cc ? { cc } : {}),
             ...(bcc ? { bcc } : {}),
             ...(replyTo ? { replyTo } : {}),
-            ...(attachments && attachments.length ? { attachments } : {}),
+            ...(binaryAttachments ? { attachments: binaryAttachments } : {}),
             ...(headers ? { headers } : {}),
         });
         await increaseSendMailLimitCount(c);

@@ -318,7 +318,7 @@ export function newTelegramBot(c: Context<HonoCustomType>, token: string): Teleg
         if (settings?.miniAppUrl && settings?.miniAppUrl?.length > 0 && mailId) {
             const url = new URL(settings.miniAppUrl);
             url.pathname = "/telegram_mail"
-            url.searchParams.set("mail_id", mailId);
+            url.searchParams.set("mail_id", String(mailId));
             miniAppButtons.push(Markup.button.webApp(msgs.TgViewMailBtnMsg, url.toString()));
         }
         if (edit) {

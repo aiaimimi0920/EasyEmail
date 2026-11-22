@@ -1,0 +1,64 @@
+.mailbox-workspace { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 680px; border: 1px solid var(--n-line); background: var(--n-surface); }
+.mailbox-sidebar { min-width: 0; padding: 18px 14px; border-right: 1px solid var(--n-line); max-height: calc(100dvh - 125px); overflow: auto; scrollbar-gutter: stable; }
+.mailbox-sidebar .card { margin: 16px 0 0; }
+.mailbox-sidebar .row { display: grid; }
+.mailbox-sidebar button { max-width: 100%; }
+.mailbox-sidebar code { font-size: .75rem; }
+.mailbox-list { margin: 0 0 18px; }
+.mailbox-list li { padding: 8px 0; }
+.mailbox-list li > div { width: 100%; }
+.mailbox-list button { width: 100%; text-align: left; }
+.mailbox-list button > span { justify-content: start; width: 100%; }
+.mailbox-list small { padding-left: 8px; }
+.mailbox-tools { border-top: 1px solid var(--n-line); padding-top: 16px; }
+.mailbox-content { min-width: 0; }
+.mailbox-context { display: flex; gap: 12px; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--n-line); }
+.mailbox-context code { font-size: .75rem; }
+.mailbox-context button { flex-shrink: 0; }
+.reader-title { padding: 16px 18px 0; }
+.message-workspace { display: grid; grid-template-columns: minmax(240px, .85fr) minmax(0, 1.4fr); min-width: 0; }
+.message-list-pane { min-width: 0; padding: 0 16px 20px; max-height: calc(100dvh - 216px); min-height: 560px; overflow: auto; border-right: 1px solid var(--n-line); scrollbar-gutter: stable; }
+.message-list-pane .row > .n-field { flex-basis: 100%; }
+.search-filters { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--n-line); }
+.clear-search { margin-top: 8px; }
+.message-list { margin: 16px 0; }
+.message-list li { display: flex; align-items: start; gap: 8px; padding: 14px 2px; }
+.message-list li > div { flex: 1; }
+.message-list .message-open { width: 100%; text-align: left; }
+.message-open > span { justify-content: start; width: 100%; }
+.message-list [data-unread="true"] .message-open { font-weight: 800; }
+.message-list small { padding: 0 8px; }
+.message-list .n-check { margin-top: 10px; }
+.message-reading-pane { color: var(--n-text); background: var(--n-panel); min-width: 0; padding: 24px; max-height: calc(100dvh - 216px); overflow: auto; scrollbar-gutter: stable; }
+.message-reading-pane:focus-visible { outline-offset: -3px; }
+.message-reading-pane .row { gap: 8px; }
+.message-detail h3 { margin: 0 0 20px; }
+.message-addresses { font-size: .75rem; color: var(--n-muted); }
+.message-detail [data-testid="mail-body"] { margin: 26px 0; }
+.reader-empty { display: grid; align-content: center; justify-items: center; min-height: 420px; padding: 24px; text-align: center; }
+.reader-back { display: none; }
+.compose-workspace { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 20px; align-items: start; }
+.compose-editor textarea { min-height: 280px; }
+.compose-library { min-width: 0; }
+@media (max-width: 1250px) {
+  .mailbox-workspace { grid-template-columns: 210px minmax(0, 1fr); }
+  .message-workspace { grid-template-columns: minmax(200px, .8fr) minmax(0, 1fr); }
+  .message-reading-pane { padding: 18px; }
+  .message-list-pane { padding: 0 12px 16px; }
+}
+@media (max-width: 1000px) {
+  .mailbox-workspace { display: block; }
+  .mailbox-sidebar { max-height: 260px; border-right: 0; border-bottom: 1px solid var(--n-line); }
+  .message-list-pane, .message-reading-pane { max-height: 720px; }
+  .compose-workspace { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 700px) {
+  .mailbox-context { flex-wrap: wrap; }
+  .message-workspace { display: block; }
+  .message-list-pane { border: 0; min-height: 0; max-height: none; }
+  .message-reading-pane { max-height: none; min-height: 300px; padding: 16px; }
+  .message-workspace[data-open="false"] .reader-content { display: none; }
+  .message-workspace[data-open="false"][data-tools="false"] .message-reading-pane { display: none; }
+  .message-workspace[data-open="true"] .message-list-pane { display: none; }
+  .reader-back { display: inline-flex; margin-bottom: 18px; }
+}
