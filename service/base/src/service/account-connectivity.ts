@@ -5,7 +5,12 @@ import type {
   MailCredentialRef,
 } from "../domain/account.js";
 
-export type MailCredentialUseCase = "imap-test" | "smtp-test" | "smtp-send";
+export type MailCredentialUseCase =
+  | "imap-test"
+  | "imap-sync"
+  | "imap-action"
+  | "smtp-test"
+  | "smtp-send";
 
 export interface MailCredentialResolveRequest {
   account: MailAccount;

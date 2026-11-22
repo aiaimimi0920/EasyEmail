@@ -90,6 +90,9 @@ export function useAppController() {
   const useAppLoadersResult = useAppLoaders(appState);
   const useNormalAccountControllerResult = useNormalAccountController(appState, {
     loadNormalAccounts: useAppLoadersResult.loadNormalAccounts,
+    loadNormalMessages: (accountId) => useMailDetailControllerResult.loadNormalMessages(accountId),
+    loadNormalAccountSyncStatus: useAppLoadersResult.loadNormalAccountSyncStatus,
+    loadRecentCodes: useAppLoadersResult.loadRecentCodes,
   });
   const useMailDetailControllerResult = useMailDetailController(appState, {
     invalidateMessageDetailRequest,
@@ -197,6 +200,9 @@ export function useAppController() {
   const useMailSourceControllerResult = useMailSourceController(appState, {
     loadSendQueue: useAppLoadersResult.loadSendQueue,
     invalidateMessageDetailRequest,
+    loadNormalMessages: useMailDetailControllerResult.loadNormalMessages,
+    loadNormalAccounts: useAppLoadersResult.loadNormalAccounts,
+    loadNormalAccountSyncStatus: useAppLoadersResult.loadNormalAccountSyncStatus,
     loadPromotedMessages: useDeliveryAgentControllerResult.loadPromotedMessages,
     rememberModalReturnFocus: useLayerControllerResult.rememberModalReturnFocus,
     createTempMailbox: useTemporaryMailboxControllerResult.createTempMailbox,

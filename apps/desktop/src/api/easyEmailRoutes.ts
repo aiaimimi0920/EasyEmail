@@ -52,6 +52,12 @@ export const EASY_EMAIL_CORE_ROUTES = {
   disableAccount(accountId: string): string {
     return `/mail/accounts/${encodeURIComponent(accountId)}/disable`;
   },
+  accountFolders(accountId: string): string {
+    return `/mail/accounts/${encodeURIComponent(accountId)}/folders`;
+  },
+  accountSync(accountId: string): string {
+    return `/mail/accounts/${encodeURIComponent(accountId)}/sync`;
+  },
   draft(messageId: string): string {
     return `/mail/drafts/${encodeURIComponent(messageId)}`;
   },

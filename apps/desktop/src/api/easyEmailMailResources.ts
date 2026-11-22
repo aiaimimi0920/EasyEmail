@@ -7,7 +7,11 @@ import type {
   EasyEmailMailAccountsResponse,
   EasyEmailMailAccountSmtpTestRequest,
   EasyEmailMailAccountSmtpTestResponse,
+  EasyEmailMailAccountSyncRequest,
   EasyEmailMailAccountUpdateRequest,
+  EasyEmailGetMailAccountSyncStatusResponse,
+  EasyEmailListMailAccountFoldersResponse,
+  EasyEmailSyncMailAccountResponse,
   EasyEmailMailTaxonomyDeleteResponse,
   EasyEmailMailTaxonomyKind,
   EasyEmailMailTaxonomyListQuery,
@@ -123,6 +127,32 @@ export function createEasyEmailMailResources(request: EasyEmailRequestTransport)
         method: "POST",
         path: EASY_EMAIL_CORE_ROUTES.testAccountSmtp,
         body: testRequest,
+      });
+    },
+    listMailAccountFolders(
+      accountId: string,
+      query: { refresh?: boolean } = {},
+    ): Promise<EasyEmailListMailAccountFoldersResponse> {
+      return request({
+        path: EASY_EMAIL_CORE_ROUTES.accountFolders(accountId),
+        query,
+      });
+    },
+    getMailAccountSyncStatus(
+      accountId: string,
+    ): Promise<EasyEmailGetMailAccountSyncStatusResponse> {
+      return request({
+        path: EASY_EMAIL_CORE_ROUTES.accountSync(accountId),
+      });
+    },
+    syncMailAccount(
+      accountId: string,
+      syncRequest: EasyEmailMailAccountSyncRequest = {},
+    ): Promise<EasyEmailSyncMailAccountResponse> {
+      return request({
+        method: "POST",
+        path: EASY_EMAIL_CORE_ROUTES.accountSync(accountId),
+        body: syncRequest,
       });
     },
   };

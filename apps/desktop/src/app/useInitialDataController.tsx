@@ -17,7 +17,7 @@ type Dependencies = {
 export function useInitialDataController(appState: AppState, dependencies: Dependencies) {
   const {
     setNewsletterSubscriptionsByAccount, setMailFolders, setMailLabels, coreObservedMessagesRef, setInitializing, setStatusMessage, setBusy, setSettings,
-    setAvatarSettings, setPlatformSession, setServiceUrl, canonicalNormalAccountIdsRef, setNormalAccounts, setTempMailboxes, setAnonymousMessages, setNormalMessagesByAccount,
+    setAvatarSettings, setPlatformSession, setServiceUrl, canonicalNormalAccountIdsRef, setNormalAccounts, setNormalAccountSyncByAccount, setTempMailboxes, setAnonymousMessages, setNormalMessagesByAccount,
     setPromotedMessagesByAccount, setRecentCodes, setSendQueue, setContacts, setAgentAccounts, setAgentServices, setAgentThreads, setSelectedAgentSenderId,
     setSelectedAgentServiceId, setError, mountedRef, initialLoadRequestRef, setSelectedTempMailboxId, tempMailboxes, setLastAuthenticationLink, selectedTempMailboxId,
     setToastVisibleKey, setToastFading, toastFadeTimerRef, toastRemoveTimerRef, setStatusToast, setCopyToast, copyToastTimerRef, composePopoverOpen,
@@ -154,12 +154,21 @@ export function useInitialDataController(appState: AppState, dependencies: Depen
         const promotedAccountsToLoad = accountsResult.filter(
           (account) => account.kind === "normal_upgraded_temp",
         );
-        const [normalMessageEntries, promotedMessageEntries] = await Promise.all([
+        const [normalMessageEntries, normalSyncEntries, promotedMessageEntries] = await Promise.all([
           Promise.all(
             normalAccountsToLoad.map(async (account) => [
               account.id,
               await mailMessageClient.listNormalAccountMessages(account.id, true),
             ] as const),
+          ),
+          Promise.all(
+            normalAccountsToLoad.map(async (account) => {
+              try {
+                return [account.id, await mailAccountClient.getAccountSyncStatus(account.id)] as const;
+              } catch {
+                return null;
+              }
+            }),
           ),
           Promise.all(
             promotedAccountsToLoad.map(async (account) => [
@@ -169,6 +178,9 @@ export function useInitialDataController(appState: AppState, dependencies: Depen
           ),
         ]);
         const normalMessageCache: MessageCache = Object.fromEntries(normalMessageEntries);
+        const normalSyncCache = Object.fromEntries(
+          normalSyncEntries.filter((entry): entry is readonly [string, NonNullable<typeof entry>[1]] => entry !== null),
+        );
         const promotedMessageCache: MessageCache = Object.fromEntries(promotedMessageEntries);
         const newsletterSubscriptionCache: NewsletterSubscriptionCache = {};
 
@@ -182,6 +194,7 @@ export function useInitialDataController(appState: AppState, dependencies: Depen
         setServiceUrl(settingsResult.service_url ?? "");
         canonicalNormalAccountIdsRef.current = new Set(accountsResult.map((account) => account.id));
         setNormalAccounts(accountsResult);
+        setNormalAccountSyncByAccount(normalSyncCache);
         setTempMailboxes(coreTemporaryState.mailboxes);
         setAnonymousMessages(messagesResult);
         setNormalMessagesByAccount(normalMessageCache);

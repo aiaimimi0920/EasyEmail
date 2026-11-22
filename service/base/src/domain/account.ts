@@ -211,6 +211,16 @@ export interface MailAccountSendOutcomeInput {
   now: string;
 }
 
+export interface MailAccountReceiveOutcomeInput {
+  accountId: string;
+  credentialRefId: string;
+  receiveStatus: MailAccountReceiveStatus;
+  authStatus: MailAccountAuthStatus;
+  credentialStatus: MailCredentialRef["status"];
+  verifiedAt?: string;
+  now: string;
+}
+
 export interface MailAccountRepository {
   listMailAccounts(query: MailAccountRepositoryListQuery): Promise<MailAccountRepositoryListResult>;
   getMailAccount(id: string): Promise<MailAccount | undefined>;
@@ -219,4 +229,5 @@ export interface MailAccountRepository {
   disableMailAccount(id: string, expectedVersion: number, now: string): Promise<MailAccount | undefined>;
   deleteMailAccount(id: string, expectedVersion: number, now: string): Promise<boolean>;
   recordMailAccountSendOutcome?(input: MailAccountSendOutcomeInput): Promise<void>;
+  recordMailAccountReceiveOutcome?(input: MailAccountReceiveOutcomeInput): Promise<void>;
 }

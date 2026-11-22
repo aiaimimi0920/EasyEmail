@@ -5,7 +5,7 @@ import type { AppState } from "./useAppState";
 
 export function useAppLoaders(appState: AppState) {
   const {
-    setRecentCodes, setAnonymousMessages, canonicalNormalAccountIdsRef, setNormalAccounts, normalAccounts, setSendQueue, setSendQueueWorkerStatus, setContacts, setAgentAccounts,
+    setRecentCodes, setAnonymousMessages, canonicalNormalAccountIdsRef, setNormalAccounts, normalAccounts, setNormalAccountSyncByAccount, setSendQueue, setSendQueueWorkerStatus, setContacts, setAgentAccounts,
     setAgentServices, setAgentThreads,
   } = appState;
   async function loadRecentCodes(
@@ -33,6 +33,19 @@ export function useAppLoaders(appState: AppState) {
   function isCanonicalNormalAccountId(accountId: string): boolean {
       return canonicalNormalAccountIdsRef.current.has(accountId)
         || normalAccounts.some((account) => account.id === accountId);
+    }
+  async function loadNormalAccountSyncStatus(
+      accountId: string,
+      isCurrent: () => boolean = () => true,
+    ) {
+      const status = await mailAccountClient.getAccountSyncStatus(accountId);
+      if (isCurrent()) {
+        setNormalAccountSyncByAccount((current) => ({
+          ...current,
+          [accountId]: status,
+        }));
+      }
+      return status;
     }
   async function loadSendQueue(isCurrent: () => boolean = () => true) {
       const response = await sendQueueClient.listSendQueueWithWorker({ limit: 25 });
@@ -64,7 +77,7 @@ export function useAppLoaders(appState: AppState) {
       return threads;
     }
   return {
-    loadRecentCodes, loadAnonymousMessages, loadNormalAccounts, isCanonicalNormalAccountId, loadSendQueue, loadContacts, loadAgentAccounts, loadAgentServices,
+    loadRecentCodes, loadAnonymousMessages, loadNormalAccounts, loadNormalAccountSyncStatus, isCanonicalNormalAccountId, loadSendQueue, loadContacts, loadAgentAccounts, loadAgentServices,
     loadAgentThreads,
   };
 }

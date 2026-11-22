@@ -70,6 +70,8 @@ class ClientServerContractTests(unittest.TestCase):
             "/mail/send-queue/${encodeURIComponent(queueItemId)}/cancel",
             "/mail/send-queue/${encodeURIComponent(queueItemId)}/retry",
             "/mail/messages/${encodeURIComponent(messageId)}/scheduled-send/reopen",
+            "/mail/accounts/${encodeURIComponent(accountId)}/folders",
+            "/mail/accounts/${encodeURIComponent(accountId)}/sync",
         )
         for template in templates:
             self.assertIn(template, server_text)

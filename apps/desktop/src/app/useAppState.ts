@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import type { EasyEmailAuthenticationLinkResult, EasyEmailObservedMessage } from "../api/easyEmailHttpClient";
 import type { AvatarSettingsDto } from "../api/avatarSettingsClient";
 import type { ContactDto } from "../api/contactClient";
-import type { AccountDto, ManualImapAccountCreateRequest, NormalImapConnectionTestDto, NormalSmtpConnectionTestDto } from "../api/mailAccountClient";
+import type { AccountDto, AccountSyncStatusDto, ManualImapAccountCreateRequest, NormalImapConnectionTestDto, NormalSmtpConnectionTestDto } from "../api/mailAccountClient";
 import type { MailTaxonomyItemDto, MailTaxonomyKind } from "../api/mailTaxonomyClient";
 import type { PlatformAccountQueryDto, PlatformAccountSessionDto } from "../api/platformAccountClient";
 import type { EasyEmailHealthDto, EasyEmailSettingsDto } from "../api/settingsClient";
@@ -127,6 +127,7 @@ export function useAppState() {
           : window.localStorage.getItem("nmail.platformAccountAvatarDataUrl"),
     );
   const [normalAccounts, setNormalAccounts] = useState<AccountDto[]>([]);
+  const [normalAccountSyncByAccount, setNormalAccountSyncByAccount] = useState<Record<string, AccountSyncStatusDto>>({});
   const canonicalNormalAccountIdsRef = useRef(new Set<string>());
   const [tempMailboxes, setTempMailboxes] = useState<TempMailboxDto[]>([]);
   const [anonymousMessages, setAnonymousMessages] = useState<AnonymousMessageDto[]>([]);
@@ -341,7 +342,7 @@ export function useAppState() {
     contactDraftTitle, setContactDraftTitle, contactDraftNote, setContactDraftNote, contactDraftTargetField, setContactDraftTargetField, setSettings, avatarSettings,
     setAvatarSettings, senderAvatarsBySender, setSenderAvatarsBySender, easyEmailHealth, setEasyEmailHealth, platformSession, setPlatformSession, lastPlatformQuery,
     setLastPlatformQuery, platformAccountMenuOpen, setPlatformAccountMenuOpen, platformAccountSignedIn, setPlatformAccountSignedIn, platformAccountAvatarDataUrl, setPlatformAccountAvatarDataUrl, normalAccounts,
-    setNormalAccounts, canonicalNormalAccountIdsRef, tempMailboxes, setTempMailboxes, anonymousMessages, setAnonymousMessages, normalMessagesByAccount, setNormalMessagesByAccount,
+    setNormalAccounts, normalAccountSyncByAccount, setNormalAccountSyncByAccount, canonicalNormalAccountIdsRef, tempMailboxes, setTempMailboxes, anonymousMessages, setAnonymousMessages, normalMessagesByAccount, setNormalMessagesByAccount,
     promotedMessagesByAccount, setPromotedMessagesByAccount, newsletterSubscriptionsByAccount, setNewsletterSubscriptionsByAccount, selectedNewsletterSubscription, setSelectedNewsletterSubscription, showHiddenNewsletterSubscriptions, setShowHiddenNewsletterSubscriptions,
     mailFolders, setMailFolders, mailLabels, setMailLabels, selectedMailTaxonomyFilter, setSelectedMailTaxonomyFilter, mailTaxonomySectionExpanded, setMailTaxonomySectionExpanded,
     mailTaxonomyManagerKind, setMailTaxonomyManagerKind, mailTaxonomyEditingId, setMailTaxonomyEditingId, mailTaxonomyDraftName, setMailTaxonomyDraftName, mailTaxonomyDraftParentId, setMailTaxonomyDraftParentId,

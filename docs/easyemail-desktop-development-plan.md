@@ -467,6 +467,20 @@ React 控制器已移除全部 M4 `message_*` 与 `verification_*` Tauri 业务�
 - 离线启动仍可查看已持久数据，且 UI 显示“过期/未同步”而不伪装最新；
 - 受控真实 IMAP 验收包括连接、文件夹发现、header/body 同步和一个可回滚 action。
 
+**当前进度（2026-11-22）**：已落地关系库 schema v8（`mail_imap_folders`、`mail_account_sync_checkpoints`
+及 `mail_message_sources` 的 `imap_folder_id` / `imap_uid` / `imap_uid_validity` 字段与唯一索引），扩展桌面端受限凭据桥接
+支持 `imap-sync` 与 `imap-action` 作用域校验，在 `service/base` 实现 RFC 6154 特殊用途与中英本地化文件夹分类器、RFC 5322/2047
+多部分 MIME 正文解码与 HTML 消毒、基于 `ImapFlow` 的 TLS 1.2+ / STARTTLS 传输（`ImapFlowTransport`：文件夹发现与重命名收敛、
+初次及增量 UID 同步、`UIDVALIDITY` 重置后基于 RFC `Message-ID` 去重重绑、打开详情时正文按需延迟拉取与验证码重提取、远程
+`\Seen`/`\Flagged`/`\Deleted` 标记与 `UID MOVE` / `UID COPY` 回退），以及协调器 `MailImapService` / `MailImapRemoteActions`
+（远程 IMAP 操作必须先于本地 SQLite 写入提交，网络故障或凭据不可用时严格 fail-closed 拒绝伪造本地远程成功；离线启动与打开未缓存正文时优雅回退至持久缓存并诚实暴露
+`never_synced` / `stale` / `error` / `auth_failed`）。新增 `/mail/accounts/{accountId}/folders` 与
+`/mail/accounts/{accountId}/sync`（`GET`/`POST`，对应映射清单 `normal_account_sync_recent`），同步对齐
+`docs/easyemail-openapi.json`、`docs/http-api.md`、`clients/typescript` 与桌面端 `mailAccountClient` /
+`useMailSourceController` / `MailAccountSetupPanel`，移除桌面端全部 `"until M6"` / `"becomes available in M6"` 占位逻辑，
+展示真实“已同步 / 缓存过期 / 未同步 / 同步失败·缓存 / 需重认证”徽标，并升级 `scripts/test-real-imap-account-gate.ps1`
+覆盖连接测试、文件夹发现、头/正文同步与可回滚星标远程操作。
+
 ### M7 - 剩余扩展能力
 
 #### M7A - 临时邮箱提升

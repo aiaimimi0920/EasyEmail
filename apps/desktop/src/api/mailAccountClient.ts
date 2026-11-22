@@ -11,6 +11,14 @@ import type {
   EasyEmailMailAccountSmtpSecurity,
   EasyEmailMailAccountSmtpTestRequest,
   EasyEmailMailAccountSmtpTestResponse,
+  EasyEmailMailAccountSyncRequest,
+  EasyEmailMailAccountSyncState,
+  EasyEmailMailAccountSyncStatus,
+  EasyEmailMailImapFolder,
+  EasyEmailMailImapFolderKind,
+  EasyEmailGetMailAccountSyncStatusResponse,
+  EasyEmailListMailAccountFoldersResponse,
+  EasyEmailSyncMailAccountResponse,
 } from "./easyEmailHttpClient.ts";
 
 export type AccountCredentialRefDto = {
@@ -82,6 +90,63 @@ export type NormalAccountDeleteDto = {
   credential_cleanup_complete: boolean;
 };
 
+export type AccountImapFolderDto = {
+  id: string;
+  account_id: string;
+  provider_folder_id: string;
+  display_name: string;
+  path: string;
+  delimiter: string;
+  folder_kind: EasyEmailMailImapFolderKind;
+  special_use: string | null;
+  uid_validity: string | null;
+  last_seen_uid: string | null;
+  last_synced_at: string | null;
+};
+
+export type AccountSyncStatusDto = {
+  account_id: string;
+  sync_state: EasyEmailMailAccountSyncState;
+  is_stale: boolean;
+  stale_after_ms: number;
+  last_attempt_at: string | null;
+  last_synced_at: string | null;
+  last_fetched_count: number;
+  last_inserted_count: number;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  folder_count: number;
+};
+
+export type AccountSyncResultDto = {
+  account_id: string;
+  primary_folder_id: string;
+  fetched_count: number;
+  inserted_count: number;
+  uid_validity_changed_count: number;
+  synced_at: string;
+  status: AccountSyncStatusDto;
+};
+
+export function formatAccountSyncBadge(status?: AccountSyncStatusDto | null): string {
+  if (!status || status.sync_state === "never_synced") {
+    return "未同步";
+  }
+  if (status.sync_state === "syncing") {
+    return "同步中";
+  }
+  if (status.sync_state === "auth_failed") {
+    return "需重认证";
+  }
+  if (status.sync_state === "error") {
+    return "同步失败·缓存";
+  }
+  if (status.is_stale || status.sync_state === "stale") {
+    return "缓存过期";
+  }
+  return "已同步";
+}
+
 export interface MailAccountHttpTransport {
   listMailAccounts(query?: EasyEmailMailAccountListQuery): Promise<EasyEmailMailAccountsResponse>;
   createMailAccount(request: EasyEmailMailAccountCreateRequest): Promise<EasyEmailMailAccountResponse>;
@@ -89,6 +154,17 @@ export interface MailAccountHttpTransport {
   deleteMailAccount(accountId: string, expectedVersion: number): Promise<{ deleted: { id: string } }>;
   testMailAccountImap(request: EasyEmailMailAccountImapTestRequest): Promise<EasyEmailMailAccountImapTestResponse>;
   testMailAccountSmtp(request: EasyEmailMailAccountSmtpTestRequest): Promise<EasyEmailMailAccountSmtpTestResponse>;
+  listMailAccountFolders?(
+    accountId: string,
+    query?: { refresh?: boolean },
+  ): Promise<EasyEmailListMailAccountFoldersResponse>;
+  getMailAccountSyncStatus?(
+    accountId: string,
+  ): Promise<EasyEmailGetMailAccountSyncStatusResponse>;
+  syncMailAccount?(
+    accountId: string,
+    request?: EasyEmailMailAccountSyncRequest,
+  ): Promise<EasyEmailSyncMailAccountResponse>;
 }
 
 function isVersionedCredentialRef(secretKey: string): secretKey is `ref:v1:${string}` {
@@ -162,6 +238,38 @@ function testableSmtpCredential(account: AccountDto): AccountCredentialRefDto {
 
 export function hasTestableSmtpCredential(account: AccountDto): boolean {
   return Boolean(selectTestablePasswordCredential(account, "smtp_password"));
+}
+
+function toAccountSyncStatusDto(status: EasyEmailMailAccountSyncStatus): AccountSyncStatusDto {
+  return {
+    account_id: status.accountId,
+    sync_state: status.syncState,
+    is_stale: status.isStale,
+    stale_after_ms: status.staleAfterMs,
+    last_attempt_at: status.lastAttemptAt ?? null,
+    last_synced_at: status.lastSyncedAt ?? null,
+    last_fetched_count: status.lastFetchedCount,
+    last_inserted_count: status.lastInsertedCount,
+    last_error_code: status.lastErrorCode ?? null,
+    last_error_message: status.lastErrorMessage ?? null,
+    folder_count: status.folderCount,
+  };
+}
+
+function toAccountImapFolderDto(folder: EasyEmailMailImapFolder): AccountImapFolderDto {
+  return {
+    id: folder.id,
+    account_id: folder.accountId,
+    provider_folder_id: folder.providerFolderId,
+    display_name: folder.displayName,
+    path: folder.path,
+    delimiter: folder.delimiter,
+    folder_kind: folder.folderKind,
+    special_use: folder.specialUse ?? null,
+    uid_validity: folder.uidValidity ?? null,
+    last_seen_uid: folder.lastSeenUid ?? null,
+    last_synced_at: folder.lastSyncedAt ?? null,
+  };
 }
 
 export function createMailAccountClient(
@@ -333,6 +441,47 @@ export function createMailAccountClient(
       return {
         id: response.deleted.id,
         credential_cleanup_complete: credentialCleanupComplete,
+      };
+    },
+
+    async listAccountFolders(
+      accountId: string,
+      options: { refresh?: boolean } = {},
+    ): Promise<{ folders: AccountImapFolderDto[]; refreshed: boolean }> {
+      if (!transport.listMailAccountFolders) {
+        throw new Error("Account folder HTTP transport is not configured.");
+      }
+      const response = await transport.listMailAccountFolders(accountId, options);
+      return {
+        folders: response.folders.map(toAccountImapFolderDto),
+        refreshed: response.refreshed,
+      };
+    },
+
+    async getAccountSyncStatus(accountId: string): Promise<AccountSyncStatusDto> {
+      if (!transport.getMailAccountSyncStatus) {
+        throw new Error("Account sync status HTTP transport is not configured.");
+      }
+      const response = await transport.getMailAccountSyncStatus(accountId);
+      return toAccountSyncStatusDto(response.status);
+    },
+
+    async syncAccount(
+      accountId: string,
+      request: EasyEmailMailAccountSyncRequest = {},
+    ): Promise<AccountSyncResultDto> {
+      if (!transport.syncMailAccount) {
+        throw new Error("Account sync HTTP transport is not configured.");
+      }
+      const response = await transport.syncMailAccount(accountId, request);
+      return {
+        account_id: response.sync.accountId,
+        primary_folder_id: response.sync.primaryFolderId,
+        fetched_count: response.sync.fetchedCount,
+        inserted_count: response.sync.insertedCount,
+        uid_validity_changed_count: response.sync.uidValidityChangedCount,
+        synced_at: response.sync.syncedAt,
+        status: toAccountSyncStatusDto(response.status),
       };
     },
   };

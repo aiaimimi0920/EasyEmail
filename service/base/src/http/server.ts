@@ -6,6 +6,7 @@ import { EasyEmailHttpHandler } from "./handler.js";
 import { resolveEasyEmailHttpErrorStatus } from "./error-status.js";
 import { reportHttpFailure } from "./failure-diagnostic.js";
 import { handleAdminRoute } from "./routes/admin.js";
+import { handleImapSyncRoute } from "./routes/imap-sync.js";
 import { handleInternalRoute } from "./routes/internal.js";
 import { handleMessageRoute } from "./routes/messages.js";
 import { handlePublicRoute } from "./routes/public.js";
@@ -253,7 +254,13 @@ export function createEasyEmailHttpServer(
 
     try {
       const query = parseQueryString(url);
-      const result = await handleAdminRoute({
+      const result = await handleImapSyncRoute({
+        method,
+        path,
+        query,
+        handler,
+        readJsonBody: readBodyJson,
+      }) ?? await handleAdminRoute({
         method,
         path,
         query,

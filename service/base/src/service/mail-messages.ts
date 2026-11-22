@@ -1,6 +1,10 @@
 import type { MailAccountRepository } from "../domain/account.js";
 import { EasyEmailError } from "../domain/errors.js";
 import type {
+  MailImapRepository,
+  MailImapTransport,
+} from "../domain/mail-imap-sync.js";
+import type {
   MailDraftSaveInput,
   MailDraftSaveResult,
   MailMessageBatchActionResult,
@@ -15,8 +19,10 @@ import type {
   MailMessageSetLabelInput,
   MailTrashEmptyInput,
 } from "../domain/mail-message.js";
+import type { MailCredentialResolver } from "./account-connectivity.js";
 import type { EasyEmailService } from "./easy-email-service.js";
 import { extractSnippetFromBodies, sanitizeMailHtml } from "./mail-html-sanitizer.js";
+import { MailImapRemoteActions } from "./mail-imap-remote-actions.js";
 import {
   ingestExternalMailMessage,
   ingestRuntimeObservedMessages,
@@ -51,16 +57,29 @@ export type { ExternalMailMessageInput } from "./mail-message-ingestor.js";
 
 export interface MailMessageServiceDependencies {
   accountRepository?: MailAccountRepository;
+  imapRepository?: MailImapRepository;
+  credentialResolver?: MailCredentialResolver;
+  imapTransport?: MailImapTransport;
   easyEmailService?: EasyEmailService;
   verificationService?: MailVerificationService;
 }
 
 export class MailMessageService {
+  private readonly remoteActions: MailImapRemoteActions;
+
   public constructor(
     private readonly repository: MailMessageRepository,
     private readonly now: () => Date = () => new Date(),
     private readonly dependencies: MailMessageServiceDependencies = {},
-  ) {}
+  ) {
+    this.remoteActions = new MailImapRemoteActions(repository, {
+      imapRepository: dependencies.imapRepository,
+      accountRepository: dependencies.accountRepository,
+      credentialResolver: dependencies.credentialResolver,
+      imapTransport: dependencies.imapTransport,
+      verificationService: dependencies.verificationService,
+    });
+  }
 
   public async ingestObservedMessages(): Promise<number> {
     return ingestRuntimeObservedMessages({
@@ -171,6 +190,7 @@ export class MailMessageService {
     const normalizedId = normalizeMailMessageId(id);
     const scope = normalizeMailMessageDetailScope(options.scope);
     await this.ingestObservedMessages();
+    await this.remoteActions.hydrateMessageBodyIfNeeded(normalizedId, this.now().toISOString());
 
     const found = await this.repository.getMailMessageDetail(normalizedId, scope);
     if (!found) {
@@ -260,11 +280,21 @@ export class MailMessageService {
     const enabled = normalizeRequiredBoolean(input.enabled, "enabled");
 
     await this.ingestObservedMessages();
+    const nowIso = this.now().toISOString();
+    const remoteResult = await this.remoteActions.applyFlagAction(
+      normalizedId,
+      flagName,
+      enabled,
+      nowIso,
+    );
+    if (remoteResult) {
+      return remoteResult;
+    }
     const changed = await this.repository.setMailMessageLocalFlag(
       normalizedId,
       flagName,
       enabled,
-      this.now().toISOString(),
+      nowIso,
     );
     if (changed === undefined) {
       throw new EasyEmailError("MAIL_MESSAGE_NOT_FOUND", `Mail message ${normalizedId} was not found.`);
@@ -287,10 +317,19 @@ export class MailMessageService {
     const folderName = normalizeMailFolderName(input.folderName);
 
     await this.ingestObservedMessages();
+    const nowIso = this.now().toISOString();
+    const remoteResult = await this.remoteActions.applyFolderMoveAction(
+      normalizedId,
+      folderName,
+      nowIso,
+    );
+    if (remoteResult) {
+      return remoteResult;
+    }
     const changed = await this.repository.setMailMessageLocalFolder(
       normalizedId,
       folderName,
-      this.now().toISOString(),
+      nowIso,
     );
     if (changed === undefined) {
       throw new EasyEmailError("MAIL_MESSAGE_NOT_FOUND", `Mail message ${normalizedId} was not found.`);
@@ -334,10 +373,20 @@ export class MailMessageService {
   public async deleteLocal(id: string): Promise<MailMessageLocalActionResult> {
     const normalizedId = normalizeMailMessageId(id);
     await this.ingestObservedMessages();
+    const nowIso = this.now().toISOString();
+    const remoteResult = await this.remoteActions.applyFolderMoveAction(
+      normalizedId,
+      "trash",
+      nowIso,
+      { trashDeleteStatus: true },
+    );
+    if (remoteResult) {
+      return remoteResult;
+    }
     const changed = await this.repository.setMailMessageLocalFolder(
       normalizedId,
       "trash",
-      this.now().toISOString(),
+      nowIso,
     );
     if (changed === undefined) {
       throw new EasyEmailError("MAIL_MESSAGE_NOT_FOUND", `Mail message ${normalizedId} was not found.`);
@@ -353,7 +402,12 @@ export class MailMessageService {
   public async deleteForever(id: string): Promise<MailMessageLocalActionResult> {
     const normalizedId = normalizeMailMessageId(id);
     await this.ingestObservedMessages();
-    const changed = await this.repository.softDeleteMailMessage(normalizedId, this.now().toISOString());
+    const nowIso = this.now().toISOString();
+    const remoteResult = await this.remoteActions.applyPermanentDeleteAction(normalizedId, nowIso);
+    if (remoteResult) {
+      return remoteResult;
+    }
+    const changed = await this.repository.softDeleteMailMessage(normalizedId, nowIso);
     if (changed === undefined) {
       throw new EasyEmailError("MAIL_MESSAGE_NOT_FOUND", `Mail message ${normalizedId} was not found.`);
     }
@@ -395,7 +449,14 @@ export class MailMessageService {
 
     const nowIso = this.now().toISOString();
     let changedCount = 0;
+    let remoteAppliedCount = 0;
     for (const messageId of requestedIds) {
+      const remoteResult = await this.remoteActions.applyPermanentDeleteAction(messageId, nowIso);
+      if (remoteResult) {
+        if (remoteResult.changed) changedCount += 1;
+        if (remoteResult.remoteApplied) remoteAppliedCount += 1;
+        continue;
+      }
       const deleted = await this.repository.softDeleteMailMessage(messageId, nowIso);
       if (deleted) {
         changedCount += 1;
@@ -405,7 +466,7 @@ export class MailMessageService {
     return {
       requestedCount: requestedIds.length,
       changedCount,
-      remoteAppliedCount: 0,
+      remoteAppliedCount,
     };
   }
 

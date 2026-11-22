@@ -38,6 +38,12 @@ DOMAIN_MAIL_SEND_QUEUE = (
 HTTP_MAIL_SEND_QUEUE_CONTRACTS = (
     ROOT / "service" / "base" / "src" / "http" / "mail-send-queue-contracts.ts"
 )
+DOMAIN_MAIL_IMAP_SYNC = (
+    ROOT / "service" / "base" / "src" / "domain" / "mail-imap-sync.ts"
+)
+HTTP_MAIL_IMAP_SYNC_CONTRACTS = (
+    ROOT / "service" / "base" / "src" / "http" / "mail-imap-sync-contracts.ts"
+)
 SHARED_CREDENTIAL_MODELS = (
     ROOT / "service" / "base" / "src" / "shared" / "credential-models.ts"
 )
@@ -65,6 +71,11 @@ DYNAMIC_ROUTE_METHODS = {
         "delete": "deleteMailAccount",
     },
     "disableAccount": {"post": "disableMailAccount"},
+    "accountFolders": {"get": "listMailAccountFolders"},
+    "accountSync": {
+        "get": "getMailAccountSyncStatus",
+        "post": "syncMailAccount",
+    },
     "taxonomyItem": {
         "get": "getMailTaxonomy",
         "patch": "updateMailTaxonomy",

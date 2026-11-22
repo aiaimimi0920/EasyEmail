@@ -34,7 +34,11 @@ import {
   type EasyEmailMailAccountsResponse,
   type EasyEmailMailAccountSmtpTestRequest,
   type EasyEmailMailAccountSmtpTestResponse,
+  type EasyEmailMailAccountSyncRequest,
   type EasyEmailMailAccountUpdateRequest,
+  type EasyEmailGetMailAccountSyncStatusResponse,
+  type EasyEmailListMailAccountFoldersResponse,
+  type EasyEmailSyncMailAccountResponse,
   type EasyEmailMailDraftSaveRequest,
   type EasyEmailMailDraftSaveResponse,
   type EasyEmailMailMessageDetailQuery,
@@ -170,6 +174,23 @@ export function createBundledCoreClient(
     },
     async testMailAccountSmtp(request: EasyEmailMailAccountSmtpTestRequest): Promise<EasyEmailMailAccountSmtpTestResponse> {
       return (await getHttpClient()).testMailAccountSmtp(request);
+    },
+    async listMailAccountFolders(
+      accountId: string,
+      query: { refresh?: boolean } = {},
+    ): Promise<EasyEmailListMailAccountFoldersResponse> {
+      return (await getHttpClient()).listMailAccountFolders(accountId, query);
+    },
+    async getMailAccountSyncStatus(
+      accountId: string,
+    ): Promise<EasyEmailGetMailAccountSyncStatusResponse> {
+      return (await getHttpClient()).getMailAccountSyncStatus(accountId);
+    },
+    async syncMailAccount(
+      accountId: string,
+      request: EasyEmailMailAccountSyncRequest = {},
+    ): Promise<EasyEmailSyncMailAccountResponse> {
+      return (await getHttpClient()).syncMailAccount(accountId, request);
     },
     async enqueueMailSend(
       request: EasyEmailMailSendEnqueueRequest,

@@ -1,4 +1,5 @@
 import {
+  formatAccountSyncBadge,
   hasTestableSmtpCredential,
   type ManualImapAccountCreateRequest,
 } from "../../api/mailAccountClient";
@@ -9,8 +10,8 @@ export function MailAccountSetupPanel({ controller }: { controller: AppControlle
     applyQqMailPreset, normalDisplayName, setNormalDisplayName, normalEmailAddress, updateNormalEmailAddress, normalImapPassword, updateMailboxAuthorizationCode, mailboxLoginUsername,
     normalImapHost, normalImapPort, normalSmtpHost, normalSmtpPort, normalSmtpSecurity, setNormalSmtpHost, setNormalSmtpPort, setNormalSmtpSecurity,
     setMailAccountPanelAdvancedOpen, mailAccountPanelAdvancedOpen, setNormalImapHost, setNormalImapPort, normalImapSecurity, setNormalImapSecurity,
-    addManualImapAccount, busy, normalImapTest, normalSmtpTest, normalImapAccounts, setSelectedNormalAccountId, setMailSourceId, setStatusMessage,
-    testNormalImap, testNormalSmtp, disableNormalAccount, deleteNormalAccount,
+    addManualImapAccount, busy, normalImapTest, normalSmtpTest, normalImapAccounts, normalAccountSyncByAccount, selectMailSource,
+    testNormalImap, testNormalSmtp, syncNormalAccount, disableNormalAccount, deleteNormalAccount,
   } = controller;
   return (
     <section className="nt-action-board">
@@ -169,20 +170,26 @@ export function MailAccountSetupPanel({ controller }: { controller: AppControlle
               <strong>{account.display_name}</strong>
               <span>{account.primary_address ?? "No address"}</span>
               <small>
-                {account.auth_status} / {account.receive_status} / {account.send_status}
+                {formatAccountSyncBadge(normalAccountSyncByAccount[account.id])} · {account.auth_status} / {account.receive_status} / {account.send_status}
               </small>
               <div className="nt-row-actions">
                 <button
                   type="button"
                   className="nt-mini-btn"
                   onClick={() => {
-                    setSelectedNormalAccountId(account.id);
-                    setMailSourceId(`account:${account.id}`);
-                    setStatusMessage("Message synchronization becomes available in M6.");
+                    selectMailSource(`account:${account.id}`);
                   }}
                   disabled={busy}
                 >
                   View
+                </button>
+                <button
+                  type="button"
+                  className="nt-mini-btn"
+                  onClick={() => void syncNormalAccount(account)}
+                  disabled={busy || account.status === "disabled"}
+                >
+                  Sync
                 </button>
                 <button
                   type="button"

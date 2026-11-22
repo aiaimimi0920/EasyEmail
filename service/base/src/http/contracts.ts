@@ -121,6 +121,12 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   disableAccount(accountId: string): string {
     return `/mail/accounts/${encodeURIComponent(accountId)}/disable`;
   },
+  accountFolders(accountId: string): string {
+    return `/mail/accounts/${encodeURIComponent(accountId)}/folders`;
+  },
+  accountSync(accountId: string): string {
+    return `/mail/accounts/${encodeURIComponent(accountId)}/sync`;
+  },
   taxonomyUpsert(kind: "folder" | "label", key: string): string {
     return `/mail/taxonomy/${encodeURIComponent(kind)}/${encodeURIComponent(key)}`;
   },
@@ -476,3 +482,4 @@ export type QueryMailboxSessionsHttpRequest = MailboxSessionQueryFilters;
 export type QueryObservedMessagesHttpRequest = ObservedMessageQueryFilters;
 export * from "./mail-message-contracts.js";
 export * from "./mail-send-queue-contracts.js";
+export * from "./mail-imap-sync-contracts.js";

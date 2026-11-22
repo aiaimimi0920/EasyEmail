@@ -390,6 +390,72 @@
         }
       }
     },
+    "/mail/accounts/{accountId}/folders": {
+      "get": {
+        "operationId": "listMailAccountFolders",
+        "summary": "List persisted or freshly discovered IMAP folders for an account",
+        "description": "Returns cached folder state by default when offline, or refreshes folder discovery over IMAP when refresh=true.",
+        "parameters": [
+          { "$ref": "#/components/parameters/AccountId" },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "boolean" }
+          }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ListMailAccountFoldersResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
+        }
+      }
+    },
+    "/mail/accounts/{accountId}/sync": {
+      "get": {
+        "operationId": "getMailAccountSyncStatus",
+        "summary": "Read persisted IMAP synchronization status and staleness metadata for an account",
+        "parameters": [
+          { "$ref": "#/components/parameters/AccountId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/GetMailAccountSyncStatusResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "post": {
+        "operationId": "syncMailAccount",
+        "summary": "Synchronize IMAP folders and recent/incremental message headers for an account",
+        "description": "Resolves the account-owned IMAP credential reference through the private host credential capability, discovers folders, synchronizes message headers with UID/UIDVALIDITY tracking, and updates sync checkpoints.",
+        "parameters": [
+          { "$ref": "#/components/parameters/AccountId" }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/MailAccountSyncInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/SyncMailAccountResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
+        }
+      }
+    },
     "/mail/taxonomy": {
       "get": {
         "operationId": "listMailTaxonomy",
@@ -1802,6 +1868,30 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/MailScheduledSendReopenResult" }
+          }
+        }
+      },
+      "ListMailAccountFoldersResponse": {
+        "description": "Persisted or refreshed IMAP folder list for an account",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ListMailAccountFoldersResponse" }
+          }
+        }
+      },
+      "GetMailAccountSyncStatusResponse": {
+        "description": "Persisted IMAP sync checkpoint and staleness metadata",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/GetMailAccountSyncStatusResponse" }
+          }
+        }
+      },
+      "SyncMailAccountResponse": {
+        "description": "IMAP folder and message header synchronization result and updated sync status",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/SyncMailAccountResponse" }
           }
         }
       },
@@ -3377,6 +3467,161 @@
         "properties": {
           "message": { "$ref": "#/components/schemas/MailMessageDetail" },
           "queueItem": { "$ref": "#/components/schemas/MailSendQueueItem" }
+        },
+        "additionalProperties": false
+      },
+      "MailImapFolder": {
+        "type": "object",
+        "required": [
+          "id",
+          "accountId",
+          "sourceRefId",
+          "providerFolderId",
+          "displayName",
+          "path",
+          "delimiter",
+          "folderKind",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "accountId": { "type": "string", "minLength": 1 },
+          "sourceRefId": { "type": "string", "minLength": 1 },
+          "providerFolderId": { "type": "string", "minLength": 1 },
+          "displayName": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "minLength": 1 },
+          "delimiter": { "type": "string", "minLength": 1 },
+          "folderKind": {
+            "type": "string",
+            "enum": ["inbox", "archive", "spam", "trash", "sent", "drafts", "mail"]
+          },
+          "specialUse": { "type": "string" },
+          "uidValidity": { "type": "string" },
+          "lastSeenUid": { "type": "string" },
+          "lastSyncedAt": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      },
+      "MailAccountSyncStatus": {
+        "type": "object",
+        "required": [
+          "accountId",
+          "syncState",
+          "isStale",
+          "staleAfterMs",
+          "lastFetchedCount",
+          "lastInsertedCount",
+          "folderCount"
+        ],
+        "properties": {
+          "accountId": { "type": "string", "minLength": 1 },
+          "syncState": {
+            "type": "string",
+            "enum": ["never_synced", "syncing", "synced", "stale", "auth_failed", "error"]
+          },
+          "isStale": { "type": "boolean" },
+          "staleAfterMs": { "type": "integer", "minimum": 0 },
+          "lastAttemptAt": { "type": "string", "format": "date-time" },
+          "lastSyncedAt": { "type": "string", "format": "date-time" },
+          "lastFetchedCount": { "type": "integer", "minimum": 0 },
+          "lastInsertedCount": { "type": "integer", "minimum": 0 },
+          "lastErrorCode": { "type": "string" },
+          "lastErrorMessage": { "type": "string" },
+          "folderCount": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": false
+      },
+      "MailAccountSyncInput": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": ["integer", "null"], "minimum": 1, "maximum": 100 },
+          "folderKinds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["inbox", "archive", "spam", "trash", "sent", "drafts", "mail"]
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "MailAccountFolderSyncSummary": {
+        "type": "object",
+        "required": [
+          "folderId",
+          "path",
+          "folderKind",
+          "fetchedCount",
+          "insertedCount",
+          "uidValidityChanged"
+        ],
+        "properties": {
+          "folderId": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "minLength": 1 },
+          "folderKind": {
+            "type": "string",
+            "enum": ["inbox", "archive", "spam", "trash", "sent", "drafts", "mail"]
+          },
+          "fetchedCount": { "type": "integer", "minimum": 0 },
+          "insertedCount": { "type": "integer", "minimum": 0 },
+          "uidValidityChanged": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "MailAccountSyncResult": {
+        "type": "object",
+        "required": [
+          "accountId",
+          "primaryFolderId",
+          "fetchedCount",
+          "insertedCount",
+          "uidValidityChangedCount",
+          "folders",
+          "syncedAt"
+        ],
+        "properties": {
+          "accountId": { "type": "string", "minLength": 1 },
+          "primaryFolderId": { "type": "string", "minLength": 1 },
+          "fetchedCount": { "type": "integer", "minimum": 0 },
+          "insertedCount": { "type": "integer", "minimum": 0 },
+          "uidValidityChangedCount": { "type": "integer", "minimum": 0 },
+          "folders": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MailAccountFolderSyncSummary" }
+          },
+          "syncedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      },
+      "ListMailAccountFoldersResponse": {
+        "type": "object",
+        "required": ["folders", "refreshed"],
+        "properties": {
+          "folders": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MailImapFolder" }
+          },
+          "refreshed": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "GetMailAccountSyncStatusResponse": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "$ref": "#/components/schemas/MailAccountSyncStatus" }
+        },
+        "additionalProperties": false
+      },
+      "SyncMailAccountResponse": {
+        "type": "object",
+        "required": ["sync", "status"],
+        "properties": {
+          "sync": { "$ref": "#/components/schemas/MailAccountSyncResult" },
+          "status": { "$ref": "#/components/schemas/MailAccountSyncStatus" }
         },
         "additionalProperties": false
       }

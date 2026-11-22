@@ -1,10 +1,12 @@
 import { useEffect, useMemo } from "react";
+import { formatAccountSyncBadge, type AccountDto, type AccountSyncStatusDto } from "../api/mailAccountClient";
 import { sortVisibleMailMessagesByTime } from "../mail/mailSelectors";
 import { temporaryMailboxRefreshFailureMessage } from "../mail/temporaryMailboxAdapter";
 import { useEventCallback } from "../hooks/useEventCallback";
 import { createNonOverlappingAsyncRunner } from "../utils/asyncTask";
 import { MAIL_AUTO_SYNC_INTERVAL_MS } from "./appConfig";
 import { asErrorDto, temporaryRefreshError } from "./appDomain";
+import { mailAccountClient } from "./appRuntime";
 import type { MailSource } from "./appTypes";
 import {
   attachTemporaryMailboxSources,
@@ -17,6 +19,9 @@ import type { AppState } from "./useAppState";
 type Dependencies = {
   loadSendQueue: (isCurrent?: () => boolean) => Promise<import("../api/sendQueueClient").SendQueueDto[]>;
   invalidateMessageDetailRequest: () => void;
+  loadNormalMessages: (accountId: string) => Promise<import("./appTypes").AnonymousMessageDto[]>;
+  loadNormalAccounts: () => Promise<AccountDto[]>;
+  loadNormalAccountSyncStatus: (accountId: string, isCurrent?: () => boolean) => Promise<AccountSyncStatusDto>;
   loadPromotedMessages: (accountId: string) => Promise<import("./appTypes").AnonymousMessageDto[]>;
   rememberModalReturnFocus: () => void;
   createTempMailbox: () => Promise<string | null>;
@@ -27,13 +32,13 @@ type Dependencies = {
 
 export function useMailSourceController(appState: AppState, dependencies: Dependencies) {
   const {
-    normalAccounts, agentAccounts, setStatusMessage, agentServices, selectedAgentServiceId, selectedAgentSenderId, agentThreads,
+    normalAccounts, normalAccountSyncByAccount, setNormalAccountSyncByAccount, agentAccounts, setStatusMessage, agentServices, selectedAgentServiceId, selectedAgentSenderId, agentThreads,
     anonymousMessages, normalMessagesByAccount, promotedMessagesByAccount, tempMailboxes, mailSourceId, setMailSourceId, setSelectedMailMessageId, setSelectedMailConversationKey,
     setSelectedMessageDetail, setSelectedNewsletterSubscription, setMailSourceDrawerOpen, setMailSourceDropdownOpen, setSelectedNormalAccountId, setMailAccountPanelOpen, mailAutoSyncInFlightRef, setMailSyncInProgress,
     setBusy, setRecentCodes, setError, activeView, setSelectedTempMailboxId,
   } = appState;
   const {
-    loadSendQueue, invalidateMessageDetailRequest, loadPromotedMessages, rememberModalReturnFocus, createTempMailbox, showStatusToast, refreshAnonymousMailOnce, loadRecentCodes,
+    loadSendQueue, invalidateMessageDetailRequest, loadNormalMessages, loadNormalAccounts, loadNormalAccountSyncStatus, loadPromotedMessages, rememberModalReturnFocus, createTempMailbox, showStatusToast, refreshAnonymousMailOnce, loadRecentCodes,
   } = dependencies;
   const promotedAccounts = useMemo(
       () => normalAccounts.filter((account) => account.kind === "normal_upgraded_temp"),
@@ -147,7 +152,7 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
       ...normalImapAccounts.map((account): MailSource => ({
         id: `account:${account.id}`,
         label: account.display_name,
-        meta: `${normalMessagesByAccount[account.id]?.length ?? 0} 封邮件 / ${
+        meta: `${normalMessagesByAccount[account.id]?.length ?? 0} 封邮件 · ${formatAccountSyncBadge(normalAccountSyncByAccount[account.id])} / ${
           account.primary_address ?? account.id
         }`,
         tone: "info",
@@ -174,7 +179,10 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
       if (sourceId.startsWith("account:")) {
         const accountId = sourceId.slice("account:".length);
         setSelectedNormalAccountId(accountId);
-        setStatusMessage("This account is HTTP-owned. Message synchronization becomes available in M6.");
+        void loadNormalMessages(accountId);
+        void loadNormalAccountSyncStatus(accountId).catch(() => undefined);
+        const badge = formatAccountSyncBadge(normalAccountSyncByAccount[accountId]);
+        setStatusMessage(`当前邮箱同步状态：${badge}。`);
         return;
       }
       if (sourceId.startsWith("promoted:")) {
@@ -230,14 +238,48 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
       }
       try {
         if (mailSourceId === "all") {
-          const tempResult = await refreshAnonymousMailOnce();
+          const syncableNormalAccounts = normalImapAccounts.filter(
+            (account) => account.status !== "disabled" && account.receive_status !== "disabled",
+          );
+          const [tempResult, normalOutcomes] = await Promise.all([
+            refreshAnonymousMailOnce(),
+            Promise.allSettled(
+              syncableNormalAccounts.map(async (account) => {
+                const synced = await mailAccountClient.syncAccount(account.id);
+                setNormalAccountSyncByAccount((current) => ({
+                  ...current,
+                  [account.id]: synced.status,
+                }));
+                await loadNormalMessages(account.id);
+                return synced;
+              }),
+            ),
+          ]);
           await Promise.all(promotedAccounts.map((account) => loadPromotedMessages(account.id)));
+          let normalFetched = 0;
+          let normalInserted = 0;
+          let normalFailureCount = 0;
+          for (let index = 0; index < normalOutcomes.length; index += 1) {
+            const outcome = normalOutcomes[index];
+            const account = syncableNormalAccounts[index];
+            if (outcome?.status === "fulfilled") {
+              normalFetched += outcome.value.fetched_count;
+              normalInserted += outcome.value.inserted_count;
+            } else if (account) {
+              normalFailureCount += 1;
+              await loadNormalAccountSyncStatus(account.id).catch(() => undefined);
+            }
+          }
+          if (syncableNormalAccounts.length > 0) {
+            await loadNormalAccounts().catch(() => undefined);
+          }
           const codes = await loadRecentCodes();
           setRecentCodes(codes);
 
+          const failureSuffix = normalFailureCount > 0 ? `；${normalFailureCount} 个长效账户同步异常（已保留本地缓存）` : "";
           publishSyncStatus(
             temporaryMailboxRefreshFailureMessage(tempResult) ??
-              `Synced available mail: temp fetched ${tempResult.fetched_count}, inserted ${tempResult.inserted_count}; normal-account messages remain unavailable until M6.`,
+              `已同步全部邮件：临时拉取 ${tempResult.fetched_count} / 新增 ${tempResult.inserted_count}，长效拉取 ${normalFetched} / 新增 ${normalInserted}${failureSuffix}。`,
           );
           const refreshError = temporaryRefreshError(tempResult);
           if (refreshError || !silent) {
@@ -260,8 +302,27 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
         }
 
         if (mailSourceId.startsWith("account:")) {
+          const accountId = mailSourceId.slice("account:".length);
+          let synced;
+          try {
+            synced = await mailAccountClient.syncAccount(accountId);
+          } catch (syncError: unknown) {
+            await loadNormalAccountSyncStatus(accountId).catch(() => undefined);
+            await loadNormalAccounts().catch(() => undefined);
+            throw syncError;
+          }
+          setNormalAccountSyncByAccount((current) => ({
+            ...current,
+            [accountId]: synced.status,
+          }));
+          await Promise.all([
+            loadNormalMessages(accountId),
+            loadNormalAccounts(),
+          ]);
+          const codes = await loadRecentCodes();
+          setRecentCodes(codes);
           publishSyncStatus(
-            `${selectedMailSource.label} account metadata is current; message synchronization becomes available in M6.`,
+            `已同步 ${selectedMailSource.label}：拉取 ${synced.fetched_count} 封，新增 ${synced.inserted_count} 封。`,
           );
           if (!silent) {
             setError(null);
@@ -315,6 +376,7 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
         mailSourceId === "all" ||
         mailSourceId === "temp" ||
         temporaryMailboxIdFromSourceId(mailSourceId) !== null ||
+        mailSourceId.startsWith("account:") ||
         mailSourceId.startsWith("promoted:");
       if (!autoSyncableSource) {
         return undefined;

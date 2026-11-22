@@ -6,6 +6,15 @@ import type { AppState } from "./useAppState";
 
 type Dependencies = {
   loadNormalAccounts: () => Promise<import("../api/mailAccountClient").AccountDto[]>;
+  loadNormalMessages: (accountId: string) => Promise<import("./appTypes").AnonymousMessageDto[]>;
+  loadNormalAccountSyncStatus: (
+    accountId: string,
+    isCurrent?: () => boolean,
+  ) => Promise<import("../api/mailAccountClient").AccountSyncStatusDto>;
+  loadRecentCodes: (
+    tempMailboxId?: string | null,
+    isCurrent?: () => boolean,
+  ) => Promise<import("../mail/mailSearch").VerificationCodeDto[]>;
 };
 
 export function useNormalAccountController(appState: AppState, dependencies: Dependencies) {
@@ -13,10 +22,10 @@ export function useNormalAccountController(appState: AppState, dependencies: Dep
     normalDisplayName, normalEmailAddress, normalImapHost, normalImapPort, normalImapSecurity, normalImapUsername, normalImapPassword, setNormalImapPassword,
     normalSmtpHost, normalSmtpPort, normalSmtpSecurity, setNormalSmtpHost, setNormalSmtpPort, setNormalSmtpSecurity,
     setNormalEmailAddress, setNormalImapUsername, setNormalDisplayName, setNormalImapHost, setNormalImapPort, setNormalImapSecurity, setStatusMessage, setBusy,
-    setSelectedNormalAccountId, setNormalImapTest, setNormalSmtpTest, setError, setMailSourceId, setMailAccountPanelOpen, canonicalNormalAccountIdsRef, setNormalAccounts, selectedNormalAccountId,
+    setSelectedNormalAccountId, setNormalImapTest, setNormalSmtpTest, setError, setMailSourceId, setMailAccountPanelOpen, canonicalNormalAccountIdsRef, setNormalAccounts, setNormalAccountSyncByAccount, setRecentCodes, selectedNormalAccountId,
   } = appState;
   const {
-    loadNormalAccounts,
+    loadNormalAccounts, loadNormalMessages, loadNormalAccountSyncStatus, loadRecentCodes,
   } = dependencies;
   function mailboxLoginUsername() {
       return normalEmailAddress.trim().toLowerCase();
@@ -206,8 +215,35 @@ export function useNormalAccountController(appState: AppState, dependencies: Dep
         setBusy(false);
       }
     }
+  async function syncNormalAccount(account: AccountDto) {
+      setBusy(true);
+      try {
+        const synced = await mailAccountClient.syncAccount(account.id);
+        setNormalAccountSyncByAccount((current) => ({
+          ...current,
+          [account.id]: synced.status,
+        }));
+        await Promise.all([
+          loadNormalMessages(account.id),
+          loadNormalAccounts(),
+        ]);
+        const codes = await loadRecentCodes();
+        setRecentCodes(codes);
+        setSelectedNormalAccountId(account.id);
+        setStatusMessage(
+          `Synced ${account.display_name}: fetched ${synced.fetched_count}, inserted ${synced.inserted_count}.`,
+        );
+        setError(null);
+      } catch (caught: unknown) {
+        await loadNormalAccountSyncStatus(account.id).catch(() => undefined);
+        await loadNormalAccounts().catch(() => undefined);
+        setError(asErrorDto(caught));
+      } finally {
+        setBusy(false);
+      }
+    }
   return {
-    mailboxLoginUsername, updateMailboxAuthorizationCode, updateNormalEmailAddress, applyQqMailPreset, testNormalImap, testNormalSmtp, addManualImapAccount, disableNormalAccount, deleteNormalAccount,
+    mailboxLoginUsername, updateMailboxAuthorizationCode, updateNormalEmailAddress, applyQqMailPreset, testNormalImap, testNormalSmtp, syncNormalAccount, addManualImapAccount, disableNormalAccount, deleteNormalAccount,
   };
 }
 

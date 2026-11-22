@@ -171,8 +171,71 @@ try {
   await row.getByRole("button", { name: "Test IMAP" }).click();
   const testRes = await testResPromise;
   if (testRes.status() !== 200) throw new Error(`Real IMAP test returned HTTP ${testRes.status()}.`);
+  const authHeader = testRes.request().headers()["authorization"] ?? "";
+  const coreOrigin = new URL(testRes.url()).origin;
   const body = await testRes.json();
   if (body?.result?.authenticated !== true) throw new Error("Real IMAP server did not authenticate.");
+
+  const syncResPromise = page.waitForResponse(
+    (res) => /^\/mail\/accounts\/[^/]+\/sync$/.test(new URL(res.url()).pathname) && res.request().method() === "POST",
+    { timeout: timeoutMs },
+  );
+  await row.getByRole("button", { name: "Sync" }).click();
+  const syncRes = await syncResPromise;
+  if (syncRes.status() !== 200) throw new Error(`Real IMAP sync returned HTTP ${syncRes.status()}.`);
+  const syncBody = await syncRes.json();
+  const syncedAccountId = syncBody?.sync?.accountId;
+  if (!syncedAccountId || syncBody?.status?.syncState !== "synced") {
+    throw new Error("Real IMAP sync did not transition account to synced.");
+  }
+
+  const cdpHeaders = { authorization: authHeader, "content-type": "application/json" };
+  const foldersRes = await fetch(`${coreOrigin}/mail/accounts/${encodeURIComponent(syncedAccountId)}/folders`, {
+    headers: cdpHeaders,
+  });
+  if (!foldersRes.ok) throw new Error(`Real IMAP folder list failed with HTTP ${foldersRes.status}.`);
+  const foldersBody = await foldersRes.json();
+  if (!Array.isArray(foldersBody?.folders) || foldersBody.folders.length === 0) {
+    throw new Error("Real IMAP folder discovery returned zero folders.");
+  }
+
+  const messagesRes = await fetch(
+    `${coreOrigin}/mail/messages?accountId=${encodeURIComponent(syncedAccountId)}&limit=5`,
+    { headers: cdpHeaders },
+  );
+  if (!messagesRes.ok) throw new Error(`Real IMAP message list failed with HTTP ${messagesRes.status}.`);
+  const messagesBody = await messagesRes.json();
+  const firstMsg = Array.isArray(messagesBody?.messages) ? messagesBody.messages[0] : undefined;
+  if (firstMsg?.id) {
+    const detailRes = await fetch(`${coreOrigin}/mail/messages/${encodeURIComponent(firstMsg.id)}`, {
+      headers: cdpHeaders,
+    });
+    if (!detailRes.ok) throw new Error(`Real IMAP body hydration failed with HTTP ${detailRes.status}.`);
+    const detailBody = await detailRes.json();
+    const initialStarred = Boolean(detailBody?.message?.isStarred);
+
+    const toggleRes = await fetch(`${coreOrigin}/mail/messages/${encodeURIComponent(firstMsg.id)}/flags`, {
+      method: "PATCH",
+      headers: cdpHeaders,
+      body: JSON.stringify({ flagName: "starred", enabled: !initialStarred }),
+    });
+    if (!toggleRes.ok) throw new Error(`Real IMAP reversible flag set failed with HTTP ${toggleRes.status}.`);
+    const toggleBody = await toggleRes.json();
+    if (toggleBody?.action?.remoteApplied !== true) {
+      throw new Error("Real IMAP flag toggle was not applied remotely.");
+    }
+
+    const rollbackRes = await fetch(`${coreOrigin}/mail/messages/${encodeURIComponent(firstMsg.id)}/flags`, {
+      method: "PATCH",
+      headers: cdpHeaders,
+      body: JSON.stringify({ flagName: "starred", enabled: initialStarred }),
+    });
+    if (!rollbackRes.ok) throw new Error(`Real IMAP reversible flag rollback failed with HTTP ${rollbackRes.status}.`);
+    const rollbackBody = await rollbackRes.json();
+    if (rollbackBody?.action?.remoteApplied !== true) {
+      throw new Error("Real IMAP flag rollback was not applied remotely.");
+    }
+  }
 } finally {
   await browser.close();
 }
@@ -196,6 +259,8 @@ try {
 
     Assert-ZeroCanarySecretMatches -RootDirectory $dataDir -CanarySecrets @($imapPassword)
     Write-Output 'REAL_IMAP_AUTHENTICATED=True'
+    Write-Output 'REAL_IMAP_FOLDERS_AND_SYNC_VERIFIED=True'
+    Write-Output 'REAL_IMAP_REVERSIBLE_ACTION_VERIFIED=True'
     Write-Output 'REAL_IMAP_CANARY_ZERO_MATCHES=True'
 } catch {
     $safeMessage = Redact-SensitiveText -Text $_.Exception.Message `

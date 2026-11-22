@@ -7,6 +7,7 @@ import type { MailAccountService } from "../service/accounts.js";
 import type { ContactService } from "../service/contacts.js";
 import { createEasyEmailService, type EasyEmailService } from "../service/easy-email-service.js";
 import type { MailMessageService } from "../service/mail-messages.js";
+import type { MailImapService } from "../service/mail-imap-sync.js";
 import type { MailSendQueueService } from "../service/mail-send-queue.js";
 import {
   MAIL_TAXONOMY_CAPABILITIES,
@@ -24,6 +25,7 @@ export class EasyEmailHttpHandler extends EasyEmailCoreMailboxHttpHandler {
     messages?: MailMessageService,
     private readonly verifications?: MailVerificationService,
     private readonly sendQueue?: MailSendQueueService,
+    private readonly imapSync?: MailImapService,
   ) {
     super(service, queryRepository, messages);
   }
@@ -86,6 +88,16 @@ export class EasyEmailHttpHandler extends EasyEmailCoreMailboxHttpHandler {
       );
     }
     return this.sendQueue;
+  }
+
+  protected requireImapSync(): MailImapService {
+    if (!this.imapSync) {
+      throw new EasyEmailError(
+        "IMAP_SYNC_PERSISTENCE_UNAVAILABLE",
+        "Persistent IMAP synchronization is not available in this runtime.",
+      );
+    }
+    return this.imapSync;
   }
 
   public async listContacts(
@@ -349,5 +361,25 @@ export class EasyEmailHttpHandler extends EasyEmailCoreMailboxHttpHandler {
     messageId: string,
   ): Promise<Contracts.ReopenScheduledSendHttpResponse> {
     return this.requireSendQueue().reopenScheduledSend(messageId);
+  }
+
+  public async listMailAccountFolders(
+    accountId: string,
+    request: Contracts.ListMailAccountFoldersHttpRequest = {},
+  ): Promise<Contracts.ListMailAccountFoldersHttpResponse> {
+    return this.requireImapSync().listFolders(accountId, request);
+  }
+
+  public async getMailAccountSyncStatus(
+    accountId: string,
+  ): Promise<Contracts.GetMailAccountSyncStatusHttpResponse> {
+    return { status: await this.requireImapSync().getSyncStatus(accountId) };
+  }
+
+  public async syncMailAccount(
+    accountId: string,
+    request: Contracts.SyncMailAccountHttpRequest = {},
+  ): Promise<Contracts.SyncMailAccountHttpResponse> {
+    return this.requireImapSync().syncAccount(accountId, request);
   }
 }

@@ -99,6 +99,92 @@ export type EasyEmailMailAccountSmtpTestResponse = {
   result: { authenticated: true; capabilitySummary: string };
 };
 
+export type EasyEmailMailImapFolderKind =
+  | "inbox"
+  | "archive"
+  | "spam"
+  | "trash"
+  | "sent"
+  | "drafts"
+  | "mail";
+
+export type EasyEmailMailAccountSyncState =
+  | "never_synced"
+  | "syncing"
+  | "synced"
+  | "stale"
+  | "auth_failed"
+  | "error";
+
+export type EasyEmailMailImapFolder = {
+  id: string;
+  accountId: string;
+  sourceRefId: string;
+  providerFolderId: string;
+  displayName: string;
+  path: string;
+  delimiter: string;
+  folderKind: EasyEmailMailImapFolderKind;
+  specialUse?: string;
+  uidValidity?: string;
+  lastSeenUid?: string;
+  lastSyncedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type EasyEmailMailAccountSyncStatus = {
+  accountId: string;
+  syncState: EasyEmailMailAccountSyncState;
+  isStale: boolean;
+  staleAfterMs: number;
+  lastAttemptAt?: string;
+  lastSyncedAt?: string;
+  lastFetchedCount: number;
+  lastInsertedCount: number;
+  lastErrorCode?: string;
+  lastErrorMessage?: string;
+  folderCount: number;
+};
+
+export type EasyEmailMailAccountSyncRequest = {
+  limit?: number | null;
+  folderKinds?: EasyEmailMailImapFolderKind[];
+};
+
+export type EasyEmailMailAccountFolderSyncSummary = {
+  folderId: string;
+  path: string;
+  folderKind: EasyEmailMailImapFolderKind;
+  fetchedCount: number;
+  insertedCount: number;
+  uidValidityChanged: boolean;
+};
+
+export type EasyEmailMailAccountSyncResult = {
+  accountId: string;
+  primaryFolderId: string;
+  fetchedCount: number;
+  insertedCount: number;
+  uidValidityChangedCount: number;
+  folders: EasyEmailMailAccountFolderSyncSummary[];
+  syncedAt: string;
+};
+
+export type EasyEmailListMailAccountFoldersResponse = {
+  folders: EasyEmailMailImapFolder[];
+  refreshed: boolean;
+};
+
+export type EasyEmailGetMailAccountSyncStatusResponse = {
+  status: EasyEmailMailAccountSyncStatus;
+};
+
+export type EasyEmailSyncMailAccountResponse = {
+  sync: EasyEmailMailAccountSyncResult;
+  status: EasyEmailMailAccountSyncStatus;
+};
+
 export type EasyEmailMailTaxonomyKind = "folder" | "label";
 
 export type EasyEmailMailTaxonomyItem = {

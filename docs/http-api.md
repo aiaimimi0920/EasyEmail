@@ -343,6 +343,9 @@ authorization tier.
 | `DELETE` | `/mail/accounts/{accountId}?expectedVersion=N` | Soft-delete one account with version CAS. |
 | `POST` | `/mail/accounts/imap/test` | Test a stored IMAP profile using an account-owned opaque credential reference. |
 | `POST` | `/mail/accounts/smtp/test` | Test a stored SMTP profile using an account-owned opaque credential reference. |
+| `GET` | `/mail/accounts/{accountId}/folders` | List persisted IMAP folders or discover remote folders when `refresh=true`. |
+| `GET` | `/mail/accounts/{accountId}/sync` | Read persisted IMAP sync checkpoint and staleness metadata (`never_synced`, `synced`, `stale`, `auth_failed`, `error`). |
+| `POST` | `/mail/accounts/{accountId}/sync` | Synchronize IMAP folders and recent/incremental message headers using `UID`/`UIDVALIDITY` tracking. |
 | `GET` | `/mail/taxonomy?kind=folder\|label` | List persistent folders or labels with opaque keyset pagination. |
 | `PUT` | `/mail/taxonomy/{kind}/{key}` | Create or upsert a folder or label by normalized name. |
 | `GET` | `/mail/taxonomy/{itemId}` | Read one folder or label. |

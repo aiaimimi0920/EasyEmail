@@ -49,6 +49,21 @@ class RealImapAccountGateContractTests(unittest.TestCase):
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("ConfirmExternalSideEffects", completed.stderr + completed.stdout)
 
+    def test_gate_covers_m6_folder_discovery_header_body_sync_and_reversible_flag_action(
+        self,
+    ) -> None:
+        for expected in (
+            "/mail/accounts/imap/test",
+            'name: "Sync"',
+            "/folders",
+            "/mail/messages?accountId=",
+            'flagName: "starred", enabled: !initialStarred',
+            'flagName: "starred", enabled: initialStarred',
+            "REAL_IMAP_FOLDERS_AND_SYNC_VERIFIED=True",
+            "REAL_IMAP_REVERSIBLE_ACTION_VERIFIED=True",
+        ):
+            self.assertIn(expected, self.script)
+
     def test_packaged_restart_smoke_covers_ref_v1_legacy_import_missing_vault_and_canary_scan(
         self,
     ) -> None:

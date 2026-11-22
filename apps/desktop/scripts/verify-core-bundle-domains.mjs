@@ -123,12 +123,15 @@ export async function verifyBundledCoreRelationalDomains({
     throw new Error(`Authenticated packaged-core account create failed with status ${accountCreate.status}.`);
   }
   const accountPayload = await accountCreate.json();
+  const imapCredentialRef = accountPayload?.account?.credentialRefs?.find(
+    (ref) => ref.credentialKind === "imap_password",
+  );
   if (
     accountPayload?.account?.displayName !== "Packaged core account"
     || accountPayload?.account?.imap?.protocol !== "imap"
     || accountPayload?.account?.imap?.host !== "imap.example.test"
-    || accountPayload?.account?.credentialRefs?.[0]?.secretKey !== "ref:v1:packaged-core/imap"
-    || accountPayload?.account?.credentialRefs?.[0]?.status !== "missing"
+    || imapCredentialRef?.secretKey !== "ref:v1:packaged-core/imap"
+    || imapCredentialRef?.status !== "missing"
   ) {
     throw new Error("Authenticated packaged-core account create returned an invalid canonical result.");
   }
@@ -148,7 +151,7 @@ export async function verifyBundledCoreRelationalDomains({
     headers: { authorization: `Bearer ${apiToken}`, "content-type": "application/json" },
     body: JSON.stringify({
       accountId: accountPayload.account.id,
-      credentialRefId: accountPayload.account.credentialRefs[0].id,
+      credentialRefId: imapCredentialRef.id,
     }),
   });
   const imapTestPayload = await imapTest.json();
@@ -177,6 +180,38 @@ export async function verifyBundledCoreRelationalDomains({
     || JSON.stringify(smtpTestPayload).includes(fakeAccountSecret)
   ) {
     throw new Error("Packaged core SMTP test did not fail closed without a credential resolver.");
+  }
+
+  const offlineFolders = await fetch(`${baseUrl}/mail/accounts/${accountPayload.account.id}/folders`, {
+    headers: { authorization: `Bearer ${apiToken}` },
+  });
+  const offlineFoldersPayload = await offlineFolders.json();
+  if (!offlineFolders.ok || !Array.isArray(offlineFoldersPayload?.folders)) {
+    throw new Error("Packaged core offline IMAP folder read did not succeed.");
+  }
+  const initialSyncStatus = await fetch(`${baseUrl}/mail/accounts/${accountPayload.account.id}/sync`, {
+    headers: { authorization: `Bearer ${apiToken}` },
+  });
+  const initialSyncStatusPayload = await initialSyncStatus.json();
+  if (
+    !initialSyncStatus.ok
+    || initialSyncStatusPayload?.status?.syncState !== "never_synced"
+    || initialSyncStatusPayload?.status?.isStale !== true
+  ) {
+    throw new Error("Packaged core initial IMAP sync status did not report never_synced + isStale.");
+  }
+  const imapSyncWithoutBroker = await fetch(`${baseUrl}/mail/accounts/${accountPayload.account.id}/sync`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${apiToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ limit: 10 }),
+  });
+  const imapSyncPayload = await imapSyncWithoutBroker.json();
+  if (
+    imapSyncWithoutBroker.status !== 503
+    || imapSyncPayload?.code !== "ACCOUNT_CREDENTIAL_UNAVAILABLE"
+    || JSON.stringify(imapSyncPayload).includes(fakeAccountSecret)
+  ) {
+    throw new Error("Packaged core IMAP sync did not fail closed without a credential resolver.");
   }
 
   const scheduledAt = new Date(Date.now() + 3_600_000).toISOString();

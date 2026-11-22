@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import type {
   MailAccount,
+  MailAccountReceiveOutcomeInput,
   MailAccountRepository,
   MailAccountRepositoryCreateInput,
   MailAccountRepositoryListQuery,
@@ -53,6 +54,15 @@ import type {
   MailSendQueueRepositoryListQuery,
   MailSendQueueRepositoryListResult,
 } from "../../domain/mail-send-queue.js";
+import type {
+  MailImapFolder,
+  MailImapFolderIngestInput,
+  MailImapFolderIngestResult,
+  MailImapMessageSourceContext,
+  MailImapRemoteFolder,
+  MailImapRepository,
+  MailImapStoredCheckpoint,
+} from "../../domain/mail-imap-sync.js";
 
 import {
   openRelationalDatabase,
@@ -61,6 +71,7 @@ import {
 } from "./database-bootstrap.js";
 import { SqliteContactRepository } from "./contact-repository.js";
 import { SqliteMailAccountRepository } from "./mail-account-repository.js";
+import { SqliteMailImapRepository } from "./mail-imap-repository.js";
 import { SqliteMailMessageRepository } from "./mail-message-repository.js";
 import { SqliteMailSendQueueRepository } from "./mail-send-queue-repository.js";
 import { SqliteMailTaxonomyRepository } from "./mail-taxonomy-repository.js";
@@ -89,12 +100,14 @@ export class SqliteRelationalDatabase
     MailAccountRepository,
     MailMessageRepository,
     MailVerificationRepository,
-    MailSendQueueRepository
+    MailSendQueueRepository,
+    MailImapRepository
 {
   private readonly database: DatabaseSync;
   private readonly trackedDatabasePath?: string;
   private readonly contacts: SqliteContactRepository;
   private readonly mailAccounts: SqliteMailAccountRepository;
+  private readonly mailImap: SqliteMailImapRepository;
   private readonly mailMessages: SqliteMailMessageRepository;
   private readonly mailSendQueue: SqliteMailSendQueueRepository;
   private readonly mailTaxonomy: SqliteMailTaxonomyRepository;
@@ -109,6 +122,7 @@ export class SqliteRelationalDatabase
     this.backupPath = opened.backupPath;
     this.contacts = new SqliteContactRepository(this.database);
     this.mailAccounts = new SqliteMailAccountRepository(this.database);
+    this.mailImap = new SqliteMailImapRepository(this.database);
     this.mailMessages = new SqliteMailMessageRepository(this.database);
     this.mailSendQueue = new SqliteMailSendQueueRepository(this.database);
     this.mailTaxonomy = new SqliteMailTaxonomyRepository(this.database);
@@ -193,6 +207,66 @@ export class SqliteRelationalDatabase
 
   public recordMailAccountSendOutcome(input: MailAccountSendOutcomeInput): Promise<void> {
     return this.mailAccounts.recordMailAccountSendOutcome(input);
+  }
+
+  public recordMailAccountReceiveOutcome(input: MailAccountReceiveOutcomeInput): Promise<void> {
+    return this.mailAccounts.recordMailAccountReceiveOutcome(input);
+  }
+
+  public upsertImapFolders(
+    accountId: string,
+    sourceRefId: string,
+    folders: MailImapRemoteFolder[],
+    now: string,
+  ): Promise<MailImapFolder[]> {
+    return this.mailImap.upsertImapFolders(accountId, sourceRefId, folders, now);
+  }
+
+  public listImapFolders(accountId: string): Promise<MailImapFolder[]> {
+    return this.mailImap.listImapFolders(accountId);
+  }
+
+  public ingestImapFolderBatch(input: MailImapFolderIngestInput): Promise<MailImapFolderIngestResult> {
+    return this.mailImap.ingestImapFolderBatch(input);
+  }
+
+  public getSyncCheckpoint(accountId: string): Promise<MailImapStoredCheckpoint | undefined> {
+    return this.mailImap.getSyncCheckpoint(accountId);
+  }
+
+  public upsertSyncCheckpoint(input: MailImapStoredCheckpoint): Promise<void> {
+    return this.mailImap.upsertSyncCheckpoint(input);
+  }
+
+  public getImapMessageSourceContext(messageId: string): Promise<MailImapMessageSourceContext | undefined> {
+    return this.mailImap.getImapMessageSourceContext(messageId);
+  }
+
+  public cacheMailMessageBody(
+    messageId: string,
+    bodyText: string,
+    bodyHtml: string | undefined,
+    snippet: string,
+    hasAttachments: boolean,
+    now: string,
+  ): Promise<void> {
+    return this.mailImap.cacheMailMessageBody(messageId, bodyText, bodyHtml, snippet, hasAttachments, now);
+  }
+
+  public updateImapMessageSourceFolderAndUid(
+    sourceRowId: string,
+    targetFolderId: string,
+    targetUid: string | undefined,
+    targetUidValidity: string | undefined,
+    now: string,
+  ): Promise<void> {
+    return this.mailImap.updateImapMessageSourceFolderAndUid(
+      sourceRowId,
+      targetFolderId,
+      targetUid,
+      targetUidValidity,
+      now,
+    );
   }
 
   public ingestMailMessage(input: MailMessageIngestInput): Promise<MailMessageIngestResult> {

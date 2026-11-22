@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { MAIL_IMAP_SYNC_MIGRATION_SQL } from "./migrations-imap-sync.js";
+
 export interface RelationalMigration {
   version: number;
   name: string;
@@ -371,6 +373,11 @@ ON mail_send_queue(created_at DESC, id DESC);
 CREATE INDEX idx_mail_send_queue_message
 ON mail_send_queue(message_id, status);
 `,
+  },
+  {
+    version: 8,
+    name: "mail-imap-folders-and-sync-state",
+    sql: MAIL_IMAP_SYNC_MIGRATION_SQL,
   },
 ] as const;
 

@@ -235,6 +235,19 @@ fn broker_validates_smtp_send_and_test_credential_scopes() {
         ..valid_send
     };
     assert!(!is_supported_credential_scope(&mismatched_kind));
+
+    for use_case in ["imap-test", "imap-sync", "imap-action"] {
+        let valid_imap = CredentialResolveRequest {
+            account_id: "acct_v1_test".to_string(),
+            credential_ref_id: "cred_v1_imap".to_string(),
+            secret_backend: "windows_credential_manager".to_string(),
+            secret_key: "ref:v1:desktop/00000000000000000000000000000001".to_string(),
+            credential_kind: "imap_password".to_string(),
+            auth_method: "password".to_string(),
+            use_case: use_case.to_string(),
+        };
+        assert!(is_supported_credential_scope(&valid_imap), "{use_case}");
+    }
 }
 
 #[test]

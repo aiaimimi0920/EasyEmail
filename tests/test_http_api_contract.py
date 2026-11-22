@@ -413,6 +413,9 @@ class HttpApiContractTests(HttpApiContractTestCase):
             "cancelMailSendQueueItem",
             "retryMailSendQueueItem",
             "reopenScheduledSend",
+            "listMailAccountFolders",
+            "getMailAccountSyncStatus",
+            "syncMailAccount",
         }
         documented_operation_ids = {
             operation["operationId"]

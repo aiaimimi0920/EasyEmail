@@ -256,7 +256,7 @@ fn is_supported_credential_scope(request: &CredentialResolveRequest) -> bool {
         return false;
     }
     match (request.use_case.as_str(), request.credential_kind.as_str()) {
-        ("imap-test", "imap_password") => {
+        ("imap-test" | "imap-sync" | "imap-action", "imap_password") => {
             request.secret_key.starts_with("ref:v1:")
                 || request.secret_key.starts_with("secret://imap/")
         }

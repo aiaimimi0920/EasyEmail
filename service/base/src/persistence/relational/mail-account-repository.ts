@@ -3,6 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import type {
   MailAccount,
+  MailAccountReceiveOutcomeInput,
   MailAccountRepository,
   MailAccountRepositoryCreateInput,
   MailAccountRepositoryListQuery,
@@ -316,6 +317,40 @@ export class SqliteMailAccountRepository implements MailAccountRepository {
         SET send_status = ?, version = version + 1, updated_at = ?
         WHERE id = ? AND deleted_at IS NULL AND status != 'disabled'
       `).run(input.sendStatus, input.now, input.accountId);
+      this.database.prepare(`
+        UPDATE mail_account_credential_refs
+        SET status = ?,
+            last_verified_at = COALESCE(?, last_verified_at),
+            updated_at = ?
+        WHERE id = ? AND owner_account_id = ? AND status != 'disabled'
+      `).run(
+        input.credentialStatus,
+        input.verifiedAt ?? null,
+        input.now,
+        input.credentialRefId,
+        input.accountId,
+      );
+      this.database.exec("COMMIT");
+    } catch (error) {
+      try {
+        this.database.exec("ROLLBACK");
+      } catch {
+        // Ignore rollback failure.
+      }
+      throw error;
+    }
+  }
+
+  public async recordMailAccountReceiveOutcome(
+    input: MailAccountReceiveOutcomeInput,
+  ): Promise<void> {
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      this.database.prepare(`
+        UPDATE mail_accounts
+        SET receive_status = ?, auth_status = ?, version = version + 1, updated_at = ?
+        WHERE id = ? AND deleted_at IS NULL AND status != 'disabled'
+      `).run(input.receiveStatus, input.authStatus, input.now, input.accountId);
       this.database.prepare(`
         UPDATE mail_account_credential_refs
         SET status = ?,
