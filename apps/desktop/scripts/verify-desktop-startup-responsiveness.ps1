@@ -6,6 +6,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'lib/desktop-credential-smoke-support.ps1')
+
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -112,7 +114,9 @@ try {
     Write-Output 'WINDOW_RESPONSIVE_BEFORE_CORE_READY=True'
     Write-Output 'CORE_LISTENER_BEFORE_CLOSE=False'
 
-    $null = $desktopProcess.CloseMainWindow()
+    if (-not (Request-EasyEmailDesktopClose -Process $desktopProcess)) {
+        $null = $desktopProcess.CloseMainWindow()
+    }
     $normalClose = $desktopProcess.WaitForExit(10000)
     if ($normalClose) {
         $coreDeadline = (Get-Date).AddSeconds(5)

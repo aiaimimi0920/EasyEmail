@@ -1,7 +1,8 @@
 # Bundled UI Runtime Contract
 
-Status: **private core packaging and authenticated startup implemented; business
-HTTP ownership, graceful shutdown, and release acceptance are not yet complete**.
+Status: **private core packaging, authenticated loopback startup, canonical business
+HTTP ownership (M1-M8), and M9 host lifecycle & local security hardening implemented;
+M10 installer signing, SBOM/provenance, and clean-machine release gates remain**.
 
 This document defines the product boundary for a lightweight EasyEmail UI. The
 desktop framework is now Tauri 2 with React 19, based on the imported EasyEmailAM

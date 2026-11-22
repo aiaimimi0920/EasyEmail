@@ -321,11 +321,15 @@ export async function startEasyEmailServiceRuntime(
       mailAgentService,
       mailAvatarService,
     );
+    const bundledInstanceNonce = process.env.EASY_EMAIL_BUNDLED_CHILD_MODE?.trim() === "1"
+      ? process.env.EASY_EMAIL_BUNDLED_INSTANCE_NONCE?.trim() || undefined
+      : undefined;
     server = await createEasyEmailHttpServer(handler, {
       hostname: config.hostname,
       port: config.port,
       apiKey: config.apiKey,
       corsOrigins: config.corsOrigins,
+      bundledInstanceNonce,
     });
 
     sendQueueLoop = sendQueueService && options.sendQueueWorkerEnabled !== false

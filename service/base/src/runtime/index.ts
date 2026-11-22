@@ -1,3 +1,4 @@
+export * from "./bundled-child-control.js";
 export * from "./config.js";
 export * from "./desktop-credential-broker.js";
 export * from "./from-config.js";

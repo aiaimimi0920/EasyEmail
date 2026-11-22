@@ -41,7 +41,11 @@ pub fn redact_text(value: &str) -> String {
         }
 
         let lowered = part.to_ascii_lowercase();
-        if matches!(lowered.as_str(), "bearer" | "bearer:") {
+        let is_bearer_prefix = matches!(lowered.as_str(), "bearer" | "bearer:")
+            || lowered.ends_with("=bearer")
+            || lowered.ends_with("\"bearer")
+            || lowered.ends_with("'bearer");
+        if is_bearer_prefix {
             redacted_parts.push(part.to_string());
             redact_next_bearer_value = true;
             continue;
@@ -58,6 +62,8 @@ fn redact_secret_assignments(part: &str) -> String {
     let secret_markers = [
         "access_token=",
         "refresh_token=",
+        "authorization=",
+        "controltoken=",
         "password=",
         "token=",
         "secret=",

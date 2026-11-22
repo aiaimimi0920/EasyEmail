@@ -24,6 +24,7 @@ ALLOWED_DISPOSITIONS = {
 EXPECTED_HOST_ALLOWLIST = [
     "health_check",
     "desktop_core_runtime",
+    "desktop_export_diagnostics",
     "desktop_credential_store",
     "desktop_credential_delete",
 ]

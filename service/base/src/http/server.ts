@@ -21,6 +21,7 @@ export interface EasyEmailHttpServerOptions {
   apiKey?: string;
   corsOrigins?: readonly string[];
   maxRequestBodyBytes?: number;
+  bundledInstanceNonce?: string;
 }
 
 export interface StartedEasyEmailHttpServer {
@@ -253,6 +254,10 @@ export function createEasyEmailHttpServer(
       return;
     }
 
+    if (options.bundledInstanceNonce) {
+      response.setHeader("x-easyemail-bundled-nonce", options.bundledInstanceNonce);
+    }
+
     const readBodyJson = <T>() => readJsonBody<T>(request, maxRequestBodyBytes);
 
     try {
@@ -373,6 +378,7 @@ export function createEasyEmailHttpServer(
             closing = true;
             const listenerClosed = new Promise<void>((res, rej) => {
               server.close((error) => error ? rej(error) : res());
+              server.closeIdleConnections?.();
             });
             closePromise = Promise.allSettled([listenerClosed, ...requestTasks]).then((results) => {
               const failure = results.find((result) => result.status === "rejected");

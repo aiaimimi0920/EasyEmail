@@ -6,6 +6,7 @@
   "tauriHostAllowlist": [
     "health_check",
     "desktop_core_runtime",
+    "desktop_export_diagnostics",
     "desktop_credential_store",
     "desktop_credential_delete"
   ],
@@ -25,6 +26,7 @@
     "host": {
       "currentBackend": [
         "apps/desktop/src-tauri/src/core_runtime.rs",
+        "apps/desktop/src-tauri/src/core_logs.rs",
         "apps/desktop/src-tauri/src/commands.rs",
         "apps/desktop/src-tauri/src/desktop_credentials.rs"
       ],

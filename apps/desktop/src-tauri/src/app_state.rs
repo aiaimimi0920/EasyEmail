@@ -2,9 +2,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::error::{ActionRequired, AppError, ErrorCategory};
+use crate::host_lifecycle_guard::HostInstanceLock;
 
 pub struct AppState {
     pub data_dir: PathBuf,
+    _instance_lock: HostInstanceLock,
 }
 
 impl AppState {
@@ -41,8 +43,12 @@ impl AppState {
             correlation_id: uuid::Uuid::new_v4().to_string(),
             metadata: Box::new(serde_json::json!({ "path": data_dir.display().to_string() })),
         })?;
+        let instance_lock = HostInstanceLock::acquire(&data_dir)?;
 
-        Ok(Self { data_dir })
+        Ok(Self {
+            data_dir,
+            _instance_lock: instance_lock,
+        })
     }
 }
 

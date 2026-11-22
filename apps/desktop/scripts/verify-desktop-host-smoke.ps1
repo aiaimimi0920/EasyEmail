@@ -7,6 +7,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'lib/desktop-credential-smoke-support.ps1')
+. (Join-Path $PSScriptRoot 'lib/desktop-host-lifecycle-smoke-support.ps1')
 
 function Start-IsolatedDesktopRuntime {
     param([Parameter(Mandatory = $true)][string]$Executable)
@@ -126,20 +127,36 @@ $executable = [System.IO.Path]::GetFullPath($ExecutablePath)
 if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
     throw "Desktop executable is missing: $executable"
 }
+$serviceRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../../service/base'))
+$bundledNode = Join-Path $PSScriptRoot '../src-tauri/resources/core/node.exe'
+$nodeExe = if (Test-Path -LiteralPath $bundledNode -PathType Leaf) {
+    [System.IO.Path]::GetFullPath($bundledNode)
+} else {
+    (Get-Command node -ErrorAction Stop).Source
+}
+$nonDrainingFixture = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'fixtures/non-draining-core.mjs'))
 
 $smokeRoot = [System.IO.Path]::GetFullPath((Join-Path ([System.IO.Path]::GetTempPath()) 'easyemail-desktop-smoke'))
-$dataDir = [System.IO.Path]::GetFullPath((Join-Path $smokeRoot ([Guid]::NewGuid().ToString('N'))))
-if (-not $dataDir.StartsWith($smokeRoot + [System.IO.Path]::DirectorySeparatorChar)) {
+$runRoot = [System.IO.Path]::GetFullPath((Join-Path $smokeRoot ([Guid]::NewGuid().ToString('N'))))
+$dataDir = Join-Path $runRoot 'desktop-data'
+$standaloneDir = Join-Path $runRoot 'standalone-server'
+if (-not $runRoot.StartsWith($smokeRoot + [System.IO.Path]::DirectorySeparatorChar)) {
     throw 'The isolated desktop smoke path escaped its dedicated root.'
 }
 New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
+New-Item -ItemType Directory -Path $standaloneDir -Force | Out-Null
 
 $previousDataDir = $env:EASYEMAILAM_DATA_DIR
 $desktopProcess = $null
 $corePid = $null
+$standaloneServer = $null
 $normalClose = $false
 $restartClose = $false
 try {
+    $standaloneServer = Start-StandaloneServiceBase -NodeExecutable $nodeExe `
+        -ServiceRoot $serviceRoot -WorkspaceDir $standaloneDir
+    Assert-StandaloneServiceAlive -Standalone $standaloneServer
+
     $env:EASYEMAILAM_DATA_DIR = $dataDir
     $runtime = Start-IsolatedDesktopRuntime -Executable $executable
     $desktopProcess = $runtime.DesktopProcess
@@ -151,6 +168,15 @@ try {
     $unauthenticatedStatus = Get-UnauthenticatedStatus -Uri "$baseUrl/mail/catalog"
     if ($unauthenticatedStatus -ne 401) {
         throw "Unauthenticated catalog returned $unauthenticatedStatus instead of 401."
+    }
+
+    $unauthenticatedOversizedStatus = Get-OversizedPayloadStatus -BaseUrl $baseUrl
+    if ($unauthenticatedOversizedStatus -ne 401) {
+        throw "Unauthenticated oversized payload returned $unauthenticatedOversizedStatus instead of 401."
+    }
+    $oversizedStatus = Get-OversizedPayloadStatus -BaseUrl $standaloneServer.BaseUrl -BearerToken $standaloneServer.ApiToken
+    if ($oversizedStatus -ne 413) {
+        throw "Authenticated oversized payload returned $oversizedStatus instead of 413."
     }
 
     $desktopOrigin = 'http://tauri.localhost'
@@ -178,6 +204,14 @@ try {
         throw "Unauthenticated credential broker returned $unauthenticatedBrokerStatus instead of 401."
     }
 
+    Assert-MultiInstanceGuardBlocksSecondUi -Executable $executable -ActiveRuntime $runtime
+    Write-Output 'SINGLE_INSTANCE_GUARD_VERIFIED=True'
+
+    $transientRuntimeConfig = Join-Path $dataDir 'core/runtime-config.yaml'
+    if (Test-Path -LiteralPath $transientRuntimeConfig -PathType Leaf) {
+        throw 'Transient runtime-config.yaml remained on disk after core became ready.'
+    }
+
     $legacyDatabase = Join-Path $dataDir 'easyemailam.sqlite'
     $nestedRelationalDb = Join-Path $dataDir 'core/state/state/easy-email-relational.sqlite3'
     $directRelationalDb = Join-Path $dataDir 'core/state/easy-email-relational.sqlite3'
@@ -201,6 +235,7 @@ try {
     Write-Output "CORE_PID=$corePid"
     Write-Output 'CORE_LOOPBACK=True'
     Write-Output 'UNAUTHENTICATED_STATUS=401'
+    Write-Output 'OVERSIZED_PAYLOAD_STATUS=413'
     Write-Output 'DESKTOP_CORS_PREFLIGHT=True'
     Write-Output 'BROKER_LOOPBACK=True'
     Write-Output 'BROKER_UNAUTHENTICATED_STATUS=401'
@@ -212,14 +247,40 @@ try {
     $firstHostId = (Get-Content -LiteralPath $hostIdPath -Raw).Trim()
     Stop-IsolatedDesktopRuntime -Runtime $runtime
     $normalClose = $true
+
+    $coreLogPath = Join-Path $dataDir 'core/logs/core.log'
+    if (-not (Test-Path -LiteralPath $coreLogPath -PathType Leaf)) {
+        throw 'Expected rotated core log at core/logs/core.log.'
+    }
+    $firstCloseLog = Get-Content -LiteralPath $coreLogPath -Raw
+    if ($firstCloseLog -notmatch 'bundled_control_shutdown reason=command' -or $firstCloseLog -notmatch 'event=core_graceful_stop') {
+        throw 'Normal UI close did not complete via the ADR 0004 graceful control path.'
+    }
+    if (Test-Path -LiteralPath (Join-Path $dataDir 'core/core-child-lease.json') -PathType Leaf) {
+        throw 'Child lease file was not removed after graceful stop.'
+    }
+    Assert-StandaloneServiceAlive -Standalone $standaloneServer
     Write-Output 'NORMAL_CLOSE=True'
+    Write-Output 'GRACEFUL_SHUTDOWN_VERIFIED=True'
     Write-Output 'CORE_EXITED_WITH_UI=True'
+    Write-Output 'STANDALONE_SURVIVED_NORMAL_CLOSE=True'
 
     $desktopProcess = $null
     $corePid = $null
+    Assert-UiCrashParentEofReapsBundledChild -Executable $executable `
+        -StartRuntimeFn { param($exe) Start-IsolatedDesktopRuntime -Executable $exe }
+    Assert-StandaloneServiceAlive -Standalone $standaloneServer
+    Write-Output 'UI_CRASH_EOF_CHILD_EXITED=True'
+
+    # Plant a stale runtime-config.yaml simulating an interrupted pre-readiness crash; next restart must sweep it
+    Set-Content -LiteralPath $transientRuntimeConfig -Value 'stale: true' -Encoding UTF8
+
     $restartedRuntime = Start-IsolatedDesktopRuntime -Executable $executable
     $desktopProcess = $restartedRuntime.DesktopProcess
     $corePid = $restartedRuntime.CorePid
+    if (Test-Path -LiteralPath $transientRuntimeConfig -PathType Leaf) {
+        throw 'Restarted host did not sweep stale runtime-config.yaml.'
+    }
     $restartedBaseUrl = "http://127.0.0.1:$($restartedRuntime.CorePort)"
     if ((Get-UnauthenticatedStatus -Uri "$restartedBaseUrl/mail/catalog") -ne 401) {
         throw 'Restarted core did not preserve its authenticated HTTP boundary.'
@@ -236,12 +297,23 @@ try {
         throw 'Packaged core state did not survive the desktop process restart.'
     }
     Stop-IsolatedDesktopRuntime -Runtime $restartedRuntime
+    $desktopProcess = $null
+    $corePid = $null
     $restartClose = $true
+    Assert-StandaloneServiceAlive -Standalone $standaloneServer
     Write-Output 'RESTART_HOST_ID_STABLE=True'
     Write-Output 'RESTART_CORE_STATE_PERSISTED=True'
     Write-Output 'RESTART_AUTH_BOUNDARIES=True'
     Write-Output 'RESTART_NORMAL_CLOSE=True'
     Write-Output 'RESTART_CORE_EXITED_WITH_UI=True'
+
+    Assert-ForcedTimeoutFallbackKillsOnlyExactChild -Executable $executable `
+        -NodeExecutable $nodeExe -FixtureEntry $nonDrainingFixture -DataDir $dataDir `
+        -StartRuntimeFn { param($exe) Start-IsolatedDesktopRuntime -Executable $exe } `
+        -StopRuntimeFn { param($rt) Stop-IsolatedDesktopRuntime -Runtime $rt }
+    Assert-StandaloneServiceAlive -Standalone $standaloneServer
+    Write-Output 'FORCED_TIMEOUT_EXACT_CHILD_REAPED=True'
+    Write-Output 'STANDALONE_SERVER_SURVIVED=True'
 } finally {
     if ($desktopProcess -and -not $desktopProcess.HasExited) {
         Stop-Process -Id $desktopProcess.Id -Force -ErrorAction SilentlyContinue
@@ -254,17 +326,18 @@ try {
             $null = $coreProcess.WaitForExit(5000)
         }
     }
+    Stop-StandaloneServiceBase -Standalone $standaloneServer
     if ($null -eq $previousDataDir) {
         Remove-Item Env:EASYEMAILAM_DATA_DIR -ErrorAction SilentlyContinue
     } else {
         $env:EASYEMAILAM_DATA_DIR = $previousDataDir
     }
-    if (Test-Path -LiteralPath $dataDir) {
-        $resolvedDataDir = [System.IO.Path]::GetFullPath($dataDir)
-        if (-not $resolvedDataDir.StartsWith($smokeRoot + [System.IO.Path]::DirectorySeparatorChar)) {
+    if (Test-Path -LiteralPath $runRoot) {
+        $resolvedRunRoot = [System.IO.Path]::GetFullPath($runRoot)
+        if (-not $resolvedRunRoot.StartsWith($smokeRoot + [System.IO.Path]::DirectorySeparatorChar)) {
             throw 'Refusing to clean a desktop smoke path outside its dedicated root.'
         }
-        Remove-Item -LiteralPath $resolvedDataDir -Recurse -Force
+        Remove-Item -LiteralPath $resolvedRunRoot -Recurse -Force
     }
 }
 

@@ -1,6 +1,9 @@
 import type { InvokeCommand } from "./invokeCommand";
 import { createBundledCoreMailboxMethods } from "./bundledCoreMailboxMethods.ts";
-import { createDesktopCoreClient } from "./desktopCoreClient.ts";
+import {
+  createDesktopCoreClient,
+  type DesktopDiagnosticBundleDto,
+} from "./desktopCoreClient.ts";
 import {
   createEasyEmailHttpClient,
   type EasyEmailAgentAccountCreateRequest,
@@ -98,42 +101,53 @@ export function createBundledCoreClient(
   fetchRequest: typeof fetch = globalThis.fetch,
 ) {
   const desktopCoreClient = createDesktopCoreClient(invokeCommand);
-  let runtimePromise: ReturnType<typeof desktopCoreClient.getRuntime> | undefined;
-  let httpClientPromise:
-    | Promise<ReturnType<typeof createEasyEmailHttpClient>>
-    | undefined;
+  type ResolvedCoreSession = {
+    hostId: string;
+    httpClient: ReturnType<typeof createEasyEmailHttpClient>;
+  };
+  let sessionPromise: Promise<ResolvedCoreSession> | undefined;
 
-  function getRuntime() {
-    if (!runtimePromise) {
-      runtimePromise = desktopCoreClient.getRuntime().catch((error: unknown) => {
-        runtimePromise = undefined;
-        throw error;
-      });
+  const guardedFetch: typeof fetch = async (input, init) => {
+    try {
+      return await fetchRequest(input, init);
+    } catch (error: unknown) {
+      sessionPromise = undefined;
+      throw error;
     }
-    return runtimePromise;
-  }
+  };
 
-  function getHttpClient() {
-    if (!httpClientPromise) {
-      httpClientPromise = getRuntime()
-        .then((runtime) =>
-          createEasyEmailHttpClient({
+  function resolveSession(): Promise<ResolvedCoreSession> {
+    if (!sessionPromise) {
+      sessionPromise = desktopCoreClient
+        .getRuntime()
+        .then((runtime) => ({
+          hostId: runtime.host_id,
+          httpClient: createEasyEmailHttpClient({
             baseUrl: runtime.base_url,
             bearerToken: runtime.api_token,
-            fetch: fetchRequest,
+            fetch: guardedFetch,
           }),
-        )
+        }))
         .catch((error: unknown) => {
-          httpClientPromise = undefined;
+          sessionPromise = undefined;
           throw error;
         });
     }
-    return httpClientPromise;
+    return sessionPromise;
+  }
+
+  function getHttpClient() {
+    return resolveSession().then((session) => session.httpClient);
   }
 
   return {
     async getHostId(): Promise<string> {
-      return (await getRuntime()).host_id;
+      return (await resolveSession()).hostId;
+    },
+    exportDiagnostics(destinationDir?: string): Promise<DesktopDiagnosticBundleDto> {
+      return desktopCoreClient.exportDiagnostics(
+        destinationDir ? { destination_dir: destinationDir } : undefined,
+      );
     },
     async getCatalog<TCatalog = unknown>(): Promise<EasyEmailCatalogResponse<TCatalog>> {
       return (await getHttpClient()).getCatalog<TCatalog>();

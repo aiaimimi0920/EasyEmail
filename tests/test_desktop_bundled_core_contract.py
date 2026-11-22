@@ -48,6 +48,15 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
         cls.host_smoke = (
             DESKTOP / "scripts" / "verify-desktop-host-smoke.ps1"
         ).read_text(encoding="utf-8")
+        cls.host_lifecycle_guard = (
+            DESKTOP / "src-tauri" / "src" / "host_lifecycle_guard.rs"
+        ).read_text(encoding="utf-8")
+        cls.webview_security = (
+            DESKTOP / "src-tauri" / "src" / "webview_security.rs"
+        ).read_text(encoding="utf-8")
+        cls.service_bundled_control = (
+            ROOT / "service" / "base" / "src" / "runtime" / "bundled-child-control.ts"
+        ).read_text(encoding="utf-8")
 
     def test_build_packages_the_same_service_base_core(self) -> None:
         scripts = self.package["scripts"]
@@ -187,6 +196,51 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
         self.assertIn("createDesktopCoreClient", self.bundled_client)
         self.assertIn("createEasyEmailHttpClient", self.bundled_client)
         self.assertIn("bearerToken: runtime.api_token", self.bundled_client)
+
+    def test_m9_graceful_control_channel_listener_ownership_and_webview_hardening(self) -> None:
+        for expected in (
+            '"EASY_EMAIL_BUNDLED_CHILD_MODE"',
+            '"EASY_EMAIL_BUNDLED_CONTROL_TOKEN"',
+            '"EASY_EMAIL_BUNDLED_INSTANCE_NONCE"',
+            '"x-easyemail-bundled-nonce"',
+            "owning_pid_for_loopback_ipv4_port(port)",
+            "Stdio::piped()",
+            '"command": "shutdown"',
+        ):
+            self.assertIn(expected, self.host_process)
+        for expected in (
+            "EASY_EMAIL_BUNDLED_CHILD_MODE",
+            "protocolVersion",
+            'record.command !== "shutdown"',
+            'triggerShutdown("parent_eof")',
+        ):
+            self.assertIn(expected, self.service_bundled_control)
+        for expected in (
+            "HostInstanceLock",
+            "CrashLoopGuard",
+            "sweep_stale_runtime_artifacts",
+            "BundledCoreChildLease",
+        ):
+            self.assertIn(expected, self.host_lifecycle_guard)
+        for expected in (
+            "is_allowed_webview_navigation",
+            '"tauri.localhost"',
+            "about",
+        ):
+            self.assertIn(expected, self.webview_security)
+        csp = self.tauri["app"]["security"]["csp"]
+        self.assertIn("worker-src 'self'", csp)
+        self.assertIn("media-src 'none'", csp)
+        self.assertIn("manifest-src 'self'", csp)
+        for expected in (
+            "GRACEFUL_SHUTDOWN_VERIFIED=True",
+            "SINGLE_INSTANCE_GUARD_VERIFIED=True",
+            "UI_CRASH_EOF_CHILD_EXITED=True",
+            "FORCED_TIMEOUT_EXACT_CHILD_REAPED=True",
+            "STANDALONE_SERVER_SURVIVED=True",
+            "OVERSIZED_PAYLOAD_STATUS=413",
+        ):
+            self.assertIn(expected, self.host_smoke)
 
 
 if __name__ == "__main__":

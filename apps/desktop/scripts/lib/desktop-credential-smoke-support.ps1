@@ -128,32 +128,50 @@ public static class EasyEmailDesktopSmokeWin32Window {
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetWindowTextLengthW(IntPtr hWnd);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowTextW(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassNameW(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+
     [DllImport("user32.dll")]
     private static extern bool IsWindowVisible(IntPtr hWnd);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
+    private static string ReadWindowClass(IntPtr hWnd) {
+        var sb = new System.Text.StringBuilder(128);
+        int len = GetClassNameW(hWnd, sb, sb.Capacity);
+        return len > 0 ? sb.ToString(0, len) : string.Empty;
+    }
+
+    private static string ReadWindowTitle(IntPtr hWnd) {
+        var sb = new System.Text.StringBuilder(128);
+        int len = GetWindowTextW(hWnd, sb, sb.Capacity);
+        return len > 0 ? sb.ToString(0, len) : string.Empty;
+    }
+
     public static bool RequestCloseProcessWindows(int targetPid) {
-        bool postedTitled = false;
+        bool postedNamed = false;
         EnumWindows((hWnd, lParam) => {
             uint pid;
             GetWindowThreadProcessId(hWnd, out pid);
-            if (pid == (uint)targetPid && GetWindowTextLengthW(hWnd) > 0) {
+            if (pid == (uint)targetPid && ReadWindowClass(hWnd) != "ConsoleWindowClass" && ReadWindowTitle(hWnd) == "NMail") {
                 if (PostMessage(hWnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero)) {
-                    postedTitled = true;
+                    postedNamed = true;
                 }
             }
             return true;
         }, IntPtr.Zero);
-        if (postedTitled) {
+        if (postedNamed) {
             return true;
         }
         bool postedVisible = false;
         EnumWindows((hWnd, lParam) => {
             uint pid;
             GetWindowThreadProcessId(hWnd, out pid);
-            if (pid == (uint)targetPid && IsWindowVisible(hWnd)) {
+            if (pid == (uint)targetPid && ReadWindowClass(hWnd) != "ConsoleWindowClass" && IsWindowVisible(hWnd)) {
                 if (PostMessage(hWnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero)) {
                     postedVisible = true;
                 }

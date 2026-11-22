@@ -1,14 +1,20 @@
-use std::fs::{self, OpenOptions};
-use std::io::Write;
-use std::path::Path;
-use std::process::Child;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Child, ChildStdin};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
+use zeroize::Zeroizing;
 
+use crate::core_logs::append_host_lifecycle_log;
 use crate::credential_broker::DesktopCredentialBroker;
+use crate::host_lifecycle_guard::{
+    load_or_create_host_id, remove_core_child_lease, sweep_stale_runtime_artifacts,
+    write_core_child_lease, CrashLoopGuard,
+};
 use crate::redaction::redact_text;
 
 #[path = "core_runtime_process.rs"]
@@ -16,8 +22,9 @@ mod process;
 #[cfg(all(test, windows))]
 use process::normalize_child_process_path;
 use process::{
-    reserve_loopback_port, resolve_core_command_paths, spawn_core, wait_until_ready,
-    write_runtime_config, CoreCommandPaths,
+    configured_shutdown_timeout, reserve_loopback_port, resolve_core_command_paths,
+    send_graceful_shutdown_and_wait, spawn_core, wait_until_ready, write_runtime_config,
+    CoreCommandPaths,
 };
 
 const START_ATTEMPTS: usize = 3;
@@ -32,7 +39,10 @@ pub struct DesktopCoreRuntimeDto {
 
 pub struct DesktopCoreRuntime {
     descriptor: DesktopCoreRuntimeDto,
+    runtime_root: PathBuf,
     child: Mutex<Option<Child>>,
+    control_stdin: Mutex<Option<ChildStdin>>,
+    control_token: Zeroizing<String>,
     credential_broker: Mutex<Option<DesktopCredentialBroker>>,
 }
 
@@ -43,10 +53,14 @@ enum DesktopCoreStartupStatus {
     Stopped,
 }
 
+type RuntimeStarterFn = Box<dyn FnMut(&AtomicBool) -> Result<DesktopCoreRuntime, String> + Send>;
+
 struct DesktopCoreStartupInner {
     status: Mutex<DesktopCoreStartupStatus>,
     status_changed: Condvar,
     cancelled: Arc<AtomicBool>,
+    starter: Mutex<RuntimeStarterFn>,
+    crash_guard: Mutex<CrashLoopGuard>,
     worker: Mutex<Option<thread::JoinHandle<()>>>,
 }
 
@@ -56,7 +70,7 @@ pub struct DesktopCoreRuntimeState {
 
 impl DesktopCoreRuntime {
     fn start_with_paths(
-        command_paths: CoreCommandPaths,
+        command_paths: &CoreCommandPaths,
         application_data_dir: &Path,
         cancelled: &AtomicBool,
     ) -> Result<Self, String> {
@@ -64,8 +78,24 @@ impl DesktopCoreRuntime {
         let state_dir = runtime_root.join("state");
         fs::create_dir_all(&state_dir)
             .map_err(|error| format!("Could not create EasyEmail core state: {error}"))?;
-        let host_id = load_or_create_host_id(application_data_dir)?;
+        let sweep_report = sweep_stale_runtime_artifacts(&runtime_root);
+        if sweep_report.removed_config_files > 0
+            || sweep_report.reaped_stale_child
+            || sweep_report.removed_stale_lease
+        {
+            append_host_lifecycle_log(
+                &runtime_root,
+                "core_stale_artifacts_swept",
+                &format!(
+                    "configs={} reaped_child={} removed_lease={}",
+                    sweep_report.removed_config_files,
+                    sweep_report.reaped_stale_child,
+                    sweep_report.removed_stale_lease
+                ),
+            );
+        }
 
+        let host_id = load_or_create_host_id(application_data_dir)?;
         let api_token = format!(
             "{}{}",
             uuid::Uuid::new_v4().simple(),
@@ -73,7 +103,7 @@ impl DesktopCoreRuntime {
         );
         let mut last_error = "EasyEmail core did not start.".to_string();
 
-        for _ in 0..START_ATTEMPTS {
+        for attempt in 1..=START_ATTEMPTS {
             if cancelled.load(Ordering::Acquire) {
                 return Err("EasyEmail core startup was cancelled.".to_string());
             }
@@ -90,15 +120,15 @@ impl DesktopCoreRuntime {
                 }
             };
 
-            let mut child = match spawn_core(
-                &command_paths,
+            let mut spawned = match spawn_core(
+                command_paths,
                 &config_path,
                 &state_dir,
-                &runtime_root.join("core.log"),
+                &runtime_root,
                 credential_broker.base_url(),
                 credential_broker.bearer_token(),
             ) {
-                Ok(child) => child,
+                Ok(spawned) => spawned,
                 Err(error) => {
                     credential_broker.stop();
                     let _ = fs::remove_file(&config_path);
@@ -107,9 +137,23 @@ impl DesktopCoreRuntime {
                 }
             };
 
-            match wait_until_ready(&mut child, &base_url, &api_token, cancelled) {
+            match wait_until_ready(
+                &mut spawned.child,
+                port,
+                &base_url,
+                &api_token,
+                &spawned.instance_nonce,
+                cancelled,
+            ) {
                 Ok(()) => {
                     let _ = fs::remove_file(&config_path);
+                    let child_pid = spawned.child.id();
+                    let _ = write_core_child_lease(&runtime_root, child_pid, port);
+                    append_host_lifecycle_log(
+                        &runtime_root,
+                        "core_ready",
+                        &format!("attempt={attempt} pid={child_pid} port={port}"),
+                    );
                     return Ok(Self {
                         descriptor: DesktopCoreRuntimeDto {
                             status: "ready".to_string(),
@@ -117,14 +161,22 @@ impl DesktopCoreRuntime {
                             api_token,
                             host_id,
                         },
-                        child: Mutex::new(Some(child)),
+                        runtime_root,
+                        child: Mutex::new(Some(spawned.child)),
+                        control_stdin: Mutex::new(spawned.control_stdin),
+                        control_token: spawned.control_token,
                         credential_broker: Mutex::new(Some(credential_broker)),
                     });
                 }
                 Err(error) => {
+                    append_host_lifecycle_log(
+                        &runtime_root,
+                        "core_start_attempt_failed",
+                        &format!("attempt={attempt} reason={error}"),
+                    );
                     last_error = error;
-                    let _ = child.kill();
-                    let _ = child.wait();
+                    let _ = spawned.child.kill();
+                    let _ = spawned.child.wait();
                     credential_broker.stop();
                     let _ = fs::remove_file(&config_path);
                 }
@@ -148,7 +200,16 @@ impl DesktopCoreRuntime {
         {
             *child = None;
             drop(child);
+            if let Ok(mut stdin) = self.control_stdin.lock() {
+                let _ = stdin.take();
+            }
+            remove_core_child_lease(&self.runtime_root);
             self.stop_credential_broker();
+            append_host_lifecycle_log(
+                &self.runtime_root,
+                "core_unexpected_exit",
+                &format!("status={status}"),
+            );
             return Err(format!(
                 "EasyEmail core exited unexpectedly with status {status}."
             ));
@@ -157,14 +218,43 @@ impl DesktopCoreRuntime {
     }
 
     pub fn stop(&self) {
+        self.stop_with_timeout(configured_shutdown_timeout());
+    }
+
+    fn stop_with_timeout(&self, timeout: Duration) {
+        let stdin = self
+            .control_stdin
+            .lock()
+            .ok()
+            .and_then(|mut guard| guard.take());
         if let Ok(mut child) = self.child.lock() {
             if let Some(mut process) = child.take() {
-                // The Node core does not yet expose a graceful local shutdown endpoint.
-                // Kill only the exact child created by this host and always reap it.
-                let _ = process.kill();
-                let _ = process.wait();
+                let pid = process.id();
+                if send_graceful_shutdown_and_wait(
+                    &mut process,
+                    stdin,
+                    self.control_token.as_str(),
+                    timeout,
+                ) {
+                    append_host_lifecycle_log(
+                        &self.runtime_root,
+                        "core_graceful_stop",
+                        &format!("pid={pid}"),
+                    );
+                } else {
+                    // Graceful control timed out or was unavailable; terminate and reap
+                    // only the exact child spawned by this host instance.
+                    let _ = process.kill();
+                    let _ = process.wait();
+                    append_host_lifecycle_log(
+                        &self.runtime_root,
+                        "core_forced_kill_fallback",
+                        &format!("pid={pid}"),
+                    );
+                }
             }
         }
+        remove_core_child_lease(&self.runtime_root);
         self.stop_credential_broker();
     }
 
@@ -182,48 +272,32 @@ impl DesktopCoreRuntimeState {
         let command_paths = resolve_core_command_paths(app)?;
         let application_data_dir = application_data_dir.to_path_buf();
         Self::start_background_with(move |cancelled| {
-            DesktopCoreRuntime::start_with_paths(
-                command_paths,
-                &application_data_dir,
-                cancelled.as_ref(),
-            )
+            DesktopCoreRuntime::start_with_paths(&command_paths, &application_data_dir, cancelled)
         })
     }
 
     fn start_background_with<F>(starter: F) -> Result<Self, String>
     where
-        F: FnOnce(Arc<AtomicBool>) -> Result<DesktopCoreRuntime, String> + Send + 'static,
+        F: FnMut(&AtomicBool) -> Result<DesktopCoreRuntime, String> + Send + 'static,
     {
         let inner = Arc::new(DesktopCoreStartupInner {
             status: Mutex::new(DesktopCoreStartupStatus::Starting),
             status_changed: Condvar::new(),
             cancelled: Arc::new(AtomicBool::new(false)),
+            starter: Mutex::new(Box::new(starter)),
+            crash_guard: Mutex::new(CrashLoopGuard::default()),
             worker: Mutex::new(None),
         });
         let worker_inner = Arc::clone(&inner);
-        let cancelled = Arc::clone(&inner.cancelled);
         let worker = thread::Builder::new()
             .name("easyemail-core-startup".to_string())
             .spawn(move || {
-                let result = starter(cancelled);
-                let mut runtime_to_stop = None;
-                if let Ok(mut status) = worker_inner.status.lock() {
-                    if worker_inner.cancelled.load(Ordering::Acquire) {
-                        runtime_to_stop = result.ok();
-                        *status = DesktopCoreStartupStatus::Stopped;
-                    } else {
-                        *status = match result {
-                            Ok(runtime) => DesktopCoreStartupStatus::Ready(Box::new(runtime)),
-                            Err(error) => DesktopCoreStartupStatus::Failed(error),
-                        };
-                    }
-                    worker_inner.status_changed.notify_all();
-                } else if let Ok(runtime) = result {
-                    runtime_to_stop = Some(runtime);
-                }
-                if let Some(runtime) = runtime_to_stop {
-                    runtime.stop();
-                }
+                let result = worker_inner
+                    .starter
+                    .lock()
+                    .map_err(|_| "EasyEmail core starter lock is unavailable.".to_string())
+                    .and_then(|mut run_starter| run_starter(worker_inner.cancelled.as_ref()));
+                Self::publish_startup_result(&worker_inner, result);
             })
             .map_err(|error| format!("Could not start EasyEmail core startup worker: {error}"))?;
         inner
@@ -232,6 +306,30 @@ impl DesktopCoreRuntimeState {
             .map_err(|_| "EasyEmail core startup worker lock is unavailable.".to_string())?
             .replace(worker);
         Ok(Self { inner })
+    }
+
+    fn publish_startup_result(
+        inner: &DesktopCoreStartupInner,
+        result: Result<DesktopCoreRuntime, String>,
+    ) {
+        let mut runtime_to_stop = None;
+        if let Ok(mut status) = inner.status.lock() {
+            if inner.cancelled.load(Ordering::Acquire) {
+                runtime_to_stop = result.ok();
+                *status = DesktopCoreStartupStatus::Stopped;
+            } else {
+                *status = match result {
+                    Ok(runtime) => DesktopCoreStartupStatus::Ready(Box::new(runtime)),
+                    Err(error) => DesktopCoreStartupStatus::Failed(error),
+                };
+            }
+            inner.status_changed.notify_all();
+        } else if let Ok(runtime) = result {
+            runtime_to_stop = Some(runtime);
+        }
+        if let Some(runtime) = runtime_to_stop {
+            runtime.stop();
+        }
     }
 
     fn wait_for_descriptor(
@@ -249,7 +347,55 @@ impl DesktopCoreRuntimeState {
                         .wait(status)
                         .map_err(|_| "EasyEmail core startup state is unavailable.".to_string())?;
                 }
-                DesktopCoreStartupStatus::Ready(runtime) => return runtime.descriptor(),
+                DesktopCoreStartupStatus::Ready(runtime) => match runtime.descriptor() {
+                    Ok(descriptor) => return Ok(descriptor),
+                    Err(exit_error) => {
+                        if inner.cancelled.load(Ordering::Acquire) {
+                            *status = DesktopCoreStartupStatus::Stopped;
+                            inner.status_changed.notify_all();
+                            return Err("EasyEmail core startup was stopped.".to_string());
+                        }
+                        let restart_allowed = inner
+                            .crash_guard
+                            .lock()
+                            .map(|mut guard| {
+                                guard.record_crash_and_check_restart_allowed(Instant::now())
+                            })
+                            .unwrap_or(false);
+                        if !restart_allowed {
+                            let suppressed = format!(
+                                "EasyEmail core crash recovery suppressed after repeated exits: {}",
+                                redact_text(&exit_error)
+                            );
+                            append_host_lifecycle_log(
+                                &runtime.runtime_root,
+                                "core_crash_loop_suppressed",
+                                &suppressed,
+                            );
+                            *status = DesktopCoreStartupStatus::Failed(suppressed.clone());
+                            inner.status_changed.notify_all();
+                            return Err(suppressed);
+                        }
+                        append_host_lifecycle_log(
+                            &runtime.runtime_root,
+                            "core_unexpected_exit_restarting",
+                            &exit_error,
+                        );
+                        *status = DesktopCoreStartupStatus::Starting;
+                        inner.status_changed.notify_all();
+                        drop(status);
+
+                        let restart_result = inner
+                            .starter
+                            .lock()
+                            .map_err(|_| "EasyEmail core starter lock is unavailable.".to_string())
+                            .and_then(|mut run_starter| run_starter(inner.cancelled.as_ref()));
+                        Self::publish_startup_result(inner, restart_result);
+                        status = inner.status.lock().map_err(|_| {
+                            "EasyEmail core startup state is unavailable.".to_string()
+                        })?;
+                    }
+                },
                 DesktopCoreStartupStatus::Failed(error) => return Err(error.clone()),
                 DesktopCoreStartupStatus::Stopped => {
                     return Err("EasyEmail core startup was stopped.".to_string());
@@ -289,63 +435,6 @@ impl Drop for DesktopCoreRuntimeState {
     }
 }
 
-fn load_or_create_host_id(application_data_dir: &Path) -> Result<String, String> {
-    fs::create_dir_all(application_data_dir)
-        .map_err(|error| format!("Could not create EasyEmail application state: {error}"))?;
-    let host_id_path = application_data_dir.join("desktop-host-id");
-    if host_id_path.is_file() {
-        return read_host_id(&host_id_path);
-    }
-
-    let host_id = format!("easyemail-desktop-{}", uuid::Uuid::new_v4().simple());
-    let temporary_path = application_data_dir.join(format!(
-        "desktop-host-id.{}.tmp",
-        uuid::Uuid::new_v4().simple()
-    ));
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temporary_path)
-        .map_err(|error| format!("Could not stage EasyEmail desktop host ID: {error}"))?;
-    if let Err(error) = file
-        .write_all(host_id.as_bytes())
-        .and_then(|()| file.sync_all())
-    {
-        drop(file);
-        let _ = fs::remove_file(&temporary_path);
-        return Err(format!(
-            "Could not persist EasyEmail desktop host ID: {error}"
-        ));
-    }
-    drop(file);
-
-    match fs::rename(&temporary_path, &host_id_path) {
-        Ok(()) => Ok(host_id),
-        Err(_) if host_id_path.is_file() => {
-            let _ = fs::remove_file(&temporary_path);
-            read_host_id(&host_id_path)
-        }
-        Err(error) => {
-            let _ = fs::remove_file(&temporary_path);
-            Err(format!(
-                "Could not install EasyEmail desktop host ID: {error}"
-            ))
-        }
-    }
-}
-
-fn read_host_id(path: &Path) -> Result<String, String> {
-    let host_id = fs::read_to_string(path)
-        .map_err(|error| format!("Could not read EasyEmail desktop host ID: {error}"))?;
-    let host_id = host_id.trim();
-    let uuid_part = host_id
-        .strip_prefix("easyemail-desktop-")
-        .ok_or_else(|| "EasyEmail desktop host ID has an invalid prefix.".to_string())?;
-    uuid::Uuid::parse_str(uuid_part)
-        .map_err(|_| "EasyEmail desktop host ID is invalid.".to_string())?;
-    Ok(host_id.to_string())
-}
-
 impl Drop for DesktopCoreRuntime {
     fn drop(&mut self) {
         self.stop();
@@ -365,139 +454,5 @@ pub async fn desktop_core_runtime(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::net::TcpListener;
-    #[cfg(windows)]
-    use std::path::PathBuf;
-    use std::sync::mpsc;
-    use std::time::Duration;
-
-    #[test]
-    fn background_start_returns_while_core_is_still_starting() {
-        let (started_sender, started_receiver) = mpsc::channel();
-        let (release_sender, release_receiver) = mpsc::channel();
-        let state = DesktopCoreRuntimeState::start_background_with(move |_| {
-            started_sender.send(()).unwrap();
-            release_receiver.recv().unwrap();
-            Err("controlled delayed startup".to_string())
-        })
-        .unwrap();
-
-        started_receiver
-            .recv_timeout(Duration::from_secs(1))
-            .expect("the background startup worker should begin without blocking its caller");
-        assert!(matches!(
-            *state.inner.status.lock().unwrap(),
-            DesktopCoreStartupStatus::Starting
-        ));
-
-        release_sender.send(()).unwrap();
-        assert_eq!(
-            DesktopCoreRuntimeState::wait_for_descriptor(state.inner.as_ref()).unwrap_err(),
-            "controlled delayed startup"
-        );
-        state.stop();
-    }
-
-    #[test]
-    fn renderer_descriptor_never_contains_credential_broker_access() {
-        let descriptor = DesktopCoreRuntimeDto {
-            status: "ready".to_string(),
-            base_url: "http://127.0.0.1:32123".to_string(),
-            api_token: "renderer-core-token".to_string(),
-            host_id: "easyemail-desktop-00000000000000000000000000000001".to_string(),
-        };
-
-        let serialized = serde_json::to_string(&descriptor).unwrap();
-
-        assert!(!serialized.contains("credential_broker"));
-        assert!(!serialized.contains("EASY_EMAIL_DESKTOP_CREDENTIAL_BROKER"));
-    }
-
-    #[test]
-    fn generated_runtime_config_is_loopback_authenticated_and_persistent() {
-        let root =
-            std::env::temp_dir().join(format!("easyemail-core-config-{}", uuid::Uuid::new_v4()));
-        let state = root.join("state");
-        fs::create_dir_all(&state).unwrap();
-        let config_path = root.join("runtime-config.yaml");
-        fs::write(&config_path, "stale-or-partial-config").unwrap();
-
-        write_runtime_config(&config_path, &state, 32123, "test-token").unwrap();
-        let config = fs::read_to_string(&config_path).unwrap();
-
-        assert!(config.contains("host: 127.0.0.1"));
-        assert!(config.contains("port: 32123"));
-        assert!(config.contains("apiKey: \"test-token\""));
-        assert!(config.contains(
-            "corsOrigins: [http://tauri.localhost, https://tauri.localhost, http://localhost:1420]"
-        ));
-        assert!(config.contains("driver: file"));
-        assert!(config.contains("activeProbeEnabled: false"));
-        assert_eq!(fs::read_dir(&root).unwrap().count(), 2);
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn reserved_port_is_loopback_and_nonzero() {
-        let port = reserve_loopback_port().unwrap();
-        assert_ne!(port, 0);
-        let listener = TcpListener::bind(("127.0.0.1", port)).unwrap();
-        assert_eq!(listener.local_addr().unwrap().ip().to_string(), "127.0.0.1");
-    }
-
-    #[test]
-    fn desktop_host_id_is_stable_and_valid() {
-        let root = std::env::temp_dir().join(format!("easyemail-host-id-{}", uuid::Uuid::new_v4()));
-
-        let first = load_or_create_host_id(&root).unwrap();
-        let second = load_or_create_host_id(&root).unwrap();
-
-        assert_eq!(first, second);
-        assert!(first.starts_with("easyemail-desktop-"));
-        assert!(!first.contains(' '));
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn desktop_host_id_rejects_corrupt_state() {
-        let root = std::env::temp_dir().join(format!("easyemail-host-id-{}", uuid::Uuid::new_v4()));
-        fs::create_dir_all(&root).unwrap();
-        fs::write(root.join("desktop-host-id"), "not-a-host-id").unwrap();
-
-        let error = load_or_create_host_id(&root).unwrap_err();
-
-        assert!(error.contains("invalid prefix"));
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn desktop_host_id_ignores_abandoned_staging_file() {
-        let root = std::env::temp_dir().join(format!("easyemail-host-id-{}", uuid::Uuid::new_v4()));
-        fs::create_dir_all(&root).unwrap();
-        fs::write(root.join("desktop-host-id.abandoned.tmp"), "partial").unwrap();
-
-        let host_id = load_or_create_host_id(&root).unwrap();
-
-        assert!(host_id.starts_with("easyemail-desktop-"));
-        assert_eq!(
-            read_host_id(&root.join("desktop-host-id")).unwrap(),
-            host_id
-        );
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn node_child_paths_drop_windows_verbatim_prefixes() {
-        assert_eq!(
-            normalize_child_process_path(PathBuf::from(r"\\?\C:\Apps\NMail\core")),
-            PathBuf::from(r"C:\Apps\NMail\core")
-        );
-        assert_eq!(
-            normalize_child_process_path(PathBuf::from(r"\\?\UNC\server\share\NMail")),
-            PathBuf::from(r"\\server\share\NMail")
-        );
-    }
-}
+#[path = "core_runtime_tests.rs"]
+mod tests;

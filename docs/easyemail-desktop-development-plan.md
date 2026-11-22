@@ -593,6 +593,13 @@ Tauri 无邮件业务实现；旧源仓库和用户数据仍保留。
 - 独立启动的 `service/base` 在 UI 关闭后仍然存活；
 - 端口碰撞、子进程崩溃、损坏状态、多实例、UI crash 及 restart 均有确定结果。
 
+**M9 当前进度（2026-11-22）**：已完整落地 ADR 0004 私有父子控制面与桌面宿主本地安全加固：
+- **仅 bundled-child 启用的私有 Graceful Shutdown 控制面（`service/base/src/runtime/bundled-child-control.ts` + `core_runtime_process.rs`）**：通过受控管道 `stdin` 发送含常量时间令牌校验的 NDJSON `{"protocolVersion":1,"command":"shutdown"}`，且父进程管道 `EOF`（如 UI 崩溃）自动触发同一有界排空、持久化刷盘与监听关闭路径；独立模式 `service/base` 不占用 `stdin` 且不暴露任何公共 HTTP 关停端点。Tauri 正常退出时优先走 graceful 控制通道并限时等待（默认 `5s`，支持有界 `EASY_EMAIL_DESKTOP_SHUTDOWN_TIMEOUT_MS` 覆盖），仅在超时后回退为只针对本实例所创建精确 `Child` 的 `kill() + wait()`。
+- **端口归属双因子校验与防抢占（`host_os_security.rs` + `server.ts`）**：每次派生子进程生成独立 `EASY_EMAIL_BUNDLED_INSTANCE_NONCE`（仅在鉴权响应回显 `x-easyemail-bundled-nonce`），并在就绪探针中同时校验响应随机数与 Windows 内核 TCP 监听表所属 PID（`GetExtendedTcpTable` `owning_pid_for_loopback_ipv4_port(port) == child.id()`），防止连接抢占端口的伪服务并在端口冲突时快速切换新临时端口重试。
+- **单实例文件锁、用户级 ACL、陈旧产物清理与 Crash-Loop 抑制（`host_lifecycle_guard.rs` + `app_state.rs` + `core_runtime.rs`）**：`AppState::open_default()` 在 `<data_dir>/desktop-instance.lock` 持有非阻塞独占 `LockFileEx` 锁，阻断同数据目录并发多实例启动且不干扰主实例；对临时 `runtime-config.yaml`、`core-child-lease.json`、日志与诊断包施加当前用户受保护 DACL（`D:P(A;;FA;;;{SID})`），就绪后立即删除 `runtime-config.yaml` 并在启动前清理崩溃残留文件及 `(pid, creation_timestamp)` 精确匹配的残留子进程；运行时意外退出由 `CrashLoopGuard` 限制在 60 秒窗口最多自动恢复 2 次，超限进入显式抑制状态。
+- **日志轮转、双重脱敏与用户可导出诊断包（`core_logs.rs` + `redaction.rs`）**：统一使用 `<data_dir>/core/logs/core.log`（`2 MiB` 大小轮转 `core.1.log..core.5.log`、14 天过期清理），提供宿主命令 `desktop_export_diagnostics` 导出经键值与长十六进制令牌双重脱敏的诊断包。
+- **WebView 导航守卫、CSP 收紧与渲染层 Token 最小生命周期隔离（`webview_security.rs` + `tauri.conf.json` + `bundledCoreClient.ts`）**：通过原生 `on_navigation` 插件阻断非受信外部源导航，收紧 CSP（`worker-src 'self'; media-src 'none'; manifest-src 'self'`），在 `bundledCoreClient.ts` 闭包内隔离 `api_token`（不驻留 DTO、连接重置自动重发现）并通过 `runtimeTokenSecurity.test.ts` 锁定绝不写入 Web Storage、URL 或控制台日志；`host:smoke`、`host:startup-smoke`、`host:functional-smoke` 与独立 `service/base` 存活验收全部通过，**M9 出口门禁已全部达成**。
+
 ### M10 - 安装、升级、签名与正式发布
 
 **目标**：从“未签名 migration candidate”升级为可公开分发、可验证、可回滚的
