@@ -1,10 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
+import { EasyEmailHttpError } from "../api/easyEmailHttpClient";
+import { isMessagesPersistenceUnavailableError } from "../api/mailMessageClient";
 import { mailConversationKeyForMessage } from "../mail/mailSelectors";
-import { detectInlineVerificationCode, type VerificationCodeDto } from "../mail/mailSearch";
+import { detectInlineVerificationCode } from "../mail/mailSearch";
 import { useEventCallback } from "../hooks/useEventCallback";
 import { asErrorDto } from "./appDomain";
-import { bundledCoreClient } from "./appRuntime";
-import type { AnonymousMessageDto, MessageDetailDto, VisibleMailMessage, MailConversationSummary } from "./appTypes";
+import { bundledCoreClient, mailMessageClient } from "./appRuntime";
+import type { MessageDetailDto, VisibleMailMessage, MailConversationSummary } from "./appTypes";
 import type { AppState } from "./useAppState";
 
 type Dependencies = {
@@ -42,18 +44,11 @@ export function useMailDetailController(appState: AppState, dependencies: Depend
         return [];
       }
 
-      if (isCanonicalNormalAccountId(accountId)) {
-        if (isCurrent()) {
-          setNormalMessagesByAccount((current) => ({ ...current, [accountId]: [] }));
-        }
-        return [];
-      }
-
       const [messages] = await Promise.all([
-        invoke<AnonymousMessageDto[]>("message_list", {
-          request: { scope: "normal_account", account_id: accountId, include_archived: true },
-        }),
-        loadNewsletterSubscriptions(accountId, isCurrent),
+        mailMessageClient.listNormalAccountMessages(accountId, true),
+        isCanonicalNormalAccountId(accountId)
+          ? Promise.resolve([])
+          : loadNewsletterSubscriptions(accountId, isCurrent),
       ]);
       if (!isCurrent()) {
         return messages;
@@ -66,42 +61,52 @@ export function useMailDetailController(appState: AppState, dependencies: Depend
       const isCurrent = () => messageDetailRequestRef.current === requestId;
       setBusy(true);
       try {
-        const knownCoreMessage = coreObservedMessagesRef.current.get(messageId);
-        const coreMessage = knownCoreMessage
-          ? (await bundledCoreClient.getObservedMessage(messageId)).message ?? knownCoreMessage
-          : undefined;
-        const coreMailbox = coreMessage
-          ? tempMailboxes.find((mailbox) => mailbox.id === coreMessage.sessionId)
-          : undefined;
-        let detail: MessageDetailDto = coreMessage
-          ? {
-              message_id: coreMessage.id,
-              account_id: "",
-              thread_key: null,
-              received_address: coreMailbox?.email_address ?? "",
-              subject: coreMessage.subject ?? "(no subject)",
-              from_address: coreMessage.sender ?? "",
-              snippet: (coreMessage.textBody ?? coreMessage.subject ?? "").slice(0, 240),
-              observed_at: coreMessage.observedAt,
-              body_text: coreMessage.textBody ?? null,
-              body_html: coreMessage.htmlBody ?? null,
-              body_cache_state: "available",
-              draft_cc_addresses: [],
-              draft_bcc_addresses: [],
-              is_read: markRead,
-              is_starred: false,
-              is_archived: false,
-              is_important: false,
-              local_folder: "inbox",
-              labels: [],
-            }
-          : await invoke<MessageDetailDto>("message_get_detail", {
-              request: { message_id: messageId },
-            });
+        let detail: MessageDetailDto;
+        let usedStatelessFallback = false;
+        try {
+          detail = await mailMessageClient.getMessageDetail(messageId);
+        } catch (detailError: unknown) {
+          const knownCoreMessage = coreObservedMessagesRef.current.get(messageId);
+          const canFallbackToObserved = Boolean(
+            knownCoreMessage
+            && (
+              (detailError instanceof EasyEmailHttpError && detailError.status === 404)
+              || isMessagesPersistenceUnavailableError(detailError)
+            ),
+          );
+          if (!canFallbackToObserved || !knownCoreMessage) {
+            throw detailError;
+          }
+          usedStatelessFallback = true;
+          const coreMessage =
+            (await bundledCoreClient.getObservedMessage(messageId)).message ?? knownCoreMessage;
+          const coreMailbox = tempMailboxes.find((mailbox) => mailbox.id === coreMessage.sessionId);
+          detail = {
+            message_id: coreMessage.id,
+            account_id: "",
+            thread_key: null,
+            received_address: coreMailbox?.email_address ?? "",
+            subject: coreMessage.subject ?? "(no subject)",
+            from_address: coreMessage.sender ?? "",
+            snippet: (coreMessage.textBody ?? coreMessage.subject ?? "").slice(0, 240),
+            observed_at: coreMessage.observedAt,
+            body_text: coreMessage.textBody ?? null,
+            body_html: coreMessage.htmlBody ?? null,
+            body_cache_state: "cached",
+            draft_cc_addresses: [],
+            draft_bcc_addresses: [],
+            is_read: markRead,
+            is_starred: false,
+            is_archived: false,
+            is_important: false,
+            local_folder: "inbox",
+            labels: [],
+          };
+        }
         if (!isCurrent()) {
           return;
         }
-        if (!coreMessage && markRead && !detail.is_read) {
+        if (!usedStatelessFallback && markRead && !detail.is_read) {
           await setMessageLocalFlag(messageId, "read", true);
           await reloadMailListsAfterLocalAction();
           if (!isCurrent()) {
@@ -132,11 +137,9 @@ export function useMailDetailController(appState: AppState, dependencies: Depend
           body_text: detail.body_text,
           account_id: detail.account_id,
         });
-        if (!coreMessage && detailCodeCandidate) {
+        if (!usedStatelessFallback && detailCodeCandidate) {
           try {
-            const code = await invoke<VerificationCodeDto | null>("verification_reclassify_message", {
-              request: { message_id: messageId },
-            });
+            const code = await mailMessageClient.reclassifyMessageVerification(messageId);
             if (code && isCurrent()) {
               await loadRecentCodes(null, isCurrent);
             }
@@ -204,9 +207,7 @@ export function useMailDetailController(appState: AppState, dependencies: Depend
   async function openLocalDraftForEditing(message: VisibleMailMessage) {
       setBusy(true);
       try {
-        const detail = await invoke<MessageDetailDto>("message_get_detail", {
-          request: { message_id: message.message_id },
-        });
+        const detail = await mailMessageClient.getMessageDetail(message.message_id);
         restoreMessageDetailIntoCompose(detail, message, "Draft opened for editing.");
       } catch (caught: unknown) {
         setError(asErrorDto(caught));

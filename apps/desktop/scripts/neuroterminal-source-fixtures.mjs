@@ -100,6 +100,7 @@ export const contactAvatarImage = readText("src/avatar/contactAvatarImage.ts");
 export const contactClient = readText("src/api/contactClient.ts");
 export const desktopCredentialClient = readText("src/api/desktopCredentialClient.ts");
 export const mailAccountClient = readText("src/api/mailAccountClient.ts");
+export const mailMessageClient = readText("src/api/mailMessageClient.ts");
 export const mailTaxonomyClient = readText("src/api/mailTaxonomyClient.ts");
 export const newsletterClient = readText("src/api/newsletterClient.ts");
 export const platformAccountClient = readText("src/api/platformAccountClient.ts");

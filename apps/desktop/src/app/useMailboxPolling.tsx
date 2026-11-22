@@ -1,11 +1,10 @@
 import { useEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { type VerificationCodeDto } from "../mail/mailSearch";
 import { useEventCallback } from "../hooks/useEventCallback";
 import { createNonOverlappingAsyncRunner } from "../utils/asyncTask";
 import { asErrorDto, mergeByIdentity } from "./appDomain";
-import { mailAccountClient } from "./appRuntime";
-import type { TempMailboxDto, AnonymousMessageDto, PromoteTempMailboxDto } from "./appTypes";
+import { mailAccountClient, mailMessageClient } from "./appRuntime";
+import type { TempMailboxDto, PromoteTempMailboxDto } from "./appTypes";
 import type { AppState } from "./useAppState";
 
 type Dependencies = {
@@ -75,23 +74,17 @@ export function useMailboxPolling(appState: AppState, dependencies: Dependencies
         });
         const [coreState, anonymous, accounts, codes] = await Promise.all([
           loadCoreTemporaryState(),
-          invoke<AnonymousMessageDto[]>("message_list", {
-            request: { scope: "anonymous", account_id: null, include_archived: true },
-          }),
+          mailMessageClient.listAnonymousMessages(true),
           mailAccountClient.listNormalAccounts(),
-          invoke<VerificationCodeDto[]>("verification_list_recent", {
-            request: { temp_mailbox_id: null, limit: 100 },
-          }),
+          mailMessageClient.listRecentVerifications(null, 100),
         ]);
         const promoted = await loadPromotedMessages(result.account.id);
         setLastPromotion(result);
         setTempMailboxes(coreState.mailboxes);
-        setAnonymousMessages(
-          mergeByIdentity(coreState.messages, anonymous, (message) => message.message_id),
-        );
+        setAnonymousMessages(anonymous);
         canonicalNormalAccountIdsRef.current = new Set(accounts.map((account) => account.id));
         setNormalAccounts(accounts);
-        setRecentCodes(mergeByIdentity(coreState.codes, codes, (code) => code.id));
+        setRecentCodes(mergeByIdentity(codes, coreState.codes, (code) => code.id));
         setPromotedMessagesByAccount((current) => ({ ...current, [result.account.id]: promoted }));
         setMailSourceId(`promoted:${result.account.id}`);
         setStatusMessage(`Promoted ${result.account.display_name} without moving message history.`);

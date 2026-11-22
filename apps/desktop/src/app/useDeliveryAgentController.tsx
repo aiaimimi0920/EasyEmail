@@ -3,8 +3,8 @@ import { joinComposeAddressList } from "../compose/composeData";
 import { formatComposeScheduleDate } from "../compose/composeDateUtils";
 import { COMPOSE_DRAFT_STORAGE_KEY } from "./appConfig";
 import { asErrorDto, optionalValue } from "./appDomain";
-import { sendQueueClient } from "./appRuntime";
-import type { LegacyAccountDto, SendMessageDto, AgentServiceDto, AgentThreadDetailDto, AgentSendTaskDto, AnonymousMessageDto, MessageLocalActionDto } from "./appTypes";
+import { mailMessageClient, sendQueueClient } from "./appRuntime";
+import type { LegacyAccountDto, SendMessageDto, AgentServiceDto, AgentThreadDetailDto, AgentSendTaskDto } from "./appTypes";
 import type { AppState } from "./useAppState";
 
 type Dependencies = {
@@ -106,17 +106,13 @@ export function useDeliveryAgentController(appState: AppState, dependencies: Dep
           }
 
           if (persistedDraftId) {
-            await invoke<MessageLocalActionDto>("message_delete_local_draft", {
-              request: { draft_id: persistedDraftId },
-            });
+            await mailMessageClient.deleteLocalDraft(persistedDraftId);
             await loadNormalMessages(senderAccountId);
           }
           showStatusToast(`邮件已发送给 ${targetAddresses}。`);
         } else {
           if (persistedDraftId) {
-            await invoke<MessageLocalActionDto>("message_delete_local_draft", {
-              request: { draft_id: persistedDraftId },
-            });
+            await mailMessageClient.deleteLocalDraft(persistedDraftId);
           }
           await Promise.all([loadSendQueue(), loadNormalMessages(senderAccountId)]);
           showStatusToast(
@@ -272,9 +268,7 @@ export function useDeliveryAgentController(appState: AppState, dependencies: Dep
         return [];
       }
 
-      const messages = await invoke<AnonymousMessageDto[]>("message_list", {
-        request: { scope: "promoted_account", account_id: accountId, include_archived: true },
-      });
+      const messages = await mailMessageClient.listPromotedAccountMessages(accountId, true);
       setPromotedMessagesByAccount((current) => ({ ...current, [accountId]: messages }));
       return messages;
     }

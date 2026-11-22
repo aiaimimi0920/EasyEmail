@@ -1,7 +1,9 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { temporaryMailboxRecordFromOpenResult, temporaryMailboxRefreshView, temporaryVerificationCodeView } from "../mail/temporaryMailboxAdapter";
+import { isMessagesPersistenceUnavailableError } from "../api/mailMessageClient";
+import type { VerificationCodeDto } from "../mail/mailSearch";
+import { temporaryMailboxRecordFromOpenResult, temporaryMailboxRefreshView, temporaryVerificationCodeView, type TemporaryMailboxRefreshView } from "../mail/temporaryMailboxAdapter";
 import { asErrorDto, mergeByIdentity, optionalValue, temporaryRefreshError } from "./appDomain";
-import { bundledCoreClient } from "./appRuntime";
+import { bundledCoreClient, mailMessageClient } from "./appRuntime";
 import type { TempMailboxDto, CoreTemporaryState } from "./appTypes";
 import { runTemporaryMailboxCreation } from "./temporaryMailboxCreation";
 import type { AppState } from "./useAppState";
@@ -124,11 +126,33 @@ export function useTemporaryMailboxController(appState: AppState, dependencies: 
       const { refresh } = "sessionId" in target
         ? await bundledCoreClient.refreshMailbox(target.sessionId)
         : await bundledCoreClient.refreshAnonymousMailboxes(target.hostId);
-      const coreState = await loadCoreTemporaryState();
+      const [coreState, canonicalAnonymous, canonicalCodes] = await Promise.all([
+        loadCoreTemporaryState(),
+        mailMessageClient.listAnonymousMessages(true).catch((caught: unknown) =>
+          isMessagesPersistenceUnavailableError(caught) ? null : Promise.reject(caught),
+        ),
+        mailMessageClient.listRecentVerifications(null, 100).catch((caught: unknown) =>
+          isMessagesPersistenceUnavailableError(caught) ? null : Promise.reject(caught),
+        ),
+      ]);
       const result = temporaryMailboxRefreshView(refresh);
       if (isCurrent()) {
         setLastRefresh(result);
-        applyCoreTemporaryState(coreState);
+        setTempMailboxes(coreState.mailboxes);
+        if (canonicalAnonymous) {
+          setAnonymousMessages(canonicalAnonymous);
+        } else {
+          setAnonymousMessages((current) =>
+            mergeByIdentity(coreState.messages, current, (message) => message.message_id),
+          );
+        }
+        if (canonicalCodes) {
+          setRecentCodes(mergeByIdentity(canonicalCodes, coreState.codes, (code) => code.id));
+        } else {
+          setRecentCodes((current) =>
+            mergeByIdentity(coreState.codes, current, (code) => code.id),
+          );
+        }
       }
       return { result, coreState };
     }
@@ -376,27 +400,48 @@ export function useTemporaryMailboxController(appState: AppState, dependencies: 
       isCurrent: () => boolean,
     ): Promise<boolean> {
       try {
-        const { result: refresh, coreState } = await refreshCoreMailboxes(
-          { sessionId: tempMailboxId },
-          isCurrent,
-        );
+        let refresh: TemporaryMailboxRefreshView;
+        let coreState: CoreTemporaryState;
+        let detectedCode: VerificationCodeDto | null = null;
+        try {
+          const poll = await mailMessageClient.pollTempMailboxVerification(tempMailboxId);
+          const [loadedCoreState, canonicalAnonymous, canonicalCodes] = await Promise.all([
+            loadCoreTemporaryState(),
+            mailMessageClient.listAnonymousMessages(true),
+            mailMessageClient.listRecentVerifications(null, 100),
+          ]);
+          refresh = poll.refresh;
+          coreState = loadedCoreState;
+          detectedCode = poll.detected_code;
+          if (isCurrent()) {
+            setTempMailboxes(coreState.mailboxes);
+            setAnonymousMessages(canonicalAnonymous);
+            setRecentCodes(mergeByIdentity(canonicalCodes, coreState.codes, (item) => item.id));
+          }
+        } catch (pollError: unknown) {
+          if (!isMessagesPersistenceUnavailableError(pollError)) {
+            throw pollError;
+          }
+          const fallback = await refreshCoreMailboxes({ sessionId: tempMailboxId }, isCurrent);
+          refresh = fallback.result;
+          coreState = fallback.coreState;
+          const { code } = await bundledCoreClient.readVerificationCode(tempMailboxId);
+          const mailbox = coreState.mailboxes.find((item) => item.id === tempMailboxId);
+          if (code && mailbox) {
+            const observedMessage = coreObservedMessagesRef.current.get(code.observedMessageId);
+            detectedCode = temporaryVerificationCodeView(code, mailbox, observedMessage);
+          }
+        }
         if (!isCurrent()) {
           return false;
         }
-        const { code } = await bundledCoreClient.readVerificationCode(tempMailboxId);
         const mailbox = coreState.mailboxes.find((item) => item.id === tempMailboxId);
         const mailboxStillReceives =
           mailbox?.lifecycle_state === "active";
 
-        if (!isCurrent()) {
-          return false;
-        }
-
         setLastRefresh(refresh);
 
-        if (code && mailbox) {
-          const observedMessage = coreObservedMessagesRef.current.get(code.observedMessageId);
-          const detectedCode = temporaryVerificationCodeView(code, mailbox, observedMessage);
+        if (detectedCode) {
           setRecentCodes((current) =>
             mergeByIdentity([detectedCode], current, (item) => item.id),
           );

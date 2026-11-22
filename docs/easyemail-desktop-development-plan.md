@@ -1,6 +1,6 @@
 # EasyEmail Desktop 业务核心迁移与产品化开发计划
 
-Status: **execution in progress; M0 and M1 complete, M2 and M3 staged slices implemented**
+Status: **execution in progress; M0, M1, M3, and M4 complete, M2 staged slices implemented**
 Created: **2026-09-01**  
 Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
 
@@ -88,9 +88,20 @@ Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
   matches across SQLite, state, logs, and WebView storage. An opt-in operator script
   (`scripts/test-real-imap-account-gate.ps1`) guards external live-IMAP runs behind
   `-ConfirmExternalSideEffects`.
-- **Next:** execute M4 vertical slices (canonical local drafts, aggregated message query/detail/local
-  actions, and verification records in `service/base` + bundled HTTP UI cutover), while keeping live
-  external-provider IMAP testing as an operator-triggered gate.
+- **M4 complete (2026-11-22):** relational schema v6 adds `mail_messages`, `mail_message_sources`,
+  and `mail_verification_codes` with permanent source/account/session/provider/external-message
+  provenance, cross-source deduplication (without merging across `agent` scope), RFC 2047 MIME
+  header decoding, body-free summary pagination, server-sanitized HTML detail with explicit
+  `includeRawHtml` opt-in, canonical local draft upsert/delete, local flag/folder/label/trash/
+  permanent-delete mutations, promotion linkage without copying or moving messages, and unified OTP
+  freshness/multi-candidate/reclassify/poll verification services. All 13 M4 operations mapped in
+  [`desktop-command-http-migration-map.json`](./desktop-command-http-migration-map.json) are exposed
+  in `service/base`, `easyemail-openapi.json`, `clients/typescript`, and desktop `mailMessageClient`,
+  and React controllers no longer invoke any M4 `message_*` or `verification_*` Tauri business
+  command (`message_reopen_scheduled_send` remains assigned to M5).
+- **Next:** execute M5 (SMTP transport and persistent send queue in `service/base` + HTTP/UI cutover)
+  and M6 (IMAP folder discovery, header/body sync, and remote actions), while keeping live
+  external-provider IMAP/SMTP testing behind explicit operator gates.
 
 本计划定义将已导入 `apps/desktop` 的 EasyEmailAM 从“React UI +
 过渡期 Rust 业务后端”收敛为“React UI + 随桌面程序启动的
@@ -390,6 +401,15 @@ adapter 重建后仍能解析同一 ref。打包宿主 smoke 已在同一隔离�
 - verification 新鲜度、多 candidate、无码、误分类重算与重启读回；
 - promotion 前后 source linkage 稳定，消息不复制、不移动；
 - 查询和正文接口的授权作用域测试。
+
+**当前进度（2026-11-22）**：已落地关系库 schema v6（`mail_messages`、`mail_message_sources`、
+`mail_verification_codes`）、跨源去重（严格隔离 `agent` 作用域）、RFC 2047 邮件头解码、列表无正文
+keyset 分页、服务端 HTML 消毒与 `includeRawHtml` 显式边界、规范化本地草稿保存/删除、本地
+`read`/`starred`/`archived`/`important` 标记与文件夹/标签/回收站/永久删除、promotion 原地账户关联，
+以及统一验证码新鲜度/多候选/误分类重算/临时邮箱轮询服务。映射清单中归属 M4 的全部 13 条能力已在
+`service/base`、`easyemail-openapi.json`、`clients/typescript` 与桌面端 `mailMessageClient` 对齐，
+React 控制器已移除全部 M4 `message_*` 与 `verification_*` Tauri 业务调用（`message_reopen_scheduled_send`
+按映射继续归属 M5）。
 
 ### M5 - SMTP 和持久发送队列
 

@@ -33,6 +33,22 @@ import {
   type EasyEmailMailAccountResponse,
   type EasyEmailMailAccountsResponse,
   type EasyEmailMailAccountUpdateRequest,
+  type EasyEmailMailDraftSaveRequest,
+  type EasyEmailMailDraftSaveResponse,
+  type EasyEmailMailMessageDetailQuery,
+  type EasyEmailMailMessageDetailResponse,
+  type EasyEmailMailMessageListQuery,
+  type EasyEmailMailMessageLocalActionResponse,
+  type EasyEmailMailMessageSetFlagRequest,
+  type EasyEmailMailMessageSetFolderRequest,
+  type EasyEmailMailMessageSetLabelRequest,
+  type EasyEmailMailMessagesResponse,
+  type EasyEmailMailPollVerificationResponse,
+  type EasyEmailMailReclassifyVerificationResponse,
+  type EasyEmailMailTrashEmptyRequest,
+  type EasyEmailMailTrashEmptyResponse,
+  type EasyEmailMailVerificationListQuery,
+  type EasyEmailMailVerificationsResponse,
   type EasyEmailObservedMessage,
   type EasyEmailObservedMessageResponse,
   type EasyEmailObservedMessagesResponse,
@@ -136,6 +152,61 @@ export function createBundledCoreClient(
     },
     async testMailAccountImap(request: EasyEmailMailAccountImapTestRequest): Promise<EasyEmailMailAccountImapTestResponse> {
       return (await getHttpClient()).testMailAccountImap(request);
+    },
+    async listMailMessages(query: EasyEmailMailMessageListQuery = {}): Promise<EasyEmailMailMessagesResponse> {
+      return (await getHttpClient()).listMailMessages(query);
+    },
+    async getMailMessageDetail(
+      messageId: string,
+      query: EasyEmailMailMessageDetailQuery = {},
+    ): Promise<EasyEmailMailMessageDetailResponse> {
+      return (await getHttpClient()).getMailMessageDetail(messageId, query);
+    },
+    async saveLocalDraft(request: EasyEmailMailDraftSaveRequest): Promise<EasyEmailMailDraftSaveResponse> {
+      return (await getHttpClient()).saveLocalDraft(request);
+    },
+    async deleteLocalDraft(messageId: string): Promise<EasyEmailMailMessageLocalActionResponse> {
+      return (await getHttpClient()).deleteLocalDraft(messageId);
+    },
+    async deleteMailMessageLocal(messageId: string): Promise<EasyEmailMailMessageLocalActionResponse> {
+      return (await getHttpClient()).deleteMailMessageLocal(messageId);
+    },
+    async deleteMailMessageForever(messageId: string): Promise<EasyEmailMailMessageLocalActionResponse> {
+      return (await getHttpClient()).deleteMailMessageForever(messageId);
+    },
+    async emptyMailTrash(request: EasyEmailMailTrashEmptyRequest = {}): Promise<EasyEmailMailTrashEmptyResponse> {
+      return (await getHttpClient()).emptyMailTrash(request);
+    },
+    async setMailMessageLocalFlag(
+      messageId: string,
+      request: EasyEmailMailMessageSetFlagRequest,
+    ): Promise<EasyEmailMailMessageLocalActionResponse> {
+      return (await getHttpClient()).setMailMessageLocalFlag(messageId, request);
+    },
+    async setMailMessageLocalFolder(
+      messageId: string,
+      request: EasyEmailMailMessageSetFolderRequest,
+    ): Promise<EasyEmailMailMessageLocalActionResponse> {
+      return (await getHttpClient()).setMailMessageLocalFolder(messageId, request);
+    },
+    async setMailMessageLocalLabel(
+      messageId: string,
+      request: EasyEmailMailMessageSetLabelRequest,
+    ): Promise<EasyEmailMailMessageLocalActionResponse> {
+      return (await getHttpClient()).setMailMessageLocalLabel(messageId, request);
+    },
+    async listMailVerifications(
+      query: EasyEmailMailVerificationListQuery = {},
+    ): Promise<EasyEmailMailVerificationsResponse> {
+      return (await getHttpClient()).listMailVerifications(query);
+    },
+    async reclassifyMailMessageVerification(
+      messageId: string,
+    ): Promise<EasyEmailMailReclassifyVerificationResponse> {
+      return (await getHttpClient()).reclassifyMailMessageVerification(messageId);
+    },
+    async pollMailboxVerification(sessionId: string): Promise<EasyEmailMailPollVerificationResponse> {
+      return (await getHttpClient()).pollMailboxVerification(sessionId);
     },
     async getMailTaxonomy(itemId: string): Promise<EasyEmailMailTaxonomyMutationResponse> {
       return (await getHttpClient()).getMailTaxonomy(itemId);

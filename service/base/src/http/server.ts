@@ -3,9 +3,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { EasyEmailError } from "../domain/errors.js";
 import { EASY_EMAIL_HTTP_ROUTES } from "./contracts.js";
 import { EasyEmailHttpHandler } from "./handler.js";
+import { resolveEasyEmailHttpErrorStatus } from "./error-status.js";
 import { reportHttpFailure } from "./failure-diagnostic.js";
 import { handleAdminRoute } from "./routes/admin.js";
 import { handleInternalRoute } from "./routes/internal.js";
+import { handleMessageRoute } from "./routes/messages.js";
 import { handlePublicRoute } from "./routes/public.js";
 
 export interface EasyEmailHttpServerOptions {
@@ -258,6 +260,12 @@ export function createEasyEmailHttpServer(
         readJsonBody: readBodyJson,
         extractProviderProbeInstanceId,
         extractObservedMessageId,
+      }) ?? await handleMessageRoute({
+        method,
+        path,
+        query,
+        handler,
+        readJsonBody: readBodyJson,
       }) ?? await handlePublicRoute({
         method,
         path,
@@ -279,121 +287,12 @@ export function createEasyEmailHttpServer(
 
       writeJson(response, 404, { error: "EASY_EMAIL_ROUTE_NOT_FOUND", path, method });
     } catch (error) {
-      if (error instanceof EasyEmailError && error.code === "REQUEST_BODY_TOO_LARGE") {
-        writeEasyEmailError(response, 413, error);
-        return;
-      }
-
-      if (error instanceof EasyEmailError && ["INVALID_JSON", "INVALID_QUERY"].includes(error.code)) {
-        writeEasyEmailError(response, 400, error);
-        return;
-      }
-
-      if (
-        error instanceof EasyEmailError
-        && [
-          "INVALID_CONTACT",
-          "INVALID_CONTACT_CURSOR",
-          "INVALID_MAIL_TAXONOMY",
-          "INVALID_MAIL_TAXONOMY_CURSOR",
-          "MAIL_TAXONOMY_KIND_UNSUPPORTED",
-          "MAIL_TAXONOMY_PARENT_UNSUPPORTED",
-          "MAIL_TAXONOMY_PARENT_NOT_FOUND",
-          "MAIL_TAXONOMY_PARENT_CYCLE",
-          "INVALID_ACCOUNT",
-          "INVALID_ACCOUNT_CURSOR",
-          "ACCOUNT_CREDENTIAL_REF_INVALID",
-          "ACCOUNT_CREDENTIAL_REF_SECRET_FORBIDDEN",
-          "ACCOUNT_SCOPE_UNSUPPORTED",
-          "ACCOUNT_KIND_UNSUPPORTED",
-        ].includes(error.code)
-      ) {
-        writeEasyEmailError(response, 400, error);
-        return;
-      }
-
-      if (error instanceof EasyEmailError && error.code === "MAILBOX_SESSION_NOT_FOUND") {
-        writeEasyEmailError(response, 404, error);
-        return;
-      }
-
-      if (error instanceof EasyEmailError && error.code === "CONTACT_NOT_FOUND") {
-        writeEasyEmailError(response, 404, error);
-        return;
-      }
-
-      if (error instanceof EasyEmailError && error.code === "MAIL_TAXONOMY_NOT_FOUND") {
-        writeEasyEmailError(response, 404, error);
-        return;
-      }
-
-      if (error instanceof EasyEmailError && error.code === "ACCOUNT_NOT_FOUND") {
-        writeEasyEmailError(response, 404, error);
-        return;
-      }
-
-      if (
-        error instanceof EasyEmailError
-        && ["CONTACT_VERSION_CONFLICT", "CONTACT_EMAIL_CONFLICT"].includes(error.code)
-      ) {
-        writeEasyEmailError(response, 409, error);
-        return;
-      }
-
-      if (
-        error instanceof EasyEmailError
-        && [
-          "MAIL_TAXONOMY_VERSION_CONFLICT",
-          "MAIL_TAXONOMY_NAME_CONFLICT",
-          "ACCOUNT_VERSION_CONFLICT",
-          "ACCOUNT_ADDRESS_CONFLICT",
-          "ACCOUNT_CREDENTIAL_REF_CONFLICT",
-          "ACCOUNT_SYSTEM_MANAGED",
-          "ACCOUNT_REAUTHENTICATION_REQUIRED",
-          "ACCOUNT_IMAP_CONFIG_REQUIRED",
-          "ACCOUNT_IMAP_TEST_UNSUPPORTED",
-        ].includes(error.code)
-      ) {
-        writeEasyEmailError(response, 409, error);
-        return;
-      }
-
-      if (error instanceof EasyEmailError && error.code === "CONTACTS_PERSISTENCE_UNAVAILABLE") {
-        writeEasyEmailError(response, 503, error);
-        return;
-      }
-
-      if (
-        error instanceof EasyEmailError
-        && error.code === "MAIL_TAXONOMY_PERSISTENCE_UNAVAILABLE"
-      ) {
-        writeEasyEmailError(response, 503, error);
-        return;
-      }
-
-      if (error instanceof EasyEmailError && error.code === "ACCOUNTS_PERSISTENCE_UNAVAILABLE") {
-        writeEasyEmailError(response, 503, error);
-        return;
-      }
-
-      if (
-        error instanceof EasyEmailError
-        && [
-          "ACCOUNT_CREDENTIAL_UNAVAILABLE",
-          "ACCOUNT_IMAP_TEST_UNAVAILABLE",
-          "ACCOUNT_IMAP_UNAVAILABLE",
-        ].includes(error.code)
-      ) {
-        writeEasyEmailError(response, 503, error);
-        return;
-      }
-
-      if (error instanceof EasyEmailError && error.code === "IMAP_AUTH_FAILED") {
-        writeEasyEmailError(response, 422, error);
-        return;
-      }
-
       if (error instanceof EasyEmailError) {
+        const mappedStatus = resolveEasyEmailHttpErrorStatus(error);
+        if (mappedStatus !== undefined) {
+          writeEasyEmailError(response, mappedStatus, error);
+          return;
+        }
         reportHttpFailure(method, path, error);
         writeEasyEmailError(response, 500, error);
         return;

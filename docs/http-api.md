@@ -347,6 +347,19 @@ authorization tier.
 | `GET` | `/mail/taxonomy/{itemId}` | Read one folder or label. |
 | `PATCH` | `/mail/taxonomy/{itemId}` | Update one folder or label with version CAS. |
 | `DELETE` | `/mail/taxonomy/{itemId}?expectedVersion=N` | Delete a non-system folder or label with version CAS. |
+| `POST` | `/mail/drafts` | Save or update a canonical local draft message for a normal or Agent account. |
+| `DELETE` | `/mail/drafts/{messageId}` | Soft-delete a canonical local draft message. |
+| `GET` | `/mail/messages` | List aggregated message summaries (without full body payloads) with scope-bound keyset pagination. |
+| `GET` | `/mail/messages/{messageId}` | Read one message detail with server-sanitized `bodyHtml` and explicit `includeRawHtml` opt-in. |
+| `DELETE` | `/mail/messages/{messageId}/local` | Move one message locally to `trash`. |
+| `DELETE` | `/mail/messages/{messageId}` | Permanently soft-delete one message. |
+| `DELETE` | `/mail/trash` | Permanently soft-delete trash messages or an explicit `messageIds` batch. |
+| `PATCH` | `/mail/messages/{messageId}/flags` | Set or clear a local flag (`read`, `starred`, `archived`, `important`). |
+| `PATCH` | `/mail/messages/{messageId}/folder` | Move a message to a local folder (`inbox`, `archive`, `trash`, `later`, or custom folder). |
+| `PATCH` | `/mail/messages/{messageId}/labels` | Add or remove a local label on a message. |
+| `GET` | `/mail/verifications` | List recent extracted verification code records with freshness metadata. |
+| `POST` | `/mail/messages/{messageId}/reclassify-verification` | Re-run OTP extraction and reconcile verification records for a message. |
+| `POST` | `/mail/mailboxes/{sessionId}/verification/poll` | Synchronize a temporary session and return any newly detected verification code. |
 
 ### Provider administration and queries
 

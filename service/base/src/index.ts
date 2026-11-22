@@ -2,6 +2,7 @@ export * from "./alias/index.js";
 export * from "./dispatch/index.js";
 export * from "./domain/errors.js";
 export * from "./domain/auth-links.js";
+export * from "./domain/mail-message.js";
 export * from "./domain/models.js";
 export * from "./domain/otp.js";
 export * from "./domain/registry.js";

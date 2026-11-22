@@ -26,6 +26,12 @@ ACCOUNT_CONNECTIVITY = (
 DOMAIN_TAXONOMY = (
     ROOT / "service" / "base" / "src" / "domain" / "mail-taxonomy.ts"
 )
+DOMAIN_MAIL_MESSAGE = (
+    ROOT / "service" / "base" / "src" / "domain" / "mail-message.ts"
+)
+HTTP_MAIL_MESSAGE_CONTRACTS = (
+    ROOT / "service" / "base" / "src" / "http" / "mail-message-contracts.ts"
+)
 SHARED_CREDENTIAL_MODELS = (
     ROOT / "service" / "base" / "src" / "shared" / "credential-models.ts"
 )
@@ -59,6 +65,17 @@ DYNAMIC_ROUTE_METHODS = {
         "delete": "deleteMailTaxonomy",
     },
     "taxonomyUpsert": {"put": "upsertMailTaxonomy"},
+    "draft": {"delete": "deleteLocalDraft"},
+    "message": {
+        "get": "getMailMessageDetail",
+        "delete": "deleteMailMessageForever",
+    },
+    "messageLocal": {"delete": "deleteMailMessageLocal"},
+    "messageFlags": {"patch": "setMailMessageLocalFlag"},
+    "messageFolder": {"patch": "setMailMessageLocalFolder"},
+    "messageLabels": {"patch": "setMailMessageLocalLabel"},
+    "reclassifyMessageVerification": {"post": "reclassifyMailMessageVerification"},
+    "pollMailboxVerification": {"post": "pollMailboxVerification"},
 }
 
 STATIC_ROUTE_DISPATCH = re.compile(

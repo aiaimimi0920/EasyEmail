@@ -280,6 +280,110 @@ test("mail taxonomy resources preserve methods, encoded paths, CAS, and capabili
   );
 });
 
+test("M4 message, draft, trash, and verification resources use canonical HTTP routes", async () => {
+  const calls = [];
+  const summary = {
+    id: "msg/a",
+    sourceRefId: "draft:acct_1",
+    sourceKind: "local_draft",
+    receivedAddress: "to@example.com",
+    providerLabel: "Work",
+    subject: "Draft",
+    fromAddress: "work@example.com",
+    snippet: "Hello",
+    hasAttachments: false,
+    classification: "outgoing",
+    lifecycleState: "draft",
+    observedAt: "2026-09-03T00:00:00.000Z",
+    isRead: true,
+    isStarred: false,
+    isArchived: false,
+    isImportant: false,
+    localFolder: "drafts",
+    labels: [],
+    version: 1,
+  };
+  const action = { messageId: "msg/a", changed: true, status: "ok", remoteApplied: false };
+  const client = new EasyEmailClient({
+    baseUrl: "http://127.0.0.1:8080",
+    apiKey: "m4-token",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      const u = String(url);
+      if (u.includes("/mail/drafts") && init.method === "POST") {
+        return jsonResponse({
+          draft: { messageId: "msg/a", accountId: "acct_1", savedAt: "2026-09-03T00:00:00.000Z", version: 1 },
+        });
+      }
+      if (u.includes("/mail/messages?")) {
+        return jsonResponse({ messages: [summary], nextCursor: "next-msg" });
+      }
+      if (u.endsWith("/mail/messages/msg%2Fa?includeRawHtml=true") && init.method === "GET") {
+        return jsonResponse({
+          message: { ...summary, rawHtmlAvailable: false, bodyCacheState: "cached", draftCcAddresses: [], draftBccAddresses: [] },
+        });
+      }
+      if (u.endsWith("/mail/trash") && init.method === "DELETE") {
+        return jsonResponse({ result: { requestedCount: 1, changedCount: 1, remoteAppliedCount: 0 } });
+      }
+      if (u.includes("/mail/verifications")) {
+        return jsonResponse({ verifications: [] });
+      }
+      if (u.endsWith("/reclassify-verification")) {
+        return jsonResponse({});
+      }
+      if (u.endsWith("/verification/poll")) {
+        return jsonResponse({
+          refresh: {
+            fetchedCount: 1,
+            insertedCount: 1,
+            skippedCount: 0,
+            failedCount: 0,
+            refreshedSessionIds: ["ses/1"],
+            skippedSessionIds: [],
+            failures: [],
+          },
+        });
+      }
+      return jsonResponse({ action });
+    },
+  });
+
+  await client.saveLocalDraft({ accountId: "acct_1", subject: "Draft" });
+  await client.listMailMessages({ scope: "normal_account", accountId: "acct_1", limit: 25 });
+  await client.getMailMessageDetail("msg/a", { includeRawHtml: true });
+  await client.setMailMessageLocalFlag("msg/a", { flagName: "starred", enabled: true });
+  await client.setMailMessageLocalFolder("msg/a", { folderName: "archive" });
+  await client.setMailMessageLocalLabel("msg/a", { labelName: "Urgent", enabled: true });
+  await client.deleteMailMessageLocal("msg/a");
+  await client.deleteMailMessageForever("msg/a");
+  await client.deleteLocalDraft("msg/a");
+  await client.emptyMailTrash({ messageIds: ["msg/a"] });
+  await client.listMailVerifications({ sessionId: "ses/1", freshOnly: true, limit: 10 });
+  await client.reclassifyMailMessageVerification("msg/a");
+  await client.pollMailboxVerification("ses/1");
+
+  assert.deepEqual(
+    calls.map((call) => [call.init.method, new URL(call.url).pathname]),
+    [
+      ["POST", "/mail/drafts"],
+      ["GET", "/mail/messages"],
+      ["GET", "/mail/messages/msg%2Fa"],
+      ["PATCH", "/mail/messages/msg%2Fa/flags"],
+      ["PATCH", "/mail/messages/msg%2Fa/folder"],
+      ["PATCH", "/mail/messages/msg%2Fa/labels"],
+      ["DELETE", "/mail/messages/msg%2Fa/local"],
+      ["DELETE", "/mail/messages/msg%2Fa"],
+      ["DELETE", "/mail/drafts/msg%2Fa"],
+      ["DELETE", "/mail/trash"],
+      ["GET", "/mail/verifications"],
+      ["POST", "/mail/messages/msg%2Fa/reclassify-verification"],
+      ["POST", "/mail/mailboxes/ses%2F1/verification/poll"],
+    ],
+  );
+  assert.deepEqual(JSON.parse(calls[9].init.body), { messageIds: ["msg/a"] });
+});
+
 test("HTTP failures expose status and server error code", async () => {
   const httpClient = createFetchJsonHttpClient({
     baseUrl: "https://mail.example.test",

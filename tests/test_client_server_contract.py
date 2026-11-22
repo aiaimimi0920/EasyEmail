@@ -22,6 +22,10 @@ STATIC_ROUTE_NAMES = (
     "recoverMailboxCapacity",
     "reportMailboxOutcome",
     "observeMessage",
+    "drafts",
+    "messages",
+    "trash",
+    "verifications",
 )
 
 
@@ -49,6 +53,14 @@ class ClientServerContractTests(unittest.TestCase):
             "/mail/mailboxes/${encodeURIComponent(sessionId)}/code",
             "/mail/mailboxes/${encodeURIComponent(sessionId)}/auth-link",
             "/mail/query/observed-messages/${encodeURIComponent(messageId)}",
+            "/mail/drafts/${encodeURIComponent(messageId)}",
+            "/mail/messages/${encodeURIComponent(messageId)}",
+            "/mail/messages/${encodeURIComponent(messageId)}/local",
+            "/mail/messages/${encodeURIComponent(messageId)}/flags",
+            "/mail/messages/${encodeURIComponent(messageId)}/folder",
+            "/mail/messages/${encodeURIComponent(messageId)}/labels",
+            "/mail/messages/${encodeURIComponent(messageId)}/reclassify-verification",
+            "/mail/mailboxes/${encodeURIComponent(sessionId)}/verification/poll",
         )
         for template in templates:
             self.assertIn(template, server_text)

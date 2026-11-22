@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { type VerificationCodeDto } from "../mail/mailSearch";
-import { contactClient, mailAccountClient, sendQueueClient } from "./appRuntime";
-import type { LegacyAccountDto, AgentServiceDto, AgentThreadDto, AnonymousMessageDto } from "./appTypes";
+import { contactClient, mailAccountClient, mailMessageClient, sendQueueClient } from "./appRuntime";
+import type { LegacyAccountDto, AgentServiceDto, AgentThreadDto } from "./appTypes";
 import type { AppState } from "./useAppState";
 
 export function useAppLoaders(appState: AppState) {
@@ -13,9 +12,7 @@ export function useAppLoaders(appState: AppState) {
       tempMailboxId: string | null = null,
       isCurrent: () => boolean = () => true,
     ) {
-      const codes = await invoke<VerificationCodeDto[]>("verification_list_recent", {
-        request: { temp_mailbox_id: tempMailboxId, limit: 100 },
-      });
+      const codes = await mailMessageClient.listRecentVerifications(tempMailboxId, 100);
       if (!isCurrent()) {
         return codes;
       }
@@ -23,9 +20,7 @@ export function useAppLoaders(appState: AppState) {
       return codes;
     }
   async function loadAnonymousMessages() {
-      const messages = await invoke<AnonymousMessageDto[]>("message_list", {
-        request: { scope: "anonymous", account_id: null, include_archived: true },
-      });
+      const messages = await mailMessageClient.listAnonymousMessages(true);
       setAnonymousMessages(messages);
       return messages;
     }

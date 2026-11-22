@@ -677,6 +677,236 @@
           "500": { "$ref": "#/components/responses/ServerError" }
         }
       }
+    },
+    "/mail/drafts": {
+      "post": {
+        "operationId": "saveLocalDraft",
+        "summary": "Create or update a canonical local draft message for an account",
+        "requestBody": { "$ref": "#/components/requestBodies/MailDraftSaveRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/SaveMailDraftResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/drafts/{messageId}": {
+      "delete": {
+        "operationId": "deleteLocalDraft",
+        "summary": "Soft-delete a canonical local draft message",
+        "parameters": [
+          { "$ref": "#/components/parameters/MessageId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/MailMessageLocalActionResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/messages": {
+      "get": {
+        "operationId": "listMailMessages",
+        "summary": "List aggregated mail message summaries without full body payloads",
+        "parameters": [
+          { "$ref": "#/components/parameters/MailMessageScope" },
+          { "$ref": "#/components/parameters/MailMessageAccountIdQuery" },
+          { "$ref": "#/components/parameters/MailMessageSessionIdQuery" },
+          { "$ref": "#/components/parameters/MailMessageFolderQuery" },
+          { "$ref": "#/components/parameters/MailMessageLabelQuery" },
+          { "$ref": "#/components/parameters/MailMessageSearchQuery" },
+          { "$ref": "#/components/parameters/MailMessageIncludeArchivedQuery" },
+          { "$ref": "#/components/parameters/MailMessageLimit" },
+          { "$ref": "#/components/parameters/MailMessageCursor" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/MailMessagesResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/messages/{messageId}": {
+      "get": {
+        "operationId": "getMailMessageDetail",
+        "summary": "Read one aggregated mail message with sanitized HTML and optional raw HTML",
+        "parameters": [
+          { "$ref": "#/components/parameters/MessageId" },
+          { "$ref": "#/components/parameters/MailMessageDetailScope" },
+          { "$ref": "#/components/parameters/MailMessageIncludeRawHtmlQuery" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/MailMessageDetailResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMailMessageForever",
+        "summary": "Permanently soft-delete one mail message",
+        "parameters": [
+          { "$ref": "#/components/parameters/MessageId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/MailMessageLocalActionResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/messages/{messageId}/local": {
+      "delete": {
+        "operationId": "deleteMailMessageLocal",
+        "summary": "Move one mail message locally to trash",
+        "parameters": [
+          { "$ref": "#/components/parameters/MessageId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/MailMessageLocalActionResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/messages/{messageId}/flags": {
+      "patch": {
+        "operationId": "setMailMessageLocalFlag",
+        "summary": "Set or clear a local message flag (read, starred, archived, important)",
+        "parameters": [
+          { "$ref": "#/components/parameters/MessageId" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/MailMessageSetFlagRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MailMessageLocalActionResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/messages/{messageId}/folder": {
+      "patch": {
+        "operationId": "setMailMessageLocalFolder",
+        "summary": "Move one mail message to a local folder",
+        "parameters": [
+          { "$ref": "#/components/parameters/MessageId" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/MailMessageSetFolderRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MailMessageLocalActionResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/messages/{messageId}/labels": {
+      "patch": {
+        "operationId": "setMailMessageLocalLabel",
+        "summary": "Add or remove one local label on a mail message",
+        "parameters": [
+          { "$ref": "#/components/parameters/MessageId" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/MailMessageSetLabelRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/MailMessageLocalActionResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/trash": {
+      "delete": {
+        "operationId": "emptyMailTrash",
+        "summary": "Permanently delete messages in trash or an explicit batch of message IDs",
+        "requestBody": { "$ref": "#/components/requestBodies/MailTrashEmptyRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/EmptyMailTrashResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/verifications": {
+      "get": {
+        "operationId": "listMailVerifications",
+        "summary": "List recent extracted verification code records",
+        "parameters": [
+          { "$ref": "#/components/parameters/MailMessageSessionIdQuery" },
+          { "$ref": "#/components/parameters/MailVerificationScopeQuery" },
+          { "$ref": "#/components/parameters/MailVerificationFreshOnlyQuery" },
+          { "$ref": "#/components/parameters/MailVerificationLimitQuery" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/MailVerificationsResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/messages/{messageId}/reclassify-verification": {
+      "post": {
+        "operationId": "reclassifyMailMessageVerification",
+        "summary": "Re-extract and reconcile verification code metadata for one stored message",
+        "parameters": [
+          { "$ref": "#/components/parameters/MessageId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ReclassifyMailMessageVerificationResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/mailboxes/{sessionId}/verification/poll": {
+      "post": {
+        "operationId": "pollMailboxVerification",
+        "summary": "Synchronize a temporary mailbox session and return any newly detected verification code",
+        "parameters": [
+          { "$ref": "#/components/parameters/SessionId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/PollMailboxVerificationResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/ServerError" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
     }
   },
   "components": {
@@ -801,9 +1031,123 @@
         "name": "newestFirst",
         "in": "query",
         "schema": { "type": "boolean" }
+      },
+      "MailMessageScope": {
+        "name": "scope",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "enum": ["all", "anonymous", "normal_account", "promoted_account", "agent_account"]
+        }
+      },
+      "MailMessageDetailScope": {
+        "name": "scope",
+        "in": "query",
+        "schema": { "type": "string", "enum": ["normal", "agent", "all"] }
+      },
+      "MailMessageAccountIdQuery": {
+        "name": "accountId",
+        "in": "query",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "MailMessageSessionIdQuery": {
+        "name": "sessionId",
+        "in": "query",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "MailMessageFolderQuery": {
+        "name": "folder",
+        "in": "query",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "MailMessageLabelQuery": {
+        "name": "label",
+        "in": "query",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "MailMessageSearchQuery": {
+        "name": "search",
+        "in": "query",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "MailMessageIncludeArchivedQuery": {
+        "name": "includeArchived",
+        "in": "query",
+        "schema": { "type": "boolean", "default": true }
+      },
+      "MailMessageIncludeRawHtmlQuery": {
+        "name": "includeRawHtml",
+        "in": "query",
+        "schema": { "type": "boolean", "default": false }
+      },
+      "MailMessageLimit": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 }
+      },
+      "MailMessageCursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "Opaque scope-bound keyset cursor returned by the previous page.",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "MailVerificationScopeQuery": {
+        "name": "scope",
+        "in": "query",
+        "schema": { "type": "string", "enum": ["all", "anonymous", "normal", "promoted", "agent"] }
+      },
+      "MailVerificationFreshOnlyQuery": {
+        "name": "freshOnly",
+        "in": "query",
+        "schema": { "type": "boolean", "default": false }
+      },
+      "MailVerificationLimitQuery": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
       }
     },
     "requestBodies": {
+      "MailDraftSaveRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailDraftSaveInput" }
+          }
+        }
+      },
+      "MailMessageSetFlagRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailMessageSetFlagInput" }
+          }
+        }
+      },
+      "MailMessageSetFolderRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailMessageSetFolderInput" }
+          }
+        }
+      },
+      "MailMessageSetLabelRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailMessageSetLabelInput" }
+          }
+        }
+      },
+      "MailTrashEmptyRequest": {
+        "required": false,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailTrashEmptyInput" }
+          }
+        }
+      },
       "RegisterCloudflareTempEmailRuntimeRequest": {
         "required": true,
         "content": {
@@ -1083,6 +1427,70 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/RefreshMailboxResponse" }
+          }
+        }
+      },
+      "MailMessagesResponse": {
+        "description": "Stable page of aggregated mail message summaries",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailMessagesResponse" }
+          }
+        }
+      },
+      "MailMessageDetailResponse": {
+        "description": "One aggregated mail message detail with sanitized HTML",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailMessageDetailResponse" }
+          }
+        }
+      },
+      "SaveMailDraftResponse": {
+        "description": "Saved canonical local draft metadata",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/SaveMailDraftResponse" }
+          }
+        }
+      },
+      "MailMessageLocalActionResponse": {
+        "description": "Local message flag, folder, label, or deletion result",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailMessageLocalActionResponse" }
+          }
+        }
+      },
+      "EmptyMailTrashResponse": {
+        "description": "Batch trash permanent deletion result",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/EmptyMailTrashResponse" }
+          }
+        }
+      },
+      "MailVerificationsResponse": {
+        "description": "Recent extracted verification code records",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailVerificationsResponse" }
+          }
+        }
+      },
+      "ReclassifyMailMessageVerificationResponse": {
+        "description": "Reclassified verification code record when present",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ReclassifyMailMessageVerificationResponse" }
+          }
+        }
+      },
+      "PollMailboxVerificationResponse": {
+        "description": "Temporary mailbox refresh and newly detected verification code",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/PollMailboxVerificationResponse" }
           }
         }
       },
@@ -2041,6 +2449,350 @@
           "method": { "type": "string" }
         },
         "additionalProperties": true
+      },
+      "MailDraftSaveInput": {
+        "type": "object",
+        "required": ["accountId"],
+        "properties": {
+          "draftId": { "type": ["string", "null"], "maxLength": 256 },
+          "accountId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "targetAddress": { "type": "string", "maxLength": 2048 },
+          "ccAddresses": {
+            "type": "array",
+            "maxItems": 100,
+            "items": { "type": "string", "maxLength": 320 }
+          },
+          "bccAddresses": {
+            "type": "array",
+            "maxItems": 100,
+            "items": { "type": "string", "maxLength": 320 }
+          },
+          "subject": { "type": "string", "maxLength": 998 },
+          "bodyText": { "type": "string", "maxLength": 512000 },
+          "bodyHtml": { "type": ["string", "null"], "maxLength": 512000 }
+        },
+        "additionalProperties": false
+      },
+      "MailMessageSetFlagInput": {
+        "type": "object",
+        "required": ["flagName", "enabled"],
+        "properties": {
+          "flagName": {
+            "type": "string",
+            "enum": ["read", "starred", "archived", "important"]
+          },
+          "enabled": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "MailMessageSetFolderInput": {
+        "type": "object",
+        "required": ["folderName"],
+        "properties": {
+          "folderName": { "type": "string", "minLength": 1, "maxLength": 64 }
+        },
+        "additionalProperties": false
+      },
+      "MailMessageSetLabelInput": {
+        "type": "object",
+        "required": ["labelName", "enabled"],
+        "properties": {
+          "labelName": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "enabled": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "MailTrashEmptyInput": {
+        "type": "object",
+        "properties": {
+          "messageIds": {
+            "type": "array",
+            "maxItems": 5000,
+            "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+          }
+        },
+        "additionalProperties": false
+      },
+      "MailMessageSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "sourceRefId",
+          "sourceKind",
+          "receivedAddress",
+          "providerLabel",
+          "subject",
+          "fromAddress",
+          "snippet",
+          "hasAttachments",
+          "classification",
+          "lifecycleState",
+          "observedAt",
+          "isRead",
+          "isStarred",
+          "isArchived",
+          "isImportant",
+          "localFolder",
+          "labels",
+          "version"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "accountId": { "type": "string" },
+          "sessionId": { "type": "string" },
+          "sourceRefId": { "type": "string", "minLength": 1 },
+          "sourceKind": {
+            "type": "string",
+            "enum": ["temporary_session", "imap", "smtp", "local_draft", "agent"]
+          },
+          "providerInstanceId": { "type": "string" },
+          "externalMessageId": { "type": "string" },
+          "rfcMessageId": { "type": "string" },
+          "threadKey": { "type": "string" },
+          "receivedAddress": { "type": "string" },
+          "providerLabel": { "type": "string" },
+          "subject": { "type": "string" },
+          "fromAddress": { "type": "string" },
+          "fromName": { "type": "string" },
+          "snippet": { "type": "string" },
+          "hasAttachments": { "type": "boolean" },
+          "classification": {
+            "type": "string",
+            "enum": ["general", "verification", "newsletter", "outgoing", "agent"]
+          },
+          "lifecycleState": {
+            "type": "string",
+            "enum": ["active", "expired", "released", "history_only", "draft", "ready"]
+          },
+          "observedAt": { "type": "string", "format": "date-time" },
+          "isRead": { "type": "boolean" },
+          "isStarred": { "type": "boolean" },
+          "isArchived": { "type": "boolean" },
+          "isImportant": { "type": "boolean" },
+          "localFolder": { "type": "string" },
+          "labels": { "type": "array", "items": { "type": "string" } },
+          "version": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": false
+      },
+      "MailMessageDetail": {
+        "type": "object",
+        "required": [
+          "id",
+          "sourceRefId",
+          "sourceKind",
+          "receivedAddress",
+          "providerLabel",
+          "subject",
+          "fromAddress",
+          "snippet",
+          "rawHtmlAvailable",
+          "bodyCacheState",
+          "hasAttachments",
+          "classification",
+          "lifecycleState",
+          "observedAt",
+          "draftCcAddresses",
+          "draftBccAddresses",
+          "isRead",
+          "isStarred",
+          "isArchived",
+          "isImportant",
+          "localFolder",
+          "labels",
+          "version"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "accountId": { "type": "string" },
+          "sessionId": { "type": "string" },
+          "sourceRefId": { "type": "string", "minLength": 1 },
+          "sourceKind": {
+            "type": "string",
+            "enum": ["temporary_session", "imap", "smtp", "local_draft", "agent"]
+          },
+          "providerInstanceId": { "type": "string" },
+          "externalMessageId": { "type": "string" },
+          "rfcMessageId": { "type": "string" },
+          "threadKey": { "type": "string" },
+          "receivedAddress": { "type": "string" },
+          "providerLabel": { "type": "string" },
+          "subject": { "type": "string" },
+          "fromAddress": { "type": "string" },
+          "fromName": { "type": "string" },
+          "snippet": { "type": "string" },
+          "bodyText": { "type": "string" },
+          "bodyHtml": { "type": "string" },
+          "rawBodyHtml": { "type": "string" },
+          "rawHtmlAvailable": { "type": "boolean" },
+          "bodyCacheState": { "type": "string", "enum": ["none", "cached"] },
+          "hasAttachments": { "type": "boolean" },
+          "classification": {
+            "type": "string",
+            "enum": ["general", "verification", "newsletter", "outgoing", "agent"]
+          },
+          "lifecycleState": {
+            "type": "string",
+            "enum": ["active", "expired", "released", "history_only", "draft", "ready"]
+          },
+          "observedAt": { "type": "string", "format": "date-time" },
+          "draftCcAddresses": { "type": "array", "items": { "type": "string" } },
+          "draftBccAddresses": { "type": "array", "items": { "type": "string" } },
+          "isRead": { "type": "boolean" },
+          "isStarred": { "type": "boolean" },
+          "isArchived": { "type": "boolean" },
+          "isImportant": { "type": "boolean" },
+          "localFolder": { "type": "string" },
+          "labels": { "type": "array", "items": { "type": "string" } },
+          "version": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": false
+      },
+      "MailDraftSaveResult": {
+        "type": "object",
+        "required": ["messageId", "accountId", "savedAt", "version"],
+        "properties": {
+          "messageId": { "type": "string", "minLength": 1 },
+          "accountId": { "type": "string", "minLength": 1 },
+          "savedAt": { "type": "string", "format": "date-time" },
+          "version": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": false
+      },
+      "MailMessageLocalActionResult": {
+        "type": "object",
+        "required": ["messageId", "changed", "status", "remoteApplied"],
+        "properties": {
+          "messageId": { "type": "string", "minLength": 1 },
+          "changed": { "type": "boolean" },
+          "status": { "type": "string" },
+          "remoteApplied": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "MailMessageBatchActionResult": {
+        "type": "object",
+        "required": ["requestedCount", "changedCount", "remoteAppliedCount"],
+        "properties": {
+          "requestedCount": { "type": "integer", "minimum": 0 },
+          "changedCount": { "type": "integer", "minimum": 0 },
+          "remoteAppliedCount": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": false
+      },
+      "MailVerificationRecord": {
+        "type": "object",
+        "required": [
+          "id",
+          "messageId",
+          "sourceRefId",
+          "accountScope",
+          "receivedAddress",
+          "code",
+          "codeSource",
+          "candidates",
+          "confidence",
+          "isFresh",
+          "extractedAt",
+          "subject",
+          "fromAddress",
+          "observedAt"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "messageId": { "type": "string", "minLength": 1 },
+          "sessionId": { "type": "string" },
+          "sourceRefId": { "type": "string", "minLength": 1 },
+          "accountScope": {
+            "type": "string",
+            "enum": ["anonymous", "normal", "promoted", "agent"]
+          },
+          "receivedAddress": { "type": "string" },
+          "code": { "type": "string", "minLength": 1 },
+          "codeSource": { "type": "string", "enum": ["subject", "text", "html"] },
+          "candidates": { "type": "array", "items": { "type": "string" } },
+          "issuerHint": { "type": "string" },
+          "targetServiceHint": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "isFresh": { "type": "boolean" },
+          "extractedAt": { "type": "string", "format": "date-time" },
+          "subject": { "type": "string" },
+          "fromAddress": { "type": "string" },
+          "observedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      },
+      "MailMessagesResponse": {
+        "type": "object",
+        "required": ["messages"],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MailMessageSummary" }
+          },
+          "nextCursor": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "MailMessageDetailResponse": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "message": { "$ref": "#/components/schemas/MailMessageDetail" }
+        },
+        "additionalProperties": false
+      },
+      "SaveMailDraftResponse": {
+        "type": "object",
+        "required": ["draft"],
+        "properties": {
+          "draft": { "$ref": "#/components/schemas/MailDraftSaveResult" }
+        },
+        "additionalProperties": false
+      },
+      "MailMessageLocalActionResponse": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "$ref": "#/components/schemas/MailMessageLocalActionResult" }
+        },
+        "additionalProperties": false
+      },
+      "EmptyMailTrashResponse": {
+        "type": "object",
+        "required": ["result"],
+        "properties": {
+          "result": { "$ref": "#/components/schemas/MailMessageBatchActionResult" }
+        },
+        "additionalProperties": false
+      },
+      "MailVerificationsResponse": {
+        "type": "object",
+        "required": ["verifications"],
+        "properties": {
+          "verifications": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MailVerificationRecord" }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReclassifyMailMessageVerificationResponse": {
+        "type": "object",
+        "properties": {
+          "verification": { "$ref": "#/components/schemas/MailVerificationRecord" }
+        },
+        "additionalProperties": false
+      },
+      "PollMailboxVerificationResponse": {
+        "type": "object",
+        "required": ["refresh"],
+        "properties": {
+          "refresh": { "$ref": "#/components/schemas/MailboxRefreshResult" },
+          "detectedCode": { "$ref": "#/components/schemas/MailVerificationRecord" }
+        },
+        "additionalProperties": false
       }
     }
   }

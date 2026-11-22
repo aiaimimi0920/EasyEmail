@@ -1,8 +1,8 @@
 import type { FormEvent } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { normalizeMailToken, type MailListSortMode } from "../mail/mailSelectors";
 import { asErrorDto } from "./appDomain";
-import type { MessageLocalActionDto, MailSearchScope, MailListReadFilter, VisibleMailMessage } from "./appTypes";
+import { mailMessageClient } from "./appRuntime";
+import type { MailSearchScope, MailListReadFilter, VisibleMailMessage } from "./appTypes";
 import type { AppState } from "./useAppState";
 
 type Dependencies = {
@@ -163,16 +163,12 @@ export function useMailListActionsController(appState: AppState, dependencies: D
     }
   async function trashSelectedMailMessages() {
       await runBatchMailActions("已移至回收站 {count} 封邮件。", (message) =>
-        invoke<MessageLocalActionDto>("message_delete_local", {
-          request: { message_id: message.message_id },
-        }),
+        mailMessageClient.deleteMessageLocal(message.message_id),
       );
     }
   async function deleteSelectedMailMessagesForever() {
       await runBatchMailActions("已彻底删除 {count} 封邮件。", (message) =>
-        invoke<MessageLocalActionDto>("message_delete_forever", {
-          request: { message_id: message.message_id },
-        }),
+        mailMessageClient.deleteMessageForever(message.message_id),
       );
     }
   async function runDisplayedMailActions(
@@ -205,9 +201,7 @@ export function useMailListActionsController(appState: AppState, dependencies: D
     }
   async function moveAllDisplayedMailMessagesToTrash() {
       await runDisplayedMailActions("已将 {count} 封邮件全部移至回收站。", (message) =>
-        invoke<MessageLocalActionDto>("message_delete_local", {
-          request: { message_id: message.message_id },
-        }),
+        mailMessageClient.deleteMessageLocal(message.message_id),
       );
     }
   async function archiveAllDisplayedMailMessages() {
@@ -217,12 +211,7 @@ export function useMailListActionsController(appState: AppState, dependencies: D
     }
   async function moveSelectedMailMessages(folderName: string) {
       await runBatchMailActions(`已将 {count} 封邮件移至 ${folderName}。`, (message) =>
-        invoke<MessageLocalActionDto>("message_set_local_folder", {
-          request: {
-            message_id: message.message_id,
-            folder_name: folderName,
-          },
-        }),
+        mailMessageClient.setMessageLocalFolder(message.message_id, folderName),
       );
     }
   async function applyMailListMoveTarget() {
@@ -292,13 +281,11 @@ export function useMailListActionsController(appState: AppState, dependencies: D
           }
           selectedMessages.forEach((message) => {
             operations.push(
-              invoke<MessageLocalActionDto>("message_set_local_label", {
-                request: {
-                  message_id: message.message_id,
-                  label_name: label.name,
-                  enabled: shouldEnable,
-                },
-              }),
+              mailMessageClient.setMessageLocalLabel(
+                message.message_id,
+                label.name,
+                shouldEnable,
+              ),
             );
           });
         });
@@ -335,12 +322,7 @@ export function useMailListActionsController(appState: AppState, dependencies: D
     }
   async function snoozeSelectedMailMessages(label: string) {
       await runBatchMailActions(`已将 {count} 封邮件推迟到${label}。`, (message) =>
-        invoke<MessageLocalActionDto>("message_set_local_folder", {
-          request: {
-            message_id: message.message_id,
-            folder_name: "later",
-          },
-        }),
+        mailMessageClient.setMessageLocalFolder(message.message_id, "later"),
       );
     }
   return {

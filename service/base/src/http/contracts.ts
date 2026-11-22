@@ -123,6 +123,34 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   taxonomyUpsert(kind: "folder" | "label", key: string): string {
     return `/mail/taxonomy/${encodeURIComponent(kind)}/${encodeURIComponent(key)}`;
   },
+  drafts: "/mail/drafts",
+  messages: "/mail/messages",
+  trash: "/mail/trash",
+  verifications: "/mail/verifications",
+  draft(messageId: string): string {
+    return `/mail/drafts/${encodeURIComponent(messageId)}`;
+  },
+  message(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}`;
+  },
+  messageLocal(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/local`;
+  },
+  messageFlags(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/flags`;
+  },
+  messageFolder(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/folder`;
+  },
+  messageLabels(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/labels`;
+  },
+  reclassifyMessageVerification(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/reclassify-verification`;
+  },
+  pollMailboxVerification(sessionId: string): string {
+    return `/mail/mailboxes/${encodeURIComponent(sessionId)}/verification/poll`;
+  },
 } as const;
 
 export interface GetMailCatalogHttpResponse {
@@ -427,3 +455,4 @@ export type QueryProviderInstancesHttpRequest = ProviderInstanceQueryFilters;
 export type QueryHostBindingsHttpRequest = HostBindingQueryFilters;
 export type QueryMailboxSessionsHttpRequest = MailboxSessionQueryFilters;
 export type QueryObservedMessagesHttpRequest = ObservedMessageQueryFilters;
+export * from "./mail-message-contracts.js";

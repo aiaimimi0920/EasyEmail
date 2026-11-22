@@ -8,6 +8,10 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   taxonomy: "/mail/taxonomy",
   accounts: "/mail/accounts",
   testAccountImap: "/mail/accounts/imap/test",
+  drafts: "/mail/drafts",
+  messages: "/mail/messages",
+  trash: "/mail/trash",
+  verifications: "/mail/verifications",
   planMailbox: "/mail/mailboxes/plan",
   openMailbox: "/mail/mailboxes/open",
   sendMailboxMessage: "/mail/mailboxes/send",
@@ -41,6 +45,30 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   disableAccount(accountId: string): string {
     return `/mail/accounts/${encodeURIComponent(accountId)}/disable`;
   },
+  draft(messageId: string): string {
+    return `/mail/drafts/${encodeURIComponent(messageId)}`;
+  },
+  message(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}`;
+  },
+  messageLocal(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/local`;
+  },
+  messageFlags(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/flags`;
+  },
+  messageFolder(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/folder`;
+  },
+  messageLabels(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/labels`;
+  },
+  reclassifyMessageVerification(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/reclassify-verification`;
+  },
+  pollMailboxVerification(sessionId: string): string {
+    return `/mail/mailboxes/${encodeURIComponent(sessionId)}/verification/poll`;
+  },
 } as const;
 
 export interface FetchJsonHttpClientOptions {
@@ -59,7 +87,7 @@ export interface JsonHttpClient {
   post<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse>;
   put<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse>;
   patch<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse>;
-  delete<TResponse>(path: string, query?: QueryParameters): Promise<TResponse>;
+  delete<TResponse>(path: string, query?: QueryParameters, body?: unknown): Promise<TResponse>;
 }
 
 export class EasyEmailHttpError extends Error {
@@ -226,8 +254,16 @@ export function createFetchJsonHttpClient(options: FetchJsonHttpClientOptions): 
         body: JSON.stringify(body ?? {}),
       });
     },
-    delete<TResponse>(path: string, query?: QueryParameters) {
-      return request<TResponse>(buildPath(path, query), { method: "DELETE" });
+    delete<TResponse>(path: string, query?: QueryParameters, body?: unknown) {
+      return request<TResponse>(buildPath(path, query), {
+        method: "DELETE",
+        ...(body !== undefined
+          ? {
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(body),
+            }
+          : {}),
+      });
     },
   };
 }

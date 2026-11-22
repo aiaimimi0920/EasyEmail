@@ -1,10 +1,9 @@
-import { invoke } from "@tauri-apps/api/core";
 import { extractEmailAddress, filterVisibleMailMessagesForMailbox, mailConversationKeyForMessage, normalizeMailToken } from "../mail/mailSelectors";
 import { asErrorDto } from "./appDomain";
+import { mailMessageClient } from "./appRuntime";
 import type {
   AnonymousMessageDto,
   MailConversationSummary,
-  MessageBatchActionDto,
   MessageCache,
   MessageLocalActionDto,
 } from "./appTypes";
@@ -218,9 +217,7 @@ export function useMessageActionsController(appState: AppState, dependencies: De
       }
 
       await runSelectedMessageLocalAction("Moved the message to Trash.", () =>
-        invoke<MessageLocalActionDto>("message_delete_local", {
-          request: { message_id: selectedMailMessage.message_id },
-        }),
+        mailMessageClient.deleteMessageLocal(selectedMailMessage.message_id),
       );
     }
   async function deleteSelectedMailMessageForever() {
@@ -229,9 +226,7 @@ export function useMessageActionsController(appState: AppState, dependencies: De
       }
 
       await runSelectedMessageLocalAction("Permanently deleted the message.", () =>
-        invoke<MessageLocalActionDto>("message_delete_forever", {
-          request: { message_id: selectedMailMessage.message_id },
-        }),
+        mailMessageClient.deleteMessageForever(selectedMailMessage.message_id),
       );
     }
   async function restoreSelectedMailMessage() {
@@ -246,9 +241,9 @@ export function useMessageActionsController(appState: AppState, dependencies: De
 
       setBusy(true);
       try {
-        const result = await invoke<MessageBatchActionDto>("message_empty_trash", {
-          request: { message_ids: trashMessages.map((message) => message.message_id) },
-        });
+        const result = await mailMessageClient.emptyTrash(
+          trashMessages.map((message) => message.message_id),
+        );
         await reloadMailListsAfterLocalAction();
         invalidateMessageDetailRequest();
         setSelectedMailMessageId(null);
@@ -269,13 +264,7 @@ export function useMessageActionsController(appState: AppState, dependencies: De
       flagName: "archived" | "read" | "starred" | "important",
       enabled: boolean,
     ) {
-      return invoke<MessageLocalActionDto>("message_set_local_flag", {
-        request: {
-          message_id: messageId,
-          flag_name: flagName,
-          enabled,
-        },
-      });
+      return mailMessageClient.setMessageLocalFlag(messageId, flagName, enabled);
     }
   function updateCachedVisibleMailMessageLocalFlag(
       messageId: string,
@@ -375,12 +364,10 @@ export function useMessageActionsController(appState: AppState, dependencies: De
 
       setBusy(true);
       try {
-        await invoke<MessageLocalActionDto>("message_set_local_folder", {
-          request: {
-            message_id: selectedMailMessage.message_id,
-            folder_name: folderName,
-          },
-        });
+        await mailMessageClient.setMessageLocalFolder(
+          selectedMailMessage.message_id,
+          folderName,
+        );
         setSelectedMessageDetail((current) =>
           current?.message_id === selectedMailMessage.message_id
             ? {
@@ -407,13 +394,11 @@ export function useMessageActionsController(appState: AppState, dependencies: De
 
       setBusy(true);
       try {
-        await invoke<MessageLocalActionDto>("message_set_local_label", {
-          request: {
-            message_id: selectedMailMessage.message_id,
-            label_name: labelName,
-            enabled,
-          },
-        });
+        await mailMessageClient.setMessageLocalLabel(
+          selectedMailMessage.message_id,
+          labelName,
+          enabled,
+        );
         setSelectedMessageDetail((current) => {
           if (current?.message_id !== selectedMailMessage.message_id) {
             return current;

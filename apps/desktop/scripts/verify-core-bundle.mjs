@@ -203,6 +203,16 @@ try {
   if (unauthorizedAccounts.status !== 401) {
     throw new Error(`Expected unauthenticated accounts to return 401, got ${unauthorizedAccounts.status}.`);
   }
+  const unauthorizedMessages = await fetch(`http://127.0.0.1:${port}/mail/messages?scope=anonymous`);
+  await unauthorizedMessages.arrayBuffer();
+  if (unauthorizedMessages.status !== 401) {
+    throw new Error(`Expected unauthenticated messages to return 401, got ${unauthorizedMessages.status}.`);
+  }
+  const unauthorizedVerifications = await fetch(`http://127.0.0.1:${port}/mail/verifications`);
+  await unauthorizedVerifications.arrayBuffer();
+  if (unauthorizedVerifications.status !== 401) {
+    throw new Error(`Expected unauthenticated verifications to return 401, got ${unauthorizedVerifications.status}.`);
+  }
   const contactCreate = await fetch(`http://127.0.0.1:${port}/mail/contacts`, {
     method: "POST",
     headers: {
@@ -355,6 +365,50 @@ try {
   ) {
     throw new Error("Authenticated packaged-core taxonomy list did not read the created folder.");
   }
+  const draftSave = await fetch(`http://127.0.0.1:${port}/mail/drafts`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${apiToken}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      accountId: accountPayload.account.id,
+      targetAddress: "recipient@example.test",
+      subject: "Packaged verification code",
+      bodyText: "Your verification code is 654321.",
+      bodyHtml: '<p onclick="evil()">Your verification code is 654321.</p><script>evil()</script>',
+    }),
+  });
+  const draftPayload = await draftSave.json();
+  if (!draftSave.ok || !draftPayload?.draft?.messageId) {
+    throw new Error(`Authenticated packaged-core draft save failed with status ${draftSave.status}.`);
+  }
+  const messageDetail = await fetch(`http://127.0.0.1:${port}/mail/messages/${draftPayload.draft.messageId}`, {
+    headers: { authorization: `Bearer ${apiToken}` },
+  });
+  const detailPayload = await messageDetail.json();
+  if (
+    !messageDetail.ok
+    || detailPayload?.message?.localFolder !== "drafts"
+    || detailPayload?.message?.bodyHtml?.includes("<script")
+    || detailPayload?.message?.bodyHtml?.includes("onclick")
+  ) {
+    throw new Error("Packaged-core message detail did not return a sanitized local draft.");
+  }
+  const reclassify = await fetch(
+    `http://127.0.0.1:${port}/mail/messages/${draftPayload.draft.messageId}/reclassify-verification`,
+    { method: "POST", headers: { authorization: `Bearer ${apiToken}` } },
+  );
+  const reclassifyPayload = await reclassify.json();
+  const verificationsList = await fetch(`http://127.0.0.1:${port}/mail/verifications?limit=10`, {
+    headers: { authorization: `Bearer ${apiToken}` },
+  });
+  const verificationsPayload = await verificationsList.json();
+  if (
+    !reclassify.ok
+    || reclassifyPayload?.verification?.code !== "654321"
+    || !verificationsList.ok
+    || !verificationsPayload?.verifications?.some((item) => item.code === "654321")
+  ) {
+    throw new Error("Packaged-core verification extraction or query did not persist canonical code.");
+  }
   const mailboxRequest = {
     hostId: "easyemail-desktop-core-smoke",
     provisionMode: "reuse-only",
@@ -426,5 +480,5 @@ if (credentialLeakDetected) {
   throw new Error("Bundled core output leaked a smoke credential.");
 }
 console.log(
-  "Bundled EasyEmail core authenticated readiness, contact/taxonomy/account persistence, secret rejection, fail-closed IMAP credential resolution, unauthenticated 401, and fake-provider mailbox open passed.",
+  "Bundled EasyEmail core authenticated readiness, contact/taxonomy/account/message/verification persistence, secret rejection, fail-closed IMAP credential resolution, unauthenticated 401, and fake-provider mailbox open passed.",
 );

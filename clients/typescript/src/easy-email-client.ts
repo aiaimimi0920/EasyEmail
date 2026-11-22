@@ -1,46 +1,4 @@
-import type {
-  AuthenticationLinkResult,
-  Contact,
-  ContactCreateInput,
-  ContactListQuery,
-  ContactListResult,
-  ContactUpdateInput,
-  EasyEmailCatalog,
-  EasyEmailSnapshot,
-  MailTaxonomyDeleteResult,
-  MailTaxonomyKind,
-  MailTaxonomyListQuery,
-  MailTaxonomyListResult,
-  MailTaxonomyMutationResult,
-  MailTaxonomyUpdateInput,
-  MailTaxonomyUpsertInput,
-  MailAccount,
-  MailAccountCreateInput,
-  MailAccountImapTestRequest,
-  MailAccountImapTestResult,
-  MailAccountListQuery,
-  MailAccountListResult,
-  MailAccountUpdateInput,
-  MailboxOutcomeReport,
-  MailboxOutcomeReportResult,
-  MailboxPlanResult,
-  MailboxSendRequest,
-  MailboxSendResult,
-  MailboxSession,
-  MailboxSessionUpdateRequest,
-  ObserveMessageInput,
-  ObservedMessage,
-  ObservedMessageQueryFilters,
-  RecoverMailboxByEmailRequest,
-  RecoverMailboxByEmailResult,
-  RecoverMailboxCapacityRequest,
-  RecoverMailboxCapacityResult,
-  ReleaseMailboxRequest,
-  ReleaseMailboxResult,
-  VerificationCodeResult,
-  VerificationMailboxOpenResult,
-  VerificationMailboxRequest,
-} from "./contracts.js";
+import type * as Contracts from "./contracts.js";
 import {
   EASY_EMAIL_HTTP_ROUTES,
   createFetchJsonHttpClient,
@@ -51,45 +9,74 @@ import type {
 } from "./http-transport.js";
 
 export interface EasyEmailClientApi {
-  getCatalog(): Promise<EasyEmailCatalog>;
-  getSnapshot(): Promise<EasyEmailSnapshot>;
-  listContacts(query?: ContactListQuery): Promise<ContactListResult>;
-  getContact(contactId: string): Promise<Contact>;
-  createContact(input: ContactCreateInput): Promise<Contact>;
-  updateContact(contactId: string, input: ContactUpdateInput): Promise<Contact>;
+  getCatalog(): Promise<Contracts.EasyEmailCatalog>;
+  getSnapshot(): Promise<Contracts.EasyEmailSnapshot>;
+  listContacts(query?: Contracts.ContactListQuery): Promise<Contracts.ContactListResult>;
+  getContact(contactId: string): Promise<Contracts.Contact>;
+  createContact(input: Contracts.ContactCreateInput): Promise<Contracts.Contact>;
+  updateContact(contactId: string, input: Contracts.ContactUpdateInput): Promise<Contracts.Contact>;
   deleteContact(contactId: string, expectedVersion: number): Promise<{ id: string }>;
-  listMailTaxonomy(query: MailTaxonomyListQuery): Promise<MailTaxonomyListResult>;
-  getMailTaxonomy(itemId: string): Promise<MailTaxonomyMutationResult>;
+  listMailTaxonomy(query: Contracts.MailTaxonomyListQuery): Promise<Contracts.MailTaxonomyListResult>;
+  getMailTaxonomy(itemId: string): Promise<Contracts.MailTaxonomyMutationResult>;
   upsertMailTaxonomy(
-    kind: MailTaxonomyKind,
+    kind: Contracts.MailTaxonomyKind,
     key: string,
-    input: MailTaxonomyUpsertInput,
-  ): Promise<MailTaxonomyMutationResult>;
+    input: Contracts.MailTaxonomyUpsertInput,
+  ): Promise<Contracts.MailTaxonomyMutationResult>;
   updateMailTaxonomy(
     itemId: string,
-    input: MailTaxonomyUpdateInput,
-  ): Promise<MailTaxonomyMutationResult>;
-  deleteMailTaxonomy(itemId: string, expectedVersion: number): Promise<MailTaxonomyDeleteResult>;
-  listMailAccounts(query?: MailAccountListQuery): Promise<MailAccountListResult>;
-  getMailAccount(accountId: string): Promise<MailAccount>;
-  createMailAccount(input: MailAccountCreateInput): Promise<MailAccount>;
-  updateMailAccount(accountId: string, input: MailAccountUpdateInput): Promise<MailAccount>;
-  disableMailAccount(accountId: string, expectedVersion: number): Promise<MailAccount>;
+    input: Contracts.MailTaxonomyUpdateInput,
+  ): Promise<Contracts.MailTaxonomyMutationResult>;
+  deleteMailTaxonomy(itemId: string, expectedVersion: number): Promise<Contracts.MailTaxonomyDeleteResult>;
+  listMailAccounts(query?: Contracts.MailAccountListQuery): Promise<Contracts.MailAccountListResult>;
+  getMailAccount(accountId: string): Promise<Contracts.MailAccount>;
+  createMailAccount(input: Contracts.MailAccountCreateInput): Promise<Contracts.MailAccount>;
+  updateMailAccount(accountId: string, input: Contracts.MailAccountUpdateInput): Promise<Contracts.MailAccount>;
+  disableMailAccount(accountId: string, expectedVersion: number): Promise<Contracts.MailAccount>;
   deleteMailAccount(accountId: string, expectedVersion: number): Promise<{ id: string }>;
-  testMailAccountImap(input: MailAccountImapTestRequest): Promise<MailAccountImapTestResult>;
-  planMailbox(request: VerificationMailboxRequest): Promise<MailboxPlanResult>;
-  openMailbox(request: VerificationMailboxRequest): Promise<VerificationMailboxOpenResult>;
-  sendMailboxMessage(request: MailboxSendRequest): Promise<MailboxSendResult>;
-  updateMailboxSession(request: MailboxSessionUpdateRequest): Promise<MailboxSession>;
-  releaseMailbox(request: ReleaseMailboxRequest): Promise<ReleaseMailboxResult>;
-  recoverMailboxByEmail(request: RecoverMailboxByEmailRequest): Promise<RecoverMailboxByEmailResult>;
-  recoverMailboxCapacity(request: RecoverMailboxCapacityRequest): Promise<RecoverMailboxCapacityResult>;
-  readVerificationCode(sessionId: string): Promise<VerificationCodeResult | undefined>;
-  readAuthenticationLink(sessionId: string): Promise<AuthenticationLinkResult | undefined>;
-  reportMailboxOutcome(report: MailboxOutcomeReport): Promise<MailboxOutcomeReportResult>;
-  observeMessage(input: ObserveMessageInput): Promise<ObservedMessage>;
-  listObservedMessages(filters?: ObservedMessageQueryFilters): Promise<ObservedMessage[]>;
-  getObservedMessage(messageId: string): Promise<ObservedMessage | undefined>;
+  testMailAccountImap(input: Contracts.MailAccountImapTestRequest): Promise<Contracts.MailAccountImapTestResult>;
+  listMailMessages(query?: Contracts.MailMessageListQuery): Promise<Contracts.MailMessageListResult>;
+  getMailMessageDetail(
+    messageId: string,
+    query?: Contracts.MailMessageDetailQuery,
+  ): Promise<Contracts.MailMessageDetail>;
+  saveLocalDraft(input: Contracts.MailDraftSaveInput): Promise<Contracts.MailDraftSaveResult>;
+  deleteLocalDraft(messageId: string): Promise<Contracts.MailMessageLocalActionResult>;
+  deleteMailMessageLocal(messageId: string): Promise<Contracts.MailMessageLocalActionResult>;
+  deleteMailMessageForever(messageId: string): Promise<Contracts.MailMessageLocalActionResult>;
+  emptyMailTrash(input?: Contracts.MailTrashEmptyInput): Promise<Contracts.MailMessageBatchActionResult>;
+  setMailMessageLocalFlag(
+    messageId: string,
+    input: Contracts.MailMessageSetFlagInput,
+  ): Promise<Contracts.MailMessageLocalActionResult>;
+  setMailMessageLocalFolder(
+    messageId: string,
+    input: Contracts.MailMessageSetFolderInput,
+  ): Promise<Contracts.MailMessageLocalActionResult>;
+  setMailMessageLocalLabel(
+    messageId: string,
+    input: Contracts.MailMessageSetLabelInput,
+  ): Promise<Contracts.MailMessageLocalActionResult>;
+  listMailVerifications(
+    query?: Contracts.MailVerificationListQuery,
+  ): Promise<Contracts.MailVerificationRecord[]>;
+  reclassifyMailMessageVerification(
+    messageId: string,
+  ): Promise<Contracts.MailVerificationRecord | undefined>;
+  pollMailboxVerification(sessionId: string): Promise<Contracts.PollMailboxVerificationResult>;
+  planMailbox(request: Contracts.VerificationMailboxRequest): Promise<Contracts.MailboxPlanResult>;
+  openMailbox(request: Contracts.VerificationMailboxRequest): Promise<Contracts.VerificationMailboxOpenResult>;
+  sendMailboxMessage(request: Contracts.MailboxSendRequest): Promise<Contracts.MailboxSendResult>;
+  updateMailboxSession(request: Contracts.MailboxSessionUpdateRequest): Promise<Contracts.MailboxSession>;
+  releaseMailbox(request: Contracts.ReleaseMailboxRequest): Promise<Contracts.ReleaseMailboxResult>;
+  recoverMailboxByEmail(request: Contracts.RecoverMailboxByEmailRequest): Promise<Contracts.RecoverMailboxByEmailResult>;
+  recoverMailboxCapacity(request: Contracts.RecoverMailboxCapacityRequest): Promise<Contracts.RecoverMailboxCapacityResult>;
+  readVerificationCode(sessionId: string): Promise<Contracts.VerificationCodeResult | undefined>;
+  readAuthenticationLink(sessionId: string): Promise<Contracts.AuthenticationLinkResult | undefined>;
+  reportMailboxOutcome(report: Contracts.MailboxOutcomeReport): Promise<Contracts.MailboxOutcomeReportResult>;
+  observeMessage(input: Contracts.ObserveMessageInput): Promise<Contracts.ObservedMessage>;
+  listObservedMessages(filters?: Contracts.ObservedMessageQueryFilters): Promise<Contracts.ObservedMessage[]>;
+  getObservedMessage(messageId: string): Promise<Contracts.ObservedMessage | undefined>;
 }
 
 export class EasyEmailClient implements EasyEmailClientApi {
@@ -101,40 +88,47 @@ export class EasyEmailClient implements EasyEmailClientApi {
       : options;
   }
 
-  public async getCatalog(): Promise<EasyEmailCatalog> {
-    const response = await this.httpClient.get<{ catalog: EasyEmailCatalog }>(EASY_EMAIL_HTTP_ROUTES.catalog);
+  public async getCatalog(): Promise<Contracts.EasyEmailCatalog> {
+    const response = await this.httpClient.get<{ catalog: Contracts.EasyEmailCatalog }>(
+      EASY_EMAIL_HTTP_ROUTES.catalog,
+    );
     return response.catalog;
   }
 
-  public async getSnapshot(): Promise<EasyEmailSnapshot> {
-    const response = await this.httpClient.get<{ snapshot: EasyEmailSnapshot }>(EASY_EMAIL_HTTP_ROUTES.snapshot);
+  public async getSnapshot(): Promise<Contracts.EasyEmailSnapshot> {
+    const response = await this.httpClient.get<{ snapshot: Contracts.EasyEmailSnapshot }>(
+      EASY_EMAIL_HTTP_ROUTES.snapshot,
+    );
     return response.snapshot;
   }
 
-  public async listContacts(query: ContactListQuery = {}): Promise<ContactListResult> {
-    return this.httpClient.get<ContactListResult>(EASY_EMAIL_HTTP_ROUTES.contacts, {
+  public async listContacts(query: Contracts.ContactListQuery = {}): Promise<Contracts.ContactListResult> {
+    return this.httpClient.get<Contracts.ContactListResult>(EASY_EMAIL_HTTP_ROUTES.contacts, {
       limit: query.limit,
       cursor: query.cursor,
     });
   }
 
-  public async getContact(contactId: string): Promise<Contact> {
-    const response = await this.httpClient.get<{ contact: Contact }>(
+  public async getContact(contactId: string): Promise<Contracts.Contact> {
+    const response = await this.httpClient.get<{ contact: Contracts.Contact }>(
       EASY_EMAIL_HTTP_ROUTES.contact(contactId),
     );
     return response.contact;
   }
 
-  public async createContact(input: ContactCreateInput): Promise<Contact> {
-    const response = await this.httpClient.post<ContactCreateInput, { contact: Contact }>(
+  public async createContact(input: Contracts.ContactCreateInput): Promise<Contracts.Contact> {
+    const response = await this.httpClient.post<Contracts.ContactCreateInput, { contact: Contracts.Contact }>(
       EASY_EMAIL_HTTP_ROUTES.contacts,
       input,
     );
     return response.contact;
   }
 
-  public async updateContact(contactId: string, input: ContactUpdateInput): Promise<Contact> {
-    const response = await this.httpClient.patch<ContactUpdateInput, { contact: Contact }>(
+  public async updateContact(
+    contactId: string,
+    input: Contracts.ContactUpdateInput,
+  ): Promise<Contracts.Contact> {
+    const response = await this.httpClient.patch<Contracts.ContactUpdateInput, { contact: Contracts.Contact }>(
       EASY_EMAIL_HTTP_ROUTES.contact(contactId),
       input,
     );
@@ -149,26 +143,28 @@ export class EasyEmailClient implements EasyEmailClientApi {
     return response.deleted;
   }
 
-  public async listMailTaxonomy(query: MailTaxonomyListQuery): Promise<MailTaxonomyListResult> {
-    return this.httpClient.get<MailTaxonomyListResult>(EASY_EMAIL_HTTP_ROUTES.taxonomy, {
+  public async listMailTaxonomy(
+    query: Contracts.MailTaxonomyListQuery,
+  ): Promise<Contracts.MailTaxonomyListResult> {
+    return this.httpClient.get<Contracts.MailTaxonomyListResult>(EASY_EMAIL_HTTP_ROUTES.taxonomy, {
       kind: query.kind,
       limit: query.limit,
       cursor: query.cursor,
     });
   }
 
-  public async getMailTaxonomy(itemId: string): Promise<MailTaxonomyMutationResult> {
-    return this.httpClient.get<MailTaxonomyMutationResult>(
+  public async getMailTaxonomy(itemId: string): Promise<Contracts.MailTaxonomyMutationResult> {
+    return this.httpClient.get<Contracts.MailTaxonomyMutationResult>(
       EASY_EMAIL_HTTP_ROUTES.taxonomyItem(itemId),
     );
   }
 
   public async upsertMailTaxonomy(
-    kind: MailTaxonomyKind,
+    kind: Contracts.MailTaxonomyKind,
     key: string,
-    input: MailTaxonomyUpsertInput,
-  ): Promise<MailTaxonomyMutationResult> {
-    return this.httpClient.put<MailTaxonomyUpsertInput, MailTaxonomyMutationResult>(
+    input: Contracts.MailTaxonomyUpsertInput,
+  ): Promise<Contracts.MailTaxonomyMutationResult> {
+    return this.httpClient.put<Contracts.MailTaxonomyUpsertInput, Contracts.MailTaxonomyMutationResult>(
       EASY_EMAIL_HTTP_ROUTES.taxonomyUpsert(kind, key),
       input,
     );
@@ -176,9 +172,9 @@ export class EasyEmailClient implements EasyEmailClientApi {
 
   public async updateMailTaxonomy(
     itemId: string,
-    input: MailTaxonomyUpdateInput,
-  ): Promise<MailTaxonomyMutationResult> {
-    return this.httpClient.patch<MailTaxonomyUpdateInput, MailTaxonomyMutationResult>(
+    input: Contracts.MailTaxonomyUpdateInput,
+  ): Promise<Contracts.MailTaxonomyMutationResult> {
+    return this.httpClient.patch<Contracts.MailTaxonomyUpdateInput, Contracts.MailTaxonomyMutationResult>(
       EASY_EMAIL_HTTP_ROUTES.taxonomyItem(itemId),
       input,
     );
@@ -187,152 +183,336 @@ export class EasyEmailClient implements EasyEmailClientApi {
   public async deleteMailTaxonomy(
     itemId: string,
     expectedVersion: number,
-  ): Promise<MailTaxonomyDeleteResult> {
-    return this.httpClient.delete<MailTaxonomyDeleteResult>(
+  ): Promise<Contracts.MailTaxonomyDeleteResult> {
+    return this.httpClient.delete<Contracts.MailTaxonomyDeleteResult>(
       EASY_EMAIL_HTTP_ROUTES.taxonomyItem(itemId),
       { expectedVersion },
     );
   }
 
-  public async listMailAccounts(query: MailAccountListQuery = {}): Promise<MailAccountListResult> {
-    return this.httpClient.get<MailAccountListResult>(EASY_EMAIL_HTTP_ROUTES.accounts, {
+  public async listMailAccounts(
+    query: Contracts.MailAccountListQuery = {},
+  ): Promise<Contracts.MailAccountListResult> {
+    return this.httpClient.get<Contracts.MailAccountListResult>(EASY_EMAIL_HTTP_ROUTES.accounts, {
       scope: query.scope,
       limit: query.limit,
       cursor: query.cursor,
     });
   }
 
-  public async getMailAccount(accountId: string): Promise<MailAccount> {
-    const response = await this.httpClient.get<{ account: MailAccount }>(EASY_EMAIL_HTTP_ROUTES.account(accountId));
+  public async getMailAccount(accountId: string): Promise<Contracts.MailAccount> {
+    const response = await this.httpClient.get<{ account: Contracts.MailAccount }>(
+      EASY_EMAIL_HTTP_ROUTES.account(accountId),
+    );
     return response.account;
   }
 
-  public async createMailAccount(input: MailAccountCreateInput): Promise<MailAccount> {
-    const response = await this.httpClient.post<MailAccountCreateInput, { account: MailAccount }>(EASY_EMAIL_HTTP_ROUTES.accounts, input);
+  public async createMailAccount(input: Contracts.MailAccountCreateInput): Promise<Contracts.MailAccount> {
+    const response = await this.httpClient.post<
+      Contracts.MailAccountCreateInput,
+      { account: Contracts.MailAccount }
+    >(EASY_EMAIL_HTTP_ROUTES.accounts, input);
     return response.account;
   }
 
-  public async updateMailAccount(accountId: string, input: MailAccountUpdateInput): Promise<MailAccount> {
-    const response = await this.httpClient.patch<MailAccountUpdateInput, { account: MailAccount }>(EASY_EMAIL_HTTP_ROUTES.account(accountId), input);
+  public async updateMailAccount(
+    accountId: string,
+    input: Contracts.MailAccountUpdateInput,
+  ): Promise<Contracts.MailAccount> {
+    const response = await this.httpClient.patch<
+      Contracts.MailAccountUpdateInput,
+      { account: Contracts.MailAccount }
+    >(EASY_EMAIL_HTTP_ROUTES.account(accountId), input);
     return response.account;
   }
 
-  public async disableMailAccount(accountId: string, expectedVersion: number): Promise<MailAccount> {
-    const response = await this.httpClient.post<{ expectedVersion: number }, { account: MailAccount }>(EASY_EMAIL_HTTP_ROUTES.disableAccount(accountId), { expectedVersion });
+  public async disableMailAccount(accountId: string, expectedVersion: number): Promise<Contracts.MailAccount> {
+    const response = await this.httpClient.post<
+      { expectedVersion: number },
+      { account: Contracts.MailAccount }
+    >(EASY_EMAIL_HTTP_ROUTES.disableAccount(accountId), { expectedVersion });
     return response.account;
   }
 
   public async deleteMailAccount(accountId: string, expectedVersion: number): Promise<{ id: string }> {
-    const response = await this.httpClient.delete<{ deleted: { id: string } }>(EASY_EMAIL_HTTP_ROUTES.account(accountId), { expectedVersion });
+    const response = await this.httpClient.delete<{ deleted: { id: string } }>(
+      EASY_EMAIL_HTTP_ROUTES.account(accountId),
+      { expectedVersion },
+    );
     return response.deleted;
   }
 
   public async testMailAccountImap(
-    input: MailAccountImapTestRequest,
-  ): Promise<MailAccountImapTestResult> {
+    input: Contracts.MailAccountImapTestRequest,
+  ): Promise<Contracts.MailAccountImapTestResult> {
     const response = await this.httpClient.post<
-      MailAccountImapTestRequest,
-      { result: MailAccountImapTestResult }
+      Contracts.MailAccountImapTestRequest,
+      { result: Contracts.MailAccountImapTestResult }
     >(EASY_EMAIL_HTTP_ROUTES.testAccountImap, input);
     return response.result;
   }
 
-  public async planMailbox(request: VerificationMailboxRequest): Promise<MailboxPlanResult> {
-    const response = await this.httpClient.post<VerificationMailboxRequest, { plan: MailboxPlanResult }>(
-      EASY_EMAIL_HTTP_ROUTES.planMailbox,
-      request,
+  public async listMailMessages(
+    query: Contracts.MailMessageListQuery = {},
+  ): Promise<Contracts.MailMessageListResult> {
+    return this.httpClient.get<Contracts.MailMessageListResult>(EASY_EMAIL_HTTP_ROUTES.messages, {
+      scope: query.scope,
+      accountId: query.accountId,
+      sessionId: query.sessionId,
+      folder: query.folder,
+      label: query.label,
+      search: query.search,
+      includeArchived: query.includeArchived,
+      limit: query.limit,
+      cursor: query.cursor,
+    });
+  }
+
+  public async getMailMessageDetail(
+    messageId: string,
+    query: Contracts.MailMessageDetailQuery = {},
+  ): Promise<Contracts.MailMessageDetail> {
+    const response = await this.httpClient.get<{ message: Contracts.MailMessageDetail }>(
+      EASY_EMAIL_HTTP_ROUTES.message(messageId),
+      {
+        scope: query.scope,
+        includeRawHtml: query.includeRawHtml,
+      },
     );
+    return response.message;
+  }
+
+  public async saveLocalDraft(
+    input: Contracts.MailDraftSaveInput,
+  ): Promise<Contracts.MailDraftSaveResult> {
+    const response = await this.httpClient.post<
+      Contracts.MailDraftSaveInput,
+      { draft: Contracts.MailDraftSaveResult }
+    >(EASY_EMAIL_HTTP_ROUTES.drafts, input);
+    return response.draft;
+  }
+
+  public async deleteLocalDraft(messageId: string): Promise<Contracts.MailMessageLocalActionResult> {
+    const response = await this.httpClient.delete<{ action: Contracts.MailMessageLocalActionResult }>(
+      EASY_EMAIL_HTTP_ROUTES.draft(messageId),
+    );
+    return response.action;
+  }
+
+  public async deleteMailMessageLocal(
+    messageId: string,
+  ): Promise<Contracts.MailMessageLocalActionResult> {
+    const response = await this.httpClient.delete<{ action: Contracts.MailMessageLocalActionResult }>(
+      EASY_EMAIL_HTTP_ROUTES.messageLocal(messageId),
+    );
+    return response.action;
+  }
+
+  public async deleteMailMessageForever(
+    messageId: string,
+  ): Promise<Contracts.MailMessageLocalActionResult> {
+    const response = await this.httpClient.delete<{ action: Contracts.MailMessageLocalActionResult }>(
+      EASY_EMAIL_HTTP_ROUTES.message(messageId),
+    );
+    return response.action;
+  }
+
+  public async emptyMailTrash(
+    input: Contracts.MailTrashEmptyInput = {},
+  ): Promise<Contracts.MailMessageBatchActionResult> {
+    const response = await this.httpClient.delete<{ result: Contracts.MailMessageBatchActionResult }>(
+      EASY_EMAIL_HTTP_ROUTES.trash,
+      undefined,
+      input,
+    );
+    return response.result;
+  }
+
+  public async setMailMessageLocalFlag(
+    messageId: string,
+    input: Contracts.MailMessageSetFlagInput,
+  ): Promise<Contracts.MailMessageLocalActionResult> {
+    const response = await this.httpClient.patch<
+      Contracts.MailMessageSetFlagInput,
+      { action: Contracts.MailMessageLocalActionResult }
+    >(EASY_EMAIL_HTTP_ROUTES.messageFlags(messageId), input);
+    return response.action;
+  }
+
+  public async setMailMessageLocalFolder(
+    messageId: string,
+    input: Contracts.MailMessageSetFolderInput,
+  ): Promise<Contracts.MailMessageLocalActionResult> {
+    const response = await this.httpClient.patch<
+      Contracts.MailMessageSetFolderInput,
+      { action: Contracts.MailMessageLocalActionResult }
+    >(EASY_EMAIL_HTTP_ROUTES.messageFolder(messageId), input);
+    return response.action;
+  }
+
+  public async setMailMessageLocalLabel(
+    messageId: string,
+    input: Contracts.MailMessageSetLabelInput,
+  ): Promise<Contracts.MailMessageLocalActionResult> {
+    const response = await this.httpClient.patch<
+      Contracts.MailMessageSetLabelInput,
+      { action: Contracts.MailMessageLocalActionResult }
+    >(EASY_EMAIL_HTTP_ROUTES.messageLabels(messageId), input);
+    return response.action;
+  }
+
+  public async listMailVerifications(
+    query: Contracts.MailVerificationListQuery = {},
+  ): Promise<Contracts.MailVerificationRecord[]> {
+    const response = await this.httpClient.get<{ verifications: Contracts.MailVerificationRecord[] }>(
+      EASY_EMAIL_HTTP_ROUTES.verifications,
+      {
+        sessionId: query.sessionId,
+        scope: query.scope,
+        freshOnly: query.freshOnly,
+        limit: query.limit,
+      },
+    );
+    return response.verifications;
+  }
+
+  public async reclassifyMailMessageVerification(
+    messageId: string,
+  ): Promise<Contracts.MailVerificationRecord | undefined> {
+    const response = await this.httpClient.post<
+      Record<string, never>,
+      { verification?: Contracts.MailVerificationRecord }
+    >(EASY_EMAIL_HTTP_ROUTES.reclassifyMessageVerification(messageId), {});
+    return response.verification;
+  }
+
+  public async pollMailboxVerification(
+    sessionId: string,
+  ): Promise<Contracts.PollMailboxVerificationResult> {
+    return this.httpClient.post<Record<string, never>, Contracts.PollMailboxVerificationResult>(
+      EASY_EMAIL_HTTP_ROUTES.pollMailboxVerification(sessionId),
+      {},
+    );
+  }
+
+  public async planMailbox(
+    request: Contracts.VerificationMailboxRequest,
+  ): Promise<Contracts.MailboxPlanResult> {
+    const response = await this.httpClient.post<
+      Contracts.VerificationMailboxRequest,
+      { plan: Contracts.MailboxPlanResult }
+    >(EASY_EMAIL_HTTP_ROUTES.planMailbox, request);
     return response.plan;
   }
 
-  public async openMailbox(request: VerificationMailboxRequest): Promise<VerificationMailboxOpenResult> {
-    const response = await this.httpClient.post<VerificationMailboxRequest, { result: VerificationMailboxOpenResult }>(
-      EASY_EMAIL_HTTP_ROUTES.openMailbox,
-      request,
-    );
+  public async openMailbox(
+    request: Contracts.VerificationMailboxRequest,
+  ): Promise<Contracts.VerificationMailboxOpenResult> {
+    const response = await this.httpClient.post<
+      Contracts.VerificationMailboxRequest,
+      { result: Contracts.VerificationMailboxOpenResult }
+    >(EASY_EMAIL_HTTP_ROUTES.openMailbox, request);
     return response.result;
   }
 
-  public async sendMailboxMessage(request: MailboxSendRequest): Promise<MailboxSendResult> {
-    const response = await this.httpClient.post<MailboxSendRequest, { result: MailboxSendResult }>(
-      EASY_EMAIL_HTTP_ROUTES.sendMailboxMessage,
-      request,
-    );
+  public async sendMailboxMessage(
+    request: Contracts.MailboxSendRequest,
+  ): Promise<Contracts.MailboxSendResult> {
+    const response = await this.httpClient.post<
+      Contracts.MailboxSendRequest,
+      { result: Contracts.MailboxSendResult }
+    >(EASY_EMAIL_HTTP_ROUTES.sendMailboxMessage, request);
     return response.result;
   }
 
-  public async updateMailboxSession(request: MailboxSessionUpdateRequest): Promise<MailboxSession> {
-    const response = await this.httpClient.post<MailboxSessionUpdateRequest, { session: MailboxSession }>(
-      EASY_EMAIL_HTTP_ROUTES.updateMailboxSession,
-      request,
-    );
+  public async updateMailboxSession(
+    request: Contracts.MailboxSessionUpdateRequest,
+  ): Promise<Contracts.MailboxSession> {
+    const response = await this.httpClient.post<
+      Contracts.MailboxSessionUpdateRequest,
+      { session: Contracts.MailboxSession }
+    >(EASY_EMAIL_HTTP_ROUTES.updateMailboxSession, request);
     return response.session;
   }
 
-  public async releaseMailbox(request: ReleaseMailboxRequest): Promise<ReleaseMailboxResult> {
-    const response = await this.httpClient.post<ReleaseMailboxRequest, { result: ReleaseMailboxResult }>(
-      EASY_EMAIL_HTTP_ROUTES.releaseMailbox,
-      request,
-    );
+  public async releaseMailbox(
+    request: Contracts.ReleaseMailboxRequest,
+  ): Promise<Contracts.ReleaseMailboxResult> {
+    const response = await this.httpClient.post<
+      Contracts.ReleaseMailboxRequest,
+      { result: Contracts.ReleaseMailboxResult }
+    >(EASY_EMAIL_HTTP_ROUTES.releaseMailbox, request);
     return response.result;
   }
 
-  public async recoverMailboxByEmail(request: RecoverMailboxByEmailRequest): Promise<RecoverMailboxByEmailResult> {
-    const response = await this.httpClient.post<RecoverMailboxByEmailRequest, { result: RecoverMailboxByEmailResult }>(
-      EASY_EMAIL_HTTP_ROUTES.recoverMailboxByEmail,
-      request,
-    );
+  public async recoverMailboxByEmail(
+    request: Contracts.RecoverMailboxByEmailRequest,
+  ): Promise<Contracts.RecoverMailboxByEmailResult> {
+    const response = await this.httpClient.post<
+      Contracts.RecoverMailboxByEmailRequest,
+      { result: Contracts.RecoverMailboxByEmailResult }
+    >(EASY_EMAIL_HTTP_ROUTES.recoverMailboxByEmail, request);
     return response.result;
   }
 
-  public async recoverMailboxCapacity(request: RecoverMailboxCapacityRequest): Promise<RecoverMailboxCapacityResult> {
-    const response = await this.httpClient.post<RecoverMailboxCapacityRequest, { result: RecoverMailboxCapacityResult }>(
-      EASY_EMAIL_HTTP_ROUTES.recoverMailboxCapacity,
-      request,
-    );
+  public async recoverMailboxCapacity(
+    request: Contracts.RecoverMailboxCapacityRequest,
+  ): Promise<Contracts.RecoverMailboxCapacityResult> {
+    const response = await this.httpClient.post<
+      Contracts.RecoverMailboxCapacityRequest,
+      { result: Contracts.RecoverMailboxCapacityResult }
+    >(EASY_EMAIL_HTTP_ROUTES.recoverMailboxCapacity, request);
     return response.result;
   }
 
-  public async readVerificationCode(sessionId: string): Promise<VerificationCodeResult | undefined> {
-    const response = await this.httpClient.get<{ code?: VerificationCodeResult }>(
+  public async readVerificationCode(
+    sessionId: string,
+  ): Promise<Contracts.VerificationCodeResult | undefined> {
+    const response = await this.httpClient.get<{ code?: Contracts.VerificationCodeResult }>(
       EASY_EMAIL_HTTP_ROUTES.readVerificationCode(sessionId),
     );
     return response.code;
   }
 
-  public async readAuthenticationLink(sessionId: string): Promise<AuthenticationLinkResult | undefined> {
-    const response = await this.httpClient.get<{ authLink?: AuthenticationLinkResult }>(
+  public async readAuthenticationLink(
+    sessionId: string,
+  ): Promise<Contracts.AuthenticationLinkResult | undefined> {
+    const response = await this.httpClient.get<{ authLink?: Contracts.AuthenticationLinkResult }>(
       EASY_EMAIL_HTTP_ROUTES.readAuthenticationLink(sessionId),
     );
     return response.authLink;
   }
 
-  public async reportMailboxOutcome(report: MailboxOutcomeReport): Promise<MailboxOutcomeReportResult> {
-    const response = await this.httpClient.post<MailboxOutcomeReport, { result: MailboxOutcomeReportResult }>(
-      EASY_EMAIL_HTTP_ROUTES.reportMailboxOutcome,
-      report,
-    );
+  public async reportMailboxOutcome(
+    report: Contracts.MailboxOutcomeReport,
+  ): Promise<Contracts.MailboxOutcomeReportResult> {
+    const response = await this.httpClient.post<
+      Contracts.MailboxOutcomeReport,
+      { result: Contracts.MailboxOutcomeReportResult }
+    >(EASY_EMAIL_HTTP_ROUTES.reportMailboxOutcome, report);
     return response.result;
   }
 
-  public async observeMessage(input: ObserveMessageInput): Promise<ObservedMessage> {
-    const response = await this.httpClient.post<ObserveMessageInput, { message: ObservedMessage }>(
-      EASY_EMAIL_HTTP_ROUTES.observeMessage,
-      input,
-    );
+  public async observeMessage(input: Contracts.ObserveMessageInput): Promise<Contracts.ObservedMessage> {
+    const response = await this.httpClient.post<
+      Contracts.ObserveMessageInput,
+      { message: Contracts.ObservedMessage }
+    >(EASY_EMAIL_HTTP_ROUTES.observeMessage, input);
     return response.message;
   }
 
-  public async listObservedMessages(filters: ObservedMessageQueryFilters = {}): Promise<ObservedMessage[]> {
-    const response = await this.httpClient.get<{ messages: ObservedMessage[] }>(
+  public async listObservedMessages(
+    filters: Contracts.ObservedMessageQueryFilters = {},
+  ): Promise<Contracts.ObservedMessage[]> {
+    const response = await this.httpClient.get<{ messages: Contracts.ObservedMessage[] }>(
       EASY_EMAIL_HTTP_ROUTES.queryObservedMessages,
       filters,
     );
     return response.messages;
   }
 
-  public async getObservedMessage(messageId: string): Promise<ObservedMessage | undefined> {
-    const response = await this.httpClient.get<{ message?: ObservedMessage }>(
+  public async getObservedMessage(messageId: string): Promise<Contracts.ObservedMessage | undefined> {
+    const response = await this.httpClient.get<{ message?: Contracts.ObservedMessage }>(
       EASY_EMAIL_HTTP_ROUTES.getObservedMessage(messageId),
     );
     return response.message;

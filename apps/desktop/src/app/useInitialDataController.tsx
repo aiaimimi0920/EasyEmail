@@ -1,11 +1,10 @@
 import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { temporaryMailboxViewFromSession, temporaryObservedMessageView, temporaryVerificationCodeView } from "../mail/temporaryMailboxAdapter";
-import { type VerificationCodeDto } from "../mail/mailSearch";
 import { TOAST_FADE_MS, TOAST_VISIBLE_MS } from "./appConfig";
 import { asErrorDto, mergeByIdentity } from "./appDomain";
-import { avatarSettingsClient, bundledCoreClient, contactClient, mailAccountClient, mailTaxonomyClient, newsletterClient, platformAccountClient, sendQueueClient, settingsClient } from "./appRuntime";
-import type { CoreTemporaryState, LegacyAccountDto, AgentServiceDto, AgentThreadDto, AnonymousMessageDto, MessageCache, NewsletterSubscriptionCache } from "./appTypes";
+import { avatarSettingsClient, bundledCoreClient, contactClient, mailAccountClient, mailMessageClient, mailTaxonomyClient, newsletterClient, platformAccountClient, sendQueueClient, settingsClient } from "./appRuntime";
+import type { CoreTemporaryState, LegacyAccountDto, AgentServiceDto, AgentThreadDto, MessageCache, NewsletterSubscriptionCache } from "./appTypes";
 import type { AppState } from "./useAppState";
 
 type Dependencies = {
@@ -137,12 +136,8 @@ export function useInitialDataController(appState: AppState, dependencies: Depen
           loadCoreTemporaryState(),
           platformAccountClient.getPlatformAccountSession(),
           mailAccountClient.listNormalAccounts(),
-          invoke<AnonymousMessageDto[]>("message_list", {
-            request: { scope: "anonymous", account_id: null, include_archived: true },
-          }),
-          invoke<VerificationCodeDto[]>("verification_list_recent", {
-            request: { temp_mailbox_id: null, limit: 100 },
-          }),
+          mailMessageClient.listAnonymousMessages(true),
+          mailMessageClient.listRecentVerifications(null, 100),
           sendQueueClient.listSendQueue({ limit: 25 }),
           contactClient.listContacts(),
           invoke<LegacyAccountDto[]>("agent_list_accounts"),
@@ -153,10 +148,28 @@ export function useInitialDataController(appState: AppState, dependencies: Depen
         if (!isCurrent()) {
           return;
         }
-        // Normal-account messages and derived newsletters remain owned by the M4/M6
-        // migration. Do not cross-read the legacy Rust database using core account IDs.
-        const normalMessageCache: MessageCache = {};
-        const promotedMessageCache: MessageCache = {};
+        const normalAccountsToLoad = accountsResult.filter(
+          (account) => account.kind === "normal_long_lived",
+        );
+        const promotedAccountsToLoad = accountsResult.filter(
+          (account) => account.kind === "normal_upgraded_temp",
+        );
+        const [normalMessageEntries, promotedMessageEntries] = await Promise.all([
+          Promise.all(
+            normalAccountsToLoad.map(async (account) => [
+              account.id,
+              await mailMessageClient.listNormalAccountMessages(account.id, true),
+            ] as const),
+          ),
+          Promise.all(
+            promotedAccountsToLoad.map(async (account) => [
+              account.id,
+              await mailMessageClient.listPromotedAccountMessages(account.id, true),
+            ] as const),
+          ),
+        ]);
+        const normalMessageCache: MessageCache = Object.fromEntries(normalMessageEntries);
+        const promotedMessageCache: MessageCache = Object.fromEntries(promotedMessageEntries);
         const newsletterSubscriptionCache: NewsletterSubscriptionCache = {};
 
         if (!isCurrent()) {
@@ -170,20 +183,14 @@ export function useInitialDataController(appState: AppState, dependencies: Depen
         canonicalNormalAccountIdsRef.current = new Set(accountsResult.map((account) => account.id));
         setNormalAccounts(accountsResult);
         setTempMailboxes(coreTemporaryState.mailboxes);
-        setAnonymousMessages(
-          mergeByIdentity(
-            coreTemporaryState.messages,
-            messagesResult,
-            (message) => message.message_id,
-          ),
-        );
+        setAnonymousMessages(messagesResult);
         setNormalMessagesByAccount(normalMessageCache);
         setPromotedMessagesByAccount(promotedMessageCache);
         setNewsletterSubscriptionsByAccount(newsletterSubscriptionCache);
         setMailFolders(taxonomyResult.folders);
         setMailLabels(taxonomyResult.labels);
         setRecentCodes(
-          mergeByIdentity(coreTemporaryState.codes, codesResult, (code) => code.id),
+          mergeByIdentity(codesResult, coreTemporaryState.codes, (code) => code.id),
         );
         setSendQueue(sendQueueResult);
         setContacts(contactsResult);

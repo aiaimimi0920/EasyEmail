@@ -182,6 +182,106 @@ CREATE INDEX idx_legacy_import_receipts_domain_time
 ON legacy_import_receipts(domain, imported_at DESC, id);
 `,
   },
+  {
+    version: 6,
+    name: "mail-messages-and-verifications",
+    sql: `
+CREATE TABLE mail_messages (
+  id TEXT PRIMARY KEY,
+  rfc_message_id TEXT,
+  thread_key TEXT,
+  subject TEXT NOT NULL,
+  from_address TEXT NOT NULL,
+  from_name TEXT,
+  snippet TEXT NOT NULL,
+  body_text TEXT,
+  body_html TEXT,
+  body_cache_state TEXT NOT NULL CHECK(body_cache_state IN ('none', 'cached')),
+  has_attachments INTEGER NOT NULL DEFAULT 0 CHECK(has_attachments IN (0, 1)),
+  classification TEXT NOT NULL CHECK(classification IN ('general', 'verification', 'newsletter', 'outgoing', 'agent')),
+  observed_at TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1 CHECK(version >= 1),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT
+);
+
+CREATE INDEX idx_mail_messages_live_observed
+ON mail_messages(observed_at DESC, id DESC)
+WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_mail_messages_rfc_id
+ON mail_messages(lower(rfc_message_id))
+WHERE rfc_message_id IS NOT NULL AND deleted_at IS NULL;
+
+CREATE TABLE mail_message_sources (
+  id TEXT PRIMARY KEY,
+  message_id TEXT NOT NULL REFERENCES mail_messages(id) ON DELETE CASCADE,
+  source_kind TEXT NOT NULL CHECK(source_kind IN ('temporary_session', 'imap', 'smtp', 'local_draft', 'agent')),
+  source_ref_id TEXT NOT NULL,
+  account_id TEXT REFERENCES mail_accounts(id) ON DELETE SET NULL,
+  session_id TEXT,
+  provider_instance_id TEXT,
+  external_message_id TEXT,
+  received_address TEXT NOT NULL,
+  provider_label TEXT NOT NULL,
+  lifecycle_state TEXT NOT NULL DEFAULT 'active' CHECK(lifecycle_state IN ('active', 'expired', 'released', 'history_only', 'draft', 'ready')),
+  is_read INTEGER NOT NULL DEFAULT 0 CHECK(is_read IN (0, 1)),
+  is_starred INTEGER NOT NULL DEFAULT 0 CHECK(is_starred IN (0, 1)),
+  is_archived INTEGER NOT NULL DEFAULT 0 CHECK(is_archived IN (0, 1)),
+  is_important INTEGER NOT NULL DEFAULT 0 CHECK(is_important IN (0, 1)),
+  local_folder TEXT NOT NULL DEFAULT 'inbox',
+  labels_json TEXT NOT NULL DEFAULT '[]',
+  draft_cc_json TEXT NOT NULL DEFAULT '[]',
+  draft_bcc_json TEXT NOT NULL DEFAULT '[]',
+  first_seen_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX idx_mail_message_sources_dedupe
+ON mail_message_sources(source_kind, source_ref_id, external_message_id)
+WHERE external_message_id IS NOT NULL;
+
+CREATE INDEX idx_mail_message_sources_message
+ON mail_message_sources(message_id, first_seen_at ASC, id ASC);
+
+CREATE INDEX idx_mail_message_sources_account
+ON mail_message_sources(account_id, last_seen_at DESC, id DESC)
+WHERE account_id IS NOT NULL;
+
+CREATE INDEX idx_mail_message_sources_session
+ON mail_message_sources(session_id, last_seen_at DESC, id DESC)
+WHERE session_id IS NOT NULL;
+
+CREATE INDEX idx_mail_message_sources_folder
+ON mail_message_sources(local_folder, message_id);
+
+CREATE TABLE mail_verification_codes (
+  id TEXT PRIMARY KEY,
+  message_id TEXT NOT NULL REFERENCES mail_messages(id) ON DELETE CASCADE,
+  session_id TEXT,
+  source_ref_id TEXT NOT NULL,
+  account_scope TEXT NOT NULL CHECK(account_scope IN ('anonymous', 'normal', 'promoted', 'agent')),
+  received_address TEXT NOT NULL,
+  code TEXT NOT NULL,
+  code_source TEXT NOT NULL CHECK(code_source IN ('subject', 'text', 'html')),
+  candidates_json TEXT NOT NULL DEFAULT '[]',
+  issuer_hint TEXT,
+  target_service_hint TEXT,
+  confidence REAL NOT NULL CHECK(confidence >= 0 AND confidence <= 1),
+  expires_at TEXT,
+  extracted_at TEXT NOT NULL,
+  UNIQUE(message_id, code)
+);
+
+CREATE INDEX idx_mail_verification_codes_recent
+ON mail_verification_codes(extracted_at DESC, id DESC);
+
+CREATE INDEX idx_mail_verification_codes_session
+ON mail_verification_codes(session_id, extracted_at DESC, id DESC)
+WHERE session_id IS NOT NULL;
+`,
+  },
 ] as const;
 
 export const EASY_EMAIL_RELATIONAL_SCHEMA_VERSION = RELATIONAL_MIGRATIONS.at(-1)?.version ?? 0;

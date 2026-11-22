@@ -3,8 +3,10 @@ from tests.http_api_contract_support import (
     ACCOUNT_CONNECTIVITY,
     DOMAIN_ACCOUNT,
     DOMAIN_CONTACT,
+    DOMAIN_MAIL_MESSAGE,
     DOMAIN_MODELS,
     DOMAIN_TAXONOMY,
+    HTTP_MAIL_MESSAGE_CONTRACTS,
     SERVER_CONTRACTS,
     SHARED_CREDENTIAL_MODELS,
     HttpApiContractTestCase,
@@ -108,6 +110,26 @@ class HttpApiContractTests(HttpApiContractTestCase):
             "MailTaxonomyUpdateInput": (
                 DOMAIN_TAXONOMY,
                 "MailTaxonomyUpdateRequest",
+            ),
+            "MailDraftSaveInput": (
+                DOMAIN_MAIL_MESSAGE,
+                "MailDraftSaveInput",
+            ),
+            "MailMessageSetFlagInput": (
+                DOMAIN_MAIL_MESSAGE,
+                "MailMessageSetFlagInput",
+            ),
+            "MailMessageSetFolderInput": (
+                DOMAIN_MAIL_MESSAGE,
+                "MailMessageSetFolderInput",
+            ),
+            "MailMessageSetLabelInput": (
+                DOMAIN_MAIL_MESSAGE,
+                "MailMessageSetLabelInput",
+            ),
+            "MailTrashEmptyInput": (
+                DOMAIN_MAIL_MESSAGE,
+                "MailTrashEmptyInput",
             ),
         }
 
@@ -229,6 +251,62 @@ class HttpApiContractTests(HttpApiContractTestCase):
                 SERVER_CONTRACTS,
                 "DeleteMailTaxonomyHttpResponse",
             ),
+            "MailMessageSummary": (
+                DOMAIN_MAIL_MESSAGE,
+                "MailMessageSummary",
+            ),
+            "MailMessageDetail": (
+                DOMAIN_MAIL_MESSAGE,
+                "MailMessageDetail",
+            ),
+            "MailDraftSaveResult": (
+                DOMAIN_MAIL_MESSAGE,
+                "MailDraftSaveResult",
+            ),
+            "MailMessageLocalActionResult": (
+                DOMAIN_MAIL_MESSAGE,
+                "MailMessageLocalActionResult",
+            ),
+            "MailMessageBatchActionResult": (
+                DOMAIN_MAIL_MESSAGE,
+                "MailMessageBatchActionResult",
+            ),
+            "MailVerificationRecord": (
+                DOMAIN_MAIL_MESSAGE,
+                "MailVerificationRecord",
+            ),
+            "MailMessagesResponse": (
+                HTTP_MAIL_MESSAGE_CONTRACTS,
+                "ListMailMessagesHttpResponse",
+            ),
+            "MailMessageDetailResponse": (
+                HTTP_MAIL_MESSAGE_CONTRACTS,
+                "GetMailMessageDetailHttpResponse",
+            ),
+            "SaveMailDraftResponse": (
+                HTTP_MAIL_MESSAGE_CONTRACTS,
+                "SaveMailDraftHttpResponse",
+            ),
+            "MailMessageLocalActionResponse": (
+                HTTP_MAIL_MESSAGE_CONTRACTS,
+                "MailMessageLocalActionHttpResponse",
+            ),
+            "EmptyMailTrashResponse": (
+                HTTP_MAIL_MESSAGE_CONTRACTS,
+                "EmptyMailTrashHttpResponse",
+            ),
+            "MailVerificationsResponse": (
+                HTTP_MAIL_MESSAGE_CONTRACTS,
+                "ListMailVerificationsHttpResponse",
+            ),
+            "ReclassifyMailMessageVerificationResponse": (
+                HTTP_MAIL_MESSAGE_CONTRACTS,
+                "ReclassifyMailMessageVerificationHttpResponse",
+            ),
+            "PollMailboxVerificationResponse": (
+                HTTP_MAIL_MESSAGE_CONTRACTS,
+                "PollMailboxVerificationHttpResponse",
+            ),
         }
 
         for schema_name, (path, interface_name) in response_interfaces.items():
@@ -271,6 +349,19 @@ class HttpApiContractTests(HttpApiContractTestCase):
             "upsertMailTaxonomy": "MailTaxonomyMutationResponse",
             "updateMailTaxonomy": "MailTaxonomyMutationResponse",
             "deleteMailTaxonomy": "MailTaxonomyDeleteResponse",
+            "saveLocalDraft": "SaveMailDraftResponse",
+            "deleteLocalDraft": "MailMessageLocalActionResponse",
+            "listMailMessages": "MailMessagesResponse",
+            "getMailMessageDetail": "MailMessageDetailResponse",
+            "deleteMailMessageLocal": "MailMessageLocalActionResponse",
+            "deleteMailMessageForever": "MailMessageLocalActionResponse",
+            "emptyMailTrash": "EmptyMailTrashResponse",
+            "setMailMessageLocalFlag": "MailMessageLocalActionResponse",
+            "setMailMessageLocalFolder": "MailMessageLocalActionResponse",
+            "setMailMessageLocalLabel": "MailMessageLocalActionResponse",
+            "listMailVerifications": "MailVerificationsResponse",
+            "reclassifyMailMessageVerification": "ReclassifyMailMessageVerificationResponse",
+            "pollMailboxVerification": "PollMailboxVerificationResponse",
         }
         actual_responses = {}
         for path_item in self.openapi["paths"].values():
@@ -304,6 +395,17 @@ class HttpApiContractTests(HttpApiContractTestCase):
             "getMailTaxonomy",
             "updateMailTaxonomy",
             "deleteMailTaxonomy",
+            "saveLocalDraft",
+            "deleteLocalDraft",
+            "listMailMessages",
+            "getMailMessageDetail",
+            "deleteMailMessageLocal",
+            "deleteMailMessageForever",
+            "setMailMessageLocalFlag",
+            "setMailMessageLocalFolder",
+            "setMailMessageLocalLabel",
+            "reclassifyMailMessageVerification",
+            "pollMailboxVerification",
         }
         documented_operation_ids = {
             operation["operationId"]

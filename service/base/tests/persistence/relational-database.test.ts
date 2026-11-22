@@ -53,13 +53,12 @@ describe("relational SQLite persistence", () => {
       try {
         expect(inspector.prepare(
           "SELECT version, result FROM schema_migrations ORDER BY version",
-        ).all()).toEqual([
-          { version: 1, result: "applied" },
-          { version: 2, result: "applied" },
-          { version: 3, result: "applied" },
-          { version: 4, result: "applied" },
-          { version: 5, result: "applied" },
-        ]);
+        ).all()).toEqual(
+          RELATIONAL_MIGRATIONS.map((migration) => ({
+            version: migration.version,
+            result: "applied",
+          })),
+        );
       } finally {
         inspector.close();
       }

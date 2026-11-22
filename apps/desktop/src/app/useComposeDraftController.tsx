@@ -1,16 +1,16 @@
-import { invoke } from "@tauri-apps/api/core";
 import { parseComposeAddressList } from "../compose/composeData";
 import { formatComposeLocalDateTimeInput } from "../compose/composeDateUtils";
 import { sanitizeComposeHtml } from "../compose/composeHtmlSanitizer";
 import { COMPOSE_DRAFT_STORAGE_KEY } from "./appConfig";
 import { asErrorDto } from "./appDomain";
-import type { MessageLocalActionDto, LocalDraftSaveDto, ComposeDraftSnapshot } from "./appTypes";
+import { mailMessageClient } from "./appRuntime";
+import type { ComposeDraftSnapshot } from "./appTypes";
 import type { AppState } from "./useAppState";
 
 type Dependencies = {
   composeRichBodyHtmlToPlainText: (editor: HTMLElement) => string;
   syncComposeRichBodyState: () => void;
-  isCanonicalNormalAccountId: (accountId: string) => boolean;
+  isCanonicalNormalAccountId?: (accountId: string) => boolean;
   loadNormalMessages: (accountId: string, isCurrent?: () => boolean) => Promise<import("./appTypes").AnonymousMessageDto[]>;
   setDraftBodyText: (text: string) => void;
 };
@@ -25,7 +25,7 @@ export function useComposeDraftController(appState: AppState, dependencies: Depe
     setComposeAttachments,
   } = appState;
   const {
-    composeRichBodyHtmlToPlainText, syncComposeRichBodyState, isCanonicalNormalAccountId, loadNormalMessages, setDraftBodyText,
+    composeRichBodyHtmlToPlainText, syncComposeRichBodyState, loadNormalMessages, setDraftBodyText,
   } = dependencies;
   function escapeComposePlainTextToHtml(text: string): string {
       return text
@@ -122,27 +122,21 @@ export function useComposeDraftController(appState: AppState, dependencies: Depe
       if (!snapshot.senderAccountId || !composeDraftHasUserContent(snapshot)) {
         return;
       }
-      if (isCanonicalNormalAccountId(snapshot.senderAccountId)) {
-        setStatusMessage("Draft saved in this browser; canonical draft persistence becomes available in M4.");
-        return;
-      }
 
       try {
-        const result = await invoke<LocalDraftSaveDto>("message_save_local_draft", {
-          request: {
-            draft_id: snapshot.persistedDraftId,
-            account_id: snapshot.senderAccountId,
-            target_address: snapshot.to,
-            cc_addresses: parseComposeAddressList(
-              [snapshot.cc, snapshot.recipientDrafts.cc].filter(Boolean).join(", "),
-            ),
-            bcc_addresses: parseComposeAddressList(
-              [snapshot.bcc, snapshot.recipientDrafts.bcc].filter(Boolean).join(", "),
-            ),
-            subject: snapshot.subject,
-            body_text: snapshot.bodyText,
-            body_html: snapshot.bodyHtml,
-          },
+        const result = await mailMessageClient.saveLocalDraft({
+          draft_id: snapshot.persistedDraftId,
+          account_id: snapshot.senderAccountId,
+          target_address: snapshot.to,
+          cc_addresses: parseComposeAddressList(
+            [snapshot.cc, snapshot.recipientDrafts.cc].filter(Boolean).join(", "),
+          ),
+          bcc_addresses: parseComposeAddressList(
+            [snapshot.bcc, snapshot.recipientDrafts.bcc].filter(Boolean).join(", "),
+          ),
+          subject: snapshot.subject,
+          body_text: snapshot.bodyText,
+          body_html: snapshot.bodyHtml,
         });
         if (revision !== composeDraftRevisionRef.current) {
           return;
@@ -206,9 +200,7 @@ export function useComposeDraftController(appState: AppState, dependencies: Depe
       composePersistedDraftIdRef.current = null;
       setComposePersistedDraftId(null);
       if (draftIdToDelete) {
-        void invoke<MessageLocalActionDto>("message_delete_local_draft", {
-          request: { draft_id: draftIdToDelete },
-        }).then(() => {
+        void mailMessageClient.deleteLocalDraft(draftIdToDelete).then(() => {
           if (draftAccountId) {
             void loadNormalMessages(draftAccountId);
           }

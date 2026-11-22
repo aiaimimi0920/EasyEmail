@@ -17,6 +17,10 @@ export const EASY_EMAIL_CORE_ROUTES = {
   taxonomy: "/mail/taxonomy",
   accounts: "/mail/accounts",
   testAccountImap: "/mail/accounts/imap/test",
+  drafts: "/mail/drafts",
+  messages: "/mail/messages",
+  trash: "/mail/trash",
+  verifications: "/mail/verifications",
   verificationCode(sessionId: string): string {
     return `/mail/mailboxes/${encodeURIComponent(sessionId)}/code`;
   },
@@ -43,5 +47,29 @@ export const EASY_EMAIL_CORE_ROUTES = {
   },
   disableAccount(accountId: string): string {
     return `/mail/accounts/${encodeURIComponent(accountId)}/disable`;
+  },
+  draft(messageId: string): string {
+    return `/mail/drafts/${encodeURIComponent(messageId)}`;
+  },
+  message(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}`;
+  },
+  messageLocal(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/local`;
+  },
+  messageFlags(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/flags`;
+  },
+  messageFolder(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/folder`;
+  },
+  messageLabels(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/labels`;
+  },
+  reclassifyMessageVerification(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/reclassify-verification`;
+  },
+  pollMailboxVerification(sessionId: string): string {
+    return `/mail/mailboxes/${encodeURIComponent(sessionId)}/verification/poll`;
   },
 } as const;
