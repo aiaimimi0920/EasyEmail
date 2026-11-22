@@ -18,26 +18,27 @@ from test_deploy_secrets import secret_environment
 SCRATCH = Path(os.environ.get('EASYEMAIL_TEST_ROOT', tempfile.gettempdir()))
 
 
-def prewrite_update_request():
+def prewrite_update_request(error_code='EASYEMAIL_SOURCE_DATABASE_CHANGED'):
     value = repair_request()
-    value['previous'] = {'sourceSha': 'd' * 40, 'applicationVersion': '1.0.15'}
-    value['context'].update(repairId='complete-prewrite-update', errorCode='EASYEMAIL_SOURCE_DATABASE_CHANGED')
+    value['previous'] = {'sourceSha': 'd' * 40, 'applicationVersion': '1.0.16'}
+    value['context'].update(repairId='complete-prewrite-update', errorCode=error_code)
     return value
 
 
 class PrewriteUpdateRepairTests(unittest.TestCase):
-    def test_contract_accepts_prewrite_update_repair_and_rejects_wrong_error(self):
-        value = prewrite_update_request()
-        with patch('contract.subprocess.check_output', side_effect=ContractTests().git):
-            self.assertEqual(validated_request(value, ROOT), value)
-        invalid = prewrite_update_request()
-        invalid['context']['errorCode'] = 'EASYEMAIL_WORKER_DEPLOY_FAILED'
+    def test_contract_accepts_prewrite_update_errors_and_rejects_wrong_error(self):
+        for code in ('EASYEMAIL_SOURCE_DATABASE_CHANGED', 'EASYEMAIL_SOURCE_OBJECTS_CHANGED', 'EASYEMAIL_BUILD_FAILED'):
+            value = prewrite_update_request(code)
+            with patch('contract.subprocess.check_output', side_effect=ContractTests().git):
+                self.assertEqual(validated_request(value, ROOT), value)
+        invalid = prewrite_update_request('EASYEMAIL_WORKER_DEPLOY_FAILED')
         with patch('contract.subprocess.check_output', side_effect=ContractTests().git), self.assertRaises(DeploymentError):
             validated_request(invalid, ROOT)
 
-    def run_repair(self, failure=None, parent_backup=False, active_version='1.0.14', active_sha='a' * 40):
+    def run_repair(self, failure=None, parent_backup=False, active_version='1.0.14', active_sha='a' * 40,
+                   error_code='EASYEMAIL_BUILD_FAILED'):
         root = Path(tempfile.mkdtemp(prefix='sba-prewrite-update-', dir=SCRATCH))
-        request = prewrite_update_request(); events = []
+        request = prewrite_update_request(error_code); events = []
         def step(name, result=None):
             def invoke(*args, **kwargs):
                 events.append(name)
@@ -63,10 +64,9 @@ class PrewriteUpdateRepairTests(unittest.TestCase):
                 if failure == 'publish-' + role: raise DeploymentError('EASYEMAIL_SYNTHETIC_FAILURE')
         def backup(*args, **kwargs):
             events.append('backup')
-            self.assertEqual(kwargs.get('attempts'), 3)
+            self.assertEqual(kwargs.get('attempts'), 4)
             self.assertEqual(args[2]['applicationVersion'], active_version)
             self.assertEqual(args[2]['sourceSha'], active_sha)
-            if failure == 'backup-prewrite': raise DeploymentError('EASYEMAIL_SOURCE_DATABASE_CHANGED')
             args[1].state.before_write('snapshot-archive-persisted')
             return {'manifest': {'synthetic': True}, 'directory': root, 'id': 'f' * 64, 'createdAt': 1,
                     'object': {'key': '_easyemail-sba/backups/new.eesba'}}
@@ -81,7 +81,7 @@ class PrewriteUpdateRepairTests(unittest.TestCase):
             stack.enter_context(patch.object(prewrite_update_repair, 'CloudApi'))
             stack.enter_context(patch.object(prewrite_update_repair, 'RuntimeClient'))
             stack.enter_context(patch.object(prewrite_update_repair, 'capture_backup', side_effect=backup))
-            for name, value in [('verify_uploaded_worker', None), ('managed_state', {'domains': 'domains'}),
+            for name, value in [('managed_state', {'domains': 'domains'}),
                                 ('verify_settings', None), ('email_version', None), ('migrate_email', None),
                                 ('verify_database_initialization', None), ('prove_update_preserved', None),
                                 ('verify_administrator', None),
@@ -89,10 +89,12 @@ class PrewriteUpdateRepairTests(unittest.TestCase):
                 stack.enter_context(patch.object(prewrite_update_repair, name, side_effect=step(name, value)))
             result = prewrite_update_repair.repair_prewrite_update(request, root / 'operation')
             if builds.called:
-                self.assertEqual(builds.call_args_list[0].kwargs, {'fetch_source': True})
+                self.assertEqual(len(builds.call_args_list), 1)
+                self.assertEqual(builds.call_args_list[0].args[1].name, 'build')
+                self.assertEqual(builds.call_args_list[0].kwargs, {})
         return result, events
 
-    def test_proves_unmodified_active_release_and_absent_parent_backup_before_upgrading(self):
+    def test_proves_unmodified_active_release_with_short_build_path_and_absent_parent_backup(self):
         result, events = self.run_repair()
         self.assertEqual(result['status'], 'succeeded')
         self.assertLess(events.index('list-OUTBOX'), events.index('backup'))
@@ -107,7 +109,7 @@ class PrewriteUpdateRepairTests(unittest.TestCase):
         self.assertEqual(result['status'], 'failed')
         self.assertEqual(result['errorCode'], 'EASYEMAIL_PARENT_BACKUP_ALREADY_PERSISTED')
         self.assertNotIn('backup', events); self.assertNotIn('migrations', events)
-        result, events = self.run_repair(active_version='1.0.15', active_sha='d' * 40)
+        result, events = self.run_repair(active_version='1.0.16', active_sha='d' * 40)
         self.assertEqual(result['status'], 'failed')
         self.assertNotIn('backup', events)
 

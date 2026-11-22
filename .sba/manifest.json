@@ -2,7 +2,7 @@
   "schemaVersion": 3,
   "id": "easyemail",
   "name": "EasyEmail",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "entrypoint": "springbok.ps1",
   "runtime": { "runner": "windows-2025", "powershell": "5.1", "python": "3.12", "node": "22" },
   "actions": {
@@ -16,8 +16,8 @@
   "repairs": [{
     "id": "complete-prewrite-update",
     "name": "完成写前中断的保数据升级",
-    "fromErrorCodes": ["EASYEMAIL_SOURCE_DATABASE_CHANGED", "EASYEMAIL_SOURCE_OBJECTS_CHANGED"],
-    "fromActions": ["update"],
+    "fromErrorCodes": ["EASYEMAIL_SOURCE_DATABASE_CHANGED", "EASYEMAIL_SOURCE_OBJECTS_CHANGED", "EASYEMAIL_BUILD_FAILED"],
+    "fromActions": ["update", "repair"],
     "secretNames": ["CLOUDFLARE_API_TOKEN", "EE_MASTER_KEY", "EE_REGISTRATION_TOKEN", "EE_ADMIN_PASSWORD", "EE_PROVIDER_SECRETS"]
   }, {
     "id": "complete-fresh-readiness",

@@ -5,6 +5,8 @@
 
 ## 当前入口与边界
 
+1.0.17 将 `complete-prewrite-update` 收敛为复用与 `update_deploy.py` 完全相同的短路径单次构建（`build/`），避免在 Windows 执行器临时目录下为旧父版本二次检出长路径构建触发 `MAX_PATH` 限制（`EASYEMAIL_BUILD_FAILED`），同时继续核验线上公开版本证明、双 Worker 配置读回与私有 OUTBOX 无父任务备份写入后再执行四次静默窗口采样的持久备份与保数据升级。
+
 1.0.16 为线上每分钟/每 15 分钟定时任务并行的保数据升级增加写前静默窗口对齐与最多三次有界采样（仍要求每次双库导出与业务对象清单前后精确一致，不放宽 `exact=True`），并新增 `complete-prewrite-update` 独立修复动作：仅在线上公开版本与双 Worker 字节仍精确等于父任务前的旧正式版本、且私有 OUTBOX 不含父任务备份记录时，从当前运行版本执行完整持久备份与保数据升级。
 
 1.0.15 将 `migration/cloudflare-web` 合入 `main` 主干，保持双 Worker 运行时、数据库 schema 与公开验真契约不变，支持从已部署的 `1.0.14` 正式实例平滑保数据升级至主干版本。

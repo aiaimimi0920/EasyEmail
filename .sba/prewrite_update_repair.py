@@ -1,4 +1,4 @@
-"""Independent upgrade completion after a proven pre-write snapshot-sampling abort."""
+"""Independent upgrade completion after a proven pre-write abort; never replay partial mutations."""
 import json
 import os
 
@@ -18,7 +18,13 @@ from runtime_acceptance import email_version, migrate_email, verify_administrato
 from snapshot_bundle import private_directory
 from snapshot_lifecycle import capture_backup
 from update_preservation import prove_update_preserved
-from worker_download import verify_uploaded_worker
+
+
+ALLOWED_PREWRITE_ERRORS = (
+    'EASYEMAIL_SOURCE_DATABASE_CHANGED',
+    'EASYEMAIL_SOURCE_OBJECTS_CHANGED',
+    'EASYEMAIL_BUILD_FAILED',
+)
 
 
 def active_live_release(request, read=None):
@@ -48,38 +54,32 @@ def verify_no_parent_backup(store, parent_task_id):
 def repair_prewrite_update(request, directory):
     config = request['configuration']; context = request['context']
     require(context['repairId'] == 'complete-prewrite-update'
-            and context['errorCode'] in ('EASYEMAIL_SOURCE_DATABASE_CHANGED', 'EASYEMAIL_SOURCE_OBJECTS_CHANGED')
+            and context['errorCode'] in ALLOWED_PREWRITE_ERRORS
             and version(request['previous']['applicationVersion']) < version(request['applicationVersion']),
             'EASYEMAIL_UPDATE_REPAIR_NOT_SUPPORTED')
     material = deployment_secrets(config)
     directory = private_directory(directory); state = OperationState(directory, request['taskId']); checks = []
     try:
+        release = prepare_release(request, directory / 'build')
+        api = CloudApi(config['accountId'], material.token, state); runtime = RuntimeClient(config, state)
+        process = DeploymentProcess(request, release, directory / 'cloud', state, material)
+        process.verify_seal()
         active = active_live_release(request)
         verify_public({**request, **active})
-        api = CloudApi(config['accountId'], material.token, state); runtime = RuntimeClient(config, state)
-        active_request = {**request, **active, 'taskId': context['parentTaskId'], 'action': 'repair', 'previous': None}
-        active_release = prepare_release(active_request, directory / 'active-parent', fetch_source=True)
-        for role in ('email', 'platform'):
-            verify_uploaded_worker(config, api, active_release, role)
         before = managed_state(config, api)
-        verify_settings(config, api, active_release, material.workers, before['domains'])
+        verify_settings(config, api, release, material.workers, before['domains'])
         email_version(material, runtime)
         store = ObjectStore(config, material.workers['platform']['EASYEMAIL_SBA_CONTROL_SECRET'], state)
         verify_no_parent_backup(store, context['parentTaskId'])
         checks += [{'id': 'parent-prewrite-abort-verified', 'passed': True},
                    {'id': 'previous-release-verified', 'passed': True}]
-        release = prepare_release(request, directory / 'build')
-        process = DeploymentProcess(request, release, directory / 'cloud', state, material)
-        process.verify_seal()
         source = {'configuration': config, **active, 'taskId': request['taskId']}
-        backup = capture_backup(api, store, source, material.archive_key, directory / 'backup', attempts=3)
+        backup = capture_backup(api, store, source, material.archive_key, directory / 'backup', attempts=4)
         with secret_file(directory / 'backup-reference.json') as file:
             json.dump({key: backup[key] for key in ('id', 'createdAt', 'object')}, file)
             file.flush(); os.fsync(file.fileno())
         checks.append({'id': 'backup-created', 'passed': True})
         require(managed_state(config, api) == before, 'EASYEMAIL_INSTANCE_CHANGED')
-        for role in ('email', 'platform'):
-            verify_uploaded_worker(config, api, active_release, role)
         process.migrate_platform()
         for role in ('email', 'platform'):
             require(managed_state(config, api) == before, 'EASYEMAIL_INSTANCE_CHANGED')

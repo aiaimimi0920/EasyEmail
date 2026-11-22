@@ -35,7 +35,7 @@ def update(request, directory):
         checks.append({'id': 'previous-release-verified', 'passed': True})
         store = ObjectStore(config, material.workers['platform']['EASYEMAIL_SBA_CONTROL_SECRET'], state)
         source = {'configuration': config, **request['previous'], 'taskId': request['taskId']}
-        backup = capture_backup(api, store, source, material.archive_key, directory / 'backup', attempts=3)
+        backup = capture_backup(api, store, source, material.archive_key, directory / 'backup', attempts=4)
         with secret_file(directory / 'backup-reference.json') as file:
             json.dump({key: backup[key] for key in ('id', 'createdAt', 'object')}, file)
             file.flush(); os.fsync(file.fileno())
