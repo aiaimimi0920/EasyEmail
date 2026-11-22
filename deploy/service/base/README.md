@@ -62,6 +62,10 @@ Default in-network service alias:
 
 - `easy-email-service`
 
+The current Synology DSM deployment, LAN API examples, persistent paths, and
+operator commands are documented in
+[`docs/synology-nas-service-runbook.md`](../../../docs/synology-nas-service-runbook.md).
+
 ## Notes
 
 - the public repository keeps only templates and empty-state placeholders

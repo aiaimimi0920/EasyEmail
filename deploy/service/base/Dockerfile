@@ -37,6 +37,9 @@ RUN apt-get -o Acquire::Retries=5 update \
 
 COPY --from=builder /workspace/service/base/node_modules ./node_modules
 COPY --from=builder /workspace/service/base/dist ./dist
+COPY --from=builder /workspace/service/base/src/persistence/helpers/*.py ./ops/scripts/
 
 EXPOSE 8080
+HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["node", "dist/src/runtime/healthcheck.js"]
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

@@ -6,6 +6,7 @@ services:
     image: ${EASY_EMAIL_SERVICE_IMAGE:-easy-email/easy-email:local}
     container_name: ${EASY_EMAIL_SERVICE_CONTAINER_NAME:-easy-email}
     restart: unless-stopped
+    stop_grace_period: 60s
     logging:
       driver: json-file
       options:

@@ -13,9 +13,14 @@
 **/__pycache__/
 logs/
 .tmp/
+.staging/
 .playwright-cli/
 .playwright-mcp/
 .release-artifacts/
+graphify-out/
+output/
+release/
+tmp-lines.json
 
 # Environment and local secrets
 config.yaml
