@@ -186,12 +186,14 @@ export function ingestImapFolderHeadersInDatabase(
 
       const messageId = matchedByRfc?.id ?? `msg_v1_${randomUUID()}`;
       if (!matchedByRfc) {
+        const unsubscribeJson = JSON.stringify(header.newsletterUnsubscribeMethods ?? []);
         database.prepare(`
           INSERT INTO mail_messages (
             id, rfc_message_id, thread_key, subject, from_address, from_name,
             snippet, body_text, body_html, body_cache_state, has_attachments,
-            classification, observed_at, version, created_at, updated_at, deleted_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'none', ?, ?, ?, 1, ?, ?, NULL)
+            classification, newsletter_list_id, newsletter_unsubscribe_json,
+            observed_at, version, created_at, updated_at, deleted_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'none', ?, ?, ?, ?, ?, 1, ?, ?, NULL)
         `).run(
           messageId,
           normalizedRfcId ?? null,
@@ -202,6 +204,8 @@ export function ingestImapFolderHeadersInDatabase(
           header.snippet,
           header.hasAttachments ? 1 : 0,
           header.isNewsletter ? "newsletter" : "general",
+          header.newsletterListId ?? null,
+          unsubscribeJson,
           header.observedAt,
           now,
           now,

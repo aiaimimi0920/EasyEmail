@@ -28,6 +28,8 @@ export interface ExternalMailMessageInput {
   bodyHtml?: string;
   hasAttachments?: boolean;
   classification?: MailMessageClassification;
+  newsletterListId?: string;
+  newsletterUnsubscribeMethods?: string[];
   observedAt?: string;
 }
 
@@ -68,10 +70,12 @@ export async function ingestRuntimeObservedMessages(options: {
       || observed.providerInstanceId;
     const snippet = extractSnippetFromBodies(observed.textBody, observed.htmlBody, subject);
 
+    const upgradedAccountId = session?.metadata?.upgradedAccountId?.trim() || undefined;
     const ingested = await repository.ingestMailMessage({
       messageId: observed.id,
       sourceKind: "temporary_session",
       sourceRefId: observed.sessionId,
+      ...(upgradedAccountId ? { accountId: upgradedAccountId } : {}),
       sessionId: observed.sessionId,
       providerInstanceId: observed.providerInstanceId,
       externalMessageId: observed.id,
@@ -134,6 +138,8 @@ export async function ingestExternalMailMessage(options: {
     bodyHtml: input.bodyHtml,
     hasAttachments: Boolean(input.hasAttachments),
     classification: input.classification ?? "general",
+    ...(input.newsletterListId ? { newsletterListId: input.newsletterListId.trim() } : {}),
+    ...(input.newsletterUnsubscribeMethods ? { newsletterUnsubscribeMethods: input.newsletterUnsubscribeMethods } : {}),
     observedAt: input.observedAt ?? nowIso,
     now: nowIso,
   });

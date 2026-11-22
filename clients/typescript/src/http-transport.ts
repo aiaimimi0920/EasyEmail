@@ -6,6 +6,9 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   queryObservedMessages: "/mail/query/observed-messages",
   contacts: "/mail/contacts",
   taxonomy: "/mail/taxonomy",
+  newsletterSubscriptions: "/mail/newsletters/subscriptions",
+  settingsEasyEmail: "/mail/settings/easyemail",
+  testSettingsEasyEmail: "/mail/settings/easyemail/test",
   accounts: "/mail/accounts",
   testAccountImap: "/mail/accounts/imap/test",
   testAccountSmtp: "/mail/accounts/smtp/test",
@@ -30,6 +33,12 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   },
   readAuthenticationLink(sessionId: string): string {
     return `/mail/mailboxes/${encodeURIComponent(sessionId)}/auth-link`;
+  },
+  promoteMailbox(sessionId: string): string {
+    return `/mail/mailboxes/${encodeURIComponent(sessionId)}/promote`;
+  },
+  newsletterSubscription(subscriptionId: string): string {
+    return `/mail/newsletters/subscriptions/${encodeURIComponent(subscriptionId)}`;
   },
   getObservedMessage(messageId: string): string {
     return `/mail/query/observed-messages/${encodeURIComponent(messageId)}`;

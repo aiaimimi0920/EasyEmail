@@ -1,5 +1,3 @@
-import { DatabaseSync } from "node:sqlite";
-
 import type {
   MailAccount,
   MailAccountReceiveOutcomeInput,
@@ -19,6 +17,10 @@ import type {
   ContactRepositoryUpdateInput,
 } from "../../domain/contact.js";
 import type {
+  MailExtensionsRepository,
+  MailNewsletterSubscription,
+} from "../../domain/mail-extensions.js";
+import type {
   MailTaxonomyItem,
   MailTaxonomyRepository,
   MailTaxonomyRepositoryListQuery,
@@ -26,56 +28,16 @@ import type {
   MailTaxonomyUpdateInput,
   MailTaxonomyUpsertInput,
 } from "../../domain/mail-taxonomy.js";
-import type {
-  MailDraftRepositoryUpsertInput,
-  MailDraftSaveResult,
-  MailMessageClassification,
-  MailMessageDetail,
-  MailMessageDetailScope,
-  MailMessageFlagName,
-  MailMessageIngestInput,
-  MailMessageIngestResult,
-  MailMessageRepository,
-  MailMessageRepositoryListQuery,
-  MailMessageRepositoryListResult,
-  MailVerificationListQuery,
-  MailVerificationRecord,
-  MailVerificationRepository,
-  MailVerificationUpsertInput,
-  StoredMessageVerificationSource,
-} from "../../domain/mail-message.js";
-import type {
-  MailScheduledSendReopenResult,
-  MailSendEnqueueResult,
-  MailSendQueueClaimedPayload,
-  MailSendQueueItem,
-  MailSendQueueRepository,
-  MailSendQueueRepositoryEnqueueInput,
-  MailSendQueueRepositoryListQuery,
-  MailSendQueueRepositoryListResult,
-} from "../../domain/mail-send-queue.js";
-import type {
-  MailImapFolder,
-  MailImapFolderIngestInput,
-  MailImapFolderIngestResult,
-  MailImapMessageSourceContext,
-  MailImapRemoteFolder,
-  MailImapRepository,
-  MailImapStoredCheckpoint,
-} from "../../domain/mail-imap-sync.js";
-
+import { SqliteContactRepository } from "./contact-repository.js";
 import {
   openRelationalDatabase,
   releaseRelationalDatabasePath,
   type SqliteRelationalDatabaseOptions,
 } from "./database-bootstrap.js";
-import { SqliteContactRepository } from "./contact-repository.js";
+import { SqliteMessageQueueImapDatabaseBase } from "./database-mail-base.js";
 import { SqliteMailAccountRepository } from "./mail-account-repository.js";
-import { SqliteMailImapRepository } from "./mail-imap-repository.js";
-import { SqliteMailMessageRepository } from "./mail-message-repository.js";
-import { SqliteMailSendQueueRepository } from "./mail-send-queue-repository.js";
+import { SqliteMailExtensionsRepository } from "./mail-extensions-repository.js";
 import { SqliteMailTaxonomyRepository } from "./mail-taxonomy-repository.js";
-import { SqliteMailVerificationRepository } from "./mail-verification-repository.js";
 
 export type { SqliteRelationalDatabaseOptions } from "./database-bootstrap.js";
 export {
@@ -94,39 +56,30 @@ export {
 } from "./legacy-account-importer.js";
 
 export class SqliteRelationalDatabase
+  extends SqliteMessageQueueImapDatabaseBase
   implements
     ContactRepository,
     MailTaxonomyRepository,
     MailAccountRepository,
-    MailMessageRepository,
-    MailVerificationRepository,
-    MailSendQueueRepository,
-    MailImapRepository
+    MailExtensionsRepository
 {
-  private readonly database: DatabaseSync;
   private readonly trackedDatabasePath?: string;
   private readonly contacts: SqliteContactRepository;
   private readonly mailAccounts: SqliteMailAccountRepository;
-  private readonly mailImap: SqliteMailImapRepository;
-  private readonly mailMessages: SqliteMailMessageRepository;
-  private readonly mailSendQueue: SqliteMailSendQueueRepository;
+  private readonly mailExtensions: SqliteMailExtensionsRepository;
   private readonly mailTaxonomy: SqliteMailTaxonomyRepository;
-  private readonly mailVerifications: SqliteMailVerificationRepository;
   private closed = false;
   public readonly backupPath?: string;
 
   public constructor(options: SqliteRelationalDatabaseOptions) {
     const opened = openRelationalDatabase(options);
-    this.database = opened.database;
+    super(opened.database);
     this.trackedDatabasePath = opened.trackedDatabasePath;
     this.backupPath = opened.backupPath;
     this.contacts = new SqliteContactRepository(this.database);
     this.mailAccounts = new SqliteMailAccountRepository(this.database);
-    this.mailImap = new SqliteMailImapRepository(this.database);
-    this.mailMessages = new SqliteMailMessageRepository(this.database);
-    this.mailSendQueue = new SqliteMailSendQueueRepository(this.database);
+    this.mailExtensions = new SqliteMailExtensionsRepository(this.database);
     this.mailTaxonomy = new SqliteMailTaxonomyRepository(this.database);
-    this.mailVerifications = new SqliteMailVerificationRepository(this.database);
   }
 
   public listContacts(query: ContactRepositoryListQuery): Promise<ContactRepositoryListResult> {
@@ -169,8 +122,8 @@ export class SqliteRelationalDatabase
     return this.mailTaxonomy.updateMailTaxonomyItem(input);
   }
 
-  public deleteMailTaxonomyItem(id: string, expectedVersion: number): Promise<boolean> {
-    return this.mailTaxonomy.deleteMailTaxonomyItem(id, expectedVersion);
+  public deleteMailTaxonomyItem(id: string, expectedVersion: number, now?: string): Promise<boolean> {
+    return this.mailTaxonomy.deleteMailTaxonomyItem(id, expectedVersion, now);
   }
 
   public listMailAccounts(
@@ -213,267 +166,29 @@ export class SqliteRelationalDatabase
     return this.mailAccounts.recordMailAccountReceiveOutcome(input);
   }
 
-  public upsertImapFolders(
+  public listNewsletterSubscriptions(accountId: string): Promise<MailNewsletterSubscription[]> {
+    return this.mailExtensions.listNewsletterSubscriptions(accountId);
+  }
+
+  public setNewsletterSubscriptionHidden(
     accountId: string,
-    sourceRefId: string,
-    folders: MailImapRemoteFolder[],
+    subscriptionId: string,
+    hidden: boolean,
     now: string,
-  ): Promise<MailImapFolder[]> {
-    return this.mailImap.upsertImapFolders(accountId, sourceRefId, folders, now);
+  ): Promise<boolean> {
+    return this.mailExtensions.setNewsletterSubscriptionHidden(accountId, subscriptionId, hidden, now);
   }
 
-  public listImapFolders(accountId: string): Promise<MailImapFolder[]> {
-    return this.mailImap.listImapFolders(accountId);
+  public getClientSetting(settingKey: string): Promise<string | undefined> {
+    return this.mailExtensions.getClientSetting(settingKey);
   }
 
-  public ingestImapFolderBatch(input: MailImapFolderIngestInput): Promise<MailImapFolderIngestResult> {
-    return this.mailImap.ingestImapFolderBatch(input);
-  }
-
-  public getSyncCheckpoint(accountId: string): Promise<MailImapStoredCheckpoint | undefined> {
-    return this.mailImap.getSyncCheckpoint(accountId);
-  }
-
-  public upsertSyncCheckpoint(input: MailImapStoredCheckpoint): Promise<void> {
-    return this.mailImap.upsertSyncCheckpoint(input);
-  }
-
-  public getImapMessageSourceContext(messageId: string): Promise<MailImapMessageSourceContext | undefined> {
-    return this.mailImap.getImapMessageSourceContext(messageId);
-  }
-
-  public cacheMailMessageBody(
-    messageId: string,
-    bodyText: string,
-    bodyHtml: string | undefined,
-    snippet: string,
-    hasAttachments: boolean,
+  public setClientSetting(
+    settingKey: string,
+    settingValue: string | null,
     now: string,
   ): Promise<void> {
-    return this.mailImap.cacheMailMessageBody(messageId, bodyText, bodyHtml, snippet, hasAttachments, now);
-  }
-
-  public updateImapMessageSourceFolderAndUid(
-    sourceRowId: string,
-    targetFolderId: string,
-    targetUid: string | undefined,
-    targetUidValidity: string | undefined,
-    now: string,
-  ): Promise<void> {
-    return this.mailImap.updateImapMessageSourceFolderAndUid(
-      sourceRowId,
-      targetFolderId,
-      targetUid,
-      targetUidValidity,
-      now,
-    );
-  }
-
-  public ingestMailMessage(input: MailMessageIngestInput): Promise<MailMessageIngestResult> {
-    return this.mailMessages.ingestMailMessage(input);
-  }
-
-  public listMailMessages(
-    query: MailMessageRepositoryListQuery,
-  ): Promise<MailMessageRepositoryListResult> {
-    return this.mailMessages.listMailMessages(query);
-  }
-
-  public getMailMessageDetail(
-    id: string,
-    scope?: MailMessageDetailScope,
-  ): Promise<{ detail: MailMessageDetail; rawBodyHtml?: string } | undefined> {
-    return this.mailMessages.getMailMessageDetail(id, scope);
-  }
-
-  public upsertLocalDraft(input: MailDraftRepositoryUpsertInput): Promise<MailDraftSaveResult> {
-    return this.mailMessages.upsertLocalDraft(input);
-  }
-
-  public deleteLocalDraft(id: string, now: string): Promise<boolean> {
-    return this.mailMessages.deleteLocalDraft(id, now);
-  }
-
-  public setMailMessageLocalFlag(
-    id: string,
-    flagName: MailMessageFlagName,
-    enabled: boolean,
-    now: string,
-  ): Promise<boolean | undefined> {
-    return this.mailMessages.setMailMessageLocalFlag(id, flagName, enabled, now);
-  }
-
-  public setMailMessageLocalFolder(
-    id: string,
-    folderName: string,
-    now: string,
-  ): Promise<boolean | undefined> {
-    return this.mailMessages.setMailMessageLocalFolder(id, folderName, now);
-  }
-
-  public setMailMessageLocalLabel(
-    id: string,
-    labelName: string,
-    enabled: boolean,
-    now: string,
-  ): Promise<boolean | undefined> {
-    return this.mailMessages.setMailMessageLocalLabel(id, labelName, enabled, now);
-  }
-
-  public softDeleteMailMessage(id: string, now: string): Promise<boolean | undefined> {
-    return this.mailMessages.softDeleteMailMessage(id, now);
-  }
-
-  public listTrashMessageIds(): Promise<string[]> {
-    return this.mailMessages.listTrashMessageIds();
-  }
-
-  public promoteTemporarySessionMessages(
-    sessionId: string,
-    targetAccountId: string,
-    now: string,
-  ): Promise<number> {
-    return this.mailMessages.promoteTemporarySessionMessages(sessionId, targetAccountId, now);
-  }
-
-  public getMessageForVerification(id: string): Promise<StoredMessageVerificationSource | undefined> {
-    return this.mailMessages.getMessageForVerification(id);
-  }
-
-  public setMailMessageClassification(
-    id: string,
-    classification: MailMessageClassification,
-    now: string,
-  ): Promise<void> {
-    return this.mailMessages.setMailMessageClassification(id, classification, now);
-  }
-
-  public upsertMailVerificationCode(
-    input: MailVerificationUpsertInput,
-    nowMs: number,
-  ): Promise<MailVerificationRecord> {
-    return this.mailVerifications.upsertMailVerificationCode(input, nowMs);
-  }
-
-  public deleteMailVerificationCodesForMessage(messageId: string): Promise<number> {
-    return this.mailVerifications.deleteMailVerificationCodesForMessage(messageId);
-  }
-
-  public listMailVerificationCodes(
-    query: MailVerificationListQuery,
-    nowMs: number,
-  ): Promise<MailVerificationRecord[]> {
-    return this.mailVerifications.listMailVerificationCodes(query, nowMs);
-  }
-
-  public enqueueOutgoingSend(input: MailSendQueueRepositoryEnqueueInput): Promise<MailSendEnqueueResult> {
-    return this.mailSendQueue.enqueueOutgoingSend(input);
-  }
-
-  public listSendQueue(query: MailSendQueueRepositoryListQuery): Promise<MailSendQueueRepositoryListResult> {
-    return this.mailSendQueue.listSendQueue(query);
-  }
-
-  public getSendQueueItem(id: string): Promise<MailSendQueueItem | undefined> {
-    return this.mailSendQueue.getSendQueueItem(id);
-  }
-
-  public recoverStaleLeases(now: string): Promise<number> {
-    return this.mailSendQueue.recoverStaleLeases(now);
-  }
-
-  public claimNextDueSend(
-    leaseOwner: string,
-    leaseExpiresAt: string,
-    now: string,
-  ): Promise<MailSendQueueClaimedPayload | undefined> {
-    return this.mailSendQueue.claimNextDueSend(leaseOwner, leaseExpiresAt, now);
-  }
-
-  public claimNextDueScheduledSend(
-    leaseOwner: string,
-    leaseExpiresAt: string,
-    now: string,
-  ): Promise<MailSendQueueClaimedPayload | undefined> {
-    return this.mailSendQueue.claimNextDueScheduledSend(leaseOwner, leaseExpiresAt, now);
-  }
-
-  public claimDueSendById(
-    id: string,
-    leaseOwner: string,
-    leaseExpiresAt: string,
-    now: string,
-  ): Promise<MailSendQueueClaimedPayload | undefined> {
-    return this.mailSendQueue.claimDueSendById(id, leaseOwner, leaseExpiresAt, now);
-  }
-
-  public completeClaimedSendSent(
-    id: string,
-    leaseOwner: string,
-    providerMessageId: string | undefined,
-    now: string,
-  ): Promise<MailSendQueueItem | undefined> {
-    return this.mailSendQueue.completeClaimedSendSent(id, leaseOwner, providerMessageId, now);
-  }
-
-  public completeClaimedSendRetry(
-    id: string,
-    leaseOwner: string,
-    nextRetryAt: string,
-    errorCode: string,
-    errorMessage: string,
-    now: string,
-  ): Promise<MailSendQueueItem | undefined> {
-    return this.mailSendQueue.completeClaimedSendRetry(
-      id,
-      leaseOwner,
-      nextRetryAt,
-      errorCode,
-      errorMessage,
-      now,
-    );
-  }
-
-  public completeClaimedSendFailed(
-    id: string,
-    leaseOwner: string,
-    terminalStatus: "failed" | "auth_failed",
-    errorCode: string,
-    errorMessage: string,
-    now: string,
-  ): Promise<MailSendQueueItem | undefined> {
-    return this.mailSendQueue.completeClaimedSendFailed(
-      id,
-      leaseOwner,
-      terminalStatus,
-      errorCode,
-      errorMessage,
-      now,
-    );
-  }
-
-  public cancelQueuedSend(
-    id: string,
-    expectedVersion: number | undefined,
-    now: string,
-  ): Promise<MailSendQueueItem | undefined> {
-    return this.mailSendQueue.cancelQueuedSend(id, expectedVersion, now);
-  }
-
-  public retryTerminalSend(
-    id: string,
-    expectedVersion: number | undefined,
-    allowDeliveryUnknown: boolean,
-    now: string,
-  ): Promise<MailSendQueueItem | undefined> {
-    return this.mailSendQueue.retryTerminalSend(id, expectedVersion, allowDeliveryUnknown, now);
-  }
-
-  public reopenScheduledSendByMessageId(
-    messageId: string,
-    now: string,
-  ): Promise<MailScheduledSendReopenResult> {
-    return this.mailSendQueue.reopenScheduledSendByMessageId(messageId, now);
+    return this.mailExtensions.setClientSetting(settingKey, settingValue, now);
   }
 
   public close(): void {

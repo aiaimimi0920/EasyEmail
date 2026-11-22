@@ -19,6 +19,7 @@ export const MESSAGE_SELECT_COLUMNS = `
   m.body_cache_state,
   m.has_attachments,
   m.classification,
+  m.newsletter_list_id,
   m.observed_at,
   m.version,
   s.source_kind,

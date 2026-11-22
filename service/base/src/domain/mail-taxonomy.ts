@@ -90,5 +90,5 @@ export interface MailTaxonomyRepository {
   getMailTaxonomyItem(id: string): Promise<MailTaxonomyItem | undefined>;
   upsertMailTaxonomyItem(input: MailTaxonomyUpsertInput): Promise<MailTaxonomyItem>;
   updateMailTaxonomyItem(input: MailTaxonomyUpdateInput): Promise<MailTaxonomyItem | undefined>;
-  deleteMailTaxonomyItem(id: string, expectedVersion: number): Promise<boolean>;
+  deleteMailTaxonomyItem(id: string, expectedVersion: number, now?: string): Promise<boolean>;
 }

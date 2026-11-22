@@ -1,9 +1,10 @@
 import { useEffect, useMemo } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { toAccountDto } from "../api/mailAccountClient";
 import { useEventCallback } from "../hooks/useEventCallback";
+import { temporaryMailboxViewFromSession } from "../mail/temporaryMailboxAdapter";
 import { createNonOverlappingAsyncRunner } from "../utils/asyncTask";
 import { asErrorDto, mergeByIdentity } from "./appDomain";
-import { mailAccountClient, mailMessageClient } from "./appRuntime";
+import { bundledCoreClient, mailAccountClient, mailMessageClient } from "./appRuntime";
 import type { TempMailboxDto, PromoteTempMailboxDto } from "./appTypes";
 import type { AppState } from "./useAppState";
 
@@ -66,28 +67,30 @@ export function useMailboxPolling(appState: AppState, dependencies: Dependencies
 
       setBusy(true);
       try {
-        const result = await invoke<PromoteTempMailboxDto>("temp_upgrade_mailbox", {
-          request: {
-            temp_mailbox_id: mailbox.id,
-            confirm_lifecycle_ack: true,
-          },
+        const promotedResponse = await bundledCoreClient.promoteMailbox(mailbox.id, {
+          confirmLifecycleAck: true,
         });
+        const promotedAccountDto = toAccountDto(promotedResponse.account);
+        const result: PromoteTempMailboxDto = {
+          account: promotedAccountDto,
+          mailbox: temporaryMailboxViewFromSession(promotedResponse.session),
+        };
         const [coreState, anonymous, accounts, codes] = await Promise.all([
           loadCoreTemporaryState(),
           mailMessageClient.listAnonymousMessages(true),
           mailAccountClient.listNormalAccounts(),
           mailMessageClient.listRecentVerifications(null, 100),
         ]);
-        const promoted = await loadPromotedMessages(result.account.id);
+        const promoted = await loadPromotedMessages(promotedAccountDto.id);
         setLastPromotion(result);
         setTempMailboxes(coreState.mailboxes);
         setAnonymousMessages(anonymous);
         canonicalNormalAccountIdsRef.current = new Set(accounts.map((account) => account.id));
         setNormalAccounts(accounts);
         setRecentCodes(mergeByIdentity(codes, coreState.codes, (code) => code.id));
-        setPromotedMessagesByAccount((current) => ({ ...current, [result.account.id]: promoted }));
-        setMailSourceId(`promoted:${result.account.id}`);
-        setStatusMessage(`Promoted ${result.account.display_name} without moving message history.`);
+        setPromotedMessagesByAccount((current) => ({ ...current, [promotedAccountDto.id]: promoted }));
+        setMailSourceId(`promoted:${promotedAccountDto.id}`);
+        setStatusMessage(`Promoted ${promotedAccountDto.display_name} without moving message history.`);
         setError(null);
       } catch (caught: unknown) {
         setError(asErrorDto(caught));

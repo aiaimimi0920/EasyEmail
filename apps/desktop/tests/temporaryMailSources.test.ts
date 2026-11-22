@@ -49,8 +49,13 @@ function message(id: string, mailboxId: string, address: string): AnonymousMessa
 test("builds one visible mail source per temporary mailbox address", () => {
   const first = mailbox("mailbox-first", "first@example.com");
   const second = mailbox("mailbox-second", "second@example.com");
+  const promoted: TempMailboxDto = {
+    ...mailbox("mailbox-promoted", "promoted@example.com"),
+    visibility_state: "upgraded",
+    upgraded_account_id: "acct_v1_promoted",
+  };
   const sources = buildTemporaryMailboxSources(
-    [first, second],
+    [first, second, promoted],
     [message("first-message", first.id, first.email_address)],
   );
 

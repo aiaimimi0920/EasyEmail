@@ -7,7 +7,9 @@ import type { MailAccountService } from "../service/accounts.js";
 import type { ContactService } from "../service/contacts.js";
 import { createEasyEmailService, type EasyEmailService } from "../service/easy-email-service.js";
 import type { MailMessageService } from "../service/mail-messages.js";
+import type { MailExtensionsService } from "../service/mail-extensions.js";
 import type { MailImapService } from "../service/mail-imap-sync.js";
+import type { MailPromotionService } from "../service/mail-promotion.js";
 import type { MailSendQueueService } from "../service/mail-send-queue.js";
 import {
   MAIL_TAXONOMY_CAPABILITIES,
@@ -26,6 +28,8 @@ export class EasyEmailHttpHandler extends EasyEmailCoreMailboxHttpHandler {
     private readonly verifications?: MailVerificationService,
     private readonly sendQueue?: MailSendQueueService,
     private readonly imapSync?: MailImapService,
+    private readonly mailPromotion?: MailPromotionService,
+    private readonly mailExtensions?: MailExtensionsService,
   ) {
     super(service, queryRepository, messages);
   }
@@ -98,6 +102,26 @@ export class EasyEmailHttpHandler extends EasyEmailCoreMailboxHttpHandler {
       );
     }
     return this.imapSync;
+  }
+
+  protected requireMailPromotion(): MailPromotionService {
+    if (!this.mailPromotion) {
+      throw new EasyEmailError(
+        "PROMOTION_PERSISTENCE_UNAVAILABLE",
+        "Persistent mailbox promotion is not available in this runtime.",
+      );
+    }
+    return this.mailPromotion;
+  }
+
+  protected requireMailExtensions(): MailExtensionsService {
+    if (!this.mailExtensions) {
+      throw new EasyEmailError(
+        "EXTENSIONS_PERSISTENCE_UNAVAILABLE",
+        "Persistent mail extensions are not available in this runtime.",
+      );
+    }
+    return this.mailExtensions;
   }
 
   public async listContacts(
@@ -381,5 +405,54 @@ export class EasyEmailHttpHandler extends EasyEmailCoreMailboxHttpHandler {
     request: Contracts.SyncMailAccountHttpRequest = {},
   ): Promise<Contracts.SyncMailAccountHttpResponse> {
     return this.requireImapSync().syncAccount(accountId, request);
+  }
+
+  public async promoteMailboxSession(
+    sessionId: string,
+    request: Contracts.PromoteMailboxHttpRequest,
+  ): Promise<Contracts.PromoteMailboxHttpResponse> {
+    return this.requireMailPromotion().promoteMailboxSession(sessionId, request);
+  }
+
+  public async listNewsletterSubscriptions(
+    request: Contracts.ListNewsletterSubscriptionsHttpRequest,
+  ): Promise<Contracts.ListNewsletterSubscriptionsHttpResponse> {
+    return {
+      subscriptions: await this.requireMailExtensions().listNewsletterSubscriptions(request),
+    };
+  }
+
+  public async setNewsletterSubscriptionHidden(
+    subscriptionId: string,
+    request: Contracts.UpdateNewsletterSubscriptionHttpRequest,
+  ): Promise<Contracts.UpdateNewsletterSubscriptionHttpResponse> {
+    return {
+      action: await this.requireMailExtensions().setNewsletterSubscriptionHidden(
+        subscriptionId,
+        request,
+      ),
+    };
+  }
+
+  public async getEasyEmailSettings(): Promise<Contracts.GetEasyEmailSettingsHttpResponse> {
+    return {
+      settings: await this.requireMailExtensions().getEasyEmailSettings(),
+    };
+  }
+
+  public async updateEasyEmailSettings(
+    request: Contracts.UpdateEasyEmailSettingsHttpRequest,
+  ): Promise<Contracts.UpdateEasyEmailSettingsHttpResponse> {
+    return {
+      settings: await this.requireMailExtensions().updateEasyEmailSettings(request),
+    };
+  }
+
+  public async testEasyEmailConnection(
+    request: Contracts.TestEasyEmailConnectionHttpRequest = {},
+  ): Promise<Contracts.TestEasyEmailConnectionHttpResponse> {
+    return {
+      health: await this.requireMailExtensions().testEasyEmailConnection(request),
+    };
   }
 }

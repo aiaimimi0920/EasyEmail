@@ -99,12 +99,12 @@ describe("MailTaxonomyService", () => {
     })).rejects.toMatchObject({ code: "MAIL_TAXONOMY_PARENT_CYCLE" });
   });
 
-  it("exposes the missing message propagation capability and enforces CAS", async () => {
+  it("exposes message propagation capability and enforces CAS", async () => {
     const repository = new MemoryTaxonomyRepository();
     const service = new MailTaxonomyService(repository);
     const item = await service.upsertItem("label", "security", { name: "Security" });
     const listed = await service.listItems({ kind: "label" });
-    expect(listed.capabilities).toEqual({ messageReferencePropagation: false });
+    expect(listed.capabilities).toEqual({ messageReferencePropagation: true });
 
     await expect(service.updateItem(item.id, {
       expectedVersion: 2,

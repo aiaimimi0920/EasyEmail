@@ -416,6 +416,9 @@ class HttpApiContractTests(HttpApiContractTestCase):
             "listMailAccountFolders",
             "getMailAccountSyncStatus",
             "syncMailAccount",
+            "promoteMailboxSession",
+            "listNewsletterSubscriptions",
+            "setNewsletterSubscriptionHidden",
         }
         documented_operation_ids = {
             operation["operationId"]

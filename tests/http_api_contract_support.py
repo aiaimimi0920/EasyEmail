@@ -7,7 +7,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SERVER_CONTRACTS = ROOT / "service" / "base" / "src" / "http" / "contracts.ts"
+SERVER_CONTRACTS = (
+    ROOT / "service" / "base" / "src" / "http" / "contracts.ts",
+    ROOT / "service" / "base" / "src" / "http" / "mail-mailbox-contracts.ts",
+)
 DOMAIN_MODELS = tuple(
     ROOT / "service" / "base" / "src" / "domain" / name
     for name in (
@@ -44,6 +47,12 @@ DOMAIN_MAIL_IMAP_SYNC = (
 HTTP_MAIL_IMAP_SYNC_CONTRACTS = (
     ROOT / "service" / "base" / "src" / "http" / "mail-imap-sync-contracts.ts"
 )
+DOMAIN_MAIL_EXTENSIONS = (
+    ROOT / "service" / "base" / "src" / "domain" / "mail-extensions.ts"
+)
+HTTP_MAIL_M7A_CONTRACTS = (
+    ROOT / "service" / "base" / "src" / "http" / "mail-m7a-contracts.ts"
+)
 SHARED_CREDENTIAL_MODELS = (
     ROOT / "service" / "base" / "src" / "shared" / "credential-models.ts"
 )
@@ -51,7 +60,7 @@ ROUTE_FILES = tuple(
     (ROOT / "service" / "base" / "src" / "http" / "routes").glob("*.ts")
 )
 HTTP_SERVER = ROOT / "service" / "base" / "src" / "http" / "server.ts"
-HTTP_SOURCE_FILES = (SERVER_CONTRACTS, HTTP_SERVER, *ROUTE_FILES)
+HTTP_SOURCE_FILES = (*SERVER_CONTRACTS, HTTP_SERVER, *ROUTE_FILES)
 OPENAPI_PATH = ROOT / "docs" / "easyemail-openapi.json"
 
 DYNAMIC_ROUTE_METHODS = {
@@ -98,6 +107,8 @@ DYNAMIC_ROUTE_METHODS = {
     "cancelSendQueueItem": {"post": "cancelMailSendQueueItem"},
     "retrySendQueueItem": {"post": "retryMailSendQueueItem"},
     "reopenScheduledSend": {"post": "reopenScheduledSend"},
+    "promoteMailbox": {"post": "promoteMailboxSession"},
+    "newsletterSubscription": {"patch": "setNewsletterSubscriptionHidden"},
 }
 
 STATIC_ROUTE_DISPATCH = re.compile(
@@ -171,7 +182,9 @@ def extract_interface_fields(
 
 class HttpApiContractTestCase(unittest.TestCase):
     def setUp(self) -> None:
-        self.server_text = SERVER_CONTRACTS.read_text(encoding="utf-8")
+        self.server_text = "\n".join(
+            path.read_text(encoding="utf-8") for path in SERVER_CONTRACTS
+        )
         self.route_text = "\n".join(
             path.read_text(encoding="utf-8") for path in ROUTE_FILES
         )

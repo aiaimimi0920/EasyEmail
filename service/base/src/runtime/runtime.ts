@@ -1,6 +1,7 @@
 import { createMailAliasService } from "../alias/service.js";
 import type { MailAccountRepository } from "../domain/account.js";
 import type { ContactRepository } from "../domain/contact.js";
+import type { MailExtensionsRepository } from "../domain/mail-extensions.js";
 import type {
   MailImapRepository,
   MailImapTransport,
@@ -36,8 +37,10 @@ import { mergeEasyEmailRegistrySeeds } from "../service/catalog.js";
 import { createContactService } from "../service/contacts.js";
 import type { EasyEmailService } from "../service/easy-email-service.js";
 import { ImapFlowTransport } from "../service/imap-transport.js";
+import { createMailExtensionsService } from "../service/mail-extensions.js";
 import { createMailImapService } from "../service/mail-imap-sync.js";
 import { createMailMessageService } from "../service/mail-messages.js";
+import { createMailPromotionService } from "../service/mail-promotion.js";
 import { createMailSendQueueService } from "../service/mail-send-queue.js";
 import { createMailTaxonomyService } from "../service/mail-taxonomy.js";
 import { createMailVerificationService } from "../service/mail-verifications.js";
@@ -79,6 +82,7 @@ export interface EasyEmailServiceRuntimeOptions extends EasyEmailBootstrapOption
   mailVerificationRepository?: MailVerificationRepository;
   mailSendQueueRepository?: MailSendQueueRepository;
   mailImapRepository?: MailImapRepository;
+  mailExtensionsRepository?: MailExtensionsRepository;
   mailCredentialResolver?: MailCredentialResolver;
   mailImapConnectionTester?: MailImapConnectionTester;
   mailImapTransport?: MailImapTransport;
@@ -103,6 +107,7 @@ export interface StartedEasyEmailServiceRuntime {
   mailVerificationRepository?: MailVerificationRepository;
   mailSendQueueRepository?: MailSendQueueRepository;
   mailImapRepository?: MailImapRepository;
+  mailExtensionsRepository?: MailExtensionsRepository;
   close(): Promise<void>;
 }
 
@@ -166,6 +171,7 @@ export async function startEasyEmailServiceRuntime(
     || !options.mailVerificationRepository
     || !options.mailSendQueueRepository
     || !options.mailImapRepository
+    || !options.mailExtensionsRepository
   ) && config.persistence.enabled
     ? new SqliteRelationalDatabase({
         databasePath: resolveRelationalDatabasePath(config.persistence.databasePath),
@@ -178,6 +184,7 @@ export async function startEasyEmailServiceRuntime(
   const mailVerificationRepository = options.mailVerificationRepository ?? relationalDatabase;
   const mailSendQueueRepository = options.mailSendQueueRepository ?? relationalDatabase;
   const mailImapRepository = options.mailImapRepository ?? relationalDatabase;
+  const mailExtensionsRepository = options.mailExtensionsRepository ?? relationalDatabase;
   let handler: EasyEmailHttpHandler | undefined;
   let server: StartedEasyEmailHttpServer | undefined;
   let maintenanceLoop: MailMaintenanceLoop | undefined;
@@ -251,6 +258,24 @@ export async function startEasyEmailServiceRuntime(
           verificationService,
         })
       : undefined;
+    const mailPromotionService = mailAccountRepository && messageService
+      ? createMailPromotionService(service, mailAccountRepository, messageService, undefined, {
+          flushPersistedState: async () => {
+            if (persistenceLoop) {
+              await persistenceLoop.flush();
+            } else if (stateStore) {
+              await stateStore.saveSnapshot(service.getSnapshot());
+            }
+          },
+        })
+      : undefined;
+    const mailExtensionsService = mailExtensionsRepository
+      ? createMailExtensionsService(mailExtensionsRepository, undefined, {
+          accountRepository: mailAccountRepository,
+          easyEmailService: service,
+          runtimeHasApiKey: Boolean(config.apiKey),
+        })
+      : undefined;
     handler = new EasyEmailHttpHandler(
       service,
       queryRepository,
@@ -267,6 +292,8 @@ export async function startEasyEmailServiceRuntime(
       verificationService,
       sendQueueService,
       imapService,
+      mailPromotionService,
+      mailExtensionsService,
     );
     server = await createEasyEmailHttpServer(handler, {
       hostname: config.hostname,
@@ -330,6 +357,7 @@ export async function startEasyEmailServiceRuntime(
     mailVerificationRepository,
     mailSendQueueRepository,
     mailImapRepository,
+    mailExtensionsRepository,
     close,
   };
 }

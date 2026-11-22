@@ -6,7 +6,7 @@ import { useEventCallback } from "../hooks/useEventCallback";
 import { createNonOverlappingAsyncRunner } from "../utils/asyncTask";
 import { MAIL_AUTO_SYNC_INTERVAL_MS } from "./appConfig";
 import { asErrorDto, temporaryRefreshError } from "./appDomain";
-import { mailAccountClient } from "./appRuntime";
+import { bundledCoreClient, mailAccountClient } from "./appRuntime";
 import type { MailSource } from "./appTypes";
 import {
   attachTemporaryMailboxSources,
@@ -145,7 +145,7 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
       {
         id: "temp",
         label: "临时",
-        meta: `${tempVisibleMessages.length} 封邮件 / ${tempMailboxes.length} 个邮箱`,
+        meta: `${tempVisibleMessages.length} 封邮件 / ${temporaryMailSources.length} 个邮箱`,
         tone: "cyan",
       },
       ...temporaryMailSources,
@@ -332,6 +332,14 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
 
         if (mailSourceId.startsWith("promoted:")) {
           const accountId = mailSourceId.slice("promoted:".length);
+          const linkedSession = tempMailboxes.find(
+            (mailbox) =>
+              mailbox.upgraded_account_id === accountId &&
+              mailbox.lifecycle_state !== "expired",
+          );
+          if (linkedSession) {
+            await bundledCoreClient.refreshMailbox(linkedSession.id).catch(() => undefined);
+          }
           const messages = await loadPromotedMessages(accountId);
           const codes = await loadRecentCodes();
           setRecentCodes(codes);

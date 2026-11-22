@@ -288,18 +288,17 @@ Every taxonomy response includes:
 ```json
 {
   "capabilities": {
-    "messageReferencePropagation": false
+    "messageReferencePropagation": true
   }
 }
 ```
 
-This is a deliberate capability boundary: schema v2 owns taxonomy records, but
-the current `service/base` message model does not yet own the legacy desktop
-message folder/label references. Taxonomy rename/delete therefore does not
-rewrite message records. The desktop UI continues to use its legacy
-transactional taxonomy command until the M4 message model can provide equivalent
-propagation; HTTP callers must not interpret taxonomy mutations as message
-mutations.
+Renaming or deleting a folder or label atomically updates canonical
+`mail_message_sources` references in the same relational SQLite transaction:
+renaming a folder rewrites matching `local_folder` values (and `is_archived`),
+deleting a folder resets affected messages to `inbox`, renaming a label rewrites
+matching entries in `labels_json` case-insensitively, and deleting a label
+removes it from `labels_json`.
 
 Named request schemas, optional filters, enums, and the core mailbox response
 envelopes are defined in the OpenAPI document. Some large administrative and
@@ -364,6 +363,12 @@ authorization tier.
 | `GET` | `/mail/verifications` | List recent extracted verification code records with freshness metadata. |
 | `POST` | `/mail/messages/{messageId}/reclassify-verification` | Re-run OTP extraction and reconcile verification records for a message. |
 | `POST` | `/mail/mailboxes/{sessionId}/verification/poll` | Synchronize a temporary session and return any newly detected verification code. |
+| `POST` | `/mail/mailboxes/{sessionId}/promote` | Promote an anonymous temporary mailbox session into a persistent `normal_upgraded_temp` account without copying messages. |
+| `GET` | `/mail/newsletters/subscriptions` | List aggregated newsletter subscriptions (`List-Id` or sender grouping) for a normal account. |
+| `PATCH` | `/mail/newsletters/subscriptions/{subscriptionId}` | Hide or unhide a newsletter subscription for an account. |
+| `GET` | `/mail/settings/easyemail` | Read non-secret EasyEmail client endpoint settings (`serviceUrl`, `hasApiToken`). |
+| `PATCH` | `/mail/settings/easyemail` | Update validated `http://` or `https://` `serviceUrl` without persisting secrets. |
+| `POST` | `/mail/settings/easyemail/test` | Probe `/mail/catalog` on the local or target EasyEmail service URL without persisting secrets. |
 | `GET` | `/mail/send-queue` | List persistent outgoing send queue items and worker status. |
 | `POST` | `/mail/send-queue` | Enqueue an immediate or scheduled outgoing email with frozen sender/SMTP snapshot and optional `Idempotency-Key`. |
 | `GET` | `/mail/send-queue/{queueItemId}` | Read one persistent outgoing send queue item. |

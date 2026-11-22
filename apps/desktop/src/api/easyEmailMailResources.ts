@@ -19,6 +19,17 @@ import type {
   EasyEmailMailTaxonomyMutationResponse,
   EasyEmailMailTaxonomyUpdateRequest,
   EasyEmailMailTaxonomyUpsertRequest,
+  EasyEmailGetEasyEmailSettingsResponse,
+  EasyEmailListNewsletterSubscriptionsQuery,
+  EasyEmailListNewsletterSubscriptionsResponse,
+  EasyEmailPromoteMailboxRequest,
+  EasyEmailPromoteMailboxResponse,
+  EasyEmailTestEasyEmailConnectionRequest,
+  EasyEmailTestEasyEmailConnectionResponse,
+  EasyEmailUpdateEasyEmailSettingsRequest,
+  EasyEmailUpdateEasyEmailSettingsResponse,
+  EasyEmailUpdateNewsletterSubscriptionRequest,
+  EasyEmailUpdateNewsletterSubscriptionResponse,
 } from "./easyEmailMailTypes.ts";
 import type { EasyEmailRequestTransport } from "./easyEmailHttpTransport.ts";
 import { EASY_EMAIL_CORE_ROUTES } from "./easyEmailRoutes.ts";
@@ -153,6 +164,57 @@ export function createEasyEmailMailResources(request: EasyEmailRequestTransport)
         method: "POST",
         path: EASY_EMAIL_CORE_ROUTES.accountSync(accountId),
         body: syncRequest,
+      });
+    },
+    promoteMailbox(
+      sessionId: string,
+      promoteRequest: EasyEmailPromoteMailboxRequest,
+    ): Promise<EasyEmailPromoteMailboxResponse> {
+      return request({
+        method: "POST",
+        path: EASY_EMAIL_CORE_ROUTES.promoteMailbox(sessionId),
+        body: promoteRequest,
+      });
+    },
+    listNewsletterSubscriptions(
+      query: EasyEmailListNewsletterSubscriptionsQuery,
+    ): Promise<EasyEmailListNewsletterSubscriptionsResponse> {
+      return request({
+        path: EASY_EMAIL_CORE_ROUTES.newsletterSubscriptions,
+        query,
+      });
+    },
+    setNewsletterSubscriptionHidden(
+      subscriptionId: string,
+      updateRequest: EasyEmailUpdateNewsletterSubscriptionRequest,
+    ): Promise<EasyEmailUpdateNewsletterSubscriptionResponse> {
+      return request({
+        method: "PATCH",
+        path: EASY_EMAIL_CORE_ROUTES.newsletterSubscription(subscriptionId),
+        body: updateRequest,
+      });
+    },
+    getEasyEmailSettings(): Promise<EasyEmailGetEasyEmailSettingsResponse> {
+      return request({
+        path: EASY_EMAIL_CORE_ROUTES.settingsEasyEmail,
+      });
+    },
+    updateEasyEmailSettings(
+      settingsRequest: EasyEmailUpdateEasyEmailSettingsRequest,
+    ): Promise<EasyEmailUpdateEasyEmailSettingsResponse> {
+      return request({
+        method: "PATCH",
+        path: EASY_EMAIL_CORE_ROUTES.settingsEasyEmail,
+        body: settingsRequest,
+      });
+    },
+    testEasyEmailConnection(
+      testRequest: EasyEmailTestEasyEmailConnectionRequest = {},
+    ): Promise<EasyEmailTestEasyEmailConnectionResponse> {
+      return request({
+        method: "POST",
+        path: EASY_EMAIL_CORE_ROUTES.testSettingsEasyEmail,
+        body: testRequest,
       });
     },
   };

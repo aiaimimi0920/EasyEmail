@@ -61,6 +61,7 @@ export interface MailMessageSummary {
   isImportant: boolean;
   localFolder: string;
   labels: string[];
+  newsletterSubscriptionId?: string;
   version: number;
 }
 
@@ -97,6 +98,7 @@ export interface MailMessageDetail {
   isImportant: boolean;
   localFolder: string;
   labels: string[];
+  newsletterSubscriptionId?: string;
   version: number;
 }
 
@@ -220,6 +222,8 @@ export interface MailMessageIngestInput {
   bodyHtml?: string;
   hasAttachments?: boolean;
   classification?: MailMessageClassification;
+  newsletterListId?: string;
+  newsletterUnsubscribeMethods?: string[];
   observedAt: string;
   now: string;
 }

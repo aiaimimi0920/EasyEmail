@@ -15,6 +15,9 @@ export const EASY_EMAIL_CORE_ROUTES = {
   sendMailboxMessage: "/mail/mailboxes/send",
   contacts: "/mail/contacts",
   taxonomy: "/mail/taxonomy",
+  newsletterSubscriptions: "/mail/newsletters/subscriptions",
+  settingsEasyEmail: "/mail/settings/easyemail",
+  testSettingsEasyEmail: "/mail/settings/easyemail/test",
   accounts: "/mail/accounts",
   testAccountImap: "/mail/accounts/imap/test",
   testAccountSmtp: "/mail/accounts/smtp/test",
@@ -33,6 +36,12 @@ export const EASY_EMAIL_CORE_ROUTES = {
   },
   refreshMailbox(sessionId: string): string {
     return `/mail/mailboxes/${encodeURIComponent(sessionId)}/refresh`;
+  },
+  promoteMailbox(sessionId: string): string {
+    return `/mail/mailboxes/${encodeURIComponent(sessionId)}/promote`;
+  },
+  newsletterSubscription(subscriptionId: string): string {
+    return `/mail/newsletters/subscriptions/${encodeURIComponent(subscriptionId)}`;
   },
   observedMessage(messageId: string): string {
     return `/mail/query/observed-messages/${encodeURIComponent(messageId)}`;

@@ -4,3 +4,4 @@ export * from "./contracts-mailbox.js";
 export * from "./contracts-messages.js";
 export * from "./contracts-send-queue.js";
 export * from "./contracts-imap-sync.js";
+export * from "./contracts-m7a.js";

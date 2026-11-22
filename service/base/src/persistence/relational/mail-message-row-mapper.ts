@@ -1,4 +1,5 @@
 import type { CodeSource } from "../../domain/models.js";
+import { computeNewsletterSubscriptionId } from "../../domain/mail-extensions.js";
 import type {
   MailMessageClassification,
   MailMessageDetail,
@@ -23,6 +24,7 @@ export interface RawMailMessageRow {
   body_cache_state: "none" | "cached";
   has_attachments: number;
   classification: MailMessageClassification;
+  newsletter_list_id: string | null;
   observed_at: string;
   version: number;
   source_kind: MailMessageSourceKind;
@@ -81,6 +83,14 @@ export function parseStringArrayJson(rawJson: string | null | undefined): string
 }
 
 export function mapMailMessageSummaryRow(row: RawMailMessageRow): MailMessageSummary {
+  const labels = parseStringArrayJson(row.labels_json);
+  const isNewsletter =
+    row.classification === "newsletter"
+    || labels.some((label) => label.toLowerCase() === "newsletters");
+  const newsletterSubscriptionId = isNewsletter
+    ? computeNewsletterSubscriptionId(row.newsletter_list_id, row.from_address)
+    : undefined;
+
   return {
     id: row.id,
     ...(row.account_id ? { accountId: row.account_id } : {}),
@@ -106,7 +116,8 @@ export function mapMailMessageSummaryRow(row: RawMailMessageRow): MailMessageSum
     isArchived: row.is_archived === 1,
     isImportant: row.is_important === 1,
     localFolder: row.local_folder,
-    labels: parseStringArrayJson(row.labels_json),
+    labels,
+    ...(newsletterSubscriptionId ? { newsletterSubscriptionId } : {}),
     version: row.version,
   };
 }

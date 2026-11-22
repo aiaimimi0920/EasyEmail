@@ -171,7 +171,7 @@ function isVersionedCredentialRef(secretKey: string): secretKey is `ref:v1:${str
   return secretKey.startsWith("ref:v1:") && secretKey.length > "ref:v1:".length;
 }
 
-function toAccountDto(account: EasyEmailMailAccount): AccountDto {
+export function toAccountDto(account: EasyEmailMailAccount): AccountDto {
   const dto: AccountDto = {
     id: account.id,
     scope: account.scope,

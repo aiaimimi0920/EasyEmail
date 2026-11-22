@@ -66,6 +66,7 @@ export interface MailMessageSummary {
   snippet: string;
   hasAttachments: boolean;
   classification: MailMessageClassification;
+  newsletterSubscriptionId?: string;
   lifecycleState: MailMessageLifecycleState;
   observedAt: string;
   isRead: boolean;

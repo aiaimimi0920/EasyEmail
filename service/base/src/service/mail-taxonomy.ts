@@ -21,7 +21,7 @@ interface MailTaxonomyCursor extends MailTaxonomyListPosition {
 }
 
 export const MAIL_TAXONOMY_CAPABILITIES: MailTaxonomyCapabilities = {
-  messageReferencePropagation: false,
+  messageReferencePropagation: true,
 };
 
 function asciiLower(value: string): string {
@@ -311,7 +311,7 @@ export class MailTaxonomyService {
       );
     }
     if (existing.system) return { id: existing.id, changed: false };
-    if (!await this.repository.deleteMailTaxonomyItem(existing.id, expectedVersion)) {
+    if (!await this.repository.deleteMailTaxonomyItem(existing.id, expectedVersion, this.now().toISOString())) {
       throw new EasyEmailError(
         "MAIL_TAXONOMY_VERSION_CONFLICT",
         "Mail taxonomy item was changed by another request.",

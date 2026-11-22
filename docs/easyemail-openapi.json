@@ -1135,6 +1135,94 @@
           "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
         }
       }
+    },
+    "/mail/mailboxes/{sessionId}/promote": {
+      "post": {
+        "operationId": "promoteMailboxSession",
+        "summary": "Promote an anonymous temporary mailbox session into a persistent normal_upgraded_temp account",
+        "parameters": [
+          { "$ref": "#/components/parameters/SessionId" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/PromoteMailboxRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/PromoteMailboxResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/newsletters/subscriptions": {
+      "get": {
+        "operationId": "listNewsletterSubscriptions",
+        "summary": "List aggregated newsletter subscriptions for a normal account",
+        "parameters": [
+          { "$ref": "#/components/parameters/NewsletterAccountIdQuery" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ListNewsletterSubscriptionsResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/newsletters/subscriptions/{subscriptionId}": {
+      "patch": {
+        "operationId": "setNewsletterSubscriptionHidden",
+        "summary": "Hide or unhide a newsletter subscription for an account",
+        "parameters": [
+          { "$ref": "#/components/parameters/NewsletterSubscriptionId" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/UpdateNewsletterSubscriptionRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/UpdateNewsletterSubscriptionResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/settings/easyemail": {
+      "get": {
+        "operationId": "getEasyEmailSettings",
+        "summary": "Read non-secret EasyEmail client endpoint settings",
+        "responses": {
+          "200": { "$ref": "#/components/responses/GetEasyEmailSettingsResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "patch": {
+        "operationId": "updateEasyEmailSettings",
+        "summary": "Update validated EasyEmail service URL without persisting secrets",
+        "requestBody": { "$ref": "#/components/requestBodies/UpdateEasyEmailSettingsRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/UpdateEasyEmailSettingsResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/settings/easyemail/test": {
+      "post": {
+        "operationId": "testEasyEmailConnection",
+        "summary": "Probe EasyEmail catalog connectivity without persisting secrets",
+        "requestBody": { "$ref": "#/components/requestBodies/TestEasyEmailConnectionRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/TestEasyEmailConnectionResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
+        }
+      }
     }
   },
   "components": {
@@ -1370,6 +1458,18 @@
         "in": "query",
         "description": "Opaque filter-bound keyset cursor returned by the previous page.",
         "schema": { "type": "string", "minLength": 1 }
+      },
+      "NewsletterAccountIdQuery": {
+        "name": "accountId",
+        "in": "query",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "NewsletterSubscriptionId": {
+        "name": "subscriptionId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1 }
       }
     },
     "requestBodies": {
@@ -1586,6 +1686,38 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/VerificationMailboxRequest" }
+          }
+        }
+      },
+      "PromoteMailboxRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/PromoteMailboxSessionInput" }
+          }
+        }
+      },
+      "UpdateNewsletterSubscriptionRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailNewsletterSubscriptionUpdateInput" }
+          }
+        }
+      },
+      "UpdateEasyEmailSettingsRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/EasyEmailClientSettingsUpdateInput" }
+          }
+        }
+      },
+      "TestEasyEmailConnectionRequest": {
+        "required": false,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/EasyEmailConnectionTestInput" }
           }
         }
       }
@@ -1892,6 +2024,54 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/SyncMailAccountResponse" }
+          }
+        }
+      },
+      "PromoteMailboxResponse": {
+        "description": "Promoted persistent account, updated mailbox session, and linked message count",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/PromoteMailboxSessionResult" }
+          }
+        }
+      },
+      "ListNewsletterSubscriptionsResponse": {
+        "description": "Aggregated newsletter subscriptions for an account",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ListNewsletterSubscriptionsResponse" }
+          }
+        }
+      },
+      "UpdateNewsletterSubscriptionResponse": {
+        "description": "Newsletter subscription visibility update result",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/UpdateNewsletterSubscriptionResponse" }
+          }
+        }
+      },
+      "GetEasyEmailSettingsResponse": {
+        "description": "Current non-secret EasyEmail client settings",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/GetEasyEmailSettingsResponse" }
+          }
+        }
+      },
+      "UpdateEasyEmailSettingsResponse": {
+        "description": "Updated non-secret EasyEmail client settings",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/UpdateEasyEmailSettingsResponse" }
+          }
+        }
+      },
+      "TestEasyEmailConnectionResponse": {
+        "description": "EasyEmail catalog connectivity probe result",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/TestEasyEmailConnectionResponse" }
           }
         }
       },
@@ -3020,6 +3200,7 @@
             "type": "string",
             "enum": ["general", "verification", "newsletter", "outgoing", "agent"]
           },
+          "newsletterSubscriptionId": { "type": "string" },
           "lifecycleState": {
             "type": "string",
             "enum": ["active", "expired", "released", "history_only", "draft", "ready"]
@@ -3091,6 +3272,7 @@
             "type": "string",
             "enum": ["general", "verification", "newsletter", "outgoing", "agent"]
           },
+          "newsletterSubscriptionId": { "type": "string" },
           "lifecycleState": {
             "type": "string",
             "enum": ["active", "expired", "released", "history_only", "draft", "ready"]
@@ -3622,6 +3804,155 @@
         "properties": {
           "sync": { "$ref": "#/components/schemas/MailAccountSyncResult" },
           "status": { "$ref": "#/components/schemas/MailAccountSyncStatus" }
+        },
+        "additionalProperties": false
+      },
+      "PromoteMailboxSessionInput": {
+        "type": "object",
+        "required": ["confirmLifecycleAck"],
+        "properties": {
+          "confirmLifecycleAck": { "type": "boolean" },
+          "displayName": { "type": ["string", "null"], "maxLength": 120 }
+        },
+        "additionalProperties": false
+      },
+      "PromoteMailboxSessionResult": {
+        "type": "object",
+        "required": ["account", "session", "linkedMessageCount"],
+        "properties": {
+          "account": { "$ref": "#/components/schemas/MailAccount" },
+          "session": { "$ref": "#/components/schemas/MailboxSession" },
+          "linkedMessageCount": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": false
+      },
+      "MailNewsletterSubscription": {
+        "type": "object",
+        "required": [
+          "id",
+          "listId",
+          "senderAddress",
+          "name",
+          "receivedMessageCount",
+          "unreadMessageCount",
+          "lastReceivedAt",
+          "unsubscribeMethods",
+          "spam",
+          "hidden"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "listId": { "type": "string" },
+          "senderAddress": { "type": "string" },
+          "name": { "type": "string" },
+          "receivedMessageCount": { "type": "integer", "minimum": 0 },
+          "unreadMessageCount": { "type": "integer", "minimum": 0 },
+          "lastReceivedAt": { "type": "string", "format": "date-time" },
+          "unsubscribeMethods": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "spam": { "type": "boolean" },
+          "hidden": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "MailNewsletterSubscriptionUpdateInput": {
+        "type": "object",
+        "required": ["accountId", "hidden"],
+        "properties": {
+          "accountId": { "type": "string", "minLength": 1 },
+          "hidden": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "MailNewsletterSubscriptionActionResult": {
+        "type": "object",
+        "required": ["accountId", "subscriptionId", "hidden", "changed"],
+        "properties": {
+          "accountId": { "type": "string", "minLength": 1 },
+          "subscriptionId": { "type": "string", "minLength": 1 },
+          "hidden": { "type": "boolean" },
+          "changed": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "ListNewsletterSubscriptionsResponse": {
+        "type": "object",
+        "required": ["subscriptions"],
+        "properties": {
+          "subscriptions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MailNewsletterSubscription" }
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateNewsletterSubscriptionResponse": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "$ref": "#/components/schemas/MailNewsletterSubscriptionActionResult" }
+        },
+        "additionalProperties": false
+      },
+      "EasyEmailClientSettings": {
+        "type": "object",
+        "required": ["serviceUrl", "hasApiToken"],
+        "properties": {
+          "serviceUrl": { "type": ["string", "null"] },
+          "hasApiToken": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "EasyEmailClientSettingsUpdateInput": {
+        "type": "object",
+        "required": ["serviceUrl"],
+        "properties": {
+          "serviceUrl": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      },
+      "EasyEmailConnectionTestInput": {
+        "type": "object",
+        "properties": {
+          "serviceUrl": { "type": ["string", "null"] },
+          "apiToken": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      },
+      "EasyEmailConnectionHealth": {
+        "type": "object",
+        "required": ["reachable", "providerCount", "authStatus", "capabilitiesSummary"],
+        "properties": {
+          "reachable": { "type": "boolean" },
+          "providerCount": { "type": "integer", "minimum": 0 },
+          "authStatus": { "type": "string" },
+          "capabilitiesSummary": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "GetEasyEmailSettingsResponse": {
+        "type": "object",
+        "required": ["settings"],
+        "properties": {
+          "settings": { "$ref": "#/components/schemas/EasyEmailClientSettings" }
+        },
+        "additionalProperties": false
+      },
+      "UpdateEasyEmailSettingsResponse": {
+        "type": "object",
+        "required": ["settings"],
+        "properties": {
+          "settings": { "$ref": "#/components/schemas/EasyEmailClientSettings" }
+        },
+        "additionalProperties": false
+      },
+      "TestEasyEmailConnectionResponse": {
+        "type": "object",
+        "required": ["health"],
+        "properties": {
+          "health": { "$ref": "#/components/schemas/EasyEmailConnectionHealth" }
         },
         "additionalProperties": false
       }

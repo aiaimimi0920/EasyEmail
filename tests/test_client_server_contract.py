@@ -30,6 +30,9 @@ STATIC_ROUTE_NAMES = (
     "sendQueue",
     "sendQueueRunOnce",
     "sendQueueRunDue",
+    "newsletterSubscriptions",
+    "settingsEasyEmail",
+    "testSettingsEasyEmail",
 )
 
 
@@ -72,6 +75,8 @@ class ClientServerContractTests(unittest.TestCase):
             "/mail/messages/${encodeURIComponent(messageId)}/scheduled-send/reopen",
             "/mail/accounts/${encodeURIComponent(accountId)}/folders",
             "/mail/accounts/${encodeURIComponent(accountId)}/sync",
+            "/mail/mailboxes/${encodeURIComponent(sessionId)}/promote",
+            "/mail/newsletters/subscriptions/${encodeURIComponent(subscriptionId)}",
         )
         for template in templates:
             self.assertIn(template, server_text)

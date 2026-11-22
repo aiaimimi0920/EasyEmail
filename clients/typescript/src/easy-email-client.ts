@@ -40,6 +40,24 @@ export interface EasyEmailClientApi extends EasyEmailMessageClientApi {
     accountId: string,
     input?: Contracts.MailAccountSyncInput,
   ): Promise<Contracts.SyncMailAccountResponse>;
+  promoteMailboxSession(
+    sessionId: string,
+    input: Contracts.PromoteMailboxSessionInput,
+  ): Promise<Contracts.PromoteMailboxSessionResult>;
+  listNewsletterSubscriptions(
+    query: Contracts.MailNewsletterSubscriptionListQuery,
+  ): Promise<Contracts.MailNewsletterSubscription[]>;
+  setNewsletterSubscriptionHidden(
+    subscriptionId: string,
+    input: Contracts.MailNewsletterSubscriptionUpdateInput,
+  ): Promise<Contracts.MailNewsletterSubscriptionActionResult>;
+  getEasyEmailSettings(): Promise<Contracts.EasyEmailClientSettings>;
+  updateEasyEmailSettings(
+    input: Contracts.EasyEmailClientSettingsUpdateInput,
+  ): Promise<Contracts.EasyEmailClientSettings>;
+  testEasyEmailConnection(
+    input?: Contracts.EasyEmailConnectionTestInput,
+  ): Promise<Contracts.EasyEmailConnectionHealth>;
 }
 
 export class EasyEmailClient extends EasyEmailMessageClientBase implements EasyEmailClientApi {
@@ -230,5 +248,63 @@ export class EasyEmailClient extends EasyEmailMessageClientBase implements EasyE
       Contracts.MailAccountSyncInput,
       Contracts.SyncMailAccountResponse
     >(EASY_EMAIL_HTTP_ROUTES.accountSync(accountId), input);
+  }
+
+  public async promoteMailboxSession(
+    sessionId: string,
+    input: Contracts.PromoteMailboxSessionInput,
+  ): Promise<Contracts.PromoteMailboxSessionResult> {
+    return this.httpClient.post<
+      Contracts.PromoteMailboxSessionInput,
+      Contracts.PromoteMailboxSessionResult
+    >(EASY_EMAIL_HTTP_ROUTES.promoteMailbox(sessionId), input);
+  }
+
+  public async listNewsletterSubscriptions(
+    query: Contracts.MailNewsletterSubscriptionListQuery,
+  ): Promise<Contracts.MailNewsletterSubscription[]> {
+    const response = await this.httpClient.get<Contracts.ListNewsletterSubscriptionsResult>(
+      EASY_EMAIL_HTTP_ROUTES.newsletterSubscriptions,
+      { accountId: query.accountId },
+    );
+    return response.subscriptions;
+  }
+
+  public async setNewsletterSubscriptionHidden(
+    subscriptionId: string,
+    input: Contracts.MailNewsletterSubscriptionUpdateInput,
+  ): Promise<Contracts.MailNewsletterSubscriptionActionResult> {
+    const response = await this.httpClient.patch<
+      Contracts.MailNewsletterSubscriptionUpdateInput,
+      { action: Contracts.MailNewsletterSubscriptionActionResult }
+    >(EASY_EMAIL_HTTP_ROUTES.newsletterSubscription(subscriptionId), input);
+    return response.action;
+  }
+
+  public async getEasyEmailSettings(): Promise<Contracts.EasyEmailClientSettings> {
+    const response = await this.httpClient.get<{ settings: Contracts.EasyEmailClientSettings }>(
+      EASY_EMAIL_HTTP_ROUTES.settingsEasyEmail,
+    );
+    return response.settings;
+  }
+
+  public async updateEasyEmailSettings(
+    input: Contracts.EasyEmailClientSettingsUpdateInput,
+  ): Promise<Contracts.EasyEmailClientSettings> {
+    const response = await this.httpClient.patch<
+      Contracts.EasyEmailClientSettingsUpdateInput,
+      { settings: Contracts.EasyEmailClientSettings }
+    >(EASY_EMAIL_HTTP_ROUTES.settingsEasyEmail, input);
+    return response.settings;
+  }
+
+  public async testEasyEmailConnection(
+    input: Contracts.EasyEmailConnectionTestInput = {},
+  ): Promise<Contracts.EasyEmailConnectionHealth> {
+    const response = await this.httpClient.post<
+      Contracts.EasyEmailConnectionTestInput,
+      { health: Contracts.EasyEmailConnectionHealth }
+    >(EASY_EMAIL_HTTP_ROUTES.testSettingsEasyEmail, input);
+    return response.health;
   }
 }

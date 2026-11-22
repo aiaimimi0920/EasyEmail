@@ -3,105 +3,99 @@ import test from "node:test";
 
 import {
   createNewsletterClient,
+  type NewsletterHttpTransport,
   type NewsletterSubscriptionActionDto,
   type NewsletterSubscriptionDto,
   type NewsletterSubscriptionListRequest,
   type NewsletterSubscriptionSetHiddenRequest,
 } from "../src/api/newsletterClient.ts";
-import type { InvokeCommand } from "../src/api/invokeCommand.ts";
 
-type InvokeCall = {
-  command: string;
-  args: Record<string, unknown> | undefined;
-};
-
-function createFakeInvoke(responses: ReadonlyMap<string, unknown>) {
-  const calls: InvokeCall[] = [];
-  const invokeCommand: InvokeCommand = async <T>(
-    command: string,
-    args?: Record<string, unknown>,
-  ): Promise<T> => {
-    calls.push({ command, args });
-    if (!responses.has(command)) {
-      throw new Error(`Unexpected command: ${command}`);
-    }
-    return responses.get(command) as T;
+test("lists newsletter subscriptions over HTTP and maps snake_case DTO fields", async () => {
+  const calls: Array<{ method: string; args: unknown[] }> = [];
+  const transport: NewsletterHttpTransport = {
+    async listNewsletterSubscriptions(query) {
+      calls.push({ method: "listNewsletterSubscriptions", args: [query] });
+      return {
+        subscriptions: [
+          {
+            id: "list:newsletter-list-1",
+            listId: "newsletter-list-1",
+            senderAddress: "news@example.com",
+            name: "Example Weekly",
+            receivedMessageCount: 12,
+            unreadMessageCount: 3,
+            lastReceivedAt: "2026-07-25T08:30:00Z",
+            unsubscribeMethods: [
+              "mailto:unsubscribe@example.com",
+              "https://example.com/unsubscribe",
+            ],
+            spam: false,
+            hidden: false,
+          },
+        ],
+      };
+    },
+    async setNewsletterSubscriptionHidden() {
+      throw new Error("unexpected");
+    },
   };
 
-  return { calls, invokeCommand };
-}
+  const request: NewsletterSubscriptionListRequest = { account_id: "account-1" };
+  const result: NewsletterSubscriptionDto[] =
+    await createNewsletterClient(transport).listNewsletterSubscriptions(request);
 
-test("lists newsletter subscriptions with the exact command and request envelope", async () => {
-  const request: NewsletterSubscriptionListRequest = {
-    account_id: "account-1",
-  };
-  const subscription: NewsletterSubscriptionDto = {
-    id: "subscription-1",
-    list_id: "newsletter-list-1",
-    sender_address: "news@example.com",
-    name: "Example Weekly",
-    received_message_count: 12,
-    unread_message_count: 3,
-    last_received_at: "2026-07-25T08:30:00Z",
-    unsubscribe_methods: ["mailto:unsubscribe@example.com", "https://example.com/unsubscribe"],
-    spam: false,
-    hidden: false,
-  };
-  const subscriptions = [subscription];
-  const { calls, invokeCommand } = createFakeInvoke(
-    new Map<string, unknown>([["newsletter_subscription_list", subscriptions]]),
-  );
-
-  const result = await createNewsletterClient(invokeCommand).listNewsletterSubscriptions(
-    request,
-  );
-
-  assert.strictEqual(result, subscriptions);
-  assert.strictEqual(result[0], subscription);
-  assert.strictEqual(result[0].unsubscribe_methods, subscription.unsubscribe_methods);
-  assert.deepEqual(result[0], {
-    id: "subscription-1",
-    list_id: "newsletter-list-1",
-    sender_address: "news@example.com",
-    name: "Example Weekly",
-    received_message_count: 12,
-    unread_message_count: 3,
-    last_received_at: "2026-07-25T08:30:00Z",
-    unsubscribe_methods: ["mailto:unsubscribe@example.com", "https://example.com/unsubscribe"],
-    spam: false,
-    hidden: false,
-  });
-  assert.deepEqual(calls, [
+  assert.deepEqual(result, [
     {
-      command: "newsletter_subscription_list",
-      args: { request },
+      id: "list:newsletter-list-1",
+      list_id: "newsletter-list-1",
+      sender_address: "news@example.com",
+      name: "Example Weekly",
+      received_message_count: 12,
+      unread_message_count: 3,
+      last_received_at: "2026-07-25T08:30:00Z",
+      unsubscribe_methods: [
+        "mailto:unsubscribe@example.com",
+        "https://example.com/unsubscribe",
+      ],
+      spam: false,
+      hidden: false,
     },
   ]);
-  assert.deepEqual(Object.keys(calls[0].args ?? {}), ["request"]);
-  assert.strictEqual(calls[0].args?.request, request);
+  assert.deepEqual(calls, [
+    { method: "listNewsletterSubscriptions", args: [{ accountId: "account-1" }] },
+  ]);
 });
 
-test("sets newsletter hidden state with hidden false preserved exactly", async () => {
+test("sets newsletter hidden state over HTTP with hidden false preserved", async () => {
+  const calls: Array<{ method: string; args: unknown[] }> = [];
+  const transport: NewsletterHttpTransport = {
+    async listNewsletterSubscriptions() {
+      throw new Error("unexpected");
+    },
+    async setNewsletterSubscriptionHidden(subscriptionId, request) {
+      calls.push({
+        method: "setNewsletterSubscriptionHidden",
+        args: [subscriptionId, request],
+      });
+      return {
+        action: {
+          accountId: request.accountId,
+          subscriptionId,
+          hidden: request.hidden,
+          changed: true,
+        },
+      };
+    },
+  };
+
   const request: NewsletterSubscriptionSetHiddenRequest = {
     account_id: "account-1",
     subscription_id: "subscription-1",
     hidden: false,
   };
-  const action: NewsletterSubscriptionActionDto = {
-    account_id: "account-1",
-    subscription_id: "subscription-1",
-    hidden: false,
-    changed: true,
-  };
-  const { calls, invokeCommand } = createFakeInvoke(
-    new Map<string, unknown>([["newsletter_subscription_set_hidden", action]]),
-  );
+  const result: NewsletterSubscriptionActionDto =
+    await createNewsletterClient(transport).setNewsletterSubscriptionHidden(request);
 
-  const result = await createNewsletterClient(
-    invokeCommand,
-  ).setNewsletterSubscriptionHidden(request);
-
-  assert.strictEqual(result, action);
   assert.deepEqual(result, {
     account_id: "account-1",
     subscription_id: "subscription-1",
@@ -110,32 +104,28 @@ test("sets newsletter hidden state with hidden false preserved exactly", async (
   });
   assert.deepEqual(calls, [
     {
-      command: "newsletter_subscription_set_hidden",
-      args: { request },
+      method: "setNewsletterSubscriptionHidden",
+      args: ["subscription-1", { accountId: "account-1", hidden: false }],
     },
   ]);
-  assert.deepEqual(Object.keys(calls[0].args ?? {}), ["request"]);
-  assert.strictEqual(calls[0].args?.request, request);
-  assert.equal(
-    Object.prototype.hasOwnProperty.call(calls[0].args?.request, "hidden"),
-    true,
-  );
-  assert.strictEqual(
-    (calls[0].args?.request as NewsletterSubscriptionSetHiddenRequest).hidden,
-    false,
-  );
 });
 
-test("propagates the exact invoke rejection object unchanged", async () => {
+test("propagates HTTP transport rejection unchanged", async () => {
   const rejection = {
-    code: "newsletter_subscription_unavailable",
-    message: "Newsletter subscription storage is unavailable",
+    code: "EXTENSIONS_PERSISTENCE_UNAVAILABLE",
+    message: "Persistent mail extensions are not available.",
   };
-  const invokeCommand: InvokeCommand = <T>(): Promise<T> =>
-    Promise.reject<T>(rejection);
+  const transport: NewsletterHttpTransport = {
+    async listNewsletterSubscriptions() {
+      throw rejection;
+    },
+    async setNewsletterSubscriptionHidden() {
+      throw rejection;
+    },
+  };
 
   await assert.rejects(
-    createNewsletterClient(invokeCommand).listNewsletterSubscriptions({
+    createNewsletterClient(transport).listNewsletterSubscriptions({
       account_id: "account-1",
     }),
     (caught: unknown) => {

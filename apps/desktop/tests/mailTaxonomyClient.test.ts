@@ -3,39 +3,141 @@ import test from "node:test";
 
 import {
   createMailTaxonomyClient,
+  toMailTaxonomySlugKey,
   type MailTaxonomyDeleteDto,
   type MailTaxonomyDeleteRequest,
+  type MailTaxonomyHttpTransport,
   type MailTaxonomyItemDto,
   type MailTaxonomyListRequest,
   type MailTaxonomyUpdateRequest,
   type MailTaxonomyUpsertRequest,
 } from "../src/api/mailTaxonomyClient.ts";
-import type { InvokeCommand } from "../src/api/invokeCommand.ts";
 
-type InvokeCall = {
-  command: string;
-  args: Record<string, unknown> | undefined;
-};
-
-function createFakeInvoke(responses: ReadonlyMap<string, unknown>) {
-  const calls: InvokeCall[] = [];
-  const invokeCommand: InvokeCommand = async <T>(
-    command: string,
-    args?: Record<string, unknown>,
-  ): Promise<T> => {
-    calls.push({ command, args });
-    if (!responses.has(command)) {
-      throw new Error(`Unexpected command: ${command}`);
-    }
-    return responses.get(command) as T;
+function createFakeTaxonomyTransport(overrides: Partial<MailTaxonomyHttpTransport> = {}) {
+  const calls: Array<{ method: string; args: unknown[] }> = [];
+  const transport: MailTaxonomyHttpTransport = {
+    async listMailTaxonomy(query) {
+      calls.push({ method: "listMailTaxonomy", args: [query] });
+      return {
+        items: [],
+        capabilities: { messageReferencePropagation: true },
+      };
+    },
+    async getMailTaxonomy(itemId) {
+      calls.push({ method: "getMailTaxonomy", args: [itemId] });
+      return {
+        item: {
+          id: itemId,
+          kind: "folder",
+          name: "Existing",
+          color: "#8b5cf6",
+          sortOrder: 10,
+          system: false,
+          version: 3,
+          createdAt: "2026-09-05T00:00:00Z",
+          updatedAt: "2026-09-05T00:00:00Z",
+        },
+        capabilities: { messageReferencePropagation: true },
+      };
+    },
+    async upsertMailTaxonomy(kind, key, request) {
+      calls.push({ method: "upsertMailTaxonomy", args: [kind, key, request] });
+      return {
+        item: {
+          id: `${kind}-${key}`,
+          kind,
+          name: request.name,
+          ...(request.parentId ? { parentId: request.parentId } : {}),
+          color: request.color ?? "#8b5cf6",
+          sortOrder: 10,
+          system: false,
+          version: 1,
+          createdAt: "2026-09-05T00:00:00Z",
+          updatedAt: "2026-09-05T00:00:00Z",
+        },
+        capabilities: { messageReferencePropagation: true },
+      };
+    },
+    async updateMailTaxonomy(itemId, request) {
+      calls.push({ method: "updateMailTaxonomy", args: [itemId, request] });
+      return {
+        item: {
+          id: itemId,
+          kind: "folder",
+          name: request.name,
+          ...(request.parentId ? { parentId: request.parentId } : {}),
+          color: request.color ?? "#8b5cf6",
+          sortOrder: 10,
+          system: false,
+          version: request.expectedVersion + 1,
+          createdAt: "2026-09-05T00:00:00Z",
+          updatedAt: "2026-09-05T00:00:00Z",
+        },
+        capabilities: { messageReferencePropagation: true },
+      };
+    },
+    async deleteMailTaxonomy(itemId, expectedVersion) {
+      calls.push({ method: "deleteMailTaxonomy", args: [itemId, expectedVersion] });
+      return {
+        deleted: { id: itemId, changed: true },
+        capabilities: { messageReferencePropagation: true },
+      };
+    },
+    ...overrides,
   };
-
-  return { calls, invokeCommand };
+  return { calls, transport };
 }
 
-test("lists folders with mail_taxonomy_list and exactly the wrapped request payload", async () => {
+test("paginates folders over HTTP and maps canonical taxonomy DTOs", async () => {
   const request: MailTaxonomyListRequest = { kind: "folder" };
-  const folders: MailTaxonomyItemDto[] = [
+  let pageIndex = 0;
+  const { calls, transport } = createFakeTaxonomyTransport({
+    async listMailTaxonomy(query) {
+      calls.push({ method: "listMailTaxonomy", args: [query] });
+      pageIndex += 1;
+      if (pageIndex === 1) {
+        return {
+          items: [
+            {
+              id: "folder-inbox",
+              kind: "folder",
+              name: "Inbox",
+              color: "#7c3aed",
+              sortOrder: 0,
+              system: true,
+              version: 1,
+              createdAt: "2026-09-05T00:00:00Z",
+              updatedAt: "2026-09-05T00:00:00Z",
+            },
+          ],
+          nextCursor: "cursor-2",
+          capabilities: { messageReferencePropagation: true },
+        };
+      }
+      return {
+        items: [
+          {
+            id: "folder-sub",
+            kind: "folder",
+            name: "Subfolder",
+            parentId: "folder-inbox",
+            color: "#06b6d4",
+            sortOrder: 10,
+            system: false,
+            version: 1,
+            createdAt: "2026-09-05T00:00:00Z",
+            updatedAt: "2026-09-05T00:00:00Z",
+          },
+        ],
+        capabilities: { messageReferencePropagation: true },
+      };
+    },
+  });
+
+  const result: MailTaxonomyItemDto[] =
+    await createMailTaxonomyClient(transport).listMailTaxonomyItems(request);
+
+  assert.deepEqual(result, [
     {
       id: "folder-inbox",
       kind: "folder",
@@ -45,187 +147,145 @@ test("lists folders with mail_taxonomy_list and exactly the wrapped request payl
       sort_order: 0,
       system: true,
     },
-  ];
-  const { calls, invokeCommand } = createFakeInvoke(
-    new Map<string, unknown>([["mail_taxonomy_list", folders]]),
-  );
-
-  const result = await createMailTaxonomyClient(invokeCommand).listMailTaxonomyItems(
-    request,
-  );
-
-  assert.strictEqual(result, folders);
-  assert.ok(Array.isArray(result));
-  assert.deepEqual(calls, [
     {
-      command: "mail_taxonomy_list",
-      args: { request },
+      id: "folder-sub",
+      kind: "folder",
+      name: "Subfolder",
+      parent_id: "folder-inbox",
+      color: "#06b6d4",
+      sort_order: 10,
+      system: false,
     },
   ]);
-  assert.deepEqual(Object.keys(calls[0].args ?? {}), ["request"]);
-  assert.strictEqual(calls[0].args?.request, request);
-});
-
-test("preserves label kind when listing taxonomy items", async () => {
-  const request: MailTaxonomyListRequest = { kind: "label" };
-  const labels: MailTaxonomyItemDto[] = [];
-  const { calls, invokeCommand } = createFakeInvoke(
-    new Map<string, unknown>([["mail_taxonomy_list", labels]]),
-  );
-
-  const result = await createMailTaxonomyClient(invokeCommand).listMailTaxonomyItems(
-    request,
-  );
-
-  assert.strictEqual(result, labels);
   assert.deepEqual(calls, [
-    {
-      command: "mail_taxonomy_list",
-      args: { request: { kind: "label" } },
-    },
+    { method: "listMailTaxonomy", args: [{ kind: "folder", limit: 100, cursor: undefined }] },
+    { method: "listMailTaxonomy", args: [{ kind: "folder", limit: 100, cursor: "cursor-2" }] },
   ]);
-  assert.strictEqual(calls[0].args?.request, request);
 });
 
-test("upserts a taxonomy item with the exact request including a non-null parent_id", async () => {
-  const request: MailTaxonomyUpsertRequest = {
+test("derives legacy-compatible slug keys and upserts folders vs labels cleanly", async () => {
+  assert.equal(toMailTaxonomySlugKey("  Project Alpha! "), "project_alpha");
+  assert.equal(toMailTaxonomySlugKey("中文标签"), "item");
+
+  const folderRequest: MailTaxonomyUpsertRequest = {
     kind: "folder",
-    name: "Receipts",
+    name: "Project Alpha",
     parent_id: "folder-finance",
     color: "#06b6d4",
   };
-  const item: MailTaxonomyItemDto = {
-    id: "folder-receipts",
-    ...request,
-    sort_order: 4,
-    system: false,
+  const labelRequest: MailTaxonomyUpsertRequest = {
+    kind: "label",
+    name: "VIP",
+    parent_id: null,
+    color: "#d9ff38",
   };
-  const { calls, invokeCommand } = createFakeInvoke(
-    new Map<string, unknown>([["mail_taxonomy_upsert", item]]),
-  );
+  const { calls, transport } = createFakeTaxonomyTransport();
+  const client = createMailTaxonomyClient(transport);
 
-  const result = await createMailTaxonomyClient(invokeCommand).upsertMailTaxonomyItem(
-    request,
-  );
+  const folder = await client.upsertMailTaxonomyItem(folderRequest);
+  const label = await client.upsertMailTaxonomyItem(labelRequest);
 
-  assert.strictEqual(result, item);
+  assert.equal(folder.parent_id, "folder-finance");
+  assert.equal(label.parent_id, null);
   assert.deepEqual(calls, [
     {
-      command: "mail_taxonomy_upsert",
-      args: { request },
+      method: "upsertMailTaxonomy",
+      args: [
+        "folder",
+        "project_alpha",
+        { name: "Project Alpha", parentId: "folder-finance", color: "#06b6d4" },
+      ],
+    },
+    {
+      method: "upsertMailTaxonomy",
+      args: ["label", "vip", { name: "VIP", color: "#d9ff38" }],
     },
   ]);
-  assert.deepEqual(Object.keys(calls[0].args ?? {}), ["request"]);
-  assert.strictEqual(calls[0].args?.request, request);
-  assert.equal(request.parent_id, "folder-finance");
 });
 
-test("updates a label with the exact request including parent_id null", async () => {
-  const request: MailTaxonomyUpdateRequest = {
+test("updates and deletes taxonomy items using version CAS fetched from getMailTaxonomy", async () => {
+  const updateReq: MailTaxonomyUpdateRequest = {
     id: "label-important",
     name: "Important",
     parent_id: null,
     color: "#d9ff38",
   };
-  const item: MailTaxonomyItemDto = {
-    id: request.id,
+  const deleteReq: MailTaxonomyDeleteRequest = { id: "label-important" };
+  const { calls, transport } = createFakeTaxonomyTransport({
+    async getMailTaxonomy(itemId) {
+      calls.push({ method: "getMailTaxonomy", args: [itemId] });
+      return {
+        item: {
+          id: itemId,
+          kind: "label",
+          name: "Old",
+          color: "#8b5cf6",
+          sortOrder: 2,
+          system: false,
+          version: 4,
+          createdAt: "2026-09-05T00:00:00Z",
+          updatedAt: "2026-09-05T00:00:00Z",
+        },
+        capabilities: { messageReferencePropagation: true },
+      };
+    },
+    async updateMailTaxonomy(itemId, request) {
+      calls.push({ method: "updateMailTaxonomy", args: [itemId, request] });
+      return {
+        item: {
+          id: itemId,
+          kind: "label",
+          name: request.name,
+          color: request.color ?? "#8b5cf6",
+          sortOrder: 2,
+          system: false,
+          version: 5,
+          createdAt: "2026-09-05T00:00:00Z",
+          updatedAt: "2026-09-05T00:00:00Z",
+        },
+        capabilities: { messageReferencePropagation: true },
+      };
+    },
+  });
+
+  const client = createMailTaxonomyClient(transport);
+  const updated = await client.updateMailTaxonomyItem(updateReq);
+  const deleted: MailTaxonomyDeleteDto = await client.deleteMailTaxonomyItem(deleteReq);
+
+  assert.deepEqual(updated, {
+    id: "label-important",
     kind: "label",
-    name: request.name,
-    parent_id: request.parent_id,
-    color: request.color,
+    name: "Important",
+    parent_id: null,
+    color: "#d9ff38",
     sort_order: 2,
     system: false,
-  };
-  const { calls, invokeCommand } = createFakeInvoke(
-    new Map<string, unknown>([["mail_taxonomy_update", item]]),
-  );
-
-  const result = await createMailTaxonomyClient(invokeCommand).updateMailTaxonomyItem(
-    request,
-  );
-
-  assert.strictEqual(result, item);
-  assert.deepEqual(calls, [
-    {
-      command: "mail_taxonomy_update",
-      args: { request },
-    },
-  ]);
-  assert.deepEqual(Object.keys(calls[0].args ?? {}), ["request"]);
-  assert.strictEqual(calls[0].args?.request, request);
-  assert.equal(request.parent_id, null);
-});
-
-test("deletes a taxonomy item with the exact request and returns the changed result", async () => {
-  const request: MailTaxonomyDeleteRequest = { id: "label-important" };
-  const deleted: MailTaxonomyDeleteDto = {
-    id: request.id,
-    changed: true,
-  };
-  const { calls, invokeCommand } = createFakeInvoke(
-    new Map<string, unknown>([["mail_taxonomy_delete", deleted]]),
-  );
-
-  const result = await createMailTaxonomyClient(invokeCommand).deleteMailTaxonomyItem(
-    request,
-  );
-
-  assert.strictEqual(result, deleted);
-  assert.equal(result.changed, true);
-  assert.deepEqual(calls, [
-    {
-      command: "mail_taxonomy_delete",
-      args: { request },
-    },
-  ]);
-  assert.deepEqual(Object.keys(calls[0].args ?? {}), ["request"]);
-  assert.strictEqual(calls[0].args?.request, request);
-});
-
-test("passes through a full taxonomy DTO with nullable parent_id unchanged", async () => {
-  const item: MailTaxonomyItemDto = {
-    id: "label-openai",
-    kind: "label",
-    name: "OpenAI",
-    parent_id: null,
-    color: "#8b5cf6",
-    sort_order: 7,
-    system: false,
-  };
-  const items = [item];
-  const { invokeCommand } = createFakeInvoke(
-    new Map<string, unknown>([["mail_taxonomy_list", items]]),
-  );
-
-  const result = await createMailTaxonomyClient(invokeCommand).listMailTaxonomyItems({
-    kind: "label",
   });
-
-  assert.strictEqual(result, items);
-  assert.strictEqual(result[0], item);
-  assert.deepEqual(result[0], {
-    id: "label-openai",
-    kind: "label",
-    name: "OpenAI",
-    parent_id: null,
-    color: "#8b5cf6",
-    sort_order: 7,
-    system: false,
-  });
+  assert.deepEqual(deleted, { id: "label-important", changed: true });
+  assert.deepEqual(calls, [
+    { method: "getMailTaxonomy", args: ["label-important"] },
+    {
+      method: "updateMailTaxonomy",
+      args: ["label-important", { expectedVersion: 4, name: "Important", color: "#d9ff38" }],
+    },
+    { method: "getMailTaxonomy", args: ["label-important"] },
+    { method: "deleteMailTaxonomy", args: ["label-important", 4] },
+  ]);
 });
 
-test("propagates the exact invoke rejection object unchanged", async () => {
+test("propagates HTTP transport rejections unchanged", async () => {
   const rejection = {
-    code: "mail_taxonomy_unavailable",
-    message: "Mail taxonomy storage is unavailable",
+    code: "MAIL_TAXONOMY_PERSISTENCE_UNAVAILABLE",
+    message: "Persistent mail taxonomy is not available in this runtime.",
   };
-  const invokeCommand: InvokeCommand = <T>(): Promise<T> =>
-    Promise.reject<T>(rejection);
+  const { transport } = createFakeTaxonomyTransport({
+    async getMailTaxonomy() {
+      throw rejection;
+    },
+  });
 
   await assert.rejects(
-    createMailTaxonomyClient(invokeCommand).deleteMailTaxonomyItem({
-      id: "folder-archive",
-    }),
+    createMailTaxonomyClient(transport).deleteMailTaxonomyItem({ id: "folder-archive" }),
     (caught: unknown) => {
       assert.strictEqual(caught, rejection);
       return true;

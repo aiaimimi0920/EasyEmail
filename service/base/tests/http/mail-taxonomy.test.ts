@@ -39,7 +39,7 @@ describe("mail taxonomy HTTP resources", () => {
       };
       expect(parentPayload).toMatchObject({
         item: { name: "Parent", color: "#abcdef", version: 1 },
-        capabilities: { messageReferencePropagation: false },
+        capabilities: { messageReferencePropagation: true },
       });
 
       const childResponse = await fetch(`${server.baseUrl}/mail/taxonomy/folder/child`, {

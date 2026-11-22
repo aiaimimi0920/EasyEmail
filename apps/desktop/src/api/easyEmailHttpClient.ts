@@ -76,6 +76,21 @@ export type {
   EasyEmailMailTaxonomyUpdateRequest,
   EasyEmailMailTaxonomyMutationResponse,
   EasyEmailMailTaxonomyDeleteResponse,
+  EasyEmailPromoteMailboxRequest,
+  EasyEmailPromoteMailboxResponse,
+  EasyEmailNewsletterSubscription,
+  EasyEmailListNewsletterSubscriptionsQuery,
+  EasyEmailListNewsletterSubscriptionsResponse,
+  EasyEmailUpdateNewsletterSubscriptionRequest,
+  EasyEmailNewsletterSubscriptionActionResult,
+  EasyEmailUpdateNewsletterSubscriptionResponse,
+  EasyEmailClientSettings,
+  EasyEmailGetEasyEmailSettingsResponse,
+  EasyEmailUpdateEasyEmailSettingsRequest,
+  EasyEmailUpdateEasyEmailSettingsResponse,
+  EasyEmailTestEasyEmailConnectionRequest,
+  EasyEmailConnectionHealth,
+  EasyEmailTestEasyEmailConnectionResponse,
 } from "./easyEmailMailTypes.ts";
 
 export type {

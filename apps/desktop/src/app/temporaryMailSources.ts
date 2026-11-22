@@ -44,10 +44,12 @@ export function buildTemporaryMailboxSources(
       (messageCounts.get(message.temp_mailbox_id) ?? 0) + 1,
     );
   }
-  return mailboxes.map((mailbox) => ({
-    id: temporaryMailboxSourceId(mailbox.id),
-    label: mailbox.email_address,
-    meta: `${messageCounts.get(mailbox.id) ?? 0} 封邮件 / ${mailbox.provider_label}`,
-    tone: "cyan",
-  }));
+  return mailboxes
+    .filter((mailbox) => mailbox.visibility_state === "anonymous")
+    .map((mailbox) => ({
+      id: temporaryMailboxSourceId(mailbox.id),
+      label: mailbox.email_address,
+      meta: `${messageCounts.get(mailbox.id) ?? 0} 封邮件 / ${mailbox.provider_label}`,
+      tone: "cyan",
+    }));
 }

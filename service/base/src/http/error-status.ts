@@ -3,6 +3,10 @@ import type { EasyEmailError } from "../domain/errors.js";
 const BAD_REQUEST_CODES = new Set([
   "INVALID_JSON",
   "INVALID_QUERY",
+  "INVALID_REQUEST",
+  "INVALID_SETTINGS",
+  "SETTINGS_SECRET_FORBIDDEN",
+  "TEMP_PROMOTE_CONFIRMATION_REQUIRED",
   "INVALID_CONTACT",
   "INVALID_CONTACT_CURSOR",
   "INVALID_MAIL_TAXONOMY",
@@ -67,6 +71,7 @@ const CONFLICT_CODES = new Set([
   "SEND_DELIVERY_UNKNOWN_CONFIRMATION_REQUIRED",
   "SEND_QUEUE_LEASE_LOST",
   "SCHEDULED_SEND_NOT_PENDING",
+  "TEMP_PROMOTE_NOT_AVAILABLE",
 ]);
 
 const SERVICE_UNAVAILABLE_CODES = new Set([
@@ -84,6 +89,9 @@ const SERVICE_UNAVAILABLE_CODES = new Set([
   "VERIFICATIONS_PERSISTENCE_UNAVAILABLE",
   "SEND_QUEUE_PERSISTENCE_UNAVAILABLE",
   "SMTP_TRANSPORT_UNAVAILABLE",
+  "PROMOTION_PERSISTENCE_UNAVAILABLE",
+  "EXTENSIONS_PERSISTENCE_UNAVAILABLE",
+  "EASYEMAIL_UNREACHABLE",
 ]);
 
 export function resolveEasyEmailHttpErrorStatus(error: EasyEmailError): number | undefined {
@@ -99,7 +107,12 @@ export function resolveEasyEmailHttpErrorStatus(error: EasyEmailError): number |
   if (CONFLICT_CODES.has(error.code)) {
     return 409;
   }
-  if (error.code === "IMAP_AUTH_FAILED" || error.code === "SMTP_AUTH_FAILED") {
+  if (
+    error.code === "IMAP_AUTH_FAILED"
+    || error.code === "SMTP_AUTH_FAILED"
+    || error.code === "TEMP_PROMOTE_PROVIDER_UNSUPPORTED"
+    || error.code === "EASYEMAIL_AUTH_FAILED"
+  ) {
     return 422;
   }
   if (SERVICE_UNAVAILABLE_CODES.has(error.code)) {

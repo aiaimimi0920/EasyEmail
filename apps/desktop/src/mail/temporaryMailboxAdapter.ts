@@ -12,7 +12,8 @@ export type TemporaryMailboxView = {
   email_address: string;
   provider_id: string;
   provider_label: string;
-  visibility_state: "anonymous";
+  visibility_state: "anonymous" | "upgraded";
+  upgraded_account_id?: string;
   lifecycle_state: "active" | "history_only" | "expired";
   easyemail_mailbox_id: string;
   lease_expires_at: string | null;
@@ -96,12 +97,18 @@ export function temporaryMailboxViewFromSession(
   session: EasyEmailMailboxSession,
   instance?: Pick<EasyEmailProviderInstance, "id" | "displayName">,
 ): TemporaryMailboxView {
+  const upgradedAccountId = session.metadata.upgradedAccountId?.trim() || undefined;
+  const visibilityState: TemporaryMailboxView["visibility_state"] =
+    session.metadata.visibilityState === "upgraded" || Boolean(upgradedAccountId)
+      ? "upgraded"
+      : "anonymous";
   return {
     id: session.id,
     email_address: session.emailAddress,
     provider_id: instance?.id ?? session.providerInstanceId,
     provider_label: providerLabel(session, instance),
-    visibility_state: "anonymous",
+    visibility_state: visibilityState,
+    ...(upgradedAccountId ? { upgraded_account_id: upgradedAccountId } : {}),
     lifecycle_state: lifecycleState(session.status),
     easyemail_mailbox_id: session.id,
     lease_expires_at: session.expiresAt ?? null,

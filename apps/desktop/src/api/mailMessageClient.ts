@@ -101,7 +101,7 @@ function toMessageSummaryDto(summary: EasyEmailMailMessageSummary): AnonymousMes
     is_important: summary.isImportant,
     local_folder: summary.localFolder,
     labels: summary.labels,
-    newsletter_subscription_id: null,
+    newsletter_subscription_id: summary.newsletterSubscriptionId ?? null,
   };
 }
 

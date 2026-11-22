@@ -52,6 +52,7 @@ export type EasyEmailMailMessageSummary = {
   snippet: string;
   hasAttachments: boolean;
   classification: EasyEmailMailMessageClassification;
+  newsletterSubscriptionId?: string;
   lifecycleState: EasyEmailMailMessageLifecycleState;
   observedAt: string;
   isRead: boolean;

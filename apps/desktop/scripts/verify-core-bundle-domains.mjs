@@ -264,9 +264,16 @@ export async function verifyBundledCoreRelationalDomains({
     taxonomyPayload?.item?.name !== "Packaged core"
     || taxonomyPayload?.item?.kind !== "folder"
     || taxonomyPayload?.item?.version !== 1
-    || taxonomyPayload?.capabilities?.messageReferencePropagation !== false
+    || taxonomyPayload?.capabilities?.messageReferencePropagation !== true
   ) {
     throw new Error("Authenticated packaged-core taxonomy create returned an invalid canonical result.");
+  }
+  const settingsGet = await fetch(`${baseUrl}/mail/settings/easyemail`, {
+    headers: { authorization: `Bearer ${apiToken}` },
+  });
+  const settingsPayload = await settingsGet.json();
+  if (!settingsGet.ok || settingsPayload?.settings?.hasApiToken !== true) {
+    throw new Error("Authenticated packaged-core EasyEmail settings read failed.");
   }
   const taxonomyList = await fetch(`${baseUrl}/mail/taxonomy?kind=folder`, {
     headers: { authorization: `Bearer ${apiToken}` },

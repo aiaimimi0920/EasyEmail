@@ -98,6 +98,8 @@ export interface MailImapRemoteMessageHeader {
   isDeleted: boolean;
   hasAttachments: boolean;
   isNewsletter: boolean;
+  newsletterListId?: string;
+  newsletterUnsubscribeMethods?: string[];
 }
 
 export interface MailImapFolderSyncBatch {

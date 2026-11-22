@@ -26,6 +26,17 @@ import {
   type EasyEmailMailTaxonomyMutationResponse,
   type EasyEmailMailTaxonomyUpdateRequest,
   type EasyEmailMailTaxonomyUpsertRequest,
+  type EasyEmailGetEasyEmailSettingsResponse,
+  type EasyEmailListNewsletterSubscriptionsQuery,
+  type EasyEmailListNewsletterSubscriptionsResponse,
+  type EasyEmailPromoteMailboxRequest,
+  type EasyEmailPromoteMailboxResponse,
+  type EasyEmailTestEasyEmailConnectionRequest,
+  type EasyEmailTestEasyEmailConnectionResponse,
+  type EasyEmailUpdateEasyEmailSettingsRequest,
+  type EasyEmailUpdateEasyEmailSettingsResponse,
+  type EasyEmailUpdateNewsletterSubscriptionRequest,
+  type EasyEmailUpdateNewsletterSubscriptionResponse,
   type EasyEmailMailAccountCreateRequest,
   type EasyEmailMailAccountImapTestRequest,
   type EasyEmailMailAccountImapTestResponse,
@@ -306,6 +317,36 @@ export function createBundledCoreClient(
       expectedVersion: number,
     ): Promise<EasyEmailMailTaxonomyDeleteResponse> {
       return (await getHttpClient()).deleteMailTaxonomy(itemId, expectedVersion);
+    },
+    async promoteMailbox(
+      sessionId: string,
+      request: EasyEmailPromoteMailboxRequest,
+    ): Promise<EasyEmailPromoteMailboxResponse> {
+      return (await getHttpClient()).promoteMailbox(sessionId, request);
+    },
+    async listNewsletterSubscriptions(
+      query: EasyEmailListNewsletterSubscriptionsQuery,
+    ): Promise<EasyEmailListNewsletterSubscriptionsResponse> {
+      return (await getHttpClient()).listNewsletterSubscriptions(query);
+    },
+    async setNewsletterSubscriptionHidden(
+      subscriptionId: string,
+      request: EasyEmailUpdateNewsletterSubscriptionRequest,
+    ): Promise<EasyEmailUpdateNewsletterSubscriptionResponse> {
+      return (await getHttpClient()).setNewsletterSubscriptionHidden(subscriptionId, request);
+    },
+    async getEasyEmailSettings(): Promise<EasyEmailGetEasyEmailSettingsResponse> {
+      return (await getHttpClient()).getEasyEmailSettings();
+    },
+    async updateEasyEmailSettings(
+      request: EasyEmailUpdateEasyEmailSettingsRequest,
+    ): Promise<EasyEmailUpdateEasyEmailSettingsResponse> {
+      return (await getHttpClient()).updateEasyEmailSettings(request);
+    },
+    async testEasyEmailConnection(
+      request: EasyEmailTestEasyEmailConnectionRequest = {},
+    ): Promise<EasyEmailTestEasyEmailConnectionResponse> {
+      return (await getHttpClient()).testEasyEmailConnection(request);
     },
     async planMailbox<TResult = unknown>(
       request: EasyEmailOpenMailboxRequest,

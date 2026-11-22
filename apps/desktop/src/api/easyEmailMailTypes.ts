@@ -1,3 +1,5 @@
+import type { EasyEmailMailboxSession } from "./easyEmailCoreTypes.ts";
+
 export type EasyEmailMailAccountScope = "normal" | "agent" | "system";
 export type EasyEmailMailAccountKind = "normal_long_lived" | "normal_upgraded_temp" | "anonymous_virtual" | "agent_owned";
 export type EasyEmailMailAccountCreatableKind = "normal_long_lived" | "agent_owned";
@@ -234,5 +236,86 @@ export type EasyEmailMailTaxonomyMutationResponse = {
 export type EasyEmailMailTaxonomyDeleteResponse = {
   deleted: { id: string; changed: boolean };
   capabilities: EasyEmailMailTaxonomyCapabilities;
+};
+
+export type EasyEmailPromoteMailboxRequest = {
+  confirmLifecycleAck: boolean;
+  displayName?: string | null;
+};
+
+export type EasyEmailPromoteMailboxResponse = {
+  account: EasyEmailMailAccount;
+  session: EasyEmailMailboxSession;
+  linkedMessageCount: number;
+};
+
+export type EasyEmailNewsletterSubscription = {
+  id: string;
+  listId: string;
+  senderAddress: string;
+  name: string;
+  receivedMessageCount: number;
+  unreadMessageCount: number;
+  lastReceivedAt: string;
+  unsubscribeMethods: string[];
+  spam: boolean;
+  hidden: boolean;
+};
+
+export type EasyEmailListNewsletterSubscriptionsQuery = {
+  accountId: string;
+};
+
+export type EasyEmailListNewsletterSubscriptionsResponse = {
+  subscriptions: EasyEmailNewsletterSubscription[];
+};
+
+export type EasyEmailUpdateNewsletterSubscriptionRequest = {
+  accountId: string;
+  hidden: boolean;
+};
+
+export type EasyEmailNewsletterSubscriptionActionResult = {
+  accountId: string;
+  subscriptionId: string;
+  hidden: boolean;
+  changed: boolean;
+};
+
+export type EasyEmailUpdateNewsletterSubscriptionResponse = {
+  action: EasyEmailNewsletterSubscriptionActionResult;
+};
+
+export type EasyEmailClientSettings = {
+  serviceUrl: string | null;
+  hasApiToken: boolean;
+};
+
+export type EasyEmailGetEasyEmailSettingsResponse = {
+  settings: EasyEmailClientSettings;
+};
+
+export type EasyEmailUpdateEasyEmailSettingsRequest = {
+  serviceUrl: string;
+};
+
+export type EasyEmailUpdateEasyEmailSettingsResponse = {
+  settings: EasyEmailClientSettings;
+};
+
+export type EasyEmailTestEasyEmailConnectionRequest = {
+  serviceUrl?: string | null;
+  apiToken?: string | null;
+};
+
+export type EasyEmailConnectionHealth = {
+  reachable: boolean;
+  providerCount: number;
+  authStatus: string;
+  capabilitiesSummary: string;
+};
+
+export type EasyEmailTestEasyEmailConnectionResponse = {
+  health: EasyEmailConnectionHealth;
 };
 

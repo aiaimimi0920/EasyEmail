@@ -82,11 +82,15 @@ export function useInitialDataController(appState: AppState, dependencies: Depen
       );
       const messages = observedMessages.flatMap((message) => {
         const mailbox = mailboxesById.get(message.sessionId);
-        return mailbox ? [temporaryObservedMessageView(message, mailbox)] : [];
+        return mailbox && mailbox.visibility_state === "anonymous"
+          ? [temporaryObservedMessageView(message, mailbox)]
+          : [];
       });
       const codes = observedMessages.flatMap((message) => {
         const mailbox = mailboxesById.get(message.sessionId);
-        if (!mailbox || !message.extractedCode) return [];
+        if (!mailbox || mailbox.visibility_state !== "anonymous" || !message.extractedCode) {
+          return [];
+        }
         return [
           temporaryVerificationCodeView(
             {
@@ -242,7 +246,12 @@ export function useInitialDataController(appState: AppState, dependencies: Depen
         if (tempMailboxes.some((mailbox) => mailbox.id === current)) {
           return current;
         }
+        const anonymousMailboxes = tempMailboxes.filter(
+          (mailbox) => mailbox.visibility_state === "anonymous",
+        );
         return (
+          anonymousMailboxes.find((mailbox) => mailbox.lifecycle_state === "active")?.id ??
+          anonymousMailboxes[0]?.id ??
           tempMailboxes.find((mailbox) => mailbox.lifecycle_state === "active")?.id ??
           tempMailboxes[0]?.id ??
           ""

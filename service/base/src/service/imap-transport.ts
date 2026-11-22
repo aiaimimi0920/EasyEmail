@@ -10,6 +10,10 @@ import {
 
 import type { MailAccountImapProfile } from "../domain/account.js";
 import { EasyEmailError } from "../domain/errors.js";
+import {
+  normalizeNewsletterListId,
+  parseUnsubscribeHeaderMethods,
+} from "../domain/mail-extensions.js";
 import type {
   MailImapFolderSyncBatch,
   MailImapMessageBody,
@@ -159,6 +163,8 @@ function mapFetchedHeader(item: FetchMessageObject): MailImapRemoteMessageHeader
     || rawHeaders?.listId
     || (rawHeaders?.precedence && /^(?:bulk|list)$/iu.test(rawHeaders.precedence.trim())),
   );
+  const newsletterListId = normalizeNewsletterListId(rawHeaders?.listId);
+  const newsletterUnsubscribeMethods = parseUnsubscribeHeaderMethods(rawHeaders?.listUnsubscribe);
 
   return {
     uid: String(item.uid),
@@ -175,6 +181,8 @@ function mapFetchedHeader(item: FetchMessageObject): MailImapRemoteMessageHeader
     isDeleted: lowerFlags.has("\\deleted"),
     hasAttachments: structureHasAttachments(item.bodyStructure),
     isNewsletter,
+    ...(newsletterListId ? { newsletterListId } : {}),
+    ...(newsletterUnsubscribeMethods.length > 0 ? { newsletterUnsubscribeMethods } : {}),
   };
 }
 

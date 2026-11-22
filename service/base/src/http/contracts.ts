@@ -26,35 +26,16 @@ import type {
   MailTaxonomyUpsertRequest,
 } from "../domain/mail-taxonomy.js";
 import type {
-  AuthenticationLinkResult,
-  HostBinding,
-  HostBindingQueryFilters,
-  MailPersistenceStats,
   EasyEmailCatalog,
-  EasyEmailSnapshot,
-  MailboxSendRequest,
-  MailboxSendResult,
-  MailboxSessionUpdateRequest,
-  MailboxOutcomeReport,
-  MailboxOutcomeReportResult,
-  MailboxPlanResult,
+  HostBinding,
+  MailPersistenceStats,
   MailboxSession,
-  MailboxAccessDescriptor,
-  MailboxSessionQueryFilters,
-  MailProviderTypeKey,
-  ObserveMessageInput,
   ObservedMessage,
-  ObservedMessageQueryFilters,
   ProviderCredentialBinding,
   ProviderCredentialSet,
   ProviderHealthProbeResult,
   ProviderInstance,
-  ProviderInstanceQueryFilters,
-  RegisterCloudflareTempEmailRuntimeRequest,
   RegisterCloudflareTempEmailRuntimeResult,
-  VerificationCodeResult,
-  VerificationMailboxOpenResult,
-  VerificationMailboxRequest,
 } from "../domain/models.js";
 import type { MessageCleanupRecord } from "../workers/cleanup-messages.js";
 import type { SessionExpiryRecord } from "../workers/expire-sessions.js";
@@ -79,6 +60,9 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   persistenceStats: "/mail/query/stats",
   contacts: "/mail/contacts",
   taxonomy: "/mail/taxonomy",
+  newsletterSubscriptions: "/mail/newsletters/subscriptions",
+  settingsEasyEmail: "/mail/settings/easyemail",
+  testSettingsEasyEmail: "/mail/settings/easyemail/test",
   planMailbox: "/mail/mailboxes/plan",
   openMailbox: "/mail/mailboxes/open",
   refreshAnonymousMailboxes: "/mail/mailboxes/anonymous/refresh",
@@ -102,6 +86,12 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   },
   refreshMailbox(sessionId: string): string {
     return `/mail/mailboxes/${encodeURIComponent(sessionId)}/refresh`;
+  },
+  promoteMailbox(sessionId: string): string {
+    return `/mail/mailboxes/${encodeURIComponent(sessionId)}/promote`;
+  },
+  newsletterSubscription(subscriptionId: string): string {
+    return `/mail/newsletters/subscriptions/${encodeURIComponent(subscriptionId)}`;
   },
   getObservedMessage(messageId: string): string {
     return `/mail/query/observed-messages/${encodeURIComponent(messageId)}`;
@@ -315,171 +305,8 @@ export interface DeleteMailTaxonomyHttpResponse {
   capabilities: MailTaxonomyCapabilities;
 }
 
-export type PlanMailboxHttpRequest = VerificationMailboxRequest;
-export interface PlanMailboxHttpResponse {
-  plan: MailboxPlanResult;
-}
-
-export type OpenMailboxHttpRequest = VerificationMailboxRequest;
-export interface OpenMailboxHttpResponse {
-  result: VerificationMailboxOpenResult;
-}
-
-export interface MailboxRefreshFailure {
-  sessionId: string;
-  errorCode: string;
-}
-
-export interface MailboxRefreshResult {
-  fetchedCount: number;
-  insertedCount: number;
-  skippedCount: number;
-  failedCount: number;
-  refreshedSessionIds: string[];
-  skippedSessionIds: string[];
-  failures: MailboxRefreshFailure[];
-}
-
-export interface RefreshMailboxHttpResponse {
-  refresh: MailboxRefreshResult;
-}
-
-export interface RefreshAnonymousMailboxesHttpRequest {
-  hostId: string;
-}
-
-export interface RefreshAnonymousMailboxesHttpResponse {
-  refresh: MailboxRefreshResult;
-}
-
-export type SendMailboxMessageHttpRequest = MailboxSendRequest;
-export interface SendMailboxMessageHttpResponse {
-  result: MailboxSendResult;
-}
-
-export type UpdateMailboxSessionHttpRequest = MailboxSessionUpdateRequest;
-export interface UpdateMailboxSessionHttpResponse {
-  session: MailboxSession;
-}
-
-export interface ReleaseMailboxHttpRequest {
-  sessionId: string;
-  reason?: string;
-}
-
-export interface ReleaseMailboxHttpResponse {
-  result: {
-    session: MailboxSession;
-    providerInstanceId: string;
-    providerTypeKey: MailboxSession["providerTypeKey"];
-    released: boolean;
-    detail?: string;
-  };
-}
-
-export interface RecoverMailboxByEmailHttpRequest {
-  emailAddress?: string;
-  providerTypeKey?: MailProviderTypeKey;
-  providerInstanceId?: string;
-  hostId?: string;
-  recoveryDataCredential?: Record<string, string>;
-  recoveryFields?: Record<string, string>;
-}
-
-export interface RecoverMailboxByEmailHttpResponse {
-  result: {
-    recovered: boolean;
-    strategy: "account_restore" | "session_restore" | "recreate_same_address" | "not_supported";
-    session?: MailboxSession;
-    providerTypeKey?: MailProviderTypeKey;
-    providerInstanceId?: string;
-    detail?: string;
-  } & Partial<MailboxAccessDescriptor>;
-}
-
-export interface RecoverMailboxCapacityHttpRequest {
-  failureCode?: string;
-  detail?: string;
-  providerTypeKey?: string;
-  providerInstanceId?: string;
-  staleAfterSeconds?: number;
-  maxDeleteCount?: number;
-  force?: boolean;
-}
-
-export interface RecoverMailboxCapacityHttpResponse {
-  result: {
-    ok: boolean;
-    status: string;
-    providerTypeKey?: MailProviderTypeKey;
-    providerInstanceId?: string;
-    action?: string;
-    detail?: string;
-    recovery?: unknown;
-  };
-}
-
-export interface CleanupMoemailMailboxesHttpRequest {
-  staleAfterSeconds?: number;
-  maxDeleteCount?: number;
-  force?: boolean;
-  providerInstanceId?: string;
-}
-
-export interface CleanupMoemailMailboxesHttpResponse {
-  result: {
-    providerInstanceId: string;
-    staleAfterSeconds: number;
-    force: boolean;
-    scannedCount: number;
-    deletedCount: number;
-    skippedCount: number;
-    nextCursor?: string;
-    deleted: Array<{
-      emailId: string;
-      email: string;
-      detail?: string;
-    }>;
-    skipped: Array<{
-      emailId: string;
-      email: string;
-      reason: string;
-    }>;
-  };
-}
-
-export type ReportMailboxOutcomeHttpRequest = MailboxOutcomeReport;
-export interface ReportMailboxOutcomeHttpResponse {
-  result: MailboxOutcomeReportResult;
-}
-
-export type ObserveMessageHttpRequest = ObserveMessageInput;
-export interface ObserveMessageHttpResponse {
-  message: ObservedMessage;
-}
-
-export type RegisterCloudflareTempEmailRuntimeHttpRequest = RegisterCloudflareTempEmailRuntimeRequest;
-
-export interface ReadVerificationCodeHttpResponse {
-  code?: VerificationCodeResult;
-}
-
-export interface ReadAuthenticationLinkHttpResponse {
-  authLink?: AuthenticationLinkResult;
-}
-
-export interface GetMailSnapshotHttpResponse {
-  snapshot: EasyEmailSnapshot;
-}
-
-export interface RunMaintenanceHttpResponse {
-  maintenance: EasyEmailMaintenanceResult;
-}
-
-export type QueryProviderInstancesHttpRequest = ProviderInstanceQueryFilters;
-export type QueryHostBindingsHttpRequest = HostBindingQueryFilters;
-export type QueryMailboxSessionsHttpRequest = MailboxSessionQueryFilters;
-export type QueryObservedMessagesHttpRequest = ObservedMessageQueryFilters;
+export * from "./mail-mailbox-contracts.js";
 export * from "./mail-message-contracts.js";
 export * from "./mail-send-queue-contracts.js";
 export * from "./mail-imap-sync-contracts.js";
+export * from "./mail-m7a-contracts.js";

@@ -113,6 +113,16 @@ test("maps canonical session lifecycle states without inventing provider access 
   assert.equal(resolved.provider_label, "cloudflare_temp_email");
   assert.equal(resolved.lease_expires_at, null);
   assert.equal(expired.lifecycle_state, "expired");
+
+  const promoted = temporaryMailboxViewFromSession({
+    ...openResult.session,
+    metadata: {
+      visibilityState: "upgraded",
+      upgradedAccountId: "acct_v1_promoted",
+    },
+  });
+  assert.equal(promoted.visibility_state, "upgraded");
+  assert.equal(promoted.upgraded_account_id, "acct_v1_promoted");
 });
 
 test("maps server-owned refresh results without losing failure information", () => {

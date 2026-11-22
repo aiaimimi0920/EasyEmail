@@ -312,15 +312,16 @@ HTTP 资源和 UI 切换模式。
 - 同一 UI fixture 的 old/new 语义对比；
 - 该三组功能的 React 运行时无 business `invoke` 调用。
 
-**当前进度（2026-09-01）**：联系人切片已按上述纵向顺序实现并通过完整 desktop
-打包运行时验证；schema v1 只包含联系人。Schema v2 已增加 taxonomy/folder/label
-关系模型、严格层级约束、CAS、稳定分页、HTTP/OpenAPI/TypeScript transport 与重启
-读回。跨边界复核确认旧 Tauri rename/delete 会事务性更新 legacy message flags，但
-`service/base` 在 M4 前没有等价消息写模型，因此响应显式返回
-`messageReferencePropagation: false`，React 仍保留旧 command，禁止静默不一致。
-Newsletter 列表所需的账户与聚合消息来源仍归 M3/M4，因此 M2 只在来源契约确定后
-实现可持久化的显式 override，并保留 subscription 作为派生视图，不建立虚假双写
-数据源。
+**当前进度（2026-11-22）**：M2 已全部完成收口。在 M4 消息写模型落地后，schema v2 的
+`SqliteMailTaxonomyRepository` 已在事务内把文件夹重命名/删除与标签重命名/删除原子传播到
+`mail_message_sources`（`local_folder` / `is_archived` / `labels_json`），并将
+`messageReferencePropagation` 切换为 `true`；schema v9 落地了 `mail_messages` 的
+`newsletter_list_id` / `newsletter_unsubscribe_json` 字段与 `mail_newsletter_subscription_overrides`
+覆盖表，暴露 `GET /mail/newsletters/subscriptions` 与 `PATCH /mail/newsletters/subscriptions/{subscriptionId}`
+派生订阅聚合与隐藏覆盖，并补齐 `GET`/`PATCH` `/mail/settings/easyemail` 与 `POST /mail/settings/easyemail/test`
+（仅持久化经校验的 `http://` / `https://` `serviceUrl`，拒绝持久化任何 token）。桌面端 `mailTaxonomyClient`、
+`newsletterClient` 与 `settingsClient` 已全部从 Tauri `invoke` 切换至 `bundledCoreClient` 鉴权 HTTP，
+`contact_*`、`mail_taxonomy_*`、`newsletter_subscription_*` 与 `settings_*` 在 React 运行时已零 Tauri 业务 `invoke` 调用。
 
 ### M3 - 账户与凭据库基础
 
@@ -489,6 +490,16 @@ React 控制器已移除全部 M4 `message_*` 与 `verification_*` Tauri 业务�
 - 不复制、不移动 message，仅保留稳定 source linkage；
 - 提升后可继续恢复/同步；provider 不支持时返回明确能力错误；
 - 用 open -> receive -> promote -> restart -> query 的端到端测试验证。
+
+**M7A 当前进度（2026-11-22）**：已实现 `POST /mail/mailboxes/{sessionId}/promote`（对应映射清单 `temp_upgrade_mailbox`）、
+`MailPromotionService`、OpenAPI、TypeScript SDK 与桌面端 `useMailboxPolling` / `temporaryMailboxAdapter` /
+`temporaryMailSources` / `useMailSourceController` 鉴权 HTTP 切换，完全移除 `temp_upgrade_mailbox` Tauri 调用。
+提升要求显式 `confirmLifecycleAck: true`（缺失返回 `400 TEMP_PROMOTE_CONFIRMATION_REQUIRED`），根据会话是否已过期/已释放创建
+`normal_upgraded_temp` 持久账户（活跃会话为 `ready` / `enabled`，已释放或过期会话为 `history_only` / `expired`，发信固定 `unsupported`），
+原地将 `mail_message_sources.account_id` 关联到新账户（零消息复制/移动），持久化 `session.metadata.visibilityState = "upgraded"` 与
+`upgradedAccountId`，并在重启后继续将后续到达的临时会话消息自动归入该提升账户；重复提升返回 `409 TEMP_PROMOTE_NOT_AVAILABLE`，
+不支持提升的 provider 返回 `422 TEMP_PROMOTE_PROVIDER_UNSUPPORTED`，端到端 `open -> receive -> promote -> restart -> receive -> query`
+测试已通过。
 
 #### M7B - Agent mail
 
@@ -767,7 +778,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-all.ps1
 
 ## 10. 下一个可执行批次
 
-M0 与 M1 已通过；**M2 联系人切片已经实现，M2 整体仍在执行中**。
+M0–M6、M2 全部延后项及 **M7A（临时邮箱提升）** 均已完成并通过门禁；**M7 正在执行中，下一可执行切片为 M7B（Agent Mail）与 M7C（Avatar 与 platform stub 清理）**。
 
 建议精确交付顺序：
 
@@ -795,9 +806,8 @@ M2 的首个精确批次：
    keyset 分页、HTTP/OpenAPI/TypeScript client 和重启读回测试；
 3. **已完成**：`contact_*` React 调用已迁移到 bundled HTTP，完整桌面打包 smoke
    已证明联系人创建、持久化与鉴权边界；
-4. **部分完成**：schema v2、`mail_taxonomy_*` HTTP/SDK、kind/parent/唯一约束、
-   删除策略、排序、CAS、分页与重启读回已实现；因旧 rename/delete 同时传播消息
-   folder/label，而新消息写模型归 M4，React 切换按 fail-closed 规则延后，API 明确
-   返回 `messageReferencePropagation: false`；
-5. **后续批次**：在 M3/M4 来源模型明确后实现 `newsletter_subscription_*` 的持久
-   override 与派生视图，不提前复制或伪造账户/消息所有权。
+4. **已完成**：schema v2、`mail_taxonomy_*` HTTP/SDK、kind/parent/唯一约束、
+   删除策略、排序、CAS、分页、重启读回及事务性 `mail_message_sources` 引用传播（`messageReferencePropagation: true`），
+   React `mailTaxonomyClient` 已切换至 bundled HTTP；
+5. **已完成**：schema v9 `newsletter_subscription_*` 持久 override 与派生订阅视图，以及
+   `settings_*` 非敏感连接设置与探测已全部落地并切换至 bundled HTTP。

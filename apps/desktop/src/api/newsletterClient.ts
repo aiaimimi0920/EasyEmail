@@ -1,4 +1,10 @@
-import type { InvokeCommand } from "./invokeCommand";
+import type {
+  EasyEmailListNewsletterSubscriptionsQuery,
+  EasyEmailListNewsletterSubscriptionsResponse,
+  EasyEmailNewsletterSubscription,
+  EasyEmailUpdateNewsletterSubscriptionRequest,
+  EasyEmailUpdateNewsletterSubscriptionResponse,
+} from "./easyEmailHttpClient.ts";
 
 export type NewsletterSubscriptionDto = {
   id: string;
@@ -30,23 +36,59 @@ export type NewsletterSubscriptionSetHiddenRequest = {
   hidden: boolean;
 };
 
-export function createNewsletterClient(invokeCommand: InvokeCommand) {
+export interface NewsletterHttpTransport {
+  listNewsletterSubscriptions(
+    query: EasyEmailListNewsletterSubscriptionsQuery,
+  ): Promise<EasyEmailListNewsletterSubscriptionsResponse>;
+  setNewsletterSubscriptionHidden(
+    subscriptionId: string,
+    request: EasyEmailUpdateNewsletterSubscriptionRequest,
+  ): Promise<EasyEmailUpdateNewsletterSubscriptionResponse>;
+}
+
+function toNewsletterSubscriptionDto(
+  sub: EasyEmailNewsletterSubscription,
+): NewsletterSubscriptionDto {
   return {
-    listNewsletterSubscriptions(
+    id: sub.id,
+    list_id: sub.listId,
+    sender_address: sub.senderAddress,
+    name: sub.name,
+    received_message_count: sub.receivedMessageCount,
+    unread_message_count: sub.unreadMessageCount,
+    last_received_at: sub.lastReceivedAt,
+    unsubscribe_methods: [...sub.unsubscribeMethods],
+    spam: sub.spam,
+    hidden: sub.hidden,
+  };
+}
+
+export function createNewsletterClient(transport: NewsletterHttpTransport) {
+  return {
+    async listNewsletterSubscriptions(
       request: NewsletterSubscriptionListRequest,
     ): Promise<NewsletterSubscriptionDto[]> {
-      return invokeCommand<NewsletterSubscriptionDto[]>(
-        "newsletter_subscription_list",
-        { request },
-      );
+      const response = await transport.listNewsletterSubscriptions({
+        accountId: request.account_id,
+      });
+      return response.subscriptions.map(toNewsletterSubscriptionDto);
     },
-    setNewsletterSubscriptionHidden(
+    async setNewsletterSubscriptionHidden(
       request: NewsletterSubscriptionSetHiddenRequest,
     ): Promise<NewsletterSubscriptionActionDto> {
-      return invokeCommand<NewsletterSubscriptionActionDto>(
-        "newsletter_subscription_set_hidden",
-        { request },
+      const response = await transport.setNewsletterSubscriptionHidden(
+        request.subscription_id,
+        {
+          accountId: request.account_id,
+          hidden: request.hidden,
+        },
       );
+      return {
+        account_id: response.action.accountId,
+        subscription_id: response.action.subscriptionId,
+        hidden: response.action.hidden,
+        changed: response.action.changed,
+      };
     },
   };
 }
