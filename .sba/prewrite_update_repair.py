@@ -1,4 +1,4 @@
-"""Independent upgrade completion after a proven pre-write abort; never replay partial mutations."""
+"""Independent upgrade completion after a proven pre-write abort or post-publish receipt-schema rejection."""
 import json
 import os
 
@@ -25,6 +25,7 @@ ALLOWED_PREWRITE_ERRORS = (
     'EASYEMAIL_SOURCE_OBJECTS_CHANGED',
     'EASYEMAIL_BUILD_FAILED',
 )
+ALLOWED_REPAIR_ERRORS = (*ALLOWED_PREWRITE_ERRORS, 'SBA_RESULT_INVALID')
 
 
 def active_live_release(request, read=None):
@@ -39,26 +40,35 @@ def active_live_release(request, read=None):
         found[role] = (marker['applicationVersion'], marker['sourceSha'])
     require(found['email'] == found['platform'], 'EASYEMAIL_UPDATE_REPAIR_NOT_SUPPORTED')
     active_version, active_sha = found['email']
-    require(version(active_version) < version(request['previous']['applicationVersion'])
-            and active_sha != request['previous']['sourceSha']
-            and active_sha != request['sourceSha'], 'EASYEMAIL_UPDATE_REPAIR_NOT_SUPPORTED')
+    require(active_sha != request['sourceSha'], 'EASYEMAIL_UPDATE_REPAIR_NOT_SUPPORTED')
+    if request['context']['errorCode'] == 'SBA_RESULT_INVALID':
+        require(active_version == request['previous']['applicationVersion']
+                and active_sha == request['previous']['sourceSha'], 'EASYEMAIL_UPDATE_REPAIR_NOT_SUPPORTED')
+    else:
+        require(version(active_version) < version(request['previous']['applicationVersion'])
+                and active_sha != request['previous']['sourceSha'], 'EASYEMAIL_UPDATE_REPAIR_NOT_SUPPORTED')
     return {'applicationVersion': active_version, 'sourceSha': active_sha}
 
 
-def verify_no_parent_backup(store, parent_task_id):
-    for row in store.list('OUTBOX'):
-        if row['key'].startswith(PRIVATE_PREFIX + 'backups/'):
-            require(row['customMetadata'].get('task') != parent_task_id, 'EASYEMAIL_PARENT_BACKUP_ALREADY_PERSISTED')
+def verify_parent_backup_state(store, parent_task_id, expect_present):
+    matched = [row for row in store.list('OUTBOX')
+               if row['key'].startswith(PRIVATE_PREFIX + 'backups/')
+               and row['customMetadata'].get('task') == parent_task_id]
+    if expect_present:
+        require(len(matched) == 1, 'EASYEMAIL_PARENT_BACKUP_MISSING')
+    else:
+        require(not matched, 'EASYEMAIL_PARENT_BACKUP_ALREADY_PERSISTED')
 
 
 def repair_prewrite_update(request, directory):
     config = request['configuration']; context = request['context']
     require(context['repairId'] == 'complete-prewrite-update'
-            and context['errorCode'] in ALLOWED_PREWRITE_ERRORS
+            and context['errorCode'] in ALLOWED_REPAIR_ERRORS
             and version(request['previous']['applicationVersion']) < version(request['applicationVersion']),
             'EASYEMAIL_UPDATE_REPAIR_NOT_SUPPORTED')
     material = deployment_secrets(config)
     directory = private_directory(directory); state = OperationState(directory, request['taskId']); checks = []
+    parent_published = context['errorCode'] == 'SBA_RESULT_INVALID'
     try:
         release = prepare_release(request, directory / 'build')
         api = CloudApi(config['accountId'], material.token, state); runtime = RuntimeClient(config, state)
@@ -70,8 +80,9 @@ def repair_prewrite_update(request, directory):
         verify_settings(config, api, release, material.workers, before['domains'])
         email_version(material, runtime)
         store = ObjectStore(config, material.workers['platform']['EASYEMAIL_SBA_CONTROL_SECRET'], state)
-        verify_no_parent_backup(store, context['parentTaskId'])
-        checks += [{'id': 'parent-prewrite-abort-verified', 'passed': True},
+        verify_parent_backup_state(store, context['parentTaskId'], expect_present=parent_published)
+        checks += [{'id': 'parent-published-release-verified' if parent_published else 'parent-prewrite-abort-verified',
+                    'passed': True},
                    {'id': 'previous-release-verified', 'passed': True}]
         source = {'configuration': config, **active, 'taskId': request['taskId']}
         backup = capture_backup(api, store, source, material.archive_key, directory / 'backup', attempts=4)
@@ -88,6 +99,7 @@ def repair_prewrite_update(request, directory):
         verify_database_initialization(config, api, release)
         verify_settings(config, api, release, material.workers, before['domains'])
         require(managed_state(config, api) == before, 'EASYEMAIL_INSTANCE_CHANGED')
+        checks.append({'id': 'unchanged-resources-verified', 'passed': True})
         prove_update_preserved(backup, api, store, config, directory / 'postupdate')
         checks.append({'id': 'data-preserved', 'passed': True})
         verify_administrator(config, material, runtime)
@@ -95,7 +107,7 @@ def repair_prewrite_update(request, directory):
                    {'id': 'self-provider-authenticated', 'passed': True}]
         if isolated(config): checks.append({'id': 'side-effects-isolated', 'passed': True})
         checks.extend(verify_public(request))
-        checks.append({'id': 'repair-completed', 'passed': True})
+        checks += [{'id': 'repair-completed', 'passed': True}, {'id': 'service-ready', 'passed': True}]
         return {'status': 'succeeded', 'checks': checks}
     except Exception as error:
         return {'status': 'unknown' if state.attempted else 'failed', 'checks': checks,

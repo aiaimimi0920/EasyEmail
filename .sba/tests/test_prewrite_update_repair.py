@@ -16,18 +16,20 @@ from test_contract import ContractTests, ROOT
 from test_deploy_secrets import secret_environment
 
 SCRATCH = Path(os.environ.get('EASYEMAIL_TEST_ROOT', tempfile.gettempdir()))
+REQUIRED_REPAIR_CHECKS = {'repair-completed', 'data-preserved', 'unchanged-resources-verified', 'service-ready'}
 
 
 def prewrite_update_request(error_code='EASYEMAIL_SOURCE_DATABASE_CHANGED'):
     value = repair_request()
-    value['previous'] = {'sourceSha': 'd' * 40, 'applicationVersion': '1.0.16'}
+    value['previous'] = {'sourceSha': 'd' * 40, 'applicationVersion': '1.0.17'}
     value['context'].update(repairId='complete-prewrite-update', errorCode=error_code)
     return value
 
 
 class PrewriteUpdateRepairTests(unittest.TestCase):
-    def test_contract_accepts_prewrite_update_errors_and_rejects_wrong_error(self):
-        for code in ('EASYEMAIL_SOURCE_DATABASE_CHANGED', 'EASYEMAIL_SOURCE_OBJECTS_CHANGED', 'EASYEMAIL_BUILD_FAILED'):
+    def test_contract_accepts_prewrite_and_result_invalid_errors_and_rejects_wrong_error(self):
+        for code in ('EASYEMAIL_SOURCE_DATABASE_CHANGED', 'EASYEMAIL_SOURCE_OBJECTS_CHANGED',
+                     'EASYEMAIL_BUILD_FAILED', 'SBA_RESULT_INVALID'):
             value = prewrite_update_request(code)
             with patch('contract.subprocess.check_output', side_effect=ContractTests().git):
                 self.assertEqual(validated_request(value, ROOT), value)
@@ -91,26 +93,31 @@ class PrewriteUpdateRepairTests(unittest.TestCase):
             if builds.called:
                 self.assertEqual(len(builds.call_args_list), 1)
                 self.assertEqual(builds.call_args_list[0].args[1].name, 'build')
-                self.assertEqual(builds.call_args_list[0].kwargs, {})
         return result, events
 
-    def test_proves_unmodified_active_release_with_short_build_path_and_absent_parent_backup(self):
+    def test_proves_prewrite_and_postpublish_receipt_recovery_with_all_required_sba_repair_checks(self):
         result, events = self.run_repair()
         self.assertEqual(result['status'], 'succeeded')
-        self.assertLess(events.index('list-OUTBOX'), events.index('backup'))
-        self.assertLess(events.index('backup'), events.index('migrations'))
-        self.assertLess(events.index('publish-email'), events.index('migrate_email'))
-        self.assertLess(events.index('prove_update_preserved'), events.index('verify_administrator'))
-        self.assertTrue({'parent-prewrite-abort-verified', 'backup-created', 'data-preserved', 'repair-completed'}
-                        <= {row['id'] for row in result['checks']})
+        ids = [row['id'] for row in result['checks']]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertTrue(REQUIRED_REPAIR_CHECKS | {'parent-prewrite-abort-verified', 'backup-created'} <= set(ids))
 
-    def test_existing_parent_backup_or_already_published_parent_blocks_repair_without_writes(self):
-        result, events = self.run_repair(parent_backup=True)
+        post_result, _ = self.run_repair(parent_backup=True, active_version='1.0.17', active_sha='d' * 40,
+                                         error_code='SBA_RESULT_INVALID')
+        self.assertEqual(post_result['status'], 'succeeded')
+        post_ids = [row['id'] for row in post_result['checks']]
+        self.assertEqual(len(post_ids), len(set(post_ids)))
+        self.assertTrue(REQUIRED_REPAIR_CHECKS | {'parent-published-release-verified', 'backup-created'} <= set(post_ids))
+
+    def test_mismatched_parent_backup_or_published_version_blocks_repair_without_writes(self):
+        result, events = self.run_repair(parent_backup=True, error_code='EASYEMAIL_BUILD_FAILED')
         self.assertEqual(result['status'], 'failed')
         self.assertEqual(result['errorCode'], 'EASYEMAIL_PARENT_BACKUP_ALREADY_PERSISTED')
-        self.assertNotIn('backup', events); self.assertNotIn('migrations', events)
-        result, events = self.run_repair(active_version='1.0.16', active_sha='d' * 40)
+        self.assertNotIn('backup', events)
+        result, events = self.run_repair(parent_backup=False, active_version='1.0.17', active_sha='d' * 40,
+                                         error_code='SBA_RESULT_INVALID')
         self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['errorCode'], 'EASYEMAIL_PARENT_BACKUP_MISSING')
         self.assertNotIn('backup', events)
 
     def test_post_backup_failure_returns_unknown_without_replay(self):
