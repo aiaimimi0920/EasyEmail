@@ -96,13 +96,14 @@ export function useRailPlatformController(appState: AppState) {
   async function signInPlatformAccount() {
       setBusy(true);
       try {
-        const session = await platformAccountClient.getPlatformAccountSession();
+        const session = await platformAccountClient.signInPlatformAccount();
         setPlatformSession(session);
         setPlatformAccountSignedIn(true);
         setPlatformAccountMenuOpen(true);
-        setStatusMessage("已登录 NMail 开发预览账户。");
+        setStatusMessage("已连接 NMail 平台账户。");
         setError(null);
       } catch (caught: unknown) {
+        setPlatformAccountSignedIn(false);
         setError(asErrorDto(caught));
       } finally {
         setBusy(false);
@@ -110,8 +111,9 @@ export function useRailPlatformController(appState: AppState) {
     }
   function signOutPlatformAccount() {
       setPlatformAccountSignedIn(false);
+      setPlatformSession(null);
       setLastPlatformQuery(null);
-      setStatusMessage("已退出 NMail 开发预览账户。");
+      setStatusMessage("已退出 NMail 平台账户。");
       setError(null);
     }
   function choosePlatformAvatarFile() {

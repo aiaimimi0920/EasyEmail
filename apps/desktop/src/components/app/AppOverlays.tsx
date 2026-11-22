@@ -78,7 +78,7 @@ export function AppOverlays({ controller }: { controller: AppController }) {
           >
             <div className="nt-platform-account-popover__hero">
               <span className="nt-platform-account-popover__avatar" aria-hidden="true">
-                {platformAccountSignedIn && platformAccountAvatarDataUrl ? (
+                {platformAccountAvatarDataUrl ? (
                   <img src={platformAccountAvatarDataUrl} alt="" />
                 ) : platformAccountSignedIn ? (
                   platformAccountInitial
@@ -91,20 +91,18 @@ export function AppOverlays({ controller }: { controller: AppController }) {
             </div>
 
             <div className="nt-platform-account-popover__actions">
+              <button type="button" onClick={choosePlatformAvatarFile} disabled={busy}>
+                更换账户图标
+              </button>
               {platformAccountSignedIn ? (
-                <>
-                  <button type="button" onClick={choosePlatformAvatarFile} disabled={busy}>
-                    更换账户图标
-                  </button>
-                  <button
-                    type="button"
-                    className="nt-platform-account-popover__danger"
-                    onClick={signOutPlatformAccount}
-                    disabled={busy}
-                  >
-                    退出预览账户
-                  </button>
-                </>
+                <button
+                  type="button"
+                  className="nt-platform-account-popover__danger"
+                  onClick={signOutPlatformAccount}
+                  disabled={busy}
+                >
+                  退出平台账户
+                </button>
               ) : (
                 <button
                   type="button"
@@ -112,7 +110,7 @@ export function AppOverlays({ controller }: { controller: AppController }) {
                   onClick={() => void signInPlatformAccount()}
                   disabled={busy}
                 >
-                  使用开发预览账户登录
+                  连接平台账户
                 </button>
               )}
             </div>

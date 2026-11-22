@@ -1,5 +1,6 @@
 export * from "./bootstrap.js";
 export * from "./account-connectivity.js";
+export * from "./avatar-network.js";
 export * from "./catalog.js";
 export * from "./credentials.js";
 export * from "./easy-email-service.js";
@@ -11,6 +12,7 @@ export * from "./mail-header-codec.js";
 export * from "./mail-html-sanitizer.js";
 export * from "./mail-imap-remote-actions.js";
 export * from "./mail-agent.js";
+export * from "./mail-avatar.js";
 export * from "./mail-extensions.js";
 export * from "./mail-imap-sync.js";
 export * from "./mail-messages.js";

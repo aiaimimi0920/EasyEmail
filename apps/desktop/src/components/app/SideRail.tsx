@@ -247,7 +247,7 @@ export function SideRail({ controller }: { controller: AppController }) {
           }}
         >
           <span className="nt-platform-avatar" aria-hidden="true">
-            {platformAccountSignedIn && platformAccountAvatarDataUrl ? (
+            {platformAccountAvatarDataUrl ? (
               <img src={platformAccountAvatarDataUrl} alt="" />
             ) : platformAccountSignedIn ? (
               platformAccountInitial

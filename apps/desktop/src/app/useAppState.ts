@@ -119,7 +119,7 @@ export function useAppState() {
   const [platformSession, setPlatformSession] = useState<PlatformAccountSessionDto | null>(null);
   const [lastPlatformQuery, setLastPlatformQuery] = useState<PlatformAccountQueryDto | null>(null);
   const [platformAccountMenuOpen, setPlatformAccountMenuOpen] = useState(false);
-  const [platformAccountSignedIn, setPlatformAccountSignedIn] = useState(true);
+  const [platformAccountSignedIn, setPlatformAccountSignedIn] = useState(false);
   const [platformAccountAvatarDataUrl, setPlatformAccountAvatarDataUrl] = useState<string | null>(
       () =>
         typeof window === "undefined"

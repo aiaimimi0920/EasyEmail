@@ -21,24 +21,24 @@ export function useAppViewModel(appState: AppState, dependencies: Dependencies) 
   } = dependencies;
   const platformAccount = platformSession?.account ?? null;
   const platformAccountInitial = platformAccount?.avatar_initial ?? "N";
-  const platformAccountName = platformAccount?.display_name ?? "NMail 开发预览账户";
-  const platformAccountEmail = platformAccount?.email ?? "dev.user@nmail.local";
+  const platformAccountName = platformAccount?.display_name ?? "NMail 平台账户";
+  const platformAccountEmail = platformAccount?.email ?? "未连接外部平台身份";
   const platformAccountPopoverTitle = platformAccountSignedIn
       ? platformAccountName
       : "NMail 平台账户";
   const platformAccountPopoverEmail = platformAccountSignedIn
       ? platformAccountEmail
-      : "当前未登录平台账户";
+      : "开发预览会话已禁用";
   const platformAccountMeta =
       !platformAccountSignedIn
-        ? "已退出登录"
+        ? "未登录"
         : error !== null
         ? error.user_message
         : lastPlatformQuery !== null
           ? `最近查询：${lastPlatformQuery.resource} / ${lastPlatformQuery.status}`
           : platformSession === null
-        ? "正在加载开发预览会话"
-            : `开发预览 · ${platformSession.server_kind} / ${platformSession.auth_mode}`;
+        ? "未连接平台会话"
+            : `${platformSession.server_kind} / ${platformSession.auth_mode}`;
   const activeRailModeLabel = railMode === "mail" ? "Mail" : "Agent";
   const queueRailBadgeCount = sendQueue.filter((item) => item.status !== "sent").length;
   const agentRailBadgeCount = agentThreads.filter((thread) => thread.status === "needs_attention").length;

@@ -1,5 +1,3 @@
-import type { InvokeCommand } from "./invokeCommand";
-
 export type PlatformAccountDto = {
   id: string;
   display_name: string;
@@ -54,20 +52,31 @@ export type PlatformAccountQueryDto = {
   payload: unknown;
 };
 
-export function createPlatformAccountClient(invokeCommand: InvokeCommand) {
+export type PlatformAccountDisabledRejection = {
+  code: "platform_dev_session_disabled";
+  user_message: string;
+  correlation_id: string;
+};
+
+export const PLATFORM_DEV_SESSION_DISABLED_ERROR: PlatformAccountDisabledRejection = {
+  code: "platform_dev_session_disabled",
+  user_message:
+    "未签名的平台开发预览会话已永久禁用；真实平台账号登录将作为独立身份能力接入。",
+  correlation_id: "platform-dev-session-disabled",
+};
+
+export function createPlatformAccountClient() {
   return {
-    getPlatformAccountSession(): Promise<PlatformAccountSessionDto> {
-      return invokeCommand<PlatformAccountSessionDto>(
-        "platform_account_get_session",
-      );
+    async getPlatformAccountSession(): Promise<PlatformAccountSessionDto | null> {
+      return null;
     },
-    queryPlatformAccountData(
-      request: PlatformAccountQueryRequest,
+    async signInPlatformAccount(): Promise<never> {
+      throw { ...PLATFORM_DEV_SESSION_DISABLED_ERROR };
+    },
+    async queryPlatformAccountData(
+      _request: PlatformAccountQueryRequest,
     ): Promise<PlatformAccountQueryDto> {
-      return invokeCommand<PlatformAccountQueryDto>(
-        "platform_account_query_data",
-        { request },
-      );
+      throw { ...PLATFORM_DEV_SESSION_DISABLED_ERROR };
     },
   };
 }

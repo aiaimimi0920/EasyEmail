@@ -3,6 +3,7 @@ export * from "./dispatch/index.js";
 export * from "./domain/errors.js";
 export * from "./domain/auth-links.js";
 export * from "./domain/mail-agent.js";
+export * from "./domain/mail-avatar.js";
 export * from "./domain/mail-extensions.js";
 export * from "./domain/mail-imap-sync.js";
 export * from "./domain/mail-message.js";

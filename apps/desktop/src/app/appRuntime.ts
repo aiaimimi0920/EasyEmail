@@ -14,13 +14,13 @@ import { createSettingsClient } from "../api/settingsClient";
 
 export const bundledCoreClient = createBundledCoreClient(invoke);
 export const agentMailClient = createAgentMailClient(bundledCoreClient);
-export const avatarSettingsClient = createAvatarSettingsClient(invoke);
+export const avatarSettingsClient = createAvatarSettingsClient(bundledCoreClient);
 export const contactClient = createContactClient(bundledCoreClient);
 export const desktopCredentialClient = createDesktopCredentialClient(invoke);
 export const mailAccountClient = createMailAccountClient(bundledCoreClient, desktopCredentialClient);
 export const mailMessageClient = createMailMessageClient(bundledCoreClient);
 export const mailTaxonomyClient = createMailTaxonomyClient(bundledCoreClient);
 export const newsletterClient = createNewsletterClient(bundledCoreClient);
-export const platformAccountClient = createPlatformAccountClient(invoke);
+export const platformAccountClient = createPlatformAccountClient();
 export const settingsClient = createSettingsClient(bundledCoreClient);
 export const sendQueueClient = createSendQueueClient(bundledCoreClient);

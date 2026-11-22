@@ -56,6 +56,19 @@ pub struct PlatformAccountQueryDto {
     pub payload: serde_json::Value,
 }
 
+pub fn disabled_platform_account_error() -> AppError {
+    AppError {
+        code: "platform_dev_session_disabled".to_string(),
+        category: ErrorCategory::Auth,
+        user_message: "Unsigned development platform sessions are permanently disabled; real platform identity requires external authentication.".to_string(),
+        technical_message: None,
+        retryable: false,
+        action_required: crate::error::ActionRequired::None,
+        correlation_id: uuid::Uuid::new_v4().to_string(),
+        metadata: Box::new(serde_json::json!({ "auth_mode": "disabled" })),
+    }
+}
+
 pub fn dev_platform_account_session(now: String) -> PlatformAccountSessionDto {
     let account = PlatformAccountDto {
         id: "dev_platform_acct_001".to_string(),
@@ -199,5 +212,12 @@ mod tests {
             .expect("features")
             .iter()
             .any(|item| item == "neuro_platform.shared_identity.dev"));
+    }
+
+    #[test]
+    fn disabled_error_permanently_blocks_unsigned_dev_session_commands() {
+        let error = disabled_platform_account_error();
+        assert_eq!(error.code, "platform_dev_session_disabled");
+        assert!(!error.retryable);
     }
 }

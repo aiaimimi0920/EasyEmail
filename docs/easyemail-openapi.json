@@ -1328,6 +1328,87 @@
           "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
         }
       }
+    },
+    "/mail/avatars/settings": {
+      "get": {
+        "operationId": "getMailAvatarSettings",
+        "summary": "Read persistent sender avatar resolution settings",
+        "responses": {
+          "200": { "$ref": "#/components/responses/GetMailAvatarSettingsResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "patch": {
+        "operationId": "updateMailAvatarSettings",
+        "summary": "Update persistent sender avatar resolution settings",
+        "requestBody": { "$ref": "#/components/requestBodies/UpdateMailAvatarSettingsRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/UpdateMailAvatarSettingsResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/avatars/resolve": {
+      "post": {
+        "operationId": "resolveMailSenderAvatars",
+        "summary": "Resolve sender avatars via SSRF-hardened HTTPS fetch, contact overrides, and cache",
+        "requestBody": { "$ref": "#/components/requestBodies/ResolveMailSenderAvatarsRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/ResolveMailSenderAvatarsResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/avatars/contacts/{contactId}": {
+      "put": {
+        "operationId": "setMailContactAvatar",
+        "summary": "Store a validated custom avatar image data URL for a contact or sender",
+        "parameters": [
+          { "$ref": "#/components/parameters/AvatarContactId" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/SetMailContactAvatarRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/SetMailContactAvatarResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "delete": {
+        "operationId": "clearMailContactAvatar",
+        "summary": "Clear a custom avatar override for a contact or sender",
+        "parameters": [
+          { "$ref": "#/components/parameters/AvatarContactId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ClearMailContactAvatarResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/avatars/cache": {
+      "delete": {
+        "operationId": "clearMailAvatarCache",
+        "summary": "Clear cached remote sender avatars and optionally contact overrides",
+        "parameters": [
+          { "$ref": "#/components/parameters/AvatarIncludeContactsQuery" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ClearMailAvatarCacheResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
     }
   },
   "components": {
@@ -1614,6 +1695,17 @@
         "name": "limit",
         "in": "query",
         "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 200 }
+      },
+      "AvatarContactId": {
+        "name": "contactId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "AvatarIncludeContactsQuery": {
+        "name": "includeContacts",
+        "in": "query",
+        "schema": { "type": "boolean", "default": false }
       }
     },
     "requestBodies": {
@@ -1886,6 +1978,30 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/MailAgentTaskSendInput" }
+          }
+        }
+      },
+      "UpdateMailAvatarSettingsRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailAvatarSettingsUpdateInput" }
+          }
+        }
+      },
+      "ResolveMailSenderAvatarsRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailAvatarResolveInput" }
+          }
+        }
+      },
+      "SetMailContactAvatarRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailContactAvatarSetInput" }
           }
         }
       }
@@ -2296,6 +2412,54 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/GetAgentMailThreadDetailResponse" }
+          }
+        }
+      },
+      "GetMailAvatarSettingsResponse": {
+        "description": "Current sender avatar settings",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/GetMailAvatarSettingsResponse" }
+          }
+        }
+      },
+      "UpdateMailAvatarSettingsResponse": {
+        "description": "Updated sender avatar settings",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/UpdateMailAvatarSettingsResponse" }
+          }
+        }
+      },
+      "ResolveMailSenderAvatarsResponse": {
+        "description": "Resolved sanitized sender avatars",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ResolveMailSenderAvatarsResponse" }
+          }
+        }
+      },
+      "SetMailContactAvatarResponse": {
+        "description": "Stored contact or sender custom avatar override",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/SetMailContactAvatarResponse" }
+          }
+        }
+      },
+      "ClearMailContactAvatarResponse": {
+        "description": "Cleared contact or sender custom avatar override",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ClearMailContactAvatarResponse" }
+          }
+        }
+      },
+      "ClearMailAvatarCacheResponse": {
+        "description": "Cleared remote sender avatar cache entries",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ClearMailAvatarCacheResponse" }
           }
         }
       },
@@ -4390,6 +4554,167 @@
         "required": ["detail"],
         "properties": {
           "detail": { "$ref": "#/components/schemas/MailAgentThreadDetail" }
+        },
+        "additionalProperties": false
+      },
+      "MailAvatarSettings": {
+        "type": "object",
+        "required": ["remoteEnabled", "bimiEnabled", "faviconEnabled", "authEnabled"],
+        "properties": {
+          "remoteEnabled": { "type": "boolean" },
+          "bimiEnabled": { "type": "boolean" },
+          "faviconEnabled": { "type": "boolean" },
+          "authEnabled": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "MailAvatarSettingsUpdateInput": {
+        "type": "object",
+        "properties": {
+          "remoteEnabled": { "type": "boolean" },
+          "bimiEnabled": { "type": "boolean" },
+          "faviconEnabled": { "type": "boolean" },
+          "authEnabled": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "MailAvatarAuthSignal": {
+        "type": "object",
+        "required": ["status", "detail"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["pass", "fail", "published", "missing", "unknown"]
+          },
+          "detail": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "MailAvatarSenderAuth": {
+        "type": "object",
+        "required": ["spf", "dkim", "dmarc", "bimi", "certificate"],
+        "properties": {
+          "spf": { "$ref": "#/components/schemas/MailAvatarAuthSignal" },
+          "dkim": { "$ref": "#/components/schemas/MailAvatarAuthSignal" },
+          "dmarc": { "$ref": "#/components/schemas/MailAvatarAuthSignal" },
+          "bimi": { "$ref": "#/components/schemas/MailAvatarAuthSignal" },
+          "certificate": { "$ref": "#/components/schemas/MailAvatarAuthSignal" }
+        },
+        "additionalProperties": false
+      },
+      "MailSenderAvatar": {
+        "type": "object",
+        "required": [
+          "sender",
+          "cacheKey",
+          "domain",
+          "displayName",
+          "sourceKind",
+          "fallbackText",
+          "auth"
+        ],
+        "properties": {
+          "sender": { "type": "string" },
+          "cacheKey": { "type": "string" },
+          "domain": { "type": "string" },
+          "displayName": { "type": "string" },
+          "sourceKind": { "type": "string" },
+          "imageDataUrl": { "type": ["string", "null"] },
+          "builtinKind": { "type": ["string", "null"] },
+          "fallbackText": { "type": "string" },
+          "remoteUrl": { "type": ["string", "null"] },
+          "auth": { "$ref": "#/components/schemas/MailAvatarSenderAuth" },
+          "fetchedAt": { "type": ["string", "null"] },
+          "expiresAt": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      },
+      "MailAvatarResolveInput": {
+        "type": "object",
+        "required": ["senders"],
+        "properties": {
+          "senders": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      },
+      "MailContactAvatarSetInput": {
+        "type": "object",
+        "required": ["imageDataUrl"],
+        "properties": {
+          "imageDataUrl": { "type": "string", "minLength": 1 },
+          "sender": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      },
+      "MailContactAvatarClearResult": {
+        "type": "object",
+        "required": ["contactId", "cacheKey", "cleared"],
+        "properties": {
+          "contactId": { "type": "string" },
+          "cacheKey": { "type": "string" },
+          "cleared": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "MailAvatarClearCacheResult": {
+        "type": "object",
+        "required": ["deletedCount"],
+        "properties": {
+          "deletedCount": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": false
+      },
+      "GetMailAvatarSettingsResponse": {
+        "type": "object",
+        "required": ["settings"],
+        "properties": {
+          "settings": { "$ref": "#/components/schemas/MailAvatarSettings" }
+        },
+        "additionalProperties": false
+      },
+      "UpdateMailAvatarSettingsResponse": {
+        "type": "object",
+        "required": ["settings"],
+        "properties": {
+          "settings": { "$ref": "#/components/schemas/MailAvatarSettings" }
+        },
+        "additionalProperties": false
+      },
+      "ResolveMailSenderAvatarsResponse": {
+        "type": "object",
+        "required": ["avatars"],
+        "properties": {
+          "avatars": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MailSenderAvatar" }
+          }
+        },
+        "additionalProperties": false
+      },
+      "SetMailContactAvatarResponse": {
+        "type": "object",
+        "required": ["avatar"],
+        "properties": {
+          "avatar": { "$ref": "#/components/schemas/MailSenderAvatar" }
+        },
+        "additionalProperties": false
+      },
+      "ClearMailContactAvatarResponse": {
+        "type": "object",
+        "required": ["result"],
+        "properties": {
+          "result": { "$ref": "#/components/schemas/MailContactAvatarClearResult" }
+        },
+        "additionalProperties": false
+      },
+      "ClearMailAvatarCacheResponse": {
+        "type": "object",
+        "required": ["result"],
+        "properties": {
+          "result": { "$ref": "#/components/schemas/MailAvatarClearCacheResult" }
         },
         "additionalProperties": false
       }

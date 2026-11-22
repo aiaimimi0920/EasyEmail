@@ -33,6 +33,16 @@ import type {
   MailAgentThreadListQuery,
 } from "../../domain/mail-agent.js";
 import type {
+  MailAvatarCachedRecord,
+  MailAvatarContactLookup,
+  MailAvatarRepository,
+  MailAvatarSaveCacheInput,
+  MailAvatarSaveFailedCacheInput,
+  MailAvatarSettings,
+  MailContactAvatarOverrideRecord,
+  MailContactAvatarUpsertInput,
+} from "../../domain/mail-avatar.js";
+import type {
   MailTaxonomyItem,
   MailTaxonomyRepository,
   MailTaxonomyRepositoryListQuery,
@@ -49,6 +59,7 @@ import {
 import { SqliteMessageQueueImapDatabaseBase } from "./database-mail-base.js";
 import { SqliteMailAccountRepository } from "./mail-account-repository.js";
 import { SqliteMailAgentRepository } from "./mail-agent-repository.js";
+import { SqliteMailAvatarRepository } from "./mail-avatar-repository.js";
 import { SqliteMailExtensionsRepository } from "./mail-extensions-repository.js";
 import { SqliteMailTaxonomyRepository } from "./mail-taxonomy-repository.js";
 
@@ -75,12 +86,14 @@ export class SqliteRelationalDatabase
     MailTaxonomyRepository,
     MailAccountRepository,
     MailExtensionsRepository,
-    MailAgentRepository
+    MailAgentRepository,
+    MailAvatarRepository
 {
   private readonly trackedDatabasePath?: string;
   private readonly contacts: SqliteContactRepository;
   private readonly mailAccounts: SqliteMailAccountRepository;
   private readonly mailAgent: SqliteMailAgentRepository;
+  private readonly mailAvatar: SqliteMailAvatarRepository;
   private readonly mailExtensions: SqliteMailExtensionsRepository;
   private readonly mailTaxonomy: SqliteMailTaxonomyRepository;
   private closed = false;
@@ -94,6 +107,7 @@ export class SqliteRelationalDatabase
     this.contacts = new SqliteContactRepository(this.database);
     this.mailAccounts = new SqliteMailAccountRepository(this.database);
     this.mailAgent = new SqliteMailAgentRepository(this.database);
+    this.mailAvatar = new SqliteMailAvatarRepository(this.database);
     this.mailExtensions = new SqliteMailExtensionsRepository(this.database);
     this.mailTaxonomy = new SqliteMailTaxonomyRepository(this.database);
   }
@@ -243,6 +257,50 @@ export class SqliteRelationalDatabase
     input: MailAgentRepositoryIncomingReplyInput,
   ): Promise<MailAgentIncomingReplyAssociationResult> {
     return this.mailAgent.associateIncomingAgentReply(input);
+  }
+
+  public getAvatarSettings(): Promise<MailAvatarSettings> {
+    return this.mailAvatar.getAvatarSettings();
+  }
+
+  public saveAvatarSettings(settings: MailAvatarSettings, now: string): Promise<MailAvatarSettings> {
+    return this.mailAvatar.saveAvatarSettings(settings, now);
+  }
+
+  public clearAvatarCache(includeContacts: boolean): Promise<number> {
+    return this.mailAvatar.clearAvatarCache(includeContacts);
+  }
+
+  public lookupContactForAvatar(contactId: string): Promise<MailAvatarContactLookup | undefined> {
+    return this.mailAvatar.lookupContactForAvatar(contactId);
+  }
+
+  public getContactAvatarOverride(
+    senderKey: string,
+  ): Promise<MailContactAvatarOverrideRecord | undefined> {
+    return this.mailAvatar.getContactAvatarOverride(senderKey);
+  }
+
+  public upsertContactAvatarOverride(
+    input: MailContactAvatarUpsertInput,
+  ): Promise<MailContactAvatarOverrideRecord> {
+    return this.mailAvatar.upsertContactAvatarOverride(input);
+  }
+
+  public deleteContactAvatarOverride(senderKey: string): Promise<boolean> {
+    return this.mailAvatar.deleteContactAvatarOverride(senderKey);
+  }
+
+  public getCachedSenderAvatar(cacheKey: string): Promise<MailAvatarCachedRecord | undefined> {
+    return this.mailAvatar.getCachedSenderAvatar(cacheKey);
+  }
+
+  public saveCachedSenderAvatar(input: MailAvatarSaveCacheInput): Promise<void> {
+    return this.mailAvatar.saveCachedSenderAvatar(input);
+  }
+
+  public saveFailedSenderAvatar(input: MailAvatarSaveFailedCacheInput): Promise<void> {
+    return this.mailAvatar.saveFailedSenderAvatar(input);
   }
 
   public close(): void {

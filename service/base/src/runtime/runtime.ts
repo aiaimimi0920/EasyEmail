@@ -2,6 +2,7 @@ import { createMailAliasService } from "../alias/service.js";
 import type { MailAccountRepository } from "../domain/account.js";
 import type { ContactRepository } from "../domain/contact.js";
 import type { MailAgentRepository } from "../domain/mail-agent.js";
+import type { MailAvatarRepository } from "../domain/mail-avatar.js";
 import type { MailExtensionsRepository } from "../domain/mail-extensions.js";
 import type {
   MailImapRepository,
@@ -39,6 +40,8 @@ import { createContactService } from "../service/contacts.js";
 import type { EasyEmailService } from "../service/easy-email-service.js";
 import { ImapFlowTransport } from "../service/imap-transport.js";
 import { createMailAgentService } from "../service/mail-agent.js";
+import { type AvatarRemoteFetcher } from "../service/avatar-network.js";
+import { createMailAvatarService } from "../service/mail-avatar.js";
 import { createMailExtensionsService } from "../service/mail-extensions.js";
 import { createMailImapService } from "../service/mail-imap-sync.js";
 import { createMailMessageService } from "../service/mail-messages.js";
@@ -86,6 +89,8 @@ export interface EasyEmailServiceRuntimeOptions extends EasyEmailBootstrapOption
   mailImapRepository?: MailImapRepository;
   mailExtensionsRepository?: MailExtensionsRepository;
   mailAgentRepository?: MailAgentRepository;
+  mailAvatarRepository?: MailAvatarRepository;
+  avatarRemoteFetcher?: AvatarRemoteFetcher;
   mailCredentialResolver?: MailCredentialResolver;
   mailImapConnectionTester?: MailImapConnectionTester;
   mailImapTransport?: MailImapTransport;
@@ -112,6 +117,7 @@ export interface StartedEasyEmailServiceRuntime {
   mailImapRepository?: MailImapRepository;
   mailExtensionsRepository?: MailExtensionsRepository;
   mailAgentRepository?: MailAgentRepository;
+  mailAvatarRepository?: MailAvatarRepository;
   close(): Promise<void>;
 }
 
@@ -177,6 +183,7 @@ export async function startEasyEmailServiceRuntime(
     || !options.mailImapRepository
     || !options.mailExtensionsRepository
     || !options.mailAgentRepository
+    || !options.mailAvatarRepository
   ) && config.persistence.enabled
     ? new SqliteRelationalDatabase({
         databasePath: resolveRelationalDatabasePath(config.persistence.databasePath),
@@ -191,6 +198,7 @@ export async function startEasyEmailServiceRuntime(
   const mailImapRepository = options.mailImapRepository ?? relationalDatabase;
   const mailExtensionsRepository = options.mailExtensionsRepository ?? relationalDatabase;
   const mailAgentRepository = options.mailAgentRepository ?? relationalDatabase;
+  const mailAvatarRepository = options.mailAvatarRepository ?? relationalDatabase;
   let handler: EasyEmailHttpHandler | undefined;
   let server: StartedEasyEmailHttpServer | undefined;
   let maintenanceLoop: MailMaintenanceLoop | undefined;
@@ -267,6 +275,11 @@ export async function startEasyEmailServiceRuntime(
     const mailAgentService = mailAgentRepository && accountService
       ? createMailAgentService(mailAgentRepository, accountService)
       : undefined;
+    const mailAvatarService = mailAvatarRepository
+      ? createMailAvatarService(mailAvatarRepository, undefined, {
+          remoteFetcher: options.avatarRemoteFetcher,
+        })
+      : undefined;
     const imapService = mailImapRepository && mailAccountRepository
       ? createMailImapService(mailImapRepository, mailAccountRepository, undefined, {
           credentialResolver: mailCredentialResolver,
@@ -306,6 +319,7 @@ export async function startEasyEmailServiceRuntime(
       mailPromotionService,
       mailExtensionsService,
       mailAgentService,
+      mailAvatarService,
     );
     server = await createEasyEmailHttpServer(handler, {
       hostname: config.hostname,
@@ -371,6 +385,7 @@ export async function startEasyEmailServiceRuntime(
     mailImapRepository,
     mailExtensionsRepository,
     mailAgentRepository,
+    mailAvatarRepository,
     close,
   };
 }

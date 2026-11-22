@@ -76,6 +76,21 @@ export interface EasyEmailClientApi extends EasyEmailMessageClientApi {
     query?: Contracts.MailAgentThreadListQuery,
   ): Promise<Contracts.MailAgentThread[]>;
   getAgentMailThreadDetail(threadId: string): Promise<Contracts.MailAgentThreadDetail>;
+  getMailAvatarSettings(): Promise<Contracts.MailAvatarSettings>;
+  updateMailAvatarSettings(
+    input: Contracts.MailAvatarSettingsUpdateInput,
+  ): Promise<Contracts.MailAvatarSettings>;
+  resolveMailSenderAvatars(
+    input: Contracts.MailAvatarResolveInput,
+  ): Promise<Contracts.MailSenderAvatar[]>;
+  setMailContactAvatar(
+    contactId: string,
+    input: Contracts.MailContactAvatarSetInput,
+  ): Promise<Contracts.MailSenderAvatar>;
+  clearMailContactAvatar(contactId: string): Promise<Contracts.MailContactAvatarClearResult>;
+  clearMailAvatarCache(
+    input?: Contracts.MailAvatarClearCacheInput,
+  ): Promise<Contracts.MailAvatarClearCacheResult>;
 }
 
 export class EasyEmailClient extends EasyEmailMessageClientBase implements EasyEmailClientApi {
@@ -399,5 +414,63 @@ export class EasyEmailClient extends EasyEmailMessageClientBase implements EasyE
       EASY_EMAIL_HTTP_ROUTES.agentThread(threadId),
     );
     return response.detail;
+  }
+
+  public async getMailAvatarSettings(): Promise<Contracts.MailAvatarSettings> {
+    const response = await this.httpClient.get<{ settings: Contracts.MailAvatarSettings }>(
+      EASY_EMAIL_HTTP_ROUTES.avatarSettings,
+    );
+    return response.settings;
+  }
+
+  public async updateMailAvatarSettings(
+    input: Contracts.MailAvatarSettingsUpdateInput,
+  ): Promise<Contracts.MailAvatarSettings> {
+    const response = await this.httpClient.patch<
+      Contracts.MailAvatarSettingsUpdateInput,
+      { settings: Contracts.MailAvatarSettings }
+    >(EASY_EMAIL_HTTP_ROUTES.avatarSettings, input);
+    return response.settings;
+  }
+
+  public async resolveMailSenderAvatars(
+    input: Contracts.MailAvatarResolveInput,
+  ): Promise<Contracts.MailSenderAvatar[]> {
+    const response = await this.httpClient.post<
+      Contracts.MailAvatarResolveInput,
+      { avatars: Contracts.MailSenderAvatar[] }
+    >(EASY_EMAIL_HTTP_ROUTES.avatarResolve, input);
+    return response.avatars;
+  }
+
+  public async setMailContactAvatar(
+    contactId: string,
+    input: Contracts.MailContactAvatarSetInput,
+  ): Promise<Contracts.MailSenderAvatar> {
+    const response = await this.httpClient.put<
+      Contracts.MailContactAvatarSetInput,
+      { avatar: Contracts.MailSenderAvatar }
+    >(EASY_EMAIL_HTTP_ROUTES.avatarContact(contactId), input);
+    return response.avatar;
+  }
+
+  public async clearMailContactAvatar(
+    contactId: string,
+  ): Promise<Contracts.MailContactAvatarClearResult> {
+    const response = await this.httpClient.delete<{
+      result: Contracts.MailContactAvatarClearResult;
+    }>(EASY_EMAIL_HTTP_ROUTES.avatarContact(contactId));
+    return response.result;
+  }
+
+  public async clearMailAvatarCache(
+    input: Contracts.MailAvatarClearCacheInput = {},
+  ): Promise<Contracts.MailAvatarClearCacheResult> {
+    const response = await this.httpClient.delete<{
+      result: Contracts.MailAvatarClearCacheResult;
+    }>(EASY_EMAIL_HTTP_ROUTES.avatarCache, {
+      includeContacts: input.includeContacts,
+    });
+    return response.result;
   }
 }

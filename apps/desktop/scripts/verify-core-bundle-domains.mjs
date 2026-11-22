@@ -303,6 +303,33 @@ export async function verifyBundledCoreRelationalDomains({
   if (!agentServicesList.ok || !Array.isArray(agentServicesPayload?.services)) {
     throw new Error("Authenticated packaged-core Agent services list failed.");
   }
+  const unauthAvatars = await fetch(`${baseUrl}/mail/avatars/settings`);
+  await unauthAvatars.arrayBuffer();
+  if (unauthAvatars.status !== 401) {
+    throw new Error(`Expected unauthenticated avatar settings to return 401, got ${unauthAvatars.status}.`);
+  }
+  const avatarSettingsPatch = await fetch(`${baseUrl}/mail/avatars/settings`, {
+    method: "PATCH",
+    headers: { authorization: `Bearer ${apiToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ remoteEnabled: false }),
+  });
+  const avatarSettingsPayload = await avatarSettingsPatch.json();
+  if (!avatarSettingsPatch.ok || avatarSettingsPayload?.settings?.remoteEnabled !== false) {
+    throw new Error("Authenticated packaged-core Avatar settings update failed.");
+  }
+  const avatarResolve = await fetch(`${baseUrl}/mail/avatars/resolve`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${apiToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ senders: ["GitHub <noreply@github.com>"] }),
+  });
+  const avatarResolvePayload = await avatarResolve.json();
+  if (
+    !avatarResolve.ok
+    || avatarResolvePayload?.avatars?.[0]?.sourceKind !== "builtin"
+    || avatarResolvePayload?.avatars?.[0]?.builtinKind !== "github"
+  ) {
+    throw new Error("Authenticated packaged-core Avatar local resolve failed.");
+  }
   const taxonomyList = await fetch(`${baseUrl}/mail/taxonomy?kind=folder`, {
     headers: { authorization: `Bearer ${apiToken}` },
   });

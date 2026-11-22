@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { MAIL_IMAP_SYNC_MIGRATION_SQL } from "./migrations-imap-sync.js";
 import { MAIL_M7A_EXTENSIONS_MIGRATION_SQL } from "./migrations-m7a.js";
 import { MAIL_M7B_AGENT_MIGRATION_SQL } from "./migrations-m7b.js";
+import { MAIL_M7C_AVATARS_MIGRATION_SQL } from "./migrations-m7c.js";
 
 export interface RelationalMigration {
   version: number;
@@ -390,6 +391,11 @@ ON mail_send_queue(message_id, status);
     version: 10,
     name: "mail-agent-services-threads-and-messages",
     sql: MAIL_M7B_AGENT_MIGRATION_SQL,
+  },
+  {
+    version: 11,
+    name: "mail-avatar-settings-cache-and-overrides",
+    sql: MAIL_M7C_AVATARS_MIGRATION_SQL,
   },
 ] as const;
 

@@ -33,8 +33,8 @@ use crate::services::normal_account_service::{
     SyncRecentHeadersRequest, SyncRecentHeadersResult,
 };
 use crate::services::platform_account_service::{
-    dev_platform_account_session, query_dev_platform_account, PlatformAccountQueryDto,
-    PlatformAccountQueryRequest, PlatformAccountSessionDto,
+    disabled_platform_account_error, PlatformAccountQueryDto, PlatformAccountQueryRequest,
+    PlatformAccountSessionDto,
 };
 use crate::services::send_service::{enqueue_send_message, SendMessageRequest, SendMessageResult};
 use crate::services::temp_mailbox_service::{

@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { type SenderAvatarDto } from "../components/SenderAvatarIcon";
 import { senderAvatarMapKey } from "../mail/senderAvatar";
 import { asErrorDto } from "./appDomain";
+import { avatarSettingsClient } from "./appRuntime";
 import type { AppState } from "./useAppState";
 import type { UseMailProjectionResult } from "./useMailProjection";
 import type { UseMailSourceControllerResult } from "./useMailSourceController";
@@ -70,9 +70,7 @@ export function useSelectedMailView(appState: AppState, dependencies: Dependenci
       }
 
       let cancelled = false;
-      invoke<SenderAvatarDto[]>("avatar_resolve_senders", {
-        request: { senders },
-      })
+      avatarSettingsClient.resolveSenderAvatars({ senders })
         .then((avatars) => {
           if (cancelled) {
             return;

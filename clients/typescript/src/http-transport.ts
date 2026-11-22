@@ -14,6 +14,9 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   agentServices: "/mail/agent/services",
   agentTasks: "/mail/agent/tasks",
   agentThreads: "/mail/agent/threads",
+  avatarSettings: "/mail/avatars/settings",
+  avatarResolve: "/mail/avatars/resolve",
+  avatarCache: "/mail/avatars/cache",
   testAccountImap: "/mail/accounts/imap/test",
   testAccountSmtp: "/mail/accounts/smtp/test",
   drafts: "/mail/drafts",
@@ -109,6 +112,9 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   },
   agentThread(threadId: string): string {
     return `/mail/agent/threads/${encodeURIComponent(threadId)}`;
+  },
+  avatarContact(contactId: string): string {
+    return `/mail/avatars/contacts/${encodeURIComponent(contactId)}`;
   },
 } as const;
 

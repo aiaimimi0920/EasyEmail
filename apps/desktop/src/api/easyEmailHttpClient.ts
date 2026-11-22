@@ -1,5 +1,6 @@
 import type { EasyEmailHttpClientOptions } from "./easyEmailCoreTypes.ts";
 import { createEasyEmailAgentResources } from "./easyEmailAgentResources.ts";
+import { createEasyEmailAvatarResources } from "./easyEmailAvatarResources.ts";
 import { createEasyEmailContactResources } from "./easyEmailContactResources.ts";
 import { createEasyEmailMailboxResources } from "./easyEmailMailboxResources.ts";
 import { createEasyEmailMailResources } from "./easyEmailMailResources.ts";
@@ -128,6 +129,7 @@ export type {
 export type * from "./easyEmailMessageTypes.ts";
 export type * from "./easyEmailSendQueueTypes.ts";
 export type * from "./easyEmailAgentTypes.ts";
+export type * from "./easyEmailAvatarTypes.ts";
 
 export { EASY_EMAIL_CORE_ROUTES } from "./easyEmailRoutes.ts";
 export { EasyEmailHttpError, normalizeEasyEmailHttpBaseUrl } from "./easyEmailHttpTransport.ts";
@@ -141,6 +143,7 @@ export function createEasyEmailHttpClient(options: EasyEmailHttpClientOptions) {
     ...createEasyEmailMessageResources(request),
     ...createEasyEmailSendQueueResources(request),
     ...createEasyEmailAgentResources(request),
+    ...createEasyEmailAvatarResources(request),
     ...createEasyEmailMailboxResources(request),
   };
 }

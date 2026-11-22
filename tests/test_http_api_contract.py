@@ -422,6 +422,8 @@ class HttpApiContractTests(HttpApiContractTestCase):
             "createAgentMailService",
             "sendAgentMailTask",
             "getAgentMailThreadDetail",
+            "setMailContactAvatar",
+            "clearMailContactAvatar",
         }
         documented_operation_ids = {
             operation["operationId"]

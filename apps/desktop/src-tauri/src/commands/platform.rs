@@ -8,15 +8,15 @@ pub struct HealthDto {
 }
 
 #[tauri::command]
-pub fn platform_account_get_session() -> PlatformAccountSessionDto {
-    dev_platform_account_session(now_rfc3339())
+pub fn platform_account_get_session() -> Result<PlatformAccountSessionDto, ErrorDto> {
+    Err(disabled_platform_account_error().into())
 }
 
 #[tauri::command]
 pub fn platform_account_query_data(
-    request: PlatformAccountQueryRequest,
+    _request: PlatformAccountQueryRequest,
 ) -> Result<PlatformAccountQueryDto, ErrorDto> {
-    query_dev_platform_account(request, now_rfc3339()).map_err(ErrorDto::from)
+    Err(disabled_platform_account_error().into())
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -1,6 +1,6 @@
 # EasyEmail Desktop 业务核心迁移与产品化开发计划
 
-Status: **execution in progress; M0, M1, M3, and M4 complete, M2 staged slices implemented**
+Status: **execution in progress; M0–M7 complete (M7 exit gate satisfied — zero business Tauri invokes in desktop UI)**
 Created: **2026-09-01**  
 Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
 
@@ -98,10 +98,13 @@ Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
   [`desktop-command-http-migration-map.json`](./desktop-command-http-migration-map.json) are exposed
   in `service/base`, `easyemail-openapi.json`, `clients/typescript`, and desktop `mailMessageClient`,
   and React controllers no longer invoke any M4 `message_*` or `verification_*` Tauri business
-  command (`message_reopen_scheduled_send` remains assigned to M5).
-- **Next:** execute M5 (SMTP transport and persistent send queue in `service/base` + HTTP/UI cutover)
-  and M6 (IMAP folder discovery, header/body sync, and remote actions), while keeping live
-  external-provider IMAP/SMTP testing behind explicit operator gates.
+  command (`message_reopen_scheduled_send` migrated in M5).
+- **M5 complete (2026-11-22):** relational schema v7, TLS 1.2+ SMTP transport, durable lease/backoff/idempotency send-queue worker, scheduled-send reopen, and all 11 M5 `/mail/*` HTTP operations and UI cutovers completed (`3c55373`).
+- **M6 complete (2026-11-22):** relational schema v8, `ImapFlow` TLS 1.2+ folder discovery, initial/incremental UID sync, `UIDVALIDITY` recovery, lazy body fetch, fail-closed remote flag/move/delete actions, and offline cached readback completed (`19ca697`).
+- **M2 closeout + M7A complete (2026-11-22):** relational schema v9, zero-copy temporary mailbox promotion (`POST /mail/mailboxes/{sessionId}/promote`), taxonomy rename/delete message-reference propagation, durable newsletter subscription aggregation/hide overrides, and EasyEmail client settings/probe HTTP cutover completed (`36ae2c3`).
+- **M7B complete (2026-11-22):** relational schema v10 (`mail_agent_services`, `mail_agent_threads`, `mail_agent_messages`), stable outbound `Message-ID` tracking, M5 queue-backed atomic agent task enqueue, M6 IMAP `In-Reply-To`/`References` reply association with `agent` scope isolation and sender-trust gating, and all 7 `/mail/agent/*` HTTP/UI cutovers completed (`5520899`).
+- **M7C complete & M7 exit gate satisfied (2026-11-22):** relational schema v11 (`mail_avatar_settings`, `mail_sender_avatar_cache`, `mail_contact_avatar_overrides`), SSRF-hardened `MailAvatarService` (HTTPS-only, public DNS/IP checks, pinned-IP anti-DNS-rebinding, redirect/MIME/byte/SVG sanitization limits, 14d positive / 24h negative cache), all 6 `/mail/avatars/*` HTTP/UI cutovers, and permanent disablement of unsigned `platform_account_*` development stubs completed; zero business or dev-stub Tauri `invoke` calls remain in `apps/desktop/src/`.
+- **Next:** execute M8 (full versioned `easyemailam.sqlite` offline importer with backup/receipt/rollback and Tauri Rust business-core slimming).
 
 本计划定义将已导入 `apps/desktop` 的 EasyEmailAM 从“React UI +
 过渡期 Rust 业务后端”收敛为“React UI + 随桌面程序启动的
@@ -519,6 +522,9 @@ React 控制器已移除全部 M4 `message_*` 与 `verification_*` Tauri 业务�
 - UI 只消费经过消毒的 DTO/cache URL，不直接对任意 sender domain 发网络请求；
 - 删除或永久禁用 unsigned platform development session；真实身份集成作为独立产品能力。
 
+**M7C 当前进度（2026-11-22）**：已在 `service/base` 落地关系库 schema v11（`mail_avatar_settings`、`mail_sender_avatar_cache`、`mail_contact_avatar_overrides`），
+实现带严格 SSRF 防护（HTTPS-only、公网 DNS/公网 IPv4·IPv6 校验、连接级 IP 绑定防 DNS Rebinding、最多 3 次安全重定向、MIME 白名单、BIMI 128KiB / Favicon 256KiB / Contact 512KiB 字节上限、SVG 脚本/事件属性拦截、超时控制与 14 天正向 / 24 小时负向缓存）的 `MailAvatarService` 与全部 6 条 `/mail/avatars/*` HTTP 路由，对齐 OpenAPI、`docs/http-api.md`、TypeScript SDK 与 Python 契约测试。桌面端已将 `avatarSettingsClient`、`useAccountSettingsController`、`useSelectedMailView` 中全部 6 项 `avatar_*` 操作切换至鉴权 HTTP，并在 Rust 宿主命令（`platform_account_get_session` / `platform_account_query_data` 永久返回 `platform_dev_session_disabled`）与前端 `platformAccountClient` / UI 中永久禁用未签名 `unsigned_dev_session` 平台开发桩。至此桌面端 `src/` 除宿主运行时发现（`desktop_core_runtime`）与系统凭据桥（`desktop_credential_store` / `desktop_credential_delete`）外已实现**零业务 `invoke` 调用**，**M7 出口门禁已全部达成**。
+
 **M7 出口门禁**：除 OS integration 外，所有 EasyEmailAM 扩展业务 UI 操作
 都已有显式 HTTP 资源，且 UI 不再调用对应 business command。
 
@@ -782,7 +788,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-all.ps1
 
 ## 10. 下一个可执行批次
 
-M0–M6、M2 全部延后项、**M7A（临时邮箱提升）** 及 **M7B（Agent Mail）** 均已完成并通过门禁；**M7 正在收尾中，下一可执行切片为 M7C（Avatar 与 platform stub 清理）**。
+M0–M7（含 M2 全部延后项、**M7A 临时邮箱提升**、**M7B Agent Mail** 及 **M7C Avatar SSRF 防护与 Platform 开发桩永久禁用**）均已完成并通过门禁，全部 52 项业务迁移命令已切换至 `service/base` 鉴权 HTTP 且 2 项未签名平台开发桩已永久禁用；**下一可执行里程碑为 M8（旧数据全量版本化导入与 Tauri 第二业务核心瘦身）**。
 
 建议精确交付顺序：
 

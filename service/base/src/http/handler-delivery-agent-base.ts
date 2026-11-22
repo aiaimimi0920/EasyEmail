@@ -4,6 +4,7 @@ import { EasyEmailError } from "../domain/errors.js";
 import type { MailStateQueryRepository } from "../persistence/contracts.js";
 import { createEasyEmailService, type EasyEmailService } from "../service/easy-email-service.js";
 import type { MailAgentService } from "../service/mail-agent.js";
+import type { MailAvatarService } from "../service/mail-avatar.js";
 import type { MailExtensionsService } from "../service/mail-extensions.js";
 import type { MailImapService } from "../service/mail-imap-sync.js";
 import type { MailMessageService } from "../service/mail-messages.js";
@@ -20,6 +21,7 @@ export class EasyEmailDeliveryAndAgentHttpHandlerBase extends EasyEmailCoreMailb
     private readonly mailPromotion?: MailPromotionService,
     private readonly mailExtensions?: MailExtensionsService,
     private readonly mailAgent?: MailAgentService,
+    private readonly mailAvatar?: MailAvatarService,
   ) {
     super(service, queryRepository, messages);
   }
@@ -72,6 +74,16 @@ export class EasyEmailDeliveryAndAgentHttpHandlerBase extends EasyEmailCoreMailb
       );
     }
     return this.mailAgent;
+  }
+
+  protected requireMailAvatar(): MailAvatarService {
+    if (!this.mailAvatar) {
+      throw new EasyEmailError(
+        "AVATAR_PERSISTENCE_UNAVAILABLE",
+        "Persistent sender avatars are not available in this runtime.",
+      );
+    }
+    return this.mailAvatar;
   }
 
   public async enqueueMailSend(
@@ -237,5 +249,40 @@ export class EasyEmailDeliveryAndAgentHttpHandlerBase extends EasyEmailCoreMailb
     threadId: string,
   ): Promise<Contracts.GetAgentMailThreadDetailHttpResponse> {
     return { detail: await this.requireMailAgent().getAgentThreadDetail(threadId) };
+  }
+
+  public async getMailAvatarSettings(): Promise<Contracts.GetMailAvatarSettingsHttpResponse> {
+    return { settings: await this.requireMailAvatar().getAvatarSettings() };
+  }
+
+  public async updateMailAvatarSettings(
+    request: Contracts.UpdateMailAvatarSettingsHttpRequest,
+  ): Promise<Contracts.UpdateMailAvatarSettingsHttpResponse> {
+    return { settings: await this.requireMailAvatar().updateAvatarSettings(request) };
+  }
+
+  public async resolveMailSenderAvatars(
+    request: Contracts.ResolveMailSenderAvatarsHttpRequest,
+  ): Promise<Contracts.ResolveMailSenderAvatarsHttpResponse> {
+    return { avatars: await this.requireMailAvatar().resolveSenderAvatars(request) };
+  }
+
+  public async setMailContactAvatar(
+    contactId: string,
+    request: Contracts.SetMailContactAvatarHttpRequest,
+  ): Promise<Contracts.SetMailContactAvatarHttpResponse> {
+    return { avatar: await this.requireMailAvatar().setContactAvatar(contactId, request) };
+  }
+
+  public async clearMailContactAvatar(
+    contactId: string,
+  ): Promise<Contracts.ClearMailContactAvatarHttpResponse> {
+    return { result: await this.requireMailAvatar().clearContactAvatar(contactId) };
+  }
+
+  public async clearMailAvatarCache(
+    request: Contracts.ClearMailAvatarCacheHttpRequest = {},
+  ): Promise<Contracts.ClearMailAvatarCacheHttpResponse> {
+    return { result: await this.requireMailAvatar().clearAvatarCache(request) };
   }
 }

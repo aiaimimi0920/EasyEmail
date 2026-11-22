@@ -37,6 +37,9 @@ STATIC_ROUTE_NAMES = (
     "agentServices",
     "agentTasks",
     "agentThreads",
+    "avatarSettings",
+    "avatarResolve",
+    "avatarCache",
 )
 
 
@@ -82,6 +85,7 @@ class ClientServerContractTests(unittest.TestCase):
             "/mail/mailboxes/${encodeURIComponent(sessionId)}/promote",
             "/mail/newsletters/subscriptions/${encodeURIComponent(subscriptionId)}",
             "/mail/agent/threads/${encodeURIComponent(threadId)}",
+            "/mail/avatars/contacts/${encodeURIComponent(contactId)}",
         )
         for template in templates:
             self.assertIn(template, server_text)

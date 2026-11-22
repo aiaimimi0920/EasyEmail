@@ -7,6 +7,7 @@ import type { MailAccountService } from "../service/accounts.js";
 import type { ContactService } from "../service/contacts.js";
 import { createEasyEmailService, type EasyEmailService } from "../service/easy-email-service.js";
 import type { MailAgentService } from "../service/mail-agent.js";
+import type { MailAvatarService } from "../service/mail-avatar.js";
 import type { MailExtensionsService } from "../service/mail-extensions.js";
 import type { MailImapService } from "../service/mail-imap-sync.js";
 import type { MailMessageService } from "../service/mail-messages.js";
@@ -32,6 +33,7 @@ export class EasyEmailHttpHandler extends EasyEmailDeliveryAndAgentHttpHandlerBa
     mailPromotion?: MailPromotionService,
     mailExtensions?: MailExtensionsService,
     mailAgent?: MailAgentService,
+    mailAvatar?: MailAvatarService,
   ) {
     super(
       service,
@@ -42,6 +44,7 @@ export class EasyEmailHttpHandler extends EasyEmailDeliveryAndAgentHttpHandlerBa
       mailPromotion,
       mailExtensions,
       mailAgent,
+      mailAvatar,
     );
   }
 

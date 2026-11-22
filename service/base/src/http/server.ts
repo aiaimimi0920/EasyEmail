@@ -7,6 +7,7 @@ import { resolveEasyEmailHttpErrorStatus } from "./error-status.js";
 import { reportHttpFailure } from "./failure-diagnostic.js";
 import { handleAdminRoute } from "./routes/admin.js";
 import { handleAgentMailRoute } from "./routes/agent-mail.js";
+import { handleAvatarMailRoute } from "./routes/avatars.js";
 import { handleExtensionsRoute } from "./routes/extensions.js";
 import { handleImapSyncRoute } from "./routes/imap-sync.js";
 import { handleInternalRoute } from "./routes/internal.js";
@@ -267,6 +268,12 @@ export function createEasyEmailHttpServer(
         path,
         query,
         headers: request.headers,
+        handler,
+        readJsonBody: readBodyJson,
+      }) ?? await handleAvatarMailRoute({
+        method,
+        path,
+        query,
         handler,
         readJsonBody: readBodyJson,
       }) ?? await handleExtensionsRoute({

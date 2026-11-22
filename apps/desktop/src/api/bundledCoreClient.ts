@@ -15,6 +15,16 @@ import {
   type EasyEmailAgentThreadDetailResponse,
   type EasyEmailAgentThreadListQuery,
   type EasyEmailAgentThreadsResponse,
+  type EasyEmailAvatarSettingsUpdateRequest,
+  type EasyEmailClearAvatarCacheQuery,
+  type EasyEmailClearAvatarCacheResponse,
+  type EasyEmailClearContactAvatarResponse,
+  type EasyEmailGetAvatarSettingsResponse,
+  type EasyEmailResolveSenderAvatarsRequest,
+  type EasyEmailResolveSenderAvatarsResponse,
+  type EasyEmailSetContactAvatarRequest,
+  type EasyEmailSetContactAvatarResponse,
+  type EasyEmailUpdateAvatarSettingsResponse,
   type EasyEmailCatalogResponse,
   type EasyEmailContact,
   type EasyEmailContactCreateRequest,
@@ -362,6 +372,35 @@ export function createBundledCoreClient(
       threadId: string,
     ): Promise<EasyEmailAgentThreadDetailResponse> {
       return (await getHttpClient()).getAgentMailThreadDetail(threadId);
+    },
+    async getMailAvatarSettings(): Promise<EasyEmailGetAvatarSettingsResponse> {
+      return (await getHttpClient()).getMailAvatarSettings();
+    },
+    async updateMailAvatarSettings(
+      request: EasyEmailAvatarSettingsUpdateRequest,
+    ): Promise<EasyEmailUpdateAvatarSettingsResponse> {
+      return (await getHttpClient()).updateMailAvatarSettings(request);
+    },
+    async resolveMailSenderAvatars(
+      request: EasyEmailResolveSenderAvatarsRequest,
+    ): Promise<EasyEmailResolveSenderAvatarsResponse> {
+      return (await getHttpClient()).resolveMailSenderAvatars(request);
+    },
+    async setMailContactAvatar(
+      contactId: string,
+      request: EasyEmailSetContactAvatarRequest,
+    ): Promise<EasyEmailSetContactAvatarResponse> {
+      return (await getHttpClient()).setMailContactAvatar(contactId, request);
+    },
+    async clearMailContactAvatar(
+      contactId: string,
+    ): Promise<EasyEmailClearContactAvatarResponse> {
+      return (await getHttpClient()).clearMailContactAvatar(contactId);
+    },
+    async clearMailAvatarCache(
+      query: EasyEmailClearAvatarCacheQuery = {},
+    ): Promise<EasyEmailClearAvatarCacheResponse> {
+      return (await getHttpClient()).clearMailAvatarCache(query);
     },
     ...createBundledCoreMailboxMethods(getHttpClient),
   };

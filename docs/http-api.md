@@ -391,6 +391,17 @@ authorization tier.
 | `GET` | `/mail/agent/threads` | List Agent threads filtered by optional `status`, `senderAccountId`, `agentServiceId`, and `limit`. |
 | `GET` | `/mail/agent/threads/{threadId}` | Read one Agent thread and its ordered outgoing/incoming Agent messages. |
 
+### Sender Avatars (M7C)
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/mail/avatars/settings` | Read persistent sender avatar resolution settings (`remoteEnabled`, `bimiEnabled`, `faviconEnabled`, `authEnabled`). |
+| `PATCH` | `/mail/avatars/settings` | Update persistent sender avatar resolution settings. |
+| `POST` | `/mail/avatars/resolve` | Resolve up to 16 unique sender avatars using contact overrides, SSRF-hardened HTTPS BIMI/favicon fetching, and 14-day positive / 24-hour negative cache. |
+| `PUT` | `/mail/avatars/contacts/{contactId}` | Set a validated custom base64 data-URL avatar override for a contact ID or sender address. |
+| `DELETE` | `/mail/avatars/contacts/{contactId}` | Clear a custom avatar override for a contact ID or sender address. |
+| `DELETE` | `/mail/avatars/cache` | Clear cached remote sender avatars (and optional contact overrides when `includeContacts=true`). |
+
 ### Provider administration and queries
 
 | Method | Path | Purpose |

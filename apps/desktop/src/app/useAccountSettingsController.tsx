@@ -1,7 +1,5 @@
 import type { ChangeEvent } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { preprocessContactAvatarFile } from "../avatar/contactAvatarImage";
-import { type SenderAvatarDto } from "../components/SenderAvatarIcon";
 import { senderAvatarMapKey } from "../mail/senderAvatar";
 import { asErrorDto, optionalValue } from "./appDomain";
 import { avatarSettingsClient, settingsClient } from "./appRuntime";
@@ -91,8 +89,9 @@ export function useAccountSettingsController(appState: AppState) {
       setBusy(true);
       try {
         const imageDataUrl = await preprocessContactAvatarFile(file);
-        const avatar = await invoke<SenderAvatarDto>("avatar_set_contact", {
-          request: { sender: uploadSender, image_data_url: imageDataUrl },
+        const avatar = await avatarSettingsClient.setContactAvatar({
+          sender: uploadSender,
+          image_data_url: imageDataUrl,
         });
         setSenderAvatarsBySender((current) => ({
           ...current,
@@ -115,9 +114,7 @@ export function useAccountSettingsController(appState: AppState) {
       const sender = avatarEditor.sender;
       setBusy(true);
       try {
-        await invoke("avatar_clear_contact", {
-          request: { sender },
-        });
+        await avatarSettingsClient.clearContactAvatar({ sender });
         setSenderAvatarsBySender((current) => {
           const next = { ...current };
           delete next[senderAvatarMapKey(sender)];

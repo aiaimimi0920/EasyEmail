@@ -59,6 +59,12 @@ DOMAIN_MAIL_AGENT = (
 HTTP_MAIL_M7B_CONTRACTS = (
     ROOT / "service" / "base" / "src" / "http" / "mail-m7b-contracts.ts"
 )
+DOMAIN_MAIL_AVATAR = (
+    ROOT / "service" / "base" / "src" / "domain" / "mail-avatar.ts"
+)
+HTTP_MAIL_M7C_CONTRACTS = (
+    ROOT / "service" / "base" / "src" / "http" / "mail-m7c-contracts.ts"
+)
 SHARED_CREDENTIAL_MODELS = (
     ROOT / "service" / "base" / "src" / "shared" / "credential-models.ts"
 )
@@ -116,6 +122,10 @@ DYNAMIC_ROUTE_METHODS = {
     "promoteMailbox": {"post": "promoteMailboxSession"},
     "newsletterSubscription": {"patch": "setNewsletterSubscriptionHidden"},
     "agentThread": {"get": "getAgentMailThreadDetail"},
+    "avatarContact": {
+        "put": "setMailContactAvatar",
+        "delete": "clearMailContactAvatar",
+    },
 }
 
 STATIC_ROUTE_DISPATCH = re.compile(
