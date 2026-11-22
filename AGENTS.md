@@ -49,6 +49,7 @@
 5. Run `node --test scripts/tests/effective-code-lines.test.mjs`.
 6. Run `node scripts/effective-code-lines.mjs --mode ratchet`.
 7. Run the task-relevant build and tests, then inspect `git diff --check` and the scoped Git diff.
+8. Batch independent file reads/searches in parallel, plan 150-500 effective-line boundaries upfront before coding (avoiding overshoot-then-resplit rework), and run fast targeted type/line checks during iteration before running full builds once per completed slice.
 
 ## Exceptions
 
