@@ -6,7 +6,10 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
 import { SqliteRelationalDatabase } from "../../src/persistence/relational/database.js";
-import { RELATIONAL_MIGRATIONS } from "../../src/persistence/relational/migrations.js";
+import {
+  EASY_EMAIL_RELATIONAL_SCHEMA_VERSION,
+  RELATIONAL_MIGRATIONS,
+} from "../../src/persistence/relational/migrations.js";
 import { MailAccountService } from "../../src/service/accounts.js";
 
 describe("mail account relational persistence", () => {
@@ -64,7 +67,7 @@ describe("mail account relational persistence", () => {
       const inspector = new DatabaseSync(databasePath);
       try {
         expect(inspector.prepare("SELECT MAX(version) AS version FROM schema_migrations").get())
-          .toEqual({ version: 6 });
+          .toEqual({ version: EASY_EMAIL_RELATIONAL_SCHEMA_VERSION });
         expect(inspector.prepare("SELECT COUNT(*) AS count FROM mail_account_credential_refs").get())
           .toEqual({ count: 1 });
         expect(inspector.prepare(

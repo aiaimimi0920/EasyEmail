@@ -5,6 +5,8 @@ import type {
   EasyEmailMailAccountListQuery,
   EasyEmailMailAccountResponse,
   EasyEmailMailAccountsResponse,
+  EasyEmailMailAccountSmtpTestRequest,
+  EasyEmailMailAccountSmtpTestResponse,
   EasyEmailMailAccountUpdateRequest,
   EasyEmailMailTaxonomyDeleteResponse,
   EasyEmailMailTaxonomyKind,
@@ -111,6 +113,15 @@ export function createEasyEmailMailResources(request: EasyEmailRequestTransport)
       return request({
         method: "POST",
         path: EASY_EMAIL_CORE_ROUTES.testAccountImap,
+        body: testRequest,
+      });
+    },
+    testMailAccountSmtp(
+      testRequest: EasyEmailMailAccountSmtpTestRequest,
+    ): Promise<EasyEmailMailAccountSmtpTestResponse> {
+      return request({
+        method: "POST",
+        path: EASY_EMAIL_CORE_ROUTES.testAccountSmtp,
         body: testRequest,
       });
     },

@@ -1,13 +1,16 @@
 import type {
   MailAccount,
   MailAccountImapProfile,
+  MailAccountSmtpProfile,
   MailCredentialRef,
 } from "../domain/account.js";
+
+export type MailCredentialUseCase = "imap-test" | "smtp-test" | "smtp-send";
 
 export interface MailCredentialResolveRequest {
   account: MailAccount;
   credentialRef: MailCredentialRef;
-  useCase: "imap-test";
+  useCase: MailCredentialUseCase;
 }
 
 export type MailCredentialResolution =
@@ -31,7 +34,44 @@ export interface MailImapConnectionTester {
   ): Promise<MailImapConnectionTestResult>;
 }
 
+export interface MailSmtpConnectionTestResult {
+  authenticated: true;
+  capabilitySummary: string;
+}
+
+export interface MailSmtpSendEnvelope {
+  fromAddress: string;
+  fromName?: string;
+  toAddresses: string[];
+  ccAddresses: string[];
+  bccAddresses: string[];
+  subject: string;
+  bodyText: string;
+  bodyHtml?: string;
+}
+
+export interface MailSmtpSendResult {
+  providerMessageId?: string;
+}
+
+export interface MailSmtpTransport {
+  testConnection(
+    profile: MailAccountSmtpProfile,
+    secret: string,
+  ): Promise<MailSmtpConnectionTestResult>;
+  sendMessage(
+    profile: MailAccountSmtpProfile,
+    secret: string,
+    envelope: MailSmtpSendEnvelope,
+  ): Promise<MailSmtpSendResult>;
+}
+
 export interface MailAccountImapTestRequest {
+  accountId: string;
+  credentialRefId: string;
+}
+
+export interface MailAccountSmtpTestRequest {
   accountId: string;
   credentialRefId: string;
 }
@@ -39,4 +79,5 @@ export interface MailAccountImapTestRequest {
 export interface MailAccountConnectivityDependencies {
   credentialResolver?: MailCredentialResolver;
   imapTester?: MailImapConnectionTester;
+  smtpTransport?: MailSmtpTransport;
 }

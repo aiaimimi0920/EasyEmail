@@ -9,6 +9,7 @@ export type DesktopCredentialRefDto = {
 
 export interface DesktopCredentialTransport {
   storeImapPassword(secret: string): Promise<DesktopCredentialRefDto>;
+  storeSmtpPassword(secret: string): Promise<DesktopCredentialRefDto>;
   deleteCredential(secretKey: string): Promise<void>;
 }
 
@@ -20,6 +21,15 @@ export function createDesktopCredentialClient(
       return invokeCommand<DesktopCredentialRefDto>("desktop_credential_store", {
         request: {
           credential_kind: "imap_password",
+          auth_method: "password",
+          secret,
+        },
+      });
+    },
+    storeSmtpPassword(secret: string): Promise<DesktopCredentialRefDto> {
+      return invokeCommand<DesktopCredentialRefDto>("desktop_credential_store", {
+        request: {
+          credential_kind: "smtp_password",
           auth_method: "password",
           secret,
         },

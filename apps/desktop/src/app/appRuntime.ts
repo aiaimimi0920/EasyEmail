@@ -21,4 +21,4 @@ export const mailTaxonomyClient = createMailTaxonomyClient(invoke);
 export const newsletterClient = createNewsletterClient(invoke);
 export const platformAccountClient = createPlatformAccountClient(invoke);
 export const settingsClient = createSettingsClient(invoke);
-export const sendQueueClient = createSendQueueClient(invoke);
+export const sendQueueClient = createSendQueueClient(bundledCoreClient);

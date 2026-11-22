@@ -307,6 +307,23 @@
         }
       }
     },
+    "/mail/accounts/smtp/test": {
+      "post": {
+        "operationId": "testMailAccountSmtp",
+        "summary": "Test an account SMTP profile through an opaque credential reference",
+        "description": "The request never accepts raw credentials. The local runtime resolves the account-owned credential reference through its private credential capability, performs an authenticated TLS 1.2+ or STARTTLS SMTP handshake, and fails closed when that capability is unavailable.",
+        "requestBody": { "$ref": "#/components/requestBodies/AccountSmtpTestRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/TestMailAccountSmtpResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
+        }
+      }
+    },
     "/mail/accounts/{accountId}": {
       "get": {
         "operationId": "getMailAccount",
@@ -907,6 +924,151 @@
           "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
         }
       }
+    },
+    "/mail/send-queue": {
+      "get": {
+        "operationId": "listMailSendQueue",
+        "summary": "List persistent outgoing send queue items and worker status",
+        "parameters": [
+          { "$ref": "#/components/parameters/SendQueueAccountIdQuery" },
+          { "$ref": "#/components/parameters/SendQueueStatusQuery" },
+          { "$ref": "#/components/parameters/SendQueueLimitQuery" },
+          { "$ref": "#/components/parameters/SendQueueCursorQuery" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ListMailSendQueueResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "post": {
+        "operationId": "enqueueMailSend",
+        "summary": "Enqueue an immediate or scheduled outgoing email for server-owned SMTP delivery",
+        "description": "Freezes an auditable sender, SMTP endpoint, and account-owned opaque credential reference snapshot at enqueue time. Supports Idempotency-Key deduplication with payload conflict detection.",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/MailSendEnqueueRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/EnqueueMailSendResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/send-queue/{queueItemId}": {
+      "get": {
+        "operationId": "getMailSendQueueItem",
+        "summary": "Read one outgoing send queue item",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueItemId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/GetMailSendQueueItemResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/send-queue/{queueItemId}/run": {
+      "post": {
+        "operationId": "runMailSendQueueItem",
+        "summary": "Claim and execute one due outgoing send queue item immediately",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueItemId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/RunMailSendQueueItemResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
+        }
+      }
+    },
+    "/mail/send-queue/{queueItemId}/cancel": {
+      "post": {
+        "operationId": "cancelMailSendQueueItem",
+        "summary": "Cancel a queued outgoing send item using optional version compare-and-swap",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueItemId" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/MailSendQueueCancelRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/CancelMailSendQueueItemResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/send-queue/{queueItemId}/retry": {
+      "post": {
+        "operationId": "retryMailSendQueueItem",
+        "summary": "Re-queue a failed, auth-failed, cancelled, or explicitly confirmed delivery-unknown send item",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueItemId" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/MailSendQueueRetryRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/RetryMailSendQueueItemResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/send-queue/run-once": {
+      "post": {
+        "operationId": "runMailSendQueueOnce",
+        "summary": "Claim and execute at most one due outgoing send queue item",
+        "responses": {
+          "200": { "$ref": "#/components/responses/RunMailSendQueueWorkerResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
+        }
+      }
+    },
+    "/mail/send-queue/run-due": {
+      "post": {
+        "operationId": "runMailSendQueueDueBatch",
+        "summary": "Claim and execute a bounded batch of due outgoing send queue items",
+        "requestBody": { "$ref": "#/components/requestBodies/MailSendQueueRunBatchRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/RunMailSendQueueWorkerResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" }
+        }
+      }
+    },
+    "/mail/messages/{messageId}/scheduled-send/reopen": {
+      "post": {
+        "operationId": "reopenScheduledSend",
+        "summary": "Cancel a queued scheduled send and convert its message back into an editable local draft",
+        "parameters": [
+          { "$ref": "#/components/parameters/MessageId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ReopenScheduledSendResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
     }
   },
   "components": {
@@ -1105,6 +1267,43 @@
         "name": "limit",
         "in": "query",
         "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
+      },
+      "QueueItemId": {
+        "name": "queueItemId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "IdempotencyKeyHeader": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "description": "Optional caller-generated idempotency key for outgoing send deduplication.",
+        "schema": { "type": "string", "minLength": 1, "maxLength": 256 }
+      },
+      "SendQueueAccountIdQuery": {
+        "name": "accountId",
+        "in": "query",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "SendQueueStatusQuery": {
+        "name": "status",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "enum": ["queued", "sending", "sent", "auth_failed", "delivery_unknown", "cancelled", "failed"]
+        }
+      },
+      "SendQueueLimitQuery": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
+      },
+      "SendQueueCursorQuery": {
+        "name": "cursor",
+        "in": "query",
+        "description": "Opaque filter-bound keyset cursor returned by the previous page.",
+        "schema": { "type": "string", "minLength": 1 }
       }
     },
     "requestBodies": {
@@ -1201,6 +1400,46 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/MailAccountImapTestInput" }
+          }
+        }
+      },
+      "AccountSmtpTestRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailAccountSmtpTestInput" }
+          }
+        }
+      },
+      "MailSendEnqueueRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailSendEnqueueInput" }
+          }
+        }
+      },
+      "MailSendQueueRunBatchRequest": {
+        "required": false,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailSendQueueRunBatchInput" }
+          }
+        }
+      },
+      "MailSendQueueCancelRequest": {
+        "required": false,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailSendQueueCancelInput" }
+          }
+        }
+      },
+      "MailSendQueueRetryRequest": {
+        "required": false,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailSendQueueRetryInput" }
           }
         }
       },
@@ -1350,6 +1589,14 @@
           }
         }
       },
+      "TestMailAccountSmtpResponse": {
+        "description": "Authenticated SMTP connectivity result",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/TestMailAccountSmtpResponse" }
+          }
+        }
+      },
       "DeleteAccountResponse": {
         "description": "Soft-deleted account identity",
         "content": {
@@ -1491,6 +1738,70 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/PollMailboxVerificationResponse" }
+          }
+        }
+      },
+      "EnqueueMailSendResponse": {
+        "description": "Enqueued or deduplicated outgoing send item and message identifier",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailSendEnqueueResult" }
+          }
+        }
+      },
+      "ListMailSendQueueResponse": {
+        "description": "Stable page of persistent outgoing send queue items and worker status",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ListMailSendQueueResponse" }
+          }
+        }
+      },
+      "GetMailSendQueueItemResponse": {
+        "description": "One persistent outgoing send queue item",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/GetMailSendQueueItemResponse" }
+          }
+        }
+      },
+      "RunMailSendQueueItemResponse": {
+        "description": "Immediate send execution result for one queue item",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/RunMailSendQueueItemResponse" }
+          }
+        }
+      },
+      "RunMailSendQueueWorkerResponse": {
+        "description": "Outgoing send queue worker batch execution result",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/RunMailSendQueueWorkerResponse" }
+          }
+        }
+      },
+      "CancelMailSendQueueItemResponse": {
+        "description": "Cancelled outgoing send queue item",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CancelMailSendQueueItemResponse" }
+          }
+        }
+      },
+      "RetryMailSendQueueItemResponse": {
+        "description": "Re-queued outgoing send queue item",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/RetryMailSendQueueItemResponse" }
+          }
+        }
+      },
+      "ReopenScheduledSendResponse": {
+        "description": "Cancelled scheduled send item and reopened local draft message",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailScheduledSendReopenResult" }
           }
         }
       },
@@ -1713,6 +2024,29 @@
         },
         "additionalProperties": false
       },
+      "MailAccountSmtpProfile": {
+        "type": "object",
+        "required": ["protocol", "host", "port", "security", "username"],
+        "properties": {
+          "protocol": { "type": "string", "const": "smtp" },
+          "host": { "type": "string", "minLength": 1, "maxLength": 253 },
+          "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+          "security": { "type": "string", "enum": ["tls", "starttls"] },
+          "username": { "type": "string", "minLength": 1, "maxLength": 320 }
+        },
+        "additionalProperties": false
+      },
+      "MailAccountSmtpProfileInput": {
+        "type": "object",
+        "required": ["host", "port", "security", "username"],
+        "properties": {
+          "host": { "type": "string", "minLength": 1, "maxLength": 253 },
+          "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+          "security": { "type": "string", "enum": ["tls", "ssl", "starttls"] },
+          "username": { "type": "string", "minLength": 1, "maxLength": 320 }
+        },
+        "additionalProperties": false
+      },
       "MailAccount": {
         "type": "object",
         "required": ["id", "scope", "kind", "displayName", "status", "authStatus", "receiveStatus", "sendStatus", "listedInAllAccounts", "version", "createdAt", "updatedAt", "credentialRefs"],
@@ -1724,6 +2058,7 @@
           "primaryAddress": { "type": "string", "format": "email" },
           "providerLabel": { "type": "string", "maxLength": 128 },
           "imap": { "$ref": "#/components/schemas/MailAccountImapProfile" },
+          "smtp": { "$ref": "#/components/schemas/MailAccountSmtpProfile" },
           "status": { "type": "string", "enum": ["ready", "configuring", "syncing", "degraded", "disabled", "history_only", "deleted"] },
           "authStatus": { "type": "string", "enum": ["not_required", "valid", "expired", "invalid", "missing", "refreshing", "reauthorization_required"] },
           "receiveStatus": { "type": "string", "enum": ["enabled", "syncing", "backoff", "auth_failed", "provider_unavailable", "expired", "disabled", "unsupported"] },
@@ -1749,6 +2084,7 @@
           "primaryAddress": { "type": "string", "format": "email" },
           "providerLabel": { "type": ["string", "null"], "maxLength": 128 },
           "imap": { "$ref": "#/components/schemas/MailAccountImapProfileInput" },
+          "smtp": { "$ref": "#/components/schemas/MailAccountSmtpProfileInput" },
           "listedInAllAccounts": { "type": "boolean" },
           "credentialRefs": {
             "type": "array",
@@ -1771,12 +2107,19 @@
               { "type": "null" }
             ]
           },
+          "smtp": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/MailAccountSmtpProfileInput" },
+              { "type": "null" }
+            ]
+          },
           "listedInAllAccounts": { "type": "boolean" }
         },
         "anyOf": [
           { "required": ["displayName"] },
           { "required": ["providerLabel"] },
           { "required": ["imap"] },
+          { "required": ["smtp"] },
           { "required": ["listedInAllAccounts"] }
         ],
         "additionalProperties": false
@@ -1833,6 +2176,33 @@
         "required": ["result"],
         "properties": {
           "result": { "$ref": "#/components/schemas/MailImapConnectionTestResult" }
+        },
+        "additionalProperties": false
+      },
+      "MailAccountSmtpTestInput": {
+        "type": "object",
+        "required": ["accountId", "credentialRefId"],
+        "properties": {
+          "accountId": { "type": "string", "minLength": 1 },
+          "credentialRefId": { "type": "string", "minLength": 1 }
+        },
+        "description": "Only account and opaque credential-reference identifiers are accepted. Raw passwords and other secret material are forbidden.",
+        "additionalProperties": false
+      },
+      "MailSmtpConnectionTestResult": {
+        "type": "object",
+        "required": ["authenticated", "capabilitySummary"],
+        "properties": {
+          "authenticated": { "type": "boolean", "const": true },
+          "capabilitySummary": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "TestMailAccountSmtpResponse": {
+        "type": "object",
+        "required": ["result"],
+        "properties": {
+          "result": { "$ref": "#/components/schemas/MailSmtpConnectionTestResult" }
         },
         "additionalProperties": false
       },
@@ -2791,6 +3161,222 @@
         "properties": {
           "refresh": { "$ref": "#/components/schemas/MailboxRefreshResult" },
           "detectedCode": { "$ref": "#/components/schemas/MailVerificationRecord" }
+        },
+        "additionalProperties": false
+      },
+      "MailSendQueueItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "accountId",
+          "accountScope",
+          "sourceId",
+          "messageId",
+          "senderAddress",
+          "smtpHost",
+          "smtpPort",
+          "smtpSecurity",
+          "smtpUsername",
+          "credentialRefId",
+          "targetAddress",
+          "ccAddresses",
+          "bccAddresses",
+          "subject",
+          "status",
+          "attemptCount",
+          "version",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "accountId": { "type": "string", "minLength": 1 },
+          "accountScope": { "type": "string", "enum": ["normal", "agent"] },
+          "sourceId": { "type": "string", "minLength": 1 },
+          "messageId": { "type": "string", "minLength": 1 },
+          "senderAddress": { "type": "string", "format": "email" },
+          "smtpHost": { "type": "string", "minLength": 1 },
+          "smtpPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+          "smtpSecurity": { "type": "string", "enum": ["tls", "starttls"] },
+          "smtpUsername": { "type": "string", "minLength": 1 },
+          "credentialRefId": { "type": "string", "minLength": 1 },
+          "targetAddress": { "type": "string", "minLength": 1 },
+          "ccAddresses": { "type": "array", "items": { "type": "string" } },
+          "bccAddresses": { "type": "array", "items": { "type": "string" } },
+          "subject": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["queued", "sending", "sent", "auth_failed", "delivery_unknown", "cancelled", "failed"]
+          },
+          "attemptCount": { "type": "integer", "minimum": 0 },
+          "scheduledAt": { "type": "string", "format": "date-time" },
+          "nextRetryAt": { "type": "string", "format": "date-time" },
+          "leaseOwner": { "type": "string" },
+          "leaseExpiresAt": { "type": "string", "format": "date-time" },
+          "providerMessageId": { "type": "string" },
+          "lastErrorCode": { "type": "string" },
+          "lastErrorMessage": { "type": "string" },
+          "version": { "type": "integer", "minimum": 1 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "sentAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      },
+      "MailSendEnqueueInput": {
+        "type": "object",
+        "required": ["accountId", "targetAddress", "subject", "bodyText"],
+        "properties": {
+          "accountId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "targetAddress": { "type": "string", "minLength": 1, "maxLength": 2048 },
+          "ccAddresses": {
+            "type": "array",
+            "maxItems": 100,
+            "items": { "type": "string", "maxLength": 320 }
+          },
+          "bccAddresses": {
+            "type": "array",
+            "maxItems": 100,
+            "items": { "type": "string", "maxLength": 320 }
+          },
+          "scheduledAt": { "type": ["string", "null"], "format": "date-time" },
+          "subject": { "type": "string", "maxLength": 998 },
+          "bodyText": { "type": "string", "maxLength": 512000 },
+          "bodyHtml": { "type": ["string", "null"], "maxLength": 512000 },
+          "idempotencyKey": { "type": ["string", "null"], "maxLength": 256 }
+        },
+        "additionalProperties": false
+      },
+      "MailSendEnqueueResult": {
+        "type": "object",
+        "required": ["messageId", "queueItem", "deduplicated"],
+        "properties": {
+          "messageId": { "type": "string", "minLength": 1 },
+          "queueItem": { "$ref": "#/components/schemas/MailSendQueueItem" },
+          "deduplicated": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "MailSendQueueWorkerRunResult": {
+        "type": "object",
+        "required": ["processedCount", "sentCount", "retryCount", "failedCount"],
+        "properties": {
+          "processedCount": { "type": "integer", "minimum": 0 },
+          "sentCount": { "type": "integer", "minimum": 0 },
+          "retryCount": { "type": "integer", "minimum": 0 },
+          "failedCount": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": false
+      },
+      "MailSendQueueWorkerStatus": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "running",
+          "intervalMs",
+          "leaseDurationMs",
+          "totalProcessedCount",
+          "totalSentCount",
+          "totalRetryCount",
+          "totalFailedCount"
+        ],
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "running": { "type": "boolean" },
+          "intervalMs": { "type": "integer", "minimum": 1 },
+          "leaseDurationMs": { "type": "integer", "minimum": 1 },
+          "lastRunAt": { "type": "string", "format": "date-time" },
+          "lastResult": { "$ref": "#/components/schemas/MailSendQueueWorkerRunResult" },
+          "totalProcessedCount": { "type": "integer", "minimum": 0 },
+          "totalSentCount": { "type": "integer", "minimum": 0 },
+          "totalRetryCount": { "type": "integer", "minimum": 0 },
+          "totalFailedCount": { "type": "integer", "minimum": 0 },
+          "lastErrorMessage": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "ListMailSendQueueResponse": {
+        "type": "object",
+        "required": ["items", "worker"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MailSendQueueItem" }
+          },
+          "nextCursor": { "type": "string" },
+          "worker": { "$ref": "#/components/schemas/MailSendQueueWorkerStatus" }
+        },
+        "additionalProperties": false
+      },
+      "GetMailSendQueueItemResponse": {
+        "type": "object",
+        "required": ["queueItem"],
+        "properties": {
+          "queueItem": { "$ref": "#/components/schemas/MailSendQueueItem" }
+        },
+        "additionalProperties": false
+      },
+      "RunMailSendQueueItemResponse": {
+        "type": "object",
+        "required": ["queueItem", "runResult"],
+        "properties": {
+          "queueItem": { "$ref": "#/components/schemas/MailSendQueueItem" },
+          "runResult": { "$ref": "#/components/schemas/MailSendQueueWorkerRunResult" }
+        },
+        "additionalProperties": false
+      },
+      "RunMailSendQueueWorkerResponse": {
+        "type": "object",
+        "required": ["runResult"],
+        "properties": {
+          "runResult": { "$ref": "#/components/schemas/MailSendQueueWorkerRunResult" }
+        },
+        "additionalProperties": false
+      },
+      "MailSendQueueRunBatchInput": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": ["integer", "null"], "minimum": 1, "maximum": 100 }
+        },
+        "additionalProperties": false
+      },
+      "MailSendQueueCancelInput": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": false
+      },
+      "CancelMailSendQueueItemResponse": {
+        "type": "object",
+        "required": ["queueItem"],
+        "properties": {
+          "queueItem": { "$ref": "#/components/schemas/MailSendQueueItem" }
+        },
+        "additionalProperties": false
+      },
+      "MailSendQueueRetryInput": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": { "type": "integer", "minimum": 1 },
+          "confirmDeliveryUnknown": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "RetryMailSendQueueItemResponse": {
+        "type": "object",
+        "required": ["queueItem"],
+        "properties": {
+          "queueItem": { "$ref": "#/components/schemas/MailSendQueueItem" }
+        },
+        "additionalProperties": false
+      },
+      "MailScheduledSendReopenResult": {
+        "type": "object",
+        "required": ["message", "queueItem"],
+        "properties": {
+          "message": { "$ref": "#/components/schemas/MailMessageDetail" },
+          "queueItem": { "$ref": "#/components/schemas/MailSendQueueItem" }
         },
         "additionalProperties": false
       }

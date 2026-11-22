@@ -142,9 +142,10 @@ export async function importLegacyEasyEmailAmAccounts(
       INSERT INTO mail_accounts (
         id, scope, kind, display_name, primary_address, provider_label,
         imap_host, imap_port, imap_security, imap_username,
+        smtp_host, smtp_port, smtp_security, smtp_username,
         status, auth_status, receive_status, send_status,
         listed_in_all_accounts, version, created_at, updated_at, deleted_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
     `);
     const insertCredentialStmt = targetDb.prepare(`
       INSERT INTO mail_account_credential_refs (
@@ -196,6 +197,10 @@ export async function importLegacyEasyEmailAmAccounts(
           account.imap?.port ?? null,
           account.imap?.security ?? null,
           account.imap?.username ?? null,
+          account.smtp?.host ?? null,
+          account.smtp?.port ?? null,
+          account.smtp?.security ?? null,
+          account.smtp?.username ?? null,
           account.status,
           account.authStatus,
           account.receiveStatus,

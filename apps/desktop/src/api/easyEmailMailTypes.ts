@@ -2,6 +2,7 @@ export type EasyEmailMailAccountScope = "normal" | "agent" | "system";
 export type EasyEmailMailAccountKind = "normal_long_lived" | "normal_upgraded_temp" | "anonymous_virtual" | "agent_owned";
 export type EasyEmailMailAccountCreatableKind = "normal_long_lived" | "agent_owned";
 export type EasyEmailMailAccountImapSecurity = "tls" | "starttls";
+export type EasyEmailMailAccountSmtpSecurity = "tls" | "starttls";
 export type EasyEmailMailAccountImapProfile = {
   protocol: "imap";
   host: string;
@@ -13,6 +14,19 @@ export type EasyEmailMailAccountImapProfileInput = {
   host: string;
   port: number;
   security: EasyEmailMailAccountImapSecurity | "ssl";
+  username: string;
+};
+export type EasyEmailMailAccountSmtpProfile = {
+  protocol: "smtp";
+  host: string;
+  port: number;
+  security: EasyEmailMailAccountSmtpSecurity;
+  username: string;
+};
+export type EasyEmailMailAccountSmtpProfileInput = {
+  host: string;
+  port: number;
+  security: EasyEmailMailAccountSmtpSecurity | "ssl";
   username: string;
 };
 export type EasyEmailMailAccountStatus = "ready" | "configuring" | "syncing" | "degraded" | "disabled" | "history_only" | "deleted";
@@ -27,6 +41,7 @@ export type EasyEmailMailAccount = {
   primaryAddress?: string;
   providerLabel?: string;
   imap?: EasyEmailMailAccountImapProfile;
+  smtp?: EasyEmailMailAccountSmtpProfile;
   status: EasyEmailMailAccountStatus;
   authStatus: EasyEmailMailAccountAuthStatus;
   receiveStatus: EasyEmailMailAccountReceiveStatus;
@@ -56,6 +71,7 @@ export type EasyEmailMailAccountCreateRequest = {
   primaryAddress: string;
   providerLabel?: string | null;
   imap?: EasyEmailMailAccountImapProfileInput;
+  smtp?: EasyEmailMailAccountSmtpProfileInput;
   listedInAllAccounts?: boolean;
   credentialRefs?: Array<{
     secretBackend: string;
@@ -69,12 +85,17 @@ export type EasyEmailMailAccountUpdateRequest = {
   displayName?: string;
   providerLabel?: string | null;
   imap?: EasyEmailMailAccountImapProfileInput | null;
+  smtp?: EasyEmailMailAccountSmtpProfileInput | null;
   listedInAllAccounts?: boolean;
 };
 export type EasyEmailMailAccountsResponse = { accounts: EasyEmailMailAccount[]; nextCursor?: string };
 export type EasyEmailMailAccountResponse = { account: EasyEmailMailAccount };
 export type EasyEmailMailAccountImapTestRequest = { accountId: string; credentialRefId: string };
 export type EasyEmailMailAccountImapTestResponse = {
+  result: { authenticated: true; capabilitySummary: string };
+};
+export type EasyEmailMailAccountSmtpTestRequest = { accountId: string; credentialRefId: string };
+export type EasyEmailMailAccountSmtpTestResponse = {
   result: { authenticated: true; capabilitySummary: string };
 };
 

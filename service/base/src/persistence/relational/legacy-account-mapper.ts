@@ -7,6 +7,7 @@ import type {
   MailAccountReceiveStatus,
   MailAccountScope,
   MailAccountSendStatus,
+  MailAccountSmtpProfile,
   MailAccountStatus,
   MailCredentialRef,
 } from "../../domain/account.js";
@@ -19,6 +20,7 @@ import {
   normalizeKind,
   normalizeOptionalLabel,
   normalizeScope,
+  normalizeSmtpProfile,
 } from "../../service/account-validation.js";
 
 const ALLOWED_STATUSES = new Set<MailAccountStatus>([
@@ -71,6 +73,7 @@ export interface MappedLegacyAccount {
   primaryAddress: string;
   providerLabel: string | null;
   imap: MailAccountImapProfile | undefined;
+  smtp: MailAccountSmtpProfile | undefined;
   status: MailAccountStatus;
   authStatus: MailAccountAuthStatus;
   receiveStatus: MailAccountReceiveStatus;
@@ -180,6 +183,32 @@ function parseLegacyImapConfig(rawJson: string | undefined): MailAccountImapProf
   });
 }
 
+function parseLegacySmtpConfig(rawJson: string | undefined): MailAccountSmtpProfile | undefined {
+  if (!rawJson) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson);
+  } catch {
+    throw new EasyEmailError("LEGACY_IMPORT_INVALID_RECORD", "Legacy SMTP mailbox_sources config_json is invalid JSON.");
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new EasyEmailError("LEGACY_IMPORT_INVALID_RECORD", "Legacy SMTP config_json must be an object.");
+  }
+  assertNoRawSecretFields(parsed);
+  const record = parsed as Record<string, unknown>;
+  if (Object.keys(record).length === 0) return undefined;
+  return normalizeSmtpProfile({
+    host: record.host,
+    port: record.port,
+    security: record.security === "" && record.port === 465
+      ? "tls"
+      : record.security === "" && record.port === 587
+        ? "starttls"
+        : record.security,
+    username: record.username,
+  });
+}
+
 export async function readAndMapLegacyAccounts(
   sourceDb: DatabaseSync,
   vaultCheck?: LegacyCredentialVaultCheck,
@@ -199,6 +228,13 @@ export async function readAndMapLegacyAccounts(
     SELECT config_json
     FROM mailbox_sources
     WHERE account_id = ? AND source_kind = 'imap'
+    ORDER BY updated_at DESC, id ASC
+    LIMIT 1
+  `);
+  const smtpSourceStmt = sourceDb.prepare(`
+    SELECT config_json
+    FROM mailbox_sources
+    WHERE account_id = ? AND source_kind = 'smtp'
     ORDER BY updated_at DESC, id ASC
     LIMIT 1
   `);
@@ -237,6 +273,8 @@ export async function readAndMapLegacyAccounts(
     }
     const imapRow = imapSourceStmt.get(id) as unknown as LegacyImapSourceSqlRow | undefined;
     const imap = parseLegacyImapConfig(imapRow?.config_json);
+    const smtpRow = smtpSourceStmt.get(id) as unknown as LegacyImapSourceSqlRow | undefined;
+    const smtp = parseLegacySmtpConfig(smtpRow?.config_json);
     const rawRefs = credentialStmt.all(id) as unknown as LegacyCredentialRefSqlRow[];
 
     let missingVaultCredential = false;
@@ -316,6 +354,7 @@ export async function readAndMapLegacyAccounts(
       primaryAddress,
       providerLabel: normalizeOptionalLabel(row.provider_label, "providerLabel") ?? null,
       imap,
+      smtp,
       status: assertEnumValue(row.status, ALLOWED_STATUSES, "account.status"),
       authStatus,
       receiveStatus,

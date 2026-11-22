@@ -9,6 +9,7 @@ import { handleAdminRoute } from "./routes/admin.js";
 import { handleInternalRoute } from "./routes/internal.js";
 import { handleMessageRoute } from "./routes/messages.js";
 import { handlePublicRoute } from "./routes/public.js";
+import { handleSendQueueRoute } from "./routes/send-queue.js";
 
 export interface EasyEmailHttpServerOptions {
   hostname?: string;
@@ -229,7 +230,7 @@ export function createEasyEmailHttpServer(
 
       response.statusCode = 204;
       response.setHeader("access-control-allow-methods", "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS");
-      response.setHeader("access-control-allow-headers", "Authorization, Content-Type");
+      response.setHeader("access-control-allow-headers", "Authorization, Content-Type, Idempotency-Key");
       response.setHeader("access-control-max-age", "600");
       response.end();
       return;
@@ -260,6 +261,13 @@ export function createEasyEmailHttpServer(
         readJsonBody: readBodyJson,
         extractProviderProbeInstanceId,
         extractObservedMessageId,
+      }) ?? await handleSendQueueRoute({
+        method,
+        path,
+        query,
+        headers: request.headers,
+        handler,
+        readJsonBody: readBodyJson,
       }) ?? await handleMessageRoute({
         method,
         path,

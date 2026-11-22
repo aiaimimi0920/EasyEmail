@@ -282,6 +282,96 @@ ON mail_verification_codes(session_id, extracted_at DESC, id DESC)
 WHERE session_id IS NOT NULL;
 `,
   },
+  {
+    version: 7,
+    name: "mail-smtp-and-send-queue",
+    sql: `
+ALTER TABLE mail_accounts ADD COLUMN smtp_host TEXT CHECK(smtp_host IS NULL OR (length(trim(smtp_host)) >= 1 AND length(smtp_host) <= 253));
+ALTER TABLE mail_accounts ADD COLUMN smtp_port INTEGER CHECK(smtp_port IS NULL OR (smtp_port >= 1 AND smtp_port <= 65535));
+ALTER TABLE mail_accounts ADD COLUMN smtp_security TEXT CHECK(smtp_security IS NULL OR smtp_security IN ('tls', 'starttls'));
+ALTER TABLE mail_accounts ADD COLUMN smtp_username TEXT CHECK(smtp_username IS NULL OR (length(trim(smtp_username)) >= 1 AND length(smtp_username) <= 320));
+
+CREATE TRIGGER validate_mail_account_smtp_profile_insert
+BEFORE INSERT ON mail_accounts
+WHEN NOT (
+  (NEW.smtp_host IS NULL AND NEW.smtp_port IS NULL AND NEW.smtp_security IS NULL AND NEW.smtp_username IS NULL)
+  OR (
+    NEW.kind != 'anonymous_virtual'
+    AND NEW.smtp_host IS NOT NULL
+    AND NEW.smtp_port IS NOT NULL
+    AND NEW.smtp_security IS NOT NULL
+    AND NEW.smtp_username IS NOT NULL
+  )
+)
+BEGIN
+  SELECT RAISE(ABORT, 'INVALID_MAIL_ACCOUNT_SMTP_PROFILE');
+END;
+
+CREATE TRIGGER validate_mail_account_smtp_profile_update
+BEFORE UPDATE OF kind, smtp_host, smtp_port, smtp_security, smtp_username ON mail_accounts
+WHEN NOT (
+  (NEW.smtp_host IS NULL AND NEW.smtp_port IS NULL AND NEW.smtp_security IS NULL AND NEW.smtp_username IS NULL)
+  OR (
+    NEW.kind != 'anonymous_virtual'
+    AND NEW.smtp_host IS NOT NULL
+    AND NEW.smtp_port IS NOT NULL
+    AND NEW.smtp_security IS NOT NULL
+    AND NEW.smtp_username IS NOT NULL
+  )
+)
+BEGIN
+  SELECT RAISE(ABORT, 'INVALID_MAIL_ACCOUNT_SMTP_PROFILE');
+END;
+
+CREATE TABLE mail_send_queue (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES mail_accounts(id) ON DELETE CASCADE,
+  account_scope TEXT NOT NULL CHECK(account_scope IN ('normal', 'agent')),
+  source_id TEXT NOT NULL,
+  message_id TEXT NOT NULL REFERENCES mail_messages(id) ON DELETE CASCADE,
+  sender_address TEXT NOT NULL,
+  smtp_host TEXT NOT NULL CHECK(length(trim(smtp_host)) >= 1 AND length(smtp_host) <= 253),
+  smtp_port INTEGER NOT NULL CHECK(smtp_port >= 1 AND smtp_port <= 65535),
+  smtp_security TEXT NOT NULL CHECK(smtp_security IN ('tls', 'starttls')),
+  smtp_username TEXT NOT NULL CHECK(length(trim(smtp_username)) >= 1 AND length(smtp_username) <= 320),
+  credential_ref_id TEXT NOT NULL REFERENCES mail_account_credential_refs(id) ON DELETE RESTRICT,
+  target_address TEXT NOT NULL,
+  cc_addresses_json TEXT NOT NULL DEFAULT '[]',
+  bcc_addresses_json TEXT NOT NULL DEFAULT '[]',
+  idempotency_key TEXT,
+  payload_fingerprint TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('queued', 'sending', 'sent', 'auth_failed', 'delivery_unknown', 'cancelled', 'failed')),
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count >= 0),
+  scheduled_at TEXT,
+  next_retry_at TEXT,
+  lease_owner TEXT,
+  lease_expires_at TEXT,
+  provider_message_id TEXT,
+  last_error_code TEXT,
+  last_error_message TEXT,
+  version INTEGER NOT NULL DEFAULT 1 CHECK(version >= 1),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  sent_at TEXT
+);
+
+CREATE UNIQUE INDEX idx_mail_send_queue_idempotency
+ON mail_send_queue(account_id, idempotency_key)
+WHERE idempotency_key IS NOT NULL;
+
+CREATE INDEX idx_mail_send_queue_claim_due
+ON mail_send_queue(status, next_retry_at, created_at, id);
+
+CREATE INDEX idx_mail_send_queue_lease
+ON mail_send_queue(status, lease_expires_at);
+
+CREATE INDEX idx_mail_send_queue_recent
+ON mail_send_queue(created_at DESC, id DESC);
+
+CREATE INDEX idx_mail_send_queue_message
+ON mail_send_queue(message_id, status);
+`,
+  },
 ] as const;
 
 export const EASY_EMAIL_RELATIONAL_SCHEMA_VERSION = RELATIONAL_MIGRATIONS.at(-1)?.version ?? 0;

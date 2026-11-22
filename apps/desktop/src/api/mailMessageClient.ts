@@ -105,7 +105,7 @@ function toMessageSummaryDto(summary: EasyEmailMailMessageSummary): AnonymousMes
   };
 }
 
-function toMessageDetailDto(detail: EasyEmailMailMessageDetail): MessageDetailDto {
+export function toMessageDetailDto(detail: EasyEmailMailMessageDetail): MessageDetailDto {
   return {
     message_id: detail.id,
     account_id: detail.accountId ?? "",

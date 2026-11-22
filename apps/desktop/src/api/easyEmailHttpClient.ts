@@ -3,6 +3,7 @@ import { createEasyEmailContactResources } from "./easyEmailContactResources.ts"
 import { createEasyEmailMailboxResources } from "./easyEmailMailboxResources.ts";
 import { createEasyEmailMailResources } from "./easyEmailMailResources.ts";
 import { createEasyEmailMessageResources } from "./easyEmailMessageResources.ts";
+import { createEasyEmailSendQueueResources } from "./easyEmailSendQueueResources.ts";
 import { createEasyEmailRequestTransport } from "./easyEmailHttpTransport.ts";
 
 export type {
@@ -39,6 +40,9 @@ export type {
   EasyEmailMailAccountImapSecurity,
   EasyEmailMailAccountImapProfile,
   EasyEmailMailAccountImapProfileInput,
+  EasyEmailMailAccountSmtpSecurity,
+  EasyEmailMailAccountSmtpProfile,
+  EasyEmailMailAccountSmtpProfileInput,
   EasyEmailMailAccountStatus,
   EasyEmailMailAccountAuthStatus,
   EasyEmailMailAccountReceiveStatus,
@@ -51,6 +55,8 @@ export type {
   EasyEmailMailAccountResponse,
   EasyEmailMailAccountImapTestRequest,
   EasyEmailMailAccountImapTestResponse,
+  EasyEmailMailAccountSmtpTestRequest,
+  EasyEmailMailAccountSmtpTestResponse,
   EasyEmailMailTaxonomyKind,
   EasyEmailMailTaxonomyItem,
   EasyEmailMailTaxonomyCapabilities,
@@ -94,6 +100,7 @@ export type {
 } from "./easyEmailMailboxTypes.ts";
 
 export type * from "./easyEmailMessageTypes.ts";
+export type * from "./easyEmailSendQueueTypes.ts";
 
 export { EASY_EMAIL_CORE_ROUTES } from "./easyEmailRoutes.ts";
 export { EasyEmailHttpError, normalizeEasyEmailHttpBaseUrl } from "./easyEmailHttpTransport.ts";
@@ -105,6 +112,7 @@ export function createEasyEmailHttpClient(options: EasyEmailHttpClientOptions) {
     ...createEasyEmailContactResources(request),
     ...createEasyEmailMailResources(request),
     ...createEasyEmailMessageResources(request),
+    ...createEasyEmailSendQueueResources(request),
     ...createEasyEmailMailboxResources(request),
   };
 }

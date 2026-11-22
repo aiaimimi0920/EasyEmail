@@ -12,7 +12,9 @@ import type {
 import type {
   MailAccountConnectivityDependencies,
   MailAccountImapTestRequest,
+  MailAccountSmtpTestRequest,
   MailImapConnectionTestResult,
+  MailSmtpConnectionTestResult,
 } from "./account-connectivity.js";
 import {
   ACCOUNT_CREATE_FIELDS,
@@ -21,9 +23,11 @@ import {
   DEFAULT_ACCOUNT_PAGE_SIZE,
   IMAP_TEST_FIELDS,
   MAX_ACCOUNT_PAGE_SIZE,
+  SMTP_TEST_FIELDS,
   assertNoRawSecretFields,
   assertOnlyKnownFields,
   decodeCursor,
+  deriveSendStatus,
   encodeCursor,
   initialState,
   normalizeCredentialRefs,
@@ -35,8 +39,18 @@ import {
   normalizeOptionalBoolean,
   normalizeOptionalLabel,
   normalizeScope,
+  normalizeSmtpProfile,
   sqliteUniqueConstraint,
 } from "./account-validation.js";
+
+function sanitizeCapabilitySummary(rawSummary: string, secret: string): string {
+  return rawSummary
+    .slice(0, 4096)
+    .split(secret)
+    .join("[redacted]")
+    .replace(/[\u0000-\u001f\u007f]+/gu, " ")
+    .slice(0, 1024);
+}
 
 export class MailAccountService {
   public constructor(
@@ -94,7 +108,10 @@ export class MailAccountService {
     if (!primaryAddress) {
       throw new EasyEmailError("INVALID_ACCOUNT", "primaryAddress is required for a user account.");
     }
-    const state = initialState(kind);
+    const imap = normalizeImapProfile(input.imap);
+    const smtp = normalizeSmtpProfile(input.smtp);
+    const credentialRefs = normalizeCredentialRefs(input.credentialRefs);
+    const state = initialState(kind, smtp, credentialRefs);
     const now = this.now().toISOString();
     try {
       return await this.repository.createMailAccount({
@@ -104,7 +121,8 @@ export class MailAccountService {
         displayName: normalizeDisplayName(input.displayName),
         primaryAddress,
         providerLabel: normalizeOptionalLabel(input.providerLabel, "providerLabel"),
-        imap: normalizeImapProfile(input.imap),
+        imap,
+        smtp,
         status: state.status,
         authStatus: state.authStatus,
         receiveStatus: state.receiveStatus,
@@ -113,7 +131,7 @@ export class MailAccountService {
           input.listedInAllAccounts,
           "listedInAllAccounts",
         ) ?? state.listedInAllAccounts,
-        credentialRefs: normalizeCredentialRefs(input.credentialRefs),
+        credentialRefs,
         now,
       });
     } catch (error) {
@@ -149,10 +167,15 @@ export class MailAccountService {
       input.displayName === undefined
       && input.providerLabel === undefined
       && input.imap === undefined
+      && input.smtp === undefined
       && input.listedInAllAccounts === undefined
     ) {
       throw new EasyEmailError("INVALID_ACCOUNT", "At least one account field must be updated.");
     }
+    const nextSmtp = input.smtp === undefined ? existing.smtp : normalizeSmtpProfile(input.smtp, true);
+    const nextSendStatus = input.smtp === undefined
+      ? existing.sendStatus
+      : deriveSendStatus(nextSmtp, existing.credentialRefs, existing.status);
     const updated = await this.repository.updateMailAccount({
       id: existing.id,
       expectedVersion,
@@ -163,6 +186,8 @@ export class MailAccountService {
         ? existing.providerLabel
         : normalizeOptionalLabel(input.providerLabel, "providerLabel"),
       imap: input.imap === undefined ? existing.imap : normalizeImapProfile(input.imap, true),
+      smtp: nextSmtp,
+      sendStatus: nextSendStatus,
       listedInAllAccounts: normalizeOptionalBoolean(
         input.listedInAllAccounts,
         "listedInAllAccounts",
@@ -286,20 +311,114 @@ export class MailAccountService {
       if (result.authenticated !== true || typeof result.capabilitySummary !== "string") {
         throw new Error("invalid IMAP test result");
       }
-      const capabilitySummary = result.capabilitySummary
-        .slice(0, 4096)
-        .split(resolution.secret).join("[redacted]")
-        .replace(/[\u0000-\u001f\u007f]+/gu, " ")
-        .slice(0, 1024);
       return {
         authenticated: true,
-        capabilitySummary,
+        capabilitySummary: sanitizeCapabilitySummary(result.capabilitySummary, resolution.secret),
       };
     } catch (error) {
       if (error instanceof EasyEmailError && error.code === "IMAP_AUTH_FAILED") {
         throw error;
       }
       throw new EasyEmailError("ACCOUNT_IMAP_UNAVAILABLE", "The IMAP server could not be reached.");
+    }
+  }
+
+  public async testSmtpConnection(
+    input: MailAccountSmtpTestRequest,
+  ): Promise<MailSmtpConnectionTestResult> {
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+      throw new EasyEmailError("INVALID_ACCOUNT", "SMTP test request must be an object.");
+    }
+    assertNoRawSecretFields(input);
+    assertOnlyKnownFields(input as unknown as Record<string, unknown>, SMTP_TEST_FIELDS, "SMTP test");
+    const accountId = typeof input.accountId === "string" ? input.accountId.trim() : "";
+    const credentialRefId = typeof input.credentialRefId === "string" ? input.credentialRefId.trim() : "";
+    if (!accountId || accountId.length > 256 || !credentialRefId || credentialRefId.length > 256) {
+      throw new EasyEmailError("INVALID_ACCOUNT", "accountId and credentialRefId must be non-empty strings.");
+    }
+    const account = await this.getAccount(accountId);
+    if (account.kind === "anonymous_virtual" || account.status === "disabled") {
+      throw new EasyEmailError("ACCOUNT_SMTP_TEST_UNSUPPORTED", "This account cannot test SMTP connectivity.");
+    }
+    if (!account.smtp) {
+      throw new EasyEmailError("ACCOUNT_SMTP_CONFIG_REQUIRED", "The account has no SMTP connection profile.");
+    }
+    const credentialRef = account.credentialRefs.find((item) => item.id === credentialRefId);
+    if (
+      !credentialRef
+      || credentialRef.ownerAccountId !== account.id
+      || credentialRef.credentialKind !== "smtp_password"
+      || credentialRef.authMethod !== "password"
+      || credentialRef.status === "disabled"
+      || credentialRef.status === "invalid"
+    ) {
+      throw new EasyEmailError(
+        "ACCOUNT_REAUTHENTICATION_REQUIRED",
+        "The account SMTP credential must be provided again.",
+      );
+    }
+    const { credentialResolver, smtpTransport } = this.connectivity;
+    if (!credentialResolver) {
+      throw new EasyEmailError(
+        "ACCOUNT_CREDENTIAL_UNAVAILABLE",
+        "The credential resolver is unavailable in this runtime.",
+      );
+    }
+    if (!smtpTransport) {
+      throw new EasyEmailError("ACCOUNT_SMTP_TEST_UNAVAILABLE", "SMTP testing is unavailable in this runtime.");
+    }
+    let resolution;
+    try {
+      resolution = await credentialResolver.resolveCredential({
+        account,
+        credentialRef,
+        useCase: "smtp-test",
+      });
+    } catch {
+      throw new EasyEmailError(
+        "ACCOUNT_CREDENTIAL_UNAVAILABLE",
+        "The credential resolver could not be reached.",
+      );
+    }
+    if (resolution.status === "missing") {
+      throw new EasyEmailError(
+        "ACCOUNT_REAUTHENTICATION_REQUIRED",
+        "The account SMTP credential must be provided again.",
+      );
+    }
+    if (resolution.status !== "resolved" || typeof resolution.secret !== "string" || !resolution.secret) {
+      throw new EasyEmailError("ACCOUNT_CREDENTIAL_UNAVAILABLE", "The account credential is unavailable.");
+    }
+    const now = this.now().toISOString();
+    try {
+      const result = await smtpTransport.testConnection(account.smtp, resolution.secret);
+      if (result.authenticated !== true || typeof result.capabilitySummary !== "string") {
+        throw new Error("invalid SMTP test result");
+      }
+      await this.repository.recordMailAccountSendOutcome?.({
+        accountId: account.id,
+        credentialRefId: credentialRef.id,
+        sendStatus: "enabled",
+        credentialStatus: "active",
+        verifiedAt: now,
+        now,
+      });
+      return {
+        authenticated: true,
+        capabilitySummary: sanitizeCapabilitySummary(result.capabilitySummary, resolution.secret),
+      };
+    } catch (error) {
+      if (error instanceof EasyEmailError && error.code === "SMTP_AUTH_FAILED") {
+        await this.repository.recordMailAccountSendOutcome?.({
+          accountId: account.id,
+          credentialRefId: credentialRef.id,
+          sendStatus: "auth_failed",
+          credentialStatus: "invalid",
+          now,
+        });
+        throw error;
+      }
+      throw new EasyEmailError("ACCOUNT_SMTP_UNAVAILABLE", "The SMTP server could not be reached.");
     }
   }
 }

@@ -1,12 +1,16 @@
-import type { ManualImapAccountCreateRequest } from "../../api/mailAccountClient";
+import {
+  hasTestableSmtpCredential,
+  type ManualImapAccountCreateRequest,
+} from "../../api/mailAccountClient";
 import type { AppController } from "../../app/useAppController";
 
 export function MailAccountSetupPanel({ controller }: { controller: AppController }) {
   const {
     applyQqMailPreset, normalDisplayName, setNormalDisplayName, normalEmailAddress, updateNormalEmailAddress, normalImapPassword, updateMailboxAuthorizationCode, mailboxLoginUsername,
-    normalImapHost, normalImapPort, setMailAccountPanelAdvancedOpen, mailAccountPanelAdvancedOpen, setNormalImapHost, setNormalImapPort, normalImapSecurity, setNormalImapSecurity,
-    addManualImapAccount, busy, normalImapTest, normalImapAccounts, setSelectedNormalAccountId, setMailSourceId, setStatusMessage, testNormalImap,
-    disableNormalAccount, deleteNormalAccount,
+    normalImapHost, normalImapPort, normalSmtpHost, normalSmtpPort, normalSmtpSecurity, setNormalSmtpHost, setNormalSmtpPort, setNormalSmtpSecurity,
+    setMailAccountPanelAdvancedOpen, mailAccountPanelAdvancedOpen, setNormalImapHost, setNormalImapPort, normalImapSecurity, setNormalImapSecurity,
+    addManualImapAccount, busy, normalImapTest, normalSmtpTest, normalImapAccounts, setSelectedNormalAccountId, setMailSourceId, setStatusMessage,
+    testNormalImap, testNormalSmtp, disableNormalAccount, deleteNormalAccount,
   } = controller;
   return (
     <section className="nt-action-board">
@@ -57,7 +61,9 @@ export function MailAccountSetupPanel({ controller }: { controller: AppControlle
             {normalImapHost || "imap.qq.com"}:{normalImapPort || "993"}
           </strong>
           <span>Send</span>
-          <strong>SMTP migrates in M5</strong>
+          <strong>
+            {normalSmtpHost ? `${normalSmtpHost}:${normalSmtpPort || "465"}` : "Receive only (set SMTP host to enable send)"}
+          </strong>
         </div>
         <button
           type="button"
@@ -98,16 +104,46 @@ export function MailAccountSetupPanel({ controller }: { controller: AppControlle
                 <option value="starttls">STARTTLS</option>
               </select>
             </label>
+            <label>
+              SMTP host
+              <input
+                autoComplete="off"
+                value={normalSmtpHost}
+                placeholder="smtp.example.com"
+                onChange={(event) => setNormalSmtpHost(event.currentTarget.value)}
+              />
+            </label>
+            <label>
+              SMTP port
+              <input
+                value={normalSmtpPort}
+                inputMode="numeric"
+                placeholder="465"
+                onChange={(event) => setNormalSmtpPort(event.currentTarget.value)}
+              />
+            </label>
+            <label>
+              SMTP security
+              <select
+                value={normalSmtpSecurity}
+                onChange={(event) => setNormalSmtpSecurity(
+                  event.currentTarget.value as NonNullable<ManualImapAccountCreateRequest["smtp_security"]>,
+                )}
+              >
+                <option value="tls">TLS</option>
+                <option value="starttls">STARTTLS</option>
+              </select>
+            </label>
             <p className="nt-form-note nt-wide-field">
-              This M3 slice stores IMAP only. SMTP settings and send credentials move with the M5 queue slice.
+              One authorization code is stored in OS Credential Manager as opaque IMAP and SMTP references; raw secrets never cross HTTP.
             </p>
           </>
         ) : null}
       </div>
       <div className="nt-result">
         <strong>QQ Mail</strong>
-        <span>IMAP imap.qq.com:993 TLS. SMTP setup is deferred to M5.</span>
-        <small>Enable IMAP in QQ Mail web settings and paste the generated authorization code.</small>
+        <span>IMAP imap.qq.com:993 TLS / SMTP smtp.qq.com:465 TLS.</span>
+        <small>Enable IMAP/SMTP in QQ Mail web settings and paste the generated authorization code.</small>
       </div>
       <div className="nt-actions">
         <button type="button" className="nt-btn nt-btn--primary" onClick={() => void addManualImapAccount()} disabled={busy}>
@@ -116,8 +152,14 @@ export function MailAccountSetupPanel({ controller }: { controller: AppControlle
       </div>
       {normalImapTest ? (
         <div className="nt-result">
-          <strong>{normalImapTest.authenticated ? "Authenticated" : "Not authenticated"}</strong>
+          <strong>{normalImapTest.authenticated ? "IMAP Authenticated" : "IMAP Not authenticated"}</strong>
           <span>{normalImapTest.capability_summary}</span>
+        </div>
+      ) : null}
+      {normalSmtpTest ? (
+        <div className="nt-result">
+          <strong>{normalSmtpTest.authenticated ? "SMTP Authenticated" : "SMTP Not authenticated"}</strong>
+          <span>{normalSmtpTest.capability_summary}</span>
         </div>
       ) : null}
       <div className="nt-scroll-pane nt-scroll-pane--short">
@@ -150,6 +192,16 @@ export function MailAccountSetupPanel({ controller }: { controller: AppControlle
                 >
                   Test IMAP
                 </button>
+                {hasTestableSmtpCredential(account) ? (
+                  <button
+                    type="button"
+                    className="nt-mini-btn"
+                    onClick={() => void testNormalSmtp(account)}
+                    disabled={busy}
+                  >
+                    Test SMTP
+                  </button>
+                ) : null}
                 {account.status !== "disabled" ? (
                   <button
                     type="button"

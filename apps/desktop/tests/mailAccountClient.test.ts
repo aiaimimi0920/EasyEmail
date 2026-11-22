@@ -20,6 +20,13 @@ const credentialRef: DesktopCredentialRefDto = {
   auth_method: "password",
 };
 
+const smtpCredentialRef: DesktopCredentialRefDto = {
+  secret_backend: "windows_credential_manager",
+  secret_key: "ref:v1:desktop/00000000000000000000000000000009",
+  credential_kind: "smtp_password",
+  auth_method: "password",
+};
+
 function account(overrides: Partial<EasyEmailMailAccount> = {}): EasyEmailMailAccount {
   return {
     id: "acct_v1_work",
@@ -78,18 +85,28 @@ function createTransport(): MailAccountHttpTransport & { calls: string[]; create
       calls.push(`test:${request.accountId}:${request.credentialRefId}`);
       return { result: { authenticated: true, capabilitySummary: "IMAP4rev1 STARTTLS" } };
     },
+    async testMailAccountSmtp(request) {
+      calls.push(`test-smtp:${request.accountId}:${request.credentialRefId}`);
+      return { result: { authenticated: true, capabilitySummary: "ESMTP 8BITMIME" } };
+    },
   };
 }
 
-function createCredentials(): DesktopCredentialTransport & { stored: string[]; deleted: string[] } {
+function createCredentials(): DesktopCredentialTransport & { stored: string[]; storedSmtp: string[]; deleted: string[] } {
   const stored: string[] = [];
+  const storedSmtp: string[] = [];
   const deleted: string[] = [];
   return {
     stored,
+    storedSmtp,
     deleted,
     async storeImapPassword(secret) {
       stored.push(secret);
       return credentialRef;
+    },
+    async storeSmtpPassword(secret) {
+      storedSmtp.push(secret);
+      return smtpCredentialRef;
     },
     async deleteCredential(secretKey) {
       deleted.push(secretKey);
@@ -363,4 +380,75 @@ test("refuses IMAP tests for invalid or disabled password references", async () 
     await assert.rejects(client.testImap(listed), /no testable IMAP password reference/);
     assert.deepEqual(transport.calls, []);
   }
+});
+
+test("stores both IMAP and SMTP opaque refs, tests SMTP, and rolls back both refs on create failure", async () => {
+  const transport = createTransport();
+  const credentials = createCredentials();
+  let submitted: unknown;
+  transport.createMailAccount = async (request) => {
+    submitted = request;
+    return {
+      account: account({
+        smtp: { protocol: "smtp", host: "smtp.qq.com", port: 465, security: "tls", username: "work@qq.com" },
+        sendStatus: "enabled",
+        credentialRefs: [
+          account().credentialRefs[0]!,
+          {
+            id: "cred_v1_smtp",
+            ownerAccountId: "acct_v1_work",
+            secretBackend: smtpCredentialRef.secret_backend,
+            secretKey: smtpCredentialRef.secret_key,
+            credentialKind: smtpCredentialRef.credential_kind,
+            authMethod: smtpCredentialRef.auth_method,
+            status: "missing",
+            createdAt: "2026-09-02T00:00:00Z",
+            updatedAt: "2026-09-02T00:00:00Z",
+          },
+        ],
+      }),
+    };
+  };
+  const client = createMailAccountClient(transport, credentials);
+  const created = await client.addManualImapAccount({
+    display_name: "QQ Mail",
+    email_address: "work@qq.com",
+    imap_host: "imap.qq.com",
+    imap_port: 993,
+    imap_security: "tls",
+    imap_username: "work@qq.com",
+    imap_password: "qq-auth-code-canary",
+    smtp_host: "smtp.qq.com",
+    smtp_port: 465,
+    smtp_security: "tls",
+  });
+  assert.equal(created.smtp_credential_ref_id, "cred_v1_smtp");
+  assert.equal(JSON.stringify(submitted).includes("qq-auth-code-canary"), false);
+  assert.deepEqual(await client.testSmtp(created.account), {
+    authenticated: true,
+    capability_summary: "ESMTP 8BITMIME",
+  });
+  assert.deepEqual(transport.calls, ["test-smtp:acct_v1_work:cred_v1_smtp"]);
+
+  const failingTransport = createTransport();
+  failingTransport.createMailAccount = async () => {
+    throw new Error("create failed");
+  };
+  const rollbackCreds = createCredentials();
+  await assert.rejects(
+    createMailAccountClient(failingTransport, rollbackCreds).addManualImapAccount({
+      display_name: "QQ Mail",
+      email_address: "work@qq.com",
+      imap_host: "imap.qq.com",
+      imap_port: 993,
+      imap_security: "tls",
+      imap_username: "work@qq.com",
+      imap_password: "qq-auth-code-canary",
+      smtp_host: "smtp.qq.com",
+      smtp_port: 465,
+      smtp_security: "tls",
+    }),
+    /create failed/,
+  );
+  assert.deepEqual(rollbackCreds.deleted, [credentialRef.secret_key, smtpCredentialRef.secret_key]);
 });

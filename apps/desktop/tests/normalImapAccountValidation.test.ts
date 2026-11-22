@@ -46,3 +46,41 @@ test("rejects invalid manual IMAP fields before credentials or HTTP are used", (
     if (!result.ok) assert.equal(result.error.code, code);
   }
 });
+
+test("normalizes optional canonical SMTP fields and rejects invalid SMTP ports", () => {
+  assert.deepEqual(
+    validateNormalImapAccount({
+      ...validFields,
+      smtpHost: " smtp.example.com ",
+      smtpPort: "465",
+      smtpSecurity: "tls",
+    }),
+    {
+      ok: true,
+      request: {
+        display_name: "Work",
+        email_address: "user@example.com",
+        imap_host: "imap.example.com",
+        imap_port: 993,
+        imap_security: "tls",
+        imap_username: "user@example.com",
+        imap_password: "authorization-secret",
+        smtp_host: "smtp.example.com",
+        smtp_port: 465,
+        smtp_security: "tls",
+        smtp_username: "user@example.com",
+        smtp_password: "authorization-secret",
+      },
+    },
+  );
+
+  const invalidPort = validateNormalImapAccount({
+    ...validFields,
+    smtpHost: "smtp.example.com",
+    smtpPort: "70000",
+  });
+  assert.equal(invalidPort.ok, false);
+  if (!invalidPort.ok) {
+    assert.equal(invalidPort.error.code, "NORMAL_SMTP_PORT_INVALID");
+  }
+});

@@ -1,12 +1,10 @@
 import { useEffect, useMemo } from "react";
-import { type AccountDto } from "../api/mailAccountClient";
 import { sortVisibleMailMessagesByTime } from "../mail/mailSelectors";
 import { temporaryMailboxRefreshFailureMessage } from "../mail/temporaryMailboxAdapter";
 import { useEventCallback } from "../hooks/useEventCallback";
 import { createNonOverlappingAsyncRunner } from "../utils/asyncTask";
 import { MAIL_AUTO_SYNC_INTERVAL_MS } from "./appConfig";
 import { asErrorDto, temporaryRefreshError } from "./appDomain";
-import { sendQueueClient } from "./appRuntime";
 import type { MailSource } from "./appTypes";
 import {
   attachTemporaryMailboxSources,
@@ -29,7 +27,7 @@ type Dependencies = {
 
 export function useMailSourceController(appState: AppState, dependencies: Dependencies) {
   const {
-    normalAccounts, agentAccounts, setLastSendWorkerRun, setStatusMessage, agentServices, selectedAgentServiceId, selectedAgentSenderId, agentThreads,
+    normalAccounts, agentAccounts, setStatusMessage, agentServices, selectedAgentServiceId, selectedAgentSenderId, agentThreads,
     anonymousMessages, normalMessagesByAccount, promotedMessagesByAccount, tempMailboxes, mailSourceId, setMailSourceId, setSelectedMailMessageId, setSelectedMailConversationKey,
     setSelectedMessageDetail, setSelectedNewsletterSubscription, setMailSourceDrawerOpen, setMailSourceDropdownOpen, setSelectedNormalAccountId, setMailAccountPanelOpen, mailAutoSyncInFlightRef, setMailSyncInProgress,
     setBusy, setRecentCodes, setError, activeView, setSelectedTempMailboxId,
@@ -45,50 +43,40 @@ export function useMailSourceController(appState: AppState, dependencies: Depend
       () => normalAccounts.filter((account) => account.kind === "normal_long_lived"),
       [normalAccounts],
     );
-  const sendEnabledAccounts: AccountDto[] = [];
+  const sendEnabledAccounts = useMemo(
+      () => normalAccounts.filter((account) => account.send_status === "enabled"),
+      [normalAccounts],
+    );
   const sendEnabledAgentAccounts = useMemo(
       () => agentAccounts.filter((account) => account.send_status === "enabled"),
       [agentAccounts],
     );
-  const scheduledSendWorkerTask = useEventCallback(async (isCurrent: () => boolean) => {
+  const observeSendQueueTask = useEventCallback(async (isCurrent: () => boolean) => {
         try {
-          const result = await sendQueueClient.runSendQueueDueBatch({ limit: 10 });
-          if (!isCurrent()) {
-            return;
-          }
-          if (result.processed_count > 0) {
-            setLastSendWorkerRun(result);
-            await loadSendQueue(isCurrent);
-            if (!isCurrent()) {
-              return;
-            }
-            setStatusMessage(
-              `Scheduled send worker processed ${result.processed_count}; sent ${result.sent_count}, retry ${result.retry_count}, failed ${result.failed_count}.`,
-            );
-          }
-        } catch (caught: unknown) {
-          if (isCurrent()) {
-            const errorDto = asErrorDto(caught);
-            setStatusMessage(`Scheduled send worker could not run: ${errorDto.user_message}`);
-          }
+          await loadSendQueue(isCurrent);
+        } catch {
+          // Background status observation must not interrupt foreground work.
         }
     });
-  const runScheduledSendWorker = useMemo(
-      () => createNonOverlappingAsyncRunner(scheduledSendWorkerTask),
-      [scheduledSendWorkerTask],
+  const refreshVisibleSendQueue = useMemo(
+      () => createNonOverlappingAsyncRunner(observeSendQueueTask),
+      [observeSendQueueTask],
     );
   useEffect(() => {
+      if (activeView !== "queue") {
+        return undefined;
+      }
       let cancelled = false;
       const isCurrent = () => !cancelled;
 
-      void runScheduledSendWorker(isCurrent);
-      const intervalId = window.setInterval(() => void runScheduledSendWorker(isCurrent), 15000);
+      void refreshVisibleSendQueue(isCurrent);
+      const intervalId = window.setInterval(() => void refreshVisibleSendQueue(isCurrent), 5000);
 
       return () => {
         cancelled = true;
         window.clearInterval(intervalId);
       };
-    }, [runScheduledSendWorker]);
+    }, [activeView, refreshVisibleSendQueue]);
   const selectedAgentService =
       agentServices.find((service) => service.id === selectedAgentServiceId) ?? null;
   const selectedAgentSender =

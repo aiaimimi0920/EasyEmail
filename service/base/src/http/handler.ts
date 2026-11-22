@@ -1,37 +1,34 @@
 import type * as Contracts from "./contracts.js";
-import { refreshMailboxSessions } from "./mailbox-refresh-support.js";
+import { EasyEmailCoreMailboxHttpHandler } from "./handler-mailbox-core.js";
 import { EasyEmailError } from "../domain/errors.js";
 import type { MailTaxonomyKind } from "../domain/mail-taxonomy.js";
 import type { MailStateQueryRepository } from "../persistence/contracts.js";
-import {
-  calculateMailPersistenceStats,
-  queryHostBindingsFromSnapshot,
-  queryMailboxSessionsFromSnapshot,
-  queryObservedMessagesFromSnapshot,
-  queryProviderInstancesFromSnapshot,
-} from "../persistence/query-helpers.js";
 import type { MailAccountService } from "../service/accounts.js";
 import type { ContactService } from "../service/contacts.js";
 import { createEasyEmailService, type EasyEmailService } from "../service/easy-email-service.js";
 import type { MailMessageService } from "../service/mail-messages.js";
+import type { MailSendQueueService } from "../service/mail-send-queue.js";
 import {
   MAIL_TAXONOMY_CAPABILITIES,
   type MailTaxonomyService,
 } from "../service/mail-taxonomy.js";
 import type { MailVerificationService } from "../service/mail-verifications.js";
 
-export class EasyEmailHttpHandler {
+export class EasyEmailHttpHandler extends EasyEmailCoreMailboxHttpHandler {
   public constructor(
-    private readonly service: EasyEmailService = createEasyEmailService(),
-    private readonly queryRepository?: MailStateQueryRepository,
+    service: EasyEmailService = createEasyEmailService(),
+    queryRepository?: MailStateQueryRepository,
     private readonly contacts?: ContactService,
     private readonly mailTaxonomy?: MailTaxonomyService,
     private readonly accounts?: MailAccountService,
-    private readonly messages?: MailMessageService,
+    messages?: MailMessageService,
     private readonly verifications?: MailVerificationService,
-  ) {}
+    private readonly sendQueue?: MailSendQueueService,
+  ) {
+    super(service, queryRepository, messages);
+  }
 
-  private requireContacts(): ContactService {
+  protected requireContacts(): ContactService {
     if (!this.contacts) {
       throw new EasyEmailError(
         "CONTACTS_PERSISTENCE_UNAVAILABLE",
@@ -41,7 +38,7 @@ export class EasyEmailHttpHandler {
     return this.contacts;
   }
 
-  private requireMailTaxonomy(): MailTaxonomyService {
+  protected requireMailTaxonomy(): MailTaxonomyService {
     if (!this.mailTaxonomy) {
       throw new EasyEmailError(
         "MAIL_TAXONOMY_PERSISTENCE_UNAVAILABLE",
@@ -51,7 +48,7 @@ export class EasyEmailHttpHandler {
     return this.mailTaxonomy;
   }
 
-  private requireAccounts(): MailAccountService {
+  protected requireAccounts(): MailAccountService {
     if (!this.accounts) {
       throw new EasyEmailError(
         "ACCOUNTS_PERSISTENCE_UNAVAILABLE",
@@ -61,7 +58,7 @@ export class EasyEmailHttpHandler {
     return this.accounts;
   }
 
-  private requireMessages(): MailMessageService {
+  protected requireMessages(): MailMessageService {
     if (!this.messages) {
       throw new EasyEmailError(
         "MESSAGES_PERSISTENCE_UNAVAILABLE",
@@ -71,7 +68,7 @@ export class EasyEmailHttpHandler {
     return this.messages;
   }
 
-  private requireVerifications(): MailVerificationService {
+  protected requireVerifications(): MailVerificationService {
     if (!this.verifications) {
       throw new EasyEmailError(
         "VERIFICATIONS_PERSISTENCE_UNAVAILABLE",
@@ -81,111 +78,14 @@ export class EasyEmailHttpHandler {
     return this.verifications;
   }
 
-  public getCatalog(): Contracts.GetMailCatalogHttpResponse {
-    return { catalog: this.service.getCatalog() };
-  }
-
-  public getSnapshot(): Contracts.GetMailSnapshotHttpResponse {
-    return { snapshot: this.service.getSnapshot() };
-  }
-
-  public async registerCloudflareTempEmailRuntime(
-    request: Contracts.RegisterCloudflareTempEmailRuntimeHttpRequest,
-  ): Promise<Contracts.RegisterCloudflareTempEmailRuntimeHttpResponse> {
-    return { result: await this.service.registerCloudflareTempEmailRuntime(request) };
-  }
-
-  public applyCredentialSets(
-    request: Contracts.ApplyMailCredentialSetsHttpRequest,
-  ): Contracts.ApplyMailCredentialSetsHttpResponse {
-    return {
-      result: this.service.applyCredentialSets(
-        request.providerInstanceId,
-        request.credentialSets,
-      ),
-    };
-  }
-
-  public async probeProviderInstance(
-    instanceId: string,
-  ): Promise<Contracts.ProbeProviderInstanceHttpResponse> {
-    return { probe: await this.service.probeProviderInstance(instanceId) };
-  }
-
-  public async probeAllProviderInstances(): Promise<Contracts.ProbeAllProviderInstancesHttpResponse> {
-    return { probes: await this.service.probeAllProviderInstances() };
-  }
-
-  public async queryProviderInstances(
-    filters: Contracts.QueryProviderInstancesHttpRequest = {},
-  ): Promise<Contracts.QueryProviderInstancesHttpResponse> {
-    return {
-      instances: queryProviderInstancesFromSnapshot(this.service.getSnapshot(), filters),
-    };
-  }
-
-  public async queryHostBindings(
-    filters: Contracts.QueryHostBindingsHttpRequest = {},
-  ): Promise<Contracts.QueryHostBindingsHttpResponse> {
-    return {
-      bindings: this.queryRepository
-        ? await this.queryRepository.listHostBindings(filters)
-        : queryHostBindingsFromSnapshot(this.service.getSnapshot(), filters),
-    };
-  }
-
-  public async queryMailboxSessions(
-    filters: Contracts.QueryMailboxSessionsHttpRequest = {},
-  ): Promise<Contracts.QueryMailboxSessionsHttpResponse> {
-    return {
-      sessions: this.queryRepository
-        ? await this.queryRepository.listMailboxSessions(filters)
-        : queryMailboxSessionsFromSnapshot(this.service.getSnapshot(), filters),
-    };
-  }
-
-  public async queryObservedMessages(
-    filters: Contracts.QueryObservedMessagesHttpRequest = {},
-  ): Promise<Contracts.QueryObservedMessagesHttpResponse> {
-    const synchronized = Boolean(filters.sync && filters.sessionId);
-    if (synchronized) {
-      await this.service.syncObservedMessages(filters.sessionId);
-      await this.messages?.ingestObservedMessages();
+  protected requireSendQueue(): MailSendQueueService {
+    if (!this.sendQueue) {
+      throw new EasyEmailError(
+        "SEND_QUEUE_PERSISTENCE_UNAVAILABLE",
+        "Persistent send queue is not available in this runtime.",
+      );
     }
-    const queryFilters = {
-      ...filters,
-      sync: undefined,
-    };
-    return {
-      // A successful sync updates the registry before the periodic durable flush.
-      messages: this.queryRepository && !synchronized
-        ? await this.queryRepository.listObservedMessages(queryFilters)
-        : queryObservedMessagesFromSnapshot(this.service.getSnapshot(), queryFilters),
-    };
-  }
-
-  public getObservedMessage(messageId: string): Contracts.GetObservedMessageHttpResponse {
-    return {
-      message: this.service.getSnapshot().messages.find((item) => item.id === messageId),
-    };
-  }
-
-  public async getPersistenceStats(): Promise<Contracts.GetMailPersistenceStatsHttpResponse> {
-    return {
-      stats: this.queryRepository
-        ? await this.queryRepository.getStats()
-        : calculateMailPersistenceStats(this.service.getSnapshot()),
-    };
-  }
-
-  public planMailbox(request: Contracts.PlanMailboxHttpRequest): Contracts.PlanMailboxHttpResponse {
-    return { plan: this.service.planMailbox(request) };
-  }
-
-  public async openMailbox(
-    request: Contracts.OpenMailboxHttpRequest,
-  ): Promise<Contracts.OpenMailboxHttpResponse> {
-    return { result: await this.service.openMailbox(request) };
+    return this.sendQueue;
   }
 
   public async listContacts(
@@ -261,6 +161,12 @@ export class EasyEmailHttpHandler {
     request: Contracts.TestMailAccountImapHttpRequest,
   ): Promise<Contracts.TestMailAccountImapHttpResponse> {
     return { result: await this.requireAccounts().testImapConnection(request) };
+  }
+
+  public async testMailAccountSmtp(
+    request: Contracts.TestMailAccountSmtpHttpRequest,
+  ): Promise<Contracts.TestMailAccountSmtpHttpResponse> {
+    return { result: await this.requireAccounts().testSmtpConnection(request) };
   }
 
   public async listMailTaxonomy(
@@ -390,120 +296,58 @@ export class EasyEmailHttpHandler {
     return this.requireVerifications().pollMailboxVerification(sessionId);
   }
 
-  public async refreshMailbox(sessionId: string): Promise<Contracts.RefreshMailboxHttpResponse> {
-    const session = this.service.getSnapshot().sessions.find((item) => item.id === sessionId);
-    if (!session) {
-      throw new EasyEmailError("MAILBOX_SESSION_NOT_FOUND", `Unknown mailbox session: ${sessionId}.`);
-    }
-    const refresh = await refreshMailboxSessions(this.service, [session], false);
-    await this.messages?.ingestObservedMessages();
-    return { refresh };
+  public async enqueueMailSend(
+    request: Contracts.EnqueueMailSendHttpRequest,
+    idempotencyKey?: string,
+  ): Promise<Contracts.EnqueueMailSendHttpResponse> {
+    return this.requireSendQueue().enqueueSend(request, idempotencyKey);
   }
 
-  public async refreshAnonymousMailboxes(
-    request: Contracts.RefreshAnonymousMailboxesHttpRequest,
-  ): Promise<Contracts.RefreshAnonymousMailboxesHttpResponse> {
-    const hostId = request.hostId?.trim();
-    if (!hostId) {
-      throw new EasyEmailError("INVALID_QUERY", "hostId is required.");
-    }
-    const sessions = this.service.getSnapshot().sessions.filter((session) => session.hostId === hostId);
-    const refresh = await refreshMailboxSessions(this.service, sessions, true);
-    await this.messages?.ingestObservedMessages();
-    return { refresh };
+  public async listMailSendQueue(
+    request: Contracts.ListMailSendQueueHttpRequest = {},
+  ): Promise<Contracts.ListMailSendQueueHttpResponse> {
+    return this.requireSendQueue().listSendQueue(request);
   }
 
-  public async sendMailboxMessage(
-    request: Contracts.SendMailboxMessageHttpRequest,
-  ): Promise<Contracts.SendMailboxMessageHttpResponse> {
-    return { result: await this.service.sendMailboxMessage(request) };
+  public async getMailSendQueueItem(
+    queueItemId: string,
+  ): Promise<Contracts.GetMailSendQueueItemHttpResponse> {
+    return { queueItem: await this.requireSendQueue().getSendQueueItem(queueItemId) };
   }
 
-  public updateMailboxSession(
-    request: Contracts.UpdateMailboxSessionHttpRequest,
-  ): Contracts.UpdateMailboxSessionHttpResponse {
-    return {
-      session: this.service.updateMailboxSession(request),
-    };
+  public async runMailSendQueueItem(
+    queueItemId: string,
+  ): Promise<Contracts.RunMailSendQueueItemHttpResponse> {
+    return this.requireSendQueue().runItem(queueItemId);
   }
 
-  public async releaseMailbox(
-    request: Contracts.ReleaseMailboxHttpRequest,
-  ): Promise<Contracts.ReleaseMailboxHttpResponse> {
-    return { result: await this.service.releaseMailbox(request.sessionId, request.reason) };
+  public async runMailSendQueueOnce(): Promise<Contracts.RunMailSendQueueWorkerHttpResponse> {
+    return { runResult: await this.requireSendQueue().runOnce() };
   }
 
-  public recoverMailboxByEmail(
-    request: Contracts.RecoverMailboxByEmailHttpRequest,
-  ): Promise<Contracts.RecoverMailboxByEmailHttpResponse> {
-    return this.service.recoverMailboxSessionByEmailAddress({
-      emailAddress: request.emailAddress,
-      providerTypeKey: request.providerTypeKey,
-      providerInstanceId: request.providerInstanceId,
-      hostId: request.hostId,
-      recoveryDataCredential: request.recoveryDataCredential,
-      recoveryFields: request.recoveryFields,
-    }).then((result) => ({
-      result,
-    }));
+  public async runMailSendQueueDueBatch(
+    request: Contracts.RunMailSendQueueDueBatchHttpRequest = {},
+  ): Promise<Contracts.RunMailSendQueueWorkerHttpResponse> {
+    return { runResult: await this.requireSendQueue().runDueBatch(request) };
   }
 
-  public async recoverMailboxCapacity(
-    request: Contracts.RecoverMailboxCapacityHttpRequest,
-  ): Promise<Contracts.RecoverMailboxCapacityHttpResponse> {
-    return {
-      result: await this.service.recoverMailboxCapacity({
-        failureCode: request.failureCode,
-        detail: request.detail,
-        providerTypeKey: request.providerTypeKey,
-        providerInstanceId: request.providerInstanceId,
-        staleAfterSeconds: request.staleAfterSeconds,
-        maxDeleteCount: request.maxDeleteCount,
-        force: request.force,
-      }),
-    };
+  public async cancelMailSendQueueItem(
+    queueItemId: string,
+    request: Contracts.CancelMailSendQueueItemHttpRequest = {},
+  ): Promise<Contracts.CancelMailSendQueueItemHttpResponse> {
+    return { queueItem: await this.requireSendQueue().cancelSendQueueItem(queueItemId, request) };
   }
 
-  public async cleanupMoemailMailboxes(
-    request: Contracts.CleanupMoemailMailboxesHttpRequest,
-  ): Promise<Contracts.CleanupMoemailMailboxesHttpResponse> {
-    return {
-      result: await this.service.cleanupMoemailMailboxes(
-        request.staleAfterSeconds,
-        request.maxDeleteCount,
-        request.force,
-        request.providerInstanceId,
-      ),
-    };
+  public async retryMailSendQueueItem(
+    queueItemId: string,
+    request: Contracts.RetryMailSendQueueItemHttpRequest = {},
+  ): Promise<Contracts.RetryMailSendQueueItemHttpResponse> {
+    return { queueItem: await this.requireSendQueue().retrySendQueueItem(queueItemId, request) };
   }
 
-  public reportMailboxOutcome(
-    request: Contracts.ReportMailboxOutcomeHttpRequest,
-  ): Contracts.ReportMailboxOutcomeHttpResponse {
-    return { result: this.service.reportMailboxOutcome(request) };
-  }
-
-  public async observeMessage(
-    request: Contracts.ObserveMessageHttpRequest,
-  ): Promise<Contracts.ObserveMessageHttpResponse> {
-    const message = this.service.observeMessage(request);
-    await this.messages?.ingestObservedMessages();
-    return { message };
-  }
-
-  public async readVerificationCode(
-    sessionId: string,
-  ): Promise<Contracts.ReadVerificationCodeHttpResponse> {
-    return { code: await this.service.readVerificationCode(sessionId) };
-  }
-
-  public async readAuthenticationLink(
-    sessionId: string,
-  ): Promise<Contracts.ReadAuthenticationLinkHttpResponse> {
-    return { authLink: await this.service.readAuthenticationLink(sessionId) };
-  }
-
-  public runMaintenance(): Contracts.RunMaintenanceHttpResponse {
-    return { maintenance: this.service.runMaintenance() };
+  public async reopenScheduledSend(
+    messageId: string,
+  ): Promise<Contracts.ReopenScheduledSendHttpResponse> {
+    return this.requireSendQueue().reopenScheduledSend(messageId);
   }
 }

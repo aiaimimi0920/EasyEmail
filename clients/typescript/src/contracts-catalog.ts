@@ -65,6 +65,20 @@ export interface MailAccountImapProfileInput {
   security: MailAccountImapSecurity | "ssl";
   username: string;
 }
+export type MailAccountSmtpSecurity = "tls" | "starttls";
+export interface MailAccountSmtpProfile {
+  protocol: "smtp";
+  host: string;
+  port: number;
+  security: MailAccountSmtpSecurity;
+  username: string;
+}
+export interface MailAccountSmtpProfileInput {
+  host: string;
+  port: number;
+  security: MailAccountSmtpSecurity | "ssl";
+  username: string;
+}
 export type MailAccountStatus = "ready" | "configuring" | "syncing" | "degraded" | "disabled" | "history_only" | "deleted";
 export type MailAccountAuthStatus = "not_required" | "valid" | "expired" | "invalid" | "missing" | "refreshing" | "reauthorization_required";
 export type MailAccountReceiveStatus = "enabled" | "syncing" | "backoff" | "auth_failed" | "provider_unavailable" | "expired" | "disabled" | "unsupported";
@@ -91,6 +105,7 @@ export interface MailAccount {
   primaryAddress?: string;
   providerLabel?: string;
   imap?: MailAccountImapProfile;
+  smtp?: MailAccountSmtpProfile;
   status: MailAccountStatus;
   authStatus: MailAccountAuthStatus;
   receiveStatus: MailAccountReceiveStatus;
@@ -127,6 +142,7 @@ export interface MailAccountCreateInput {
   primaryAddress: string;
   providerLabel?: string | null;
   imap?: MailAccountImapProfileInput;
+  smtp?: MailAccountSmtpProfileInput;
   listedInAllAccounts?: boolean;
   credentialRefs?: MailAccountCredentialRefInput[];
 }
@@ -136,6 +152,7 @@ export interface MailAccountUpdateInput {
   displayName?: string;
   providerLabel?: string | null;
   imap?: MailAccountImapProfileInput | null;
+  smtp?: MailAccountSmtpProfileInput | null;
   listedInAllAccounts?: boolean;
 }
 
@@ -145,6 +162,16 @@ export interface MailAccountImapTestRequest {
 }
 
 export interface MailAccountImapTestResult {
+  authenticated: true;
+  capabilitySummary: string;
+}
+
+export interface MailAccountSmtpTestRequest {
+  accountId: string;
+  credentialRefId: string;
+}
+
+export interface MailAccountSmtpTestResult {
   authenticated: true;
   capabilitySummary: string;
 }

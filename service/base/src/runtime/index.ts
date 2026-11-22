@@ -5,3 +5,4 @@ export * from "./from-env.js";
 export * from "./maintenance-loop.js";
 export * from "./persistence-loop.js";
 export * from "./runtime.js";
+export * from "./send-queue-loop.js";

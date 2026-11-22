@@ -32,6 +32,8 @@ import {
   type EasyEmailMailAccountListQuery,
   type EasyEmailMailAccountResponse,
   type EasyEmailMailAccountsResponse,
+  type EasyEmailMailAccountSmtpTestRequest,
+  type EasyEmailMailAccountSmtpTestResponse,
   type EasyEmailMailAccountUpdateRequest,
   type EasyEmailMailDraftSaveRequest,
   type EasyEmailMailDraftSaveResponse,
@@ -45,6 +47,19 @@ import {
   type EasyEmailMailMessagesResponse,
   type EasyEmailMailPollVerificationResponse,
   type EasyEmailMailReclassifyVerificationResponse,
+  type EasyEmailMailScheduledSendReopenResponse,
+  type EasyEmailMailSendEnqueueRequest,
+  type EasyEmailMailSendEnqueueResponse,
+  type EasyEmailMailSendQueueCancelRequest,
+  type EasyEmailMailSendQueueCancelResponse,
+  type EasyEmailMailSendQueueItemResponse,
+  type EasyEmailMailSendQueueListQuery,
+  type EasyEmailMailSendQueueListResponse,
+  type EasyEmailMailSendQueueRetryRequest,
+  type EasyEmailMailSendQueueRetryResponse,
+  type EasyEmailMailSendQueueRunBatchRequest,
+  type EasyEmailMailSendQueueRunItemResponse,
+  type EasyEmailMailSendQueueRunWorkerResponse,
   type EasyEmailMailTrashEmptyRequest,
   type EasyEmailMailTrashEmptyResponse,
   type EasyEmailMailVerificationListQuery,
@@ -152,6 +167,47 @@ export function createBundledCoreClient(
     },
     async testMailAccountImap(request: EasyEmailMailAccountImapTestRequest): Promise<EasyEmailMailAccountImapTestResponse> {
       return (await getHttpClient()).testMailAccountImap(request);
+    },
+    async testMailAccountSmtp(request: EasyEmailMailAccountSmtpTestRequest): Promise<EasyEmailMailAccountSmtpTestResponse> {
+      return (await getHttpClient()).testMailAccountSmtp(request);
+    },
+    async enqueueMailSend(
+      request: EasyEmailMailSendEnqueueRequest,
+      options?: { idempotencyKey?: string },
+    ): Promise<EasyEmailMailSendEnqueueResponse> {
+      return (await getHttpClient()).enqueueMailSend(request, options);
+    },
+    async listMailSendQueue(query: EasyEmailMailSendQueueListQuery = {}): Promise<EasyEmailMailSendQueueListResponse> {
+      return (await getHttpClient()).listMailSendQueue(query);
+    },
+    async getMailSendQueueItem(queueItemId: string): Promise<EasyEmailMailSendQueueItemResponse> {
+      return (await getHttpClient()).getMailSendQueueItem(queueItemId);
+    },
+    async runMailSendQueueItem(queueItemId: string): Promise<EasyEmailMailSendQueueRunItemResponse> {
+      return (await getHttpClient()).runMailSendQueueItem(queueItemId);
+    },
+    async cancelMailSendQueueItem(
+      queueItemId: string,
+      request: EasyEmailMailSendQueueCancelRequest = {},
+    ): Promise<EasyEmailMailSendQueueCancelResponse> {
+      return (await getHttpClient()).cancelMailSendQueueItem(queueItemId, request);
+    },
+    async retryMailSendQueueItem(
+      queueItemId: string,
+      request: EasyEmailMailSendQueueRetryRequest = {},
+    ): Promise<EasyEmailMailSendQueueRetryResponse> {
+      return (await getHttpClient()).retryMailSendQueueItem(queueItemId, request);
+    },
+    async runMailSendQueueOnce(): Promise<EasyEmailMailSendQueueRunWorkerResponse> {
+      return (await getHttpClient()).runMailSendQueueOnce();
+    },
+    async runMailSendQueueDueBatch(
+      request: EasyEmailMailSendQueueRunBatchRequest = {},
+    ): Promise<EasyEmailMailSendQueueRunWorkerResponse> {
+      return (await getHttpClient()).runMailSendQueueDueBatch(request);
+    },
+    async reopenScheduledSend(messageId: string): Promise<EasyEmailMailScheduledSendReopenResponse> {
+      return (await getHttpClient()).reopenScheduledSend(messageId);
     },
     async listMailMessages(query: EasyEmailMailMessageListQuery = {}): Promise<EasyEmailMailMessagesResponse> {
       return (await getHttpClient()).listMailMessages(query);

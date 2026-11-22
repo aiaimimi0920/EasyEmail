@@ -1,11 +1,10 @@
-import { invoke } from "@tauri-apps/api/core";
 import { EasyEmailHttpError } from "../api/easyEmailHttpClient";
 import { isMessagesPersistenceUnavailableError } from "../api/mailMessageClient";
 import { mailConversationKeyForMessage } from "../mail/mailSelectors";
 import { detectInlineVerificationCode } from "../mail/mailSearch";
 import { useEventCallback } from "../hooks/useEventCallback";
 import { asErrorDto } from "./appDomain";
-import { bundledCoreClient, mailMessageClient } from "./appRuntime";
+import { bundledCoreClient, mailMessageClient, sendQueueClient } from "./appRuntime";
 import type { MessageDetailDto, VisibleMailMessage, MailConversationSummary } from "./appTypes";
 import type { AppState } from "./useAppState";
 
@@ -218,9 +217,7 @@ export function useMailDetailController(appState: AppState, dependencies: Depend
   async function openScheduledSendForEditing(message: VisibleMailMessage) {
       setBusy(true);
       try {
-        const detail = await invoke<MessageDetailDto>("message_reopen_scheduled_send", {
-          request: { message_id: message.message_id },
-        });
+        const detail = await sendQueueClient.reopenScheduledSend(message.message_id);
         const accountId = detail.account_id || selectedNormalAccountId;
         await Promise.all([
           loadSendQueue(),

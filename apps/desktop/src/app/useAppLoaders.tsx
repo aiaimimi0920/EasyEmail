@@ -5,7 +5,7 @@ import type { AppState } from "./useAppState";
 
 export function useAppLoaders(appState: AppState) {
   const {
-    setRecentCodes, setAnonymousMessages, canonicalNormalAccountIdsRef, setNormalAccounts, normalAccounts, setSendQueue, setContacts, setAgentAccounts,
+    setRecentCodes, setAnonymousMessages, canonicalNormalAccountIdsRef, setNormalAccounts, normalAccounts, setSendQueue, setSendQueueWorkerStatus, setContacts, setAgentAccounts,
     setAgentServices, setAgentThreads,
   } = appState;
   async function loadRecentCodes(
@@ -35,12 +35,13 @@ export function useAppLoaders(appState: AppState) {
         || normalAccounts.some((account) => account.id === accountId);
     }
   async function loadSendQueue(isCurrent: () => boolean = () => true) {
-      const rows = await sendQueueClient.listSendQueue({ limit: 25 });
+      const response = await sendQueueClient.listSendQueueWithWorker({ limit: 25 });
       if (!isCurrent()) {
-        return rows;
+        return response.items;
       }
-      setSendQueue(rows);
-      return rows;
+      setSendQueue(response.items);
+      setSendQueueWorkerStatus(response.worker);
+      return response.items;
     }
   async function loadContacts() {
       const rows = await contactClient.listContacts();

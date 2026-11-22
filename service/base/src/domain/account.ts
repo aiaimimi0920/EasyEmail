@@ -9,6 +9,7 @@ export type MailAccountKind =
 export type MailAccountCreatableKind = "normal_long_lived" | "agent_owned";
 
 export type MailAccountImapSecurity = "tls" | "starttls";
+export type MailAccountSmtpSecurity = "tls" | "starttls";
 
 export interface MailAccountImapProfile {
   protocol: "imap";
@@ -22,6 +23,21 @@ export interface MailAccountImapProfileInput {
   host: string;
   port: number;
   security: MailAccountImapSecurity | "ssl";
+  username: string;
+}
+
+export interface MailAccountSmtpProfile {
+  protocol: "smtp";
+  host: string;
+  port: number;
+  security: MailAccountSmtpSecurity;
+  username: string;
+}
+
+export interface MailAccountSmtpProfileInput {
+  host: string;
+  port: number;
+  security: MailAccountSmtpSecurity | "ssl";
   username: string;
 }
 
@@ -91,6 +107,7 @@ export interface MailAccount {
   primaryAddress?: string;
   providerLabel?: string;
   imap?: MailAccountImapProfile;
+  smtp?: MailAccountSmtpProfile;
   status: MailAccountStatus;
   authStatus: MailAccountAuthStatus;
   receiveStatus: MailAccountReceiveStatus;
@@ -120,6 +137,7 @@ export interface MailAccountCreateInput {
   primaryAddress: string;
   providerLabel?: string | null;
   imap?: MailAccountImapProfileInput;
+  smtp?: MailAccountSmtpProfileInput;
   listedInAllAccounts?: boolean;
   credentialRefs?: MailCredentialRefInput[];
 }
@@ -129,6 +147,7 @@ export interface MailAccountUpdateInput {
   displayName?: string;
   providerLabel?: string | null;
   imap?: MailAccountImapProfileInput | null;
+  smtp?: MailAccountSmtpProfileInput | null;
   listedInAllAccounts?: boolean;
 }
 
@@ -161,6 +180,7 @@ export interface MailAccountRepositoryCreateInput {
   primaryAddress?: string;
   providerLabel?: string;
   imap?: MailAccountImapProfile;
+  smtp?: MailAccountSmtpProfile;
   status: MailAccountStatus;
   authStatus: MailAccountAuthStatus;
   receiveStatus: MailAccountReceiveStatus;
@@ -176,7 +196,18 @@ export interface MailAccountRepositoryUpdateInput {
   displayName: string;
   providerLabel?: string;
   imap?: MailAccountImapProfile;
+  smtp?: MailAccountSmtpProfile;
+  sendStatus: MailAccountSendStatus;
   listedInAllAccounts: boolean;
+  now: string;
+}
+
+export interface MailAccountSendOutcomeInput {
+  accountId: string;
+  credentialRefId: string;
+  sendStatus: MailAccountSendStatus;
+  credentialStatus: MailCredentialRef["status"];
+  verifiedAt?: string;
   now: string;
 }
 
@@ -187,4 +218,5 @@ export interface MailAccountRepository {
   updateMailAccount(input: MailAccountRepositoryUpdateInput): Promise<MailAccount | undefined>;
   disableMailAccount(id: string, expectedVersion: number, now: string): Promise<MailAccount | undefined>;
   deleteMailAccount(id: string, expectedVersion: number, now: string): Promise<boolean>;
+  recordMailAccountSendOutcome?(input: MailAccountSendOutcomeInput): Promise<void>;
 }

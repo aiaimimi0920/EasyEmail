@@ -93,6 +93,11 @@ export function createEasyEmailRequestTransport(
     const headers = new Headers({ accept: "application/json" });
     if (hasBody) headers.set("content-type", "application/json");
     if (bearerToken) headers.set("authorization", `Bearer ${bearerToken}`);
+    for (const [headerName, headerValue] of Object.entries(requestOptions.headers ?? {})) {
+      if (headerValue !== undefined && headerValue !== "") {
+        headers.set(headerName, headerValue);
+      }
+    }
 
     const response = await fetchRequest(
       buildRequestUrl(baseUrl, requestOptions.path, requestOptions.query),

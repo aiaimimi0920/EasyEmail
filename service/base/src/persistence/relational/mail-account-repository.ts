@@ -8,6 +8,7 @@ import type {
   MailAccountRepositoryListQuery,
   MailAccountRepositoryListResult,
   MailAccountRepositoryUpdateInput,
+  MailAccountSendOutcomeInput,
   MailCredentialRef,
 } from "../../domain/account.js";
 
@@ -22,6 +23,10 @@ interface MailAccountSqlRow {
   imap_port: number | null;
   imap_security: "tls" | "starttls" | null;
   imap_username: string | null;
+  smtp_host: string | null;
+  smtp_port: number | null;
+  smtp_security: "tls" | "starttls" | null;
+  smtp_username: string | null;
   status: MailAccount["status"];
   auth_status: MailAccount["authStatus"];
   receive_status: MailAccount["receiveStatus"];
@@ -44,6 +49,14 @@ interface MailCredentialRefSqlRow {
   updated_at: string;
   last_verified_at: string | null;
 }
+
+const ACCOUNT_COLUMNS = `
+  id, scope, kind, display_name, primary_address, provider_label,
+  imap_host, imap_port, imap_security, imap_username,
+  smtp_host, smtp_port, smtp_security, smtp_username,
+  status, auth_status, receive_status, send_status,
+  listed_in_all_accounts, version, created_at, updated_at
+`;
 
 function mapMailCredentialRef(row: MailCredentialRefSqlRow): MailCredentialRef {
   return {
@@ -75,6 +88,15 @@ function mapMailAccount(row: MailAccountSqlRow, credentialRefs: MailCredentialRe
           port: row.imap_port,
           security: row.imap_security,
           username: row.imap_username,
+        }
+      : undefined,
+    smtp: row.smtp_host && row.smtp_port && row.smtp_security && row.smtp_username
+      ? {
+          protocol: "smtp",
+          host: row.smtp_host,
+          port: row.smtp_port,
+          security: row.smtp_security,
+          username: row.smtp_username,
         }
       : undefined,
     status: row.status,
@@ -140,10 +162,7 @@ export class SqliteMailAccountRepository implements MailAccountRepository {
     }
     params.push(query.limit + 1);
     const rows = this.database.prepare(`
-      SELECT id, scope, kind, display_name, primary_address, provider_label,
-             imap_host, imap_port, imap_security, imap_username,
-             status, auth_status, receive_status, send_status,
-             listed_in_all_accounts, version, created_at, updated_at
+      SELECT ${ACCOUNT_COLUMNS}
       FROM mail_accounts
       WHERE ${conditions.join(" AND ")}
       ORDER BY created_at ASC, id ASC
@@ -164,10 +183,7 @@ export class SqliteMailAccountRepository implements MailAccountRepository {
 
   public async getMailAccount(id: string): Promise<MailAccount | undefined> {
     const row = this.database.prepare(`
-      SELECT id, scope, kind, display_name, primary_address, provider_label,
-             imap_host, imap_port, imap_security, imap_username,
-             status, auth_status, receive_status, send_status,
-             listed_in_all_accounts, version, created_at, updated_at
+      SELECT ${ACCOUNT_COLUMNS}
       FROM mail_accounts
       WHERE id = ? AND deleted_at IS NULL
     `).get(id) as unknown as MailAccountSqlRow | undefined;
@@ -181,9 +197,10 @@ export class SqliteMailAccountRepository implements MailAccountRepository {
         INSERT INTO mail_accounts (
           id, scope, kind, display_name, primary_address, provider_label,
           imap_host, imap_port, imap_security, imap_username,
+          smtp_host, smtp_port, smtp_security, smtp_username,
           status, auth_status, receive_status, send_status,
           listed_in_all_accounts, version, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
       `).run(
         input.id,
         input.scope,
@@ -195,6 +212,10 @@ export class SqliteMailAccountRepository implements MailAccountRepository {
         input.imap?.port ?? null,
         input.imap?.security ?? null,
         input.imap?.username ?? null,
+        input.smtp?.host ?? null,
+        input.smtp?.port ?? null,
+        input.smtp?.security ?? null,
+        input.smtp?.username ?? null,
         input.status,
         input.authStatus,
         input.receiveStatus,
@@ -237,13 +258,12 @@ export class SqliteMailAccountRepository implements MailAccountRepository {
       UPDATE mail_accounts
       SET display_name = ?, provider_label = ?,
           imap_host = ?, imap_port = ?, imap_security = ?, imap_username = ?,
+          smtp_host = ?, smtp_port = ?, smtp_security = ?, smtp_username = ?,
+          send_status = ?,
           listed_in_all_accounts = ?,
           version = version + 1, updated_at = ?
       WHERE id = ? AND version = ? AND deleted_at IS NULL
-      RETURNING id, scope, kind, display_name, primary_address, provider_label,
-                imap_host, imap_port, imap_security, imap_username,
-                status, auth_status, receive_status, send_status,
-                listed_in_all_accounts, version, created_at, updated_at
+      RETURNING ${ACCOUNT_COLUMNS}
     `).get(
       input.displayName,
       input.providerLabel ?? null,
@@ -251,6 +271,11 @@ export class SqliteMailAccountRepository implements MailAccountRepository {
       input.imap?.port ?? null,
       input.imap?.security ?? null,
       input.imap?.username ?? null,
+      input.smtp?.host ?? null,
+      input.smtp?.port ?? null,
+      input.smtp?.security ?? null,
+      input.smtp?.username ?? null,
+      input.sendStatus,
       input.listedInAllAccounts ? 1 : 0,
       input.now,
       input.id,
@@ -269,10 +294,7 @@ export class SqliteMailAccountRepository implements MailAccountRepository {
       SET status = 'disabled', receive_status = 'disabled', send_status = 'disabled',
           version = version + 1, updated_at = ?
       WHERE id = ? AND version = ? AND deleted_at IS NULL
-      RETURNING id, scope, kind, display_name, primary_address, provider_label,
-                imap_host, imap_port, imap_security, imap_username,
-                status, auth_status, receive_status, send_status,
-                listed_in_all_accounts, version, created_at, updated_at
+      RETURNING ${ACCOUNT_COLUMNS}
     `).get(now, id, expectedVersion) as unknown as MailAccountSqlRow | undefined;
     return row ? this.mapMailAccountRow(row) : undefined;
   }
@@ -284,5 +306,37 @@ export class SqliteMailAccountRepository implements MailAccountRepository {
       WHERE id = ? AND version = ? AND deleted_at IS NULL
     `).run(now, now, id, expectedVersion);
     return result.changes === 1;
+  }
+
+  public async recordMailAccountSendOutcome(input: MailAccountSendOutcomeInput): Promise<void> {
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      this.database.prepare(`
+        UPDATE mail_accounts
+        SET send_status = ?, version = version + 1, updated_at = ?
+        WHERE id = ? AND deleted_at IS NULL AND status != 'disabled'
+      `).run(input.sendStatus, input.now, input.accountId);
+      this.database.prepare(`
+        UPDATE mail_account_credential_refs
+        SET status = ?,
+            last_verified_at = COALESCE(?, last_verified_at),
+            updated_at = ?
+        WHERE id = ? AND owner_account_id = ? AND status != 'disabled'
+      `).run(
+        input.credentialStatus,
+        input.verifiedAt ?? null,
+        input.now,
+        input.credentialRefId,
+        input.accountId,
+      );
+      this.database.exec("COMMIT");
+    } catch (error) {
+      try {
+        this.database.exec("ROLLBACK");
+      } catch {
+        // Ignore rollback failure.
+      }
+      throw error;
+    }
   }
 }

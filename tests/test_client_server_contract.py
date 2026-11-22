@@ -26,6 +26,10 @@ STATIC_ROUTE_NAMES = (
     "messages",
     "trash",
     "verifications",
+    "testAccountSmtp",
+    "sendQueue",
+    "sendQueueRunOnce",
+    "sendQueueRunDue",
 )
 
 
@@ -61,6 +65,11 @@ class ClientServerContractTests(unittest.TestCase):
             "/mail/messages/${encodeURIComponent(messageId)}/labels",
             "/mail/messages/${encodeURIComponent(messageId)}/reclassify-verification",
             "/mail/mailboxes/${encodeURIComponent(sessionId)}/verification/poll",
+            "/mail/send-queue/${encodeURIComponent(queueItemId)}",
+            "/mail/send-queue/${encodeURIComponent(queueItemId)}/run",
+            "/mail/send-queue/${encodeURIComponent(queueItemId)}/cancel",
+            "/mail/send-queue/${encodeURIComponent(queueItemId)}/retry",
+            "/mail/messages/${encodeURIComponent(messageId)}/scheduled-send/reopen",
         )
         for template in templates:
             self.assertIn(template, server_text)

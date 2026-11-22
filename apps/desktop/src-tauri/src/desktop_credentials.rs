@@ -66,11 +66,13 @@ fn store_with_vault<V: SecretVaultAdapter>(
 ) -> Result<DesktopCredentialRefDto, AppError> {
     let credential_kind = request.credential_kind.trim().to_ascii_lowercase();
     let auth_method = request.auth_method.trim().to_ascii_lowercase();
-    if credential_kind != "imap_password" || auth_method != "password" {
+    if !matches!(credential_kind.as_str(), "imap_password" | "smtp_password")
+        || auth_method != "password"
+    {
         request.secret.zeroize();
         return Err(validation_error(
             "desktop_credential_scope_unsupported",
-            "Only IMAP password credentials can be stored by this command.",
+            "Only IMAP or SMTP password credentials can be stored by this command.",
         ));
     }
     if request.secret.is_empty() || request.secret.len() > MAX_SECRET_BYTES {
@@ -143,6 +145,18 @@ mod tests {
 
         delete_with_vault(&vault, &result.secret_key).unwrap();
         assert!(!vault.exists(&result.secret_key).unwrap());
+
+        let smtp_result = store_with_vault(
+            &vault,
+            DesktopCredentialStoreRequest {
+                credential_kind: "smtp_password".to_string(),
+                auth_method: "password".to_string(),
+                secret: secret.to_string(),
+            },
+        )
+        .unwrap();
+        assert_eq!(smtp_result.credential_kind, "smtp_password");
+        delete_with_vault(&vault, &smtp_result.secret_key).unwrap();
     }
 
     #[test]

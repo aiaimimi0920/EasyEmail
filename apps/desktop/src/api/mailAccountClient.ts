@@ -8,6 +8,9 @@ import type {
   EasyEmailMailAccountListQuery,
   EasyEmailMailAccountResponse,
   EasyEmailMailAccountsResponse,
+  EasyEmailMailAccountSmtpSecurity,
+  EasyEmailMailAccountSmtpTestRequest,
+  EasyEmailMailAccountSmtpTestResponse,
 } from "./easyEmailHttpClient.ts";
 
 export type AccountCredentialRefDto = {
@@ -19,6 +22,13 @@ export type AccountCredentialRefDto = {
   status: "active" | "missing" | "invalid" | "disabled";
 };
 
+export type AccountSmtpProfileDto = {
+  host: string;
+  port: number;
+  security: EasyEmailMailAccountSmtpSecurity;
+  username: string;
+};
+
 export type AccountDto = {
   id: string;
   scope: string;
@@ -26,6 +36,7 @@ export type AccountDto = {
   display_name: string;
   primary_address: string | null;
   provider_label: string | null;
+  smtp?: AccountSmtpProfileDto | null;
   status: string;
   auth_status: string;
   receive_status: string;
@@ -40,6 +51,11 @@ export type NormalImapConnectionTestDto = {
   capability_summary: string;
 };
 
+export type NormalSmtpConnectionTestDto = {
+  authenticated: boolean;
+  capability_summary: string;
+};
+
 export type ManualImapAccountCreateRequest = {
   display_name: string;
   email_address: string;
@@ -48,11 +64,17 @@ export type ManualImapAccountCreateRequest = {
   imap_security: EasyEmailMailAccountImapSecurity;
   imap_username: string;
   imap_password: string;
+  smtp_host?: string;
+  smtp_port?: number;
+  smtp_security?: EasyEmailMailAccountSmtpSecurity;
+  smtp_username?: string;
+  smtp_password?: string;
 };
 
 export type NormalAccountAddDto = {
   account: AccountDto;
   credential_ref_id: string;
+  smtp_credential_ref_id?: string | null;
 };
 
 export type NormalAccountDeleteDto = {
@@ -66,6 +88,7 @@ export interface MailAccountHttpTransport {
   disableMailAccount(accountId: string, expectedVersion: number): Promise<EasyEmailMailAccountResponse>;
   deleteMailAccount(accountId: string, expectedVersion: number): Promise<{ deleted: { id: string } }>;
   testMailAccountImap(request: EasyEmailMailAccountImapTestRequest): Promise<EasyEmailMailAccountImapTestResponse>;
+  testMailAccountSmtp(request: EasyEmailMailAccountSmtpTestRequest): Promise<EasyEmailMailAccountSmtpTestResponse>;
 }
 
 function isVersionedCredentialRef(secretKey: string): secretKey is `ref:v1:${string}` {
@@ -73,7 +96,7 @@ function isVersionedCredentialRef(secretKey: string): secretKey is `ref:v1:${str
 }
 
 function toAccountDto(account: EasyEmailMailAccount): AccountDto {
-  return {
+  const dto: AccountDto = {
     id: account.id,
     scope: account.scope,
     kind: account.kind,
@@ -95,20 +118,50 @@ function toAccountDto(account: EasyEmailMailAccount): AccountDto {
       status: credential.status,
     })),
   };
+  if (account.smtp) {
+    dto.smtp = {
+      host: account.smtp.host,
+      port: account.smtp.port,
+      security: account.smtp.security,
+      username: account.smtp.username,
+    };
+  }
+  return dto;
+}
+
+function selectTestablePasswordCredential(
+  account: AccountDto,
+  credentialKind: "imap_password" | "smtp_password",
+): AccountCredentialRefDto | undefined {
+  const candidates = account.credential_refs.filter(
+    (candidate) =>
+      candidate.credential_kind === credentialKind
+      && candidate.auth_method === "password",
+  );
+  return (
+    candidates.find((candidate) => candidate.status === "active")
+    ?? candidates.find((candidate) => candidate.status === "missing")
+  );
 }
 
 function testableImapCredential(account: AccountDto): AccountCredentialRefDto {
-  const candidates = account.credential_refs.filter(
-    (candidate) =>
-      candidate.credential_kind === "imap_password"
-      && candidate.auth_method === "password",
-  );
-  const credential = candidates.find((candidate) => candidate.status === "active")
-    ?? candidates.find((candidate) => candidate.status === "missing");
+  const credential = selectTestablePasswordCredential(account, "imap_password");
   if (!credential) {
     throw new Error("The account has no testable IMAP password reference.");
   }
   return credential;
+}
+
+function testableSmtpCredential(account: AccountDto): AccountCredentialRefDto {
+  const credential = selectTestablePasswordCredential(account, "smtp_password");
+  if (!credential) {
+    throw new Error("The account has no testable SMTP password reference.");
+  }
+  return credential;
+}
+
+export function hasTestableSmtpCredential(account: AccountDto): boolean {
+  return Boolean(selectTestablePasswordCredential(account, "smtp_password"));
 }
 
 export function createMailAccountClient(
@@ -135,10 +188,57 @@ export function createMailAccountClient(
     async addManualImapAccount(
       request: ManualImapAccountCreateRequest,
     ): Promise<NormalAccountAddDto> {
-      const storedCredential = await credentials.storeImapPassword(request.imap_password);
-      if (!isVersionedCredentialRef(storedCredential.secret_key)) {
-        await credentials.deleteCredential(storedCredential.secret_key).catch(() => undefined);
+      const storedSecretKeys: string[] = [];
+      const cleanupStoredCredentials = async () => {
+        for (const secretKey of storedSecretKeys) {
+          await credentials.deleteCredential(secretKey).catch(() => undefined);
+        }
+      };
+
+      const storedImapCredential = await credentials.storeImapPassword(request.imap_password);
+      storedSecretKeys.push(storedImapCredential.secret_key);
+      if (!isVersionedCredentialRef(storedImapCredential.secret_key)) {
+        await cleanupStoredCredentials();
         throw new Error("The desktop credential bridge returned an invalid opaque reference.");
+      }
+
+      const credentialRefs: NonNullable<EasyEmailMailAccountCreateRequest["credentialRefs"]> = [{
+        secretBackend: storedImapCredential.secret_backend,
+        secretKey: storedImapCredential.secret_key,
+        credentialKind: storedImapCredential.credential_kind,
+        authMethod: storedImapCredential.auth_method,
+      }];
+
+      let storedSmtpSecretKey: string | undefined;
+      let smtpProfileInput: EasyEmailMailAccountCreateRequest["smtp"];
+      if (request.smtp_host && request.smtp_port && request.smtp_security) {
+        let storedSmtpCredential;
+        try {
+          storedSmtpCredential = await credentials.storeSmtpPassword(
+            request.smtp_password ?? request.imap_password,
+          );
+        } catch (error: unknown) {
+          await cleanupStoredCredentials();
+          throw error;
+        }
+        storedSecretKeys.push(storedSmtpCredential.secret_key);
+        if (!isVersionedCredentialRef(storedSmtpCredential.secret_key)) {
+          await cleanupStoredCredentials();
+          throw new Error("The desktop credential bridge returned an invalid opaque SMTP reference.");
+        }
+        storedSmtpSecretKey = storedSmtpCredential.secret_key;
+        smtpProfileInput = {
+          host: request.smtp_host,
+          port: request.smtp_port,
+          security: request.smtp_security,
+          username: request.smtp_username ?? request.imap_username,
+        };
+        credentialRefs.push({
+          secretBackend: storedSmtpCredential.secret_backend,
+          secretKey: storedSmtpCredential.secret_key,
+          credentialKind: storedSmtpCredential.credential_kind,
+          authMethod: storedSmtpCredential.auth_method,
+        });
       }
 
       let response: EasyEmailMailAccountResponse;
@@ -154,29 +254,32 @@ export function createMailAccountClient(
             security: request.imap_security,
             username: request.imap_username,
           },
-          credentialRefs: [{
-            secretBackend: storedCredential.secret_backend,
-            secretKey: storedCredential.secret_key,
-            credentialKind: storedCredential.credential_kind,
-            authMethod: storedCredential.auth_method,
-          }],
+          ...(smtpProfileInput ? { smtp: smtpProfileInput } : {}),
+          credentialRefs,
         });
       } catch (error: unknown) {
-        await credentials.deleteCredential(storedCredential.secret_key).catch(() => undefined);
+        await cleanupStoredCredentials();
         throw error;
       }
 
       const credentialRef = response.account.credentialRefs.find(
-        (candidate) => candidate.secretKey === storedCredential.secret_key,
+        (candidate) => candidate.secretKey === storedImapCredential.secret_key,
       );
-      if (!credentialRef) {
+      const smtpCredentialRef = storedSmtpSecretKey
+        ? response.account.credentialRefs.find(
+            (candidate) => candidate.secretKey === storedSmtpSecretKey,
+          )
+        : undefined;
+      if (!credentialRef || (storedSmtpSecretKey && !smtpCredentialRef)) {
         await transport.deleteMailAccount(response.account.id, response.account.version).catch(() => undefined);
-        await credentials.deleteCredential(storedCredential.secret_key).catch(() => undefined);
+        await cleanupStoredCredentials();
         throw new Error("The account response omitted its stored credential reference.");
       }
+
       return {
         account: toAccountDto(response.account),
         credential_ref_id: credentialRef.id,
+        ...(storedSmtpSecretKey ? { smtp_credential_ref_id: smtpCredentialRef?.id ?? null } : {}),
       };
     },
 
@@ -186,6 +289,18 @@ export function createMailAccountClient(
       // therefore reach the core instead of being rejected in the renderer.
       const credential = testableImapCredential(account);
       const response = await transport.testMailAccountImap({
+        accountId: account.id,
+        credentialRefId: credential.id,
+      });
+      return {
+        authenticated: response.result.authenticated,
+        capability_summary: response.result.capabilitySummary,
+      };
+    },
+
+    async testSmtp(account: AccountDto): Promise<NormalSmtpConnectionTestDto> {
+      const credential = testableSmtpCredential(account);
+      const response = await transport.testMailAccountSmtp({
         accountId: account.id,
         credentialRefId: credential.id,
       });

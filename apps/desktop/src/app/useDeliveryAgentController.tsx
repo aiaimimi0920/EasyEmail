@@ -1,14 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { SendQueueDto } from "../api/sendQueueClient";
 import { joinComposeAddressList } from "../compose/composeData";
 import { formatComposeScheduleDate } from "../compose/composeDateUtils";
+import { sanitizeComposeHtml } from "../compose/composeHtmlSanitizer";
 import { COMPOSE_DRAFT_STORAGE_KEY } from "./appConfig";
 import { asErrorDto, optionalValue } from "./appDomain";
 import { mailMessageClient, sendQueueClient } from "./appRuntime";
-import type { LegacyAccountDto, SendMessageDto, AgentServiceDto, AgentThreadDetailDto, AgentSendTaskDto } from "./appTypes";
+import type { LegacyAccountDto, AgentServiceDto, AgentThreadDetailDto, AgentSendTaskDto } from "./appTypes";
 import type { AppState } from "./useAppState";
 
 type Dependencies = {
-  isCanonicalNormalAccountId: (accountId: string) => boolean;
+  isCanonicalNormalAccountId?: (accountId: string) => boolean;
   composeRecipientsForSend: (field: import("../compose/composeData").ComposeRecipientField) => string[];
   composeRichBodyHtmlToPlainText: (editor: HTMLElement) => string;
   showStatusToast: (message: string) => void;
@@ -20,19 +22,26 @@ type Dependencies = {
   loadAgentThreads: () => Promise<import("./appTypes").AgentThreadDto[]>;
 };
 
+function generateSendIdempotencyKey(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return `compose:${globalThis.crypto.randomUUID()}`;
+  }
+  return `compose:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function useDeliveryAgentController(appState: AppState, dependencies: Dependencies) {
   const {
-    selectedNormalAccountId, setError, setBusy, composePersistedDraftId, composeScheduledAtIso, composeBodyEditorRef, sendBodyText, setSendBodyHtml,
-    setSendBodyText, sendSubject, setLastSend, setLastSendWorkerRun, setStatusMessage, setSendTargetAddress, setComposeCcAddress, setComposeBccAddress,
-    setComposeRecipientDrafts, setComposeCcOpen, setComposeBccOpen, setComposeContactPickerField, setComposeRecipientMenu, setSendSubject, setComposeSchedulePreset, setComposeScheduledAtIso,
-    setComposeDraftDirty, setComposeDraftSavedAt, composeDraftRevisionRef, composePersistedDraftIdRef, setComposePersistedDraftId, agentDisplayName, agentEmailAddress, setSelectedAgentSenderId,
-    setAgentEmailAddress, agentServiceName, agentServiceEmail, agentServiceDescription, agentTrustLevel, selectedAgentSenderId, setSelectedAgentServiceId, setAgentServiceEmail,
-    setAgentServiceDescription, selectedAgentServiceId, agentTaskSubject, agentTaskBody, confirmRestrictedAgent, setLastAgentTask, setAgentTaskSubject, setAgentTaskBody,
-    setSelectedAgentThreadDetail, setPromotedMessagesByAccount,
+    selectedNormalAccountId, setError, setBusy, composePersistedDraftId, composeScheduledAtIso, composeBodyEditorRef, sendBodyText, sendBodyHtml,
+    composePlainTextMode, setSendBodyHtml, setSendBodyText, sendSubject, setLastSend, setLastSendWorkerRun, setStatusMessage, setSendTargetAddress,
+    setComposeCcAddress, setComposeBccAddress, setComposeRecipientDrafts, setComposeCcOpen, setComposeBccOpen, setComposeContactPickerField, setComposeRecipientMenu, setSendSubject,
+    setComposeSchedulePreset, setComposeScheduledAtIso, setComposeDraftDirty, setComposeDraftSavedAt, composeDraftRevisionRef, composePersistedDraftIdRef, setComposePersistedDraftId, agentDisplayName,
+    agentEmailAddress, setSelectedAgentSenderId, setAgentEmailAddress, agentServiceName, agentServiceEmail, agentServiceDescription, agentTrustLevel, selectedAgentSenderId,
+    setSelectedAgentServiceId, setAgentServiceEmail, setAgentServiceDescription, selectedAgentServiceId, agentTaskSubject, agentTaskBody, confirmRestrictedAgent, setLastAgentTask,
+    setAgentTaskSubject, setAgentTaskBody, setSelectedAgentThreadDetail, setPromotedMessagesByAccount,
   } = appState;
   const {
-    isCanonicalNormalAccountId, composeRecipientsForSend, composeRichBodyHtmlToPlainText, showStatusToast, loadSendQueue, loadNormalMessages, setDraftBodyText, loadAgentAccounts,
-    loadAgentServices, loadAgentThreads,
+    composeRecipientsForSend, composeRichBodyHtmlToPlainText, showStatusToast, loadSendQueue, loadNormalMessages, setDraftBodyText, loadAgentAccounts, loadAgentServices,
+    loadAgentThreads,
   } = dependencies;
   async function enqueueDraftSend() {
       if (!selectedNormalAccountId) {
@@ -40,14 +49,6 @@ export function useDeliveryAgentController(appState: AppState, dependencies: Dep
           code: "sender_required",
           user_message: "Select a send-enabled normal account before sending mail.",
           correlation_id: "local-validation",
-        });
-        return false;
-      }
-      if (selectedNormalAccountId !== null && isCanonicalNormalAccountId(selectedNormalAccountId)) {
-        setError({
-          code: "canonical_smtp_unavailable",
-          user_message: "Sending from canonical accounts becomes available in M5.",
-          correlation_id: "desktop-migration-boundary",
         });
         return false;
       }
@@ -60,22 +61,28 @@ export function useDeliveryAgentController(appState: AppState, dependencies: Dep
         const targetAddresses = joinComposeAddressList(composeRecipientsForSend("to"));
         const editor = composeBodyEditorRef.current;
         const bodyText = editor ? composeRichBodyHtmlToPlainText(editor) : sendBodyText;
+        const rawHtml = editor ? editor.innerHTML : sendBodyHtml;
+        const sanitizedBodyHtml = composePlainTextMode ? "" : sanitizeComposeHtml(rawHtml || "");
         if (editor) {
-          setSendBodyHtml(editor.innerHTML);
+          setSendBodyHtml(sanitizedBodyHtml);
           setSendBodyText(bodyText);
         }
-        const result = await invoke<SendMessageDto>("send_message", {
-          request: {
-            account_id: senderAccountId,
-            target_address: targetAddresses,
-            cc_addresses: composeRecipientsForSend("cc"),
-            bcc_addresses: composeRecipientsForSend("bcc"),
-            scheduled_at: scheduledAt,
-            subject: sendSubject,
-            body_text: bodyText,
-          },
+        const result = await sendQueueClient.enqueueSend({
+          account_id: senderAccountId,
+          target_address: targetAddresses,
+          cc_addresses: composeRecipientsForSend("cc"),
+          bcc_addresses: composeRecipientsForSend("bcc"),
+          scheduled_at: scheduledAt,
+          subject: sendSubject,
+          body_text: bodyText,
+          body_html: sanitizedBodyHtml || null,
+          idempotency_key: generateSendIdempotencyKey(),
         });
-        setLastSend(result);
+        setLastSend({
+          message_id: result.message_id,
+          queue_id: result.queue_id,
+          status: result.status,
+        });
 
         if (!scheduledAt) {
           showStatusToast("正在通过 SMTP 发送邮件...");
@@ -159,6 +166,51 @@ export function useDeliveryAgentController(appState: AppState, dependencies: Dep
         setStatusMessage(
           `Send worker processed ${result.processed_count}; sent ${result.sent_count}, retry ${result.retry_count}, failed ${result.failed_count}.`,
         );
+        setError(null);
+      } catch (caught: unknown) {
+        setError(asErrorDto(caught));
+      } finally {
+        setBusy(false);
+      }
+    }
+  async function cancelSendQueueItem(item: SendQueueDto) {
+      setBusy(true);
+      try {
+        const cancelled = await sendQueueClient.cancelSendQueueItem({
+          queue_id: item.id,
+          expected_version: item.version,
+        });
+        await Promise.all([
+          loadSendQueue(),
+          item.account_id ? loadNormalMessages(item.account_id) : Promise.resolve([]),
+        ]);
+        setStatusMessage(`Cancelled send queue item ${cancelled.id}.`);
+        setError(null);
+      } catch (caught: unknown) {
+        setError(asErrorDto(caught));
+      } finally {
+        setBusy(false);
+      }
+    }
+  async function retrySendQueueItem(item: SendQueueDto) {
+      const confirmDeliveryUnknown = item.status === "delivery_unknown";
+      if (
+        confirmDeliveryUnknown
+        && !window.confirm(
+          "Previous delivery status is unknown and retrying may send a duplicate email. Retry anyway?",
+        )
+      ) {
+        return;
+      }
+      setBusy(true);
+      try {
+        const retried = await sendQueueClient.retrySendQueueItem({
+          queue_id: item.id,
+          expected_version: item.version,
+          confirm_delivery_unknown: confirmDeliveryUnknown,
+        });
+        await loadSendQueue();
+        setStatusMessage(`Re-queued send item ${retried.id} for delivery.`);
         setError(null);
       } catch (caught: unknown) {
         setError(asErrorDto(caught));
@@ -273,7 +325,7 @@ export function useDeliveryAgentController(appState: AppState, dependencies: Dep
       return messages;
     }
   return {
-    enqueueDraftSend, runSendQueueWorkerOnce, addAgentAccount, addAgentService, sendAgentTask, loadAgentThreadDetail, loadPromotedMessages,
+    enqueueDraftSend, runSendQueueWorkerOnce, cancelSendQueueItem, retrySendQueueItem, addAgentAccount, addAgentService, sendAgentTask, loadAgentThreadDetail, loadPromotedMessages,
   };
 }
 

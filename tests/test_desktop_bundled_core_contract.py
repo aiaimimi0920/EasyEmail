@@ -23,9 +23,10 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
         cls.host_process = (
             DESKTOP / "src-tauri" / "src" / "core_runtime_process.rs"
         ).read_text(encoding="utf-8")
-        cls.credential_broker = (
-            DESKTOP / "src-tauri" / "src" / "credential_broker.rs"
-        ).read_text(encoding="utf-8")
+        cls.credential_broker = "\n".join(
+            (DESKTOP / "src-tauri" / "src" / name).read_text(encoding="utf-8")
+            for name in ("credential_broker.rs", "credential_broker_http.rs")
+        )
         cls.desktop_credentials = (
             DESKTOP / "src-tauri" / "src" / "desktop_credentials.rs"
         ).read_text(encoding="utf-8")
@@ -39,9 +40,11 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
         cls.bundled_client = (
             DESKTOP / "src" / "api" / "bundledCoreClient.ts"
         ).read_text(encoding="utf-8")
-        cls.core_verify = (DESKTOP / "scripts" / "verify-core-bundle.mjs").read_text(
-            encoding="utf-8"
+        cls.core_verify_files = tuple(
+            (DESKTOP / "scripts" / name).read_text(encoding="utf-8")
+            for name in ("verify-core-bundle.mjs", "verify-core-bundle-domains.mjs")
         )
+        cls.core_verify = "\n".join(cls.core_verify_files)
         cls.host_smoke = (
             DESKTOP / "scripts" / "verify-desktop-host-smoke.ps1"
         ).read_text(encoding="utf-8")
@@ -93,13 +96,17 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
         for expected in (
             'TcpListener::bind(("127.0.0.1", 0))',
             'const RESOLVE_PATH: &str = "/v1/credentials/resolve"',
-            'request.use_case != "imap-test"',
+            '("imap-test", "imap_password")',
+            '("smtp-test" | "smtp-send", "smtp_password")',
             'credential.owner_account_id == request.account_id',
             "Cache-Control: no-store",
         ):
             self.assertIn(expected, self.credential_broker)
         self.assertIn('const DESKTOP_CREDENTIAL_REF_PREFIX: &str = "ref:v1:desktop/"', self.desktop_credentials)
-        self.assertIn('credential_kind != "imap_password"', self.desktop_credentials)
+        self.assertIn(
+            '!matches!(credential_kind.as_str(), "imap_password" | "smtp_password")',
+            self.desktop_credentials,
+        )
         self.assertIn('auth_method != "password"', self.desktop_credentials)
         self.assertIn("-OwningProcess $process.Id", self.host_smoke)
         self.assertIn("/v1/credentials/resolve", self.host_smoke)
@@ -158,12 +165,13 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
             '!statSync(entry).isFile()',
         ):
             self.assertIn(expected, self.core_verify)
-        self.assertIsNone(
-            re.search(
-                r"console\.log\([\s\S]*?(?:apiToken|fakeProviderAuth|fakeMailboxToken)",
-                self.core_verify,
+        for verify_source in self.core_verify_files:
+            self.assertIsNone(
+                re.search(
+                    r"console\.log\([\s\S]*?(?:apiToken|fakeProviderAuth|fakeMailboxToken)",
+                    verify_source,
+                )
             )
-        )
 
     def test_react_startup_uses_canonical_http_not_legacy_health(self) -> None:
         self.assertIn("createBundledCoreClient(invoke)", self.app_runtime)

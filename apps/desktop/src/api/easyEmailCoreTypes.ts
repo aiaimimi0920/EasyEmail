@@ -7,6 +7,7 @@ export type EasyEmailHttpRequest = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   path: string;
   query?: EasyEmailHttpQuery;
+  headers?: Record<string, string | undefined>;
   body?: unknown;
   signal?: AbortSignal;
 };

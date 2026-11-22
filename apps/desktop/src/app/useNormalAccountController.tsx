@@ -1,4 +1,4 @@
-import { type AccountDto } from "../api/mailAccountClient";
+import { hasTestableSmtpCredential, type AccountDto } from "../api/mailAccountClient";
 import { asErrorDto, isQqMailAddress } from "./appDomain";
 import { mailAccountClient } from "./appRuntime";
 import { validateNormalImapAccount } from "./normalImapAccountValidation";
@@ -11,8 +11,9 @@ type Dependencies = {
 export function useNormalAccountController(appState: AppState, dependencies: Dependencies) {
   const {
     normalDisplayName, normalEmailAddress, normalImapHost, normalImapPort, normalImapSecurity, normalImapUsername, normalImapPassword, setNormalImapPassword,
+    normalSmtpHost, normalSmtpPort, normalSmtpSecurity, setNormalSmtpHost, setNormalSmtpPort, setNormalSmtpSecurity,
     setNormalEmailAddress, setNormalImapUsername, setNormalDisplayName, setNormalImapHost, setNormalImapPort, setNormalImapSecurity, setStatusMessage, setBusy,
-    setSelectedNormalAccountId, setNormalImapTest, setError, setMailSourceId, setMailAccountPanelOpen, canonicalNormalAccountIdsRef, setNormalAccounts, selectedNormalAccountId,
+    setSelectedNormalAccountId, setNormalImapTest, setNormalSmtpTest, setError, setMailSourceId, setMailAccountPanelOpen, canonicalNormalAccountIdsRef, setNormalAccounts, selectedNormalAccountId,
   } = appState;
   const {
     loadNormalAccounts,
@@ -47,6 +48,9 @@ export function useNormalAccountController(appState: AppState, dependencies: Dep
       setNormalImapHost("imap.qq.com");
       setNormalImapPort("993");
       setNormalImapSecurity("tls");
+      setNormalSmtpHost("smtp.qq.com");
+      setNormalSmtpPort("465");
+      setNormalSmtpSecurity("tls");
       if (address.length > 0) {
         setNormalEmailAddress(address);
         setNormalImapUsername(address);
@@ -55,7 +59,7 @@ export function useNormalAccountController(appState: AppState, dependencies: Dep
   function applyQqMailPreset() {
       const address = normalEmailAddress.trim().toLowerCase();
       applyMailboxProviderDefaults(address, true);
-      setStatusMessage("已应用 QQ 邮箱预设。请使用 QQ 邮箱授权码，而不是 QQ 登录密码。");
+      setStatusMessage("已应用 QQ 邮箱预设（IMAP 993 / SMTP 465）。请使用 QQ 邮箱授权码，而不是 QQ 登录密码。");
     }
   async function testNormalImap(account: AccountDto) {
       setBusy(true);
@@ -72,6 +76,23 @@ export function useNormalAccountController(appState: AppState, dependencies: Dep
         setBusy(false);
       }
     }
+  async function testNormalSmtp(account: AccountDto) {
+      setBusy(true);
+      try {
+        const result = await mailAccountClient.testSmtp(account);
+        await loadNormalAccounts();
+        setSelectedNormalAccountId(account.id);
+        setNormalSmtpTest(result);
+        setStatusMessage(`SMTP connection test: ${result.capability_summary}.`);
+        setError(null);
+      } catch (caught: unknown) {
+        await loadNormalAccounts().catch(() => undefined);
+        setNormalSmtpTest(null);
+        setError(asErrorDto(caught));
+      } finally {
+        setBusy(false);
+      }
+    }
   async function addManualImapAccount() {
       const validation = validateNormalImapAccount({
         displayName: normalDisplayName,
@@ -81,9 +102,13 @@ export function useNormalAccountController(appState: AppState, dependencies: Dep
         imapSecurity: normalImapSecurity,
         imapUsername: normalImapUsername,
         imapPassword: normalImapPassword,
+        smtpHost: normalSmtpHost,
+        smtpPort: normalSmtpPort,
+        smtpSecurity: normalSmtpSecurity,
       });
       if (!validation.ok) {
         setNormalImapTest(null);
+        setNormalSmtpTest(null);
         setError(validation.error);
         return;
       }
@@ -97,12 +122,33 @@ export function useNormalAccountController(appState: AppState, dependencies: Dep
         try {
           const testResult = await mailAccountClient.testImap(result.account);
           setNormalImapTest(testResult);
-          setStatusMessage(
-            `Added ${result.account.display_name}; IMAP authenticated (${testResult.capability_summary}).`,
-          );
-          setError(null);
+          if (hasTestableSmtpCredential(result.account)) {
+            try {
+              const smtpResult = await mailAccountClient.testSmtp(result.account);
+              setNormalSmtpTest(smtpResult);
+              await loadNormalAccounts();
+              setStatusMessage(
+                `Added ${result.account.display_name}; IMAP (${testResult.capability_summary}) and SMTP (${smtpResult.capability_summary}) authenticated.`,
+              );
+              setError(null);
+            } catch (smtpError: unknown) {
+              setNormalSmtpTest(null);
+              await loadNormalAccounts();
+              setStatusMessage(
+                `Added ${result.account.display_name}; IMAP authenticated, but SMTP test failed. Receive remains active.`,
+              );
+              setError(asErrorDto(smtpError));
+            }
+          } else {
+            setNormalSmtpTest(null);
+            setStatusMessage(
+              `Added ${result.account.display_name}; IMAP authenticated (${testResult.capability_summary}).`,
+            );
+            setError(null);
+          }
         } catch (testError: unknown) {
           setNormalImapTest(null);
+          setNormalSmtpTest(null);
           setStatusMessage(
             `Added ${result.account.display_name}, but its IMAP connection test failed. The account remains available for review or deletion.`,
           );
@@ -124,6 +170,7 @@ export function useNormalAccountController(appState: AppState, dependencies: Dep
           candidate.id === updated.id ? updated : candidate,
         ));
         setNormalImapTest(null);
+        setNormalSmtpTest(null);
         setStatusMessage(`${updated.display_name} is disabled.`);
         setError(null);
       } catch (caught: unknown) {
@@ -145,6 +192,7 @@ export function useNormalAccountController(appState: AppState, dependencies: Dep
           setSelectedNormalAccountId(nextAccount?.id ?? null);
           setMailSourceId(nextAccount ? `account:${nextAccount.id}` : "all");
           setNormalImapTest(null);
+          setNormalSmtpTest(null);
         }
         setStatusMessage(
           result.credential_cleanup_complete
@@ -159,7 +207,7 @@ export function useNormalAccountController(appState: AppState, dependencies: Dep
       }
     }
   return {
-    mailboxLoginUsername, updateMailboxAuthorizationCode, updateNormalEmailAddress, applyQqMailPreset, testNormalImap, addManualImapAccount, disableNormalAccount, deleteNormalAccount,
+    mailboxLoginUsername, updateMailboxAuthorizationCode, updateNormalEmailAddress, applyQqMailPreset, testNormalImap, testNormalSmtp, addManualImapAccount, disableNormalAccount, deleteNormalAccount,
   };
 }
 

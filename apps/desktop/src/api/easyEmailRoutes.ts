@@ -17,10 +17,14 @@ export const EASY_EMAIL_CORE_ROUTES = {
   taxonomy: "/mail/taxonomy",
   accounts: "/mail/accounts",
   testAccountImap: "/mail/accounts/imap/test",
+  testAccountSmtp: "/mail/accounts/smtp/test",
   drafts: "/mail/drafts",
   messages: "/mail/messages",
   trash: "/mail/trash",
   verifications: "/mail/verifications",
+  sendQueue: "/mail/send-queue",
+  sendQueueRunOnce: "/mail/send-queue/run-once",
+  sendQueueRunDue: "/mail/send-queue/run-due",
   verificationCode(sessionId: string): string {
     return `/mail/mailboxes/${encodeURIComponent(sessionId)}/code`;
   },
@@ -71,5 +75,20 @@ export const EASY_EMAIL_CORE_ROUTES = {
   },
   pollMailboxVerification(sessionId: string): string {
     return `/mail/mailboxes/${encodeURIComponent(sessionId)}/verification/poll`;
+  },
+  sendQueueItem(queueItemId: string): string {
+    return `/mail/send-queue/${encodeURIComponent(queueItemId)}`;
+  },
+  runSendQueueItem(queueItemId: string): string {
+    return `/mail/send-queue/${encodeURIComponent(queueItemId)}/run`;
+  },
+  cancelSendQueueItem(queueItemId: string): string {
+    return `/mail/send-queue/${encodeURIComponent(queueItemId)}/cancel`;
+  },
+  retrySendQueueItem(queueItemId: string): string {
+    return `/mail/send-queue/${encodeURIComponent(queueItemId)}/retry`;
+  },
+  reopenScheduledSend(messageId: string): string {
+    return `/mail/messages/${encodeURIComponent(messageId)}/scheduled-send/reopen`;
   },
 } as const;

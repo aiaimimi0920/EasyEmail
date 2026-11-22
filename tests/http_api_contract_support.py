@@ -32,6 +32,12 @@ DOMAIN_MAIL_MESSAGE = (
 HTTP_MAIL_MESSAGE_CONTRACTS = (
     ROOT / "service" / "base" / "src" / "http" / "mail-message-contracts.ts"
 )
+DOMAIN_MAIL_SEND_QUEUE = (
+    ROOT / "service" / "base" / "src" / "domain" / "mail-send-queue.ts"
+)
+HTTP_MAIL_SEND_QUEUE_CONTRACTS = (
+    ROOT / "service" / "base" / "src" / "http" / "mail-send-queue-contracts.ts"
+)
 SHARED_CREDENTIAL_MODELS = (
     ROOT / "service" / "base" / "src" / "shared" / "credential-models.ts"
 )
@@ -76,6 +82,11 @@ DYNAMIC_ROUTE_METHODS = {
     "messageLabels": {"patch": "setMailMessageLocalLabel"},
     "reclassifyMessageVerification": {"post": "reclassifyMailMessageVerification"},
     "pollMailboxVerification": {"post": "pollMailboxVerification"},
+    "sendQueueItem": {"get": "getMailSendQueueItem"},
+    "runSendQueueItem": {"post": "runMailSendQueueItem"},
+    "cancelSendQueueItem": {"post": "cancelMailSendQueueItem"},
+    "retrySendQueueItem": {"post": "retryMailSendQueueItem"},
+    "reopenScheduledSend": {"post": "reopenScheduledSend"},
 }
 
 STATIC_ROUTE_DISPATCH = re.compile(

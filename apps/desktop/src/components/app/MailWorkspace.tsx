@@ -26,12 +26,18 @@ export function MailWorkspace({ controller }: { controller: AppController }) {
     mailboxLoginUsername,
     normalImapHost,
     normalImapPort,
+    normalSmtpHost,
+    normalSmtpPort,
+    normalSmtpSecurity,
     setMailAccountPanelAdvancedOpen,
     mailAccountPanelAdvancedOpen,
     setNormalImapHost,
     setNormalImapPort,
     normalImapSecurity,
     setNormalImapSecurity,
+    setNormalSmtpHost,
+    setNormalSmtpPort,
+    setNormalSmtpSecurity,
     addManualImapAccount,
     mailSourceDrawerOpen,
     busy,
@@ -81,7 +87,7 @@ export function MailWorkspace({ controller }: { controller: AppController }) {
               >
                 QQ 邮箱预设
               </button>
-              <span>QQ 邮箱 / IMAP 993 / TLS / 使用授权码（SMTP 在 M5）</span>
+              <span>QQ 邮箱 / IMAP 993 / SMTP 465 / TLS / 使用授权码</span>
             </div>
 
             <div className="nt-scroll-pane nt-mail-account-panel__body">
@@ -123,7 +129,9 @@ export function MailWorkspace({ controller }: { controller: AppController }) {
                     {normalImapHost || "imap.qq.com"}:{normalImapPort || "993"}
                   </strong>
                   <span>发送</span>
-                  <strong>SMTP 将在 M5 迁移</strong>
+                  <strong>
+                    {normalSmtpHost ? `${normalSmtpHost}:${normalSmtpPort || "465"}` : "smtp.qq.com:465"}
+                  </strong>
                 </div>
                 <button
                   type="button"
@@ -166,8 +174,40 @@ export function MailWorkspace({ controller }: { controller: AppController }) {
                         <option value="starttls">STARTTLS</option>
                       </select>
                     </label>
+                    <label>
+                      SMTP 主机
+                      <input
+                        autoComplete="off"
+                        value={normalSmtpHost}
+                        placeholder="smtp.qq.com"
+                        onChange={(event) => setNormalSmtpHost(event.currentTarget.value)}
+                      />
+                    </label>
+                    <label>
+                      SMTP 端口
+                      <input
+                        value={normalSmtpPort}
+                        inputMode="numeric"
+                        placeholder="465"
+                        onChange={(event) => setNormalSmtpPort(event.currentTarget.value)}
+                      />
+                    </label>
+                    <label>
+                      SMTP 安全模式
+                      <select
+                        value={normalSmtpSecurity}
+                        onChange={(event) =>
+                          setNormalSmtpSecurity(
+                            event.currentTarget.value as NonNullable<ManualImapAccountCreateRequest["smtp_security"]>,
+                          )
+                        }
+                      >
+                        <option value="tls">TLS</option>
+                        <option value="starttls">STARTTLS</option>
+                      </select>
+                    </label>
                     <p className="nt-form-note nt-wide-field">
-                      当前 M3 只保存 IMAP 配置。SMTP 主机、端口和发信凭据将在 M5 发送队列切片中迁移。
+                      授权码将通过桌面系统凭据管理器保存为独立的 IMAP/SMTP 不透明凭据引用，明文凭据不会进入 HTTP 请求。
                     </p>
                   </>
                 ) : null}

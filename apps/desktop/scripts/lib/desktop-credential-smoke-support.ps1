@@ -84,7 +84,7 @@ public static class EasyEmailDesktopSmokeWinCred {
 
 function Assert-IsolatedSmokeSecretKey {
     param([Parameter(Mandatory = $true)][string]$SecretKey)
-    if ($SecretKey -notmatch '^(ref:v1:desktop/[0-9a-f]{32}|secret://imap/acct_smoke_[0-9a-f]{32})$') {
+    if ($SecretKey -notmatch '^(ref:v1:desktop/[0-9a-f]{32}|secret://(?:imap|smtp)/acct_smoke_[0-9a-f]{32})$') {
         throw "Refusing to touch non-isolated credential key: $SecretKey"
     }
 }

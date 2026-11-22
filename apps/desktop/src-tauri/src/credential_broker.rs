@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::Read;
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -11,12 +11,14 @@ use zeroize::{Zeroize, Zeroizing};
 use crate::secret::windows::WindowsCredentialManagerVault;
 use crate::secret::SecretVaultAdapter;
 
+#[path = "credential_broker_http.rs"]
+mod http;
 #[path = "credential_broker_workers.rs"]
 mod workers;
 
+use http::{constant_time_equal, read_broker_http_request, write_error, write_json};
+
 const RESOLVE_PATH: &str = "/v1/credentials/resolve";
-const MAX_HEADER_BYTES: usize = 8192;
-const MAX_BODY_BYTES: usize = 16_384;
 const MAX_CORE_ACCOUNT_RESPONSE_BYTES: usize = 256 * 1024;
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(3);
 
@@ -244,95 +246,26 @@ fn is_safe_identifier(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
 }
 
-fn constant_time_equal(left: &str, right: &str) -> bool {
-    if left.len() != right.len() {
+fn is_supported_credential_scope(request: &CredentialResolveRequest) -> bool {
+    if request.auth_method != "password"
+        || !matches!(
+            request.secret_backend.as_str(),
+            "windows_credential_manager" | "secret_vault"
+        )
+    {
         return false;
     }
-    left.as_bytes()
-        .iter()
-        .zip(right.as_bytes())
-        .fold(0_u8, |difference, (left, right)| {
-            difference | (left ^ right)
-        })
-        == 0
-}
-
-fn find_header_end(buffer: &[u8]) -> Option<usize> {
-    buffer.windows(4).position(|window| window == b"\r\n\r\n")
-}
-
-fn parse_content_length(header: &str) -> Result<usize, ()> {
-    let mut content_length = None;
-    for line in header.lines().skip(1) {
-        let (name, value) = line.split_once(':').ok_or(())?;
-        if name.eq_ignore_ascii_case("transfer-encoding") {
-            return Err(());
+    match (request.use_case.as_str(), request.credential_kind.as_str()) {
+        ("imap-test", "imap_password") => {
+            request.secret_key.starts_with("ref:v1:")
+                || request.secret_key.starts_with("secret://imap/")
         }
-        if name.eq_ignore_ascii_case("content-length") {
-            if content_length.is_some() {
-                return Err(());
-            }
-            content_length = Some(value.trim().parse::<usize>().map_err(|_| ())?);
+        ("smtp-test" | "smtp-send", "smtp_password") => {
+            request.secret_key.starts_with("ref:v1:")
+                || request.secret_key.starts_with("secret://smtp/")
         }
+        _ => false,
     }
-    content_length.ok_or(())
-}
-
-fn parse_authorization(header: &str) -> Result<Option<&str>, ()> {
-    let mut authorization = None;
-    for line in header.lines().skip(1) {
-        let (name, value) = line.split_once(':').ok_or(())?;
-        if name.eq_ignore_ascii_case("authorization") {
-            if authorization.is_some() {
-                return Err(());
-            }
-            authorization = Some(value.trim());
-        }
-    }
-    Ok(authorization)
-}
-
-fn read_request(stream: &mut TcpStream) -> Result<Zeroizing<Vec<u8>>, ()> {
-    stream
-        .set_read_timeout(Some(CONNECTION_TIMEOUT))
-        .map_err(|_| ())?;
-    stream
-        .set_write_timeout(Some(CONNECTION_TIMEOUT))
-        .map_err(|_| ())?;
-    let mut buffer = Zeroizing::new(Vec::with_capacity(2048));
-    let (header_end, content_length) = loop {
-        if let Some(header_end) = find_header_end(&buffer) {
-            if header_end > MAX_HEADER_BYTES {
-                return Err(());
-            }
-            let header = std::str::from_utf8(&buffer[..header_end]).map_err(|_| ())?;
-            let content_length = parse_content_length(header)?;
-            if content_length > MAX_BODY_BYTES {
-                return Err(());
-            }
-            break (header_end, content_length);
-        }
-        if buffer.len() > MAX_HEADER_BYTES {
-            return Err(());
-        }
-        let mut chunk = [0_u8; 2048];
-        let read = stream.read(&mut chunk).map_err(|_| ())?;
-        if read == 0 {
-            return Err(());
-        }
-        buffer.extend_from_slice(&chunk[..read]);
-    };
-    let expected_length = header_end + 4 + content_length;
-    while buffer.len() < expected_length {
-        let mut chunk = [0_u8; 2048];
-        let read = stream.read(&mut chunk).map_err(|_| ())?;
-        if read == 0 || buffer.len() + read > MAX_HEADER_BYTES + 4 + MAX_BODY_BYTES {
-            return Err(());
-        }
-        buffer.extend_from_slice(&chunk[..read]);
-    }
-    buffer.truncate(expected_length);
-    Ok(buffer)
 }
 
 fn handle_connection(
@@ -341,70 +274,37 @@ fn handle_connection(
     vault: &dyn SecretVaultAdapter,
     authorizer: &dyn CredentialScopeAuthorizer,
 ) {
-    let buffer = match read_request(stream) {
-        Ok(buffer) => buffer,
-        Err(()) => {
-            write_error(stream, 400, "invalid_request");
-            return;
-        }
-    };
-    let Some(header_end) = find_header_end(&buffer) else {
-        write_error(stream, 400, "invalid_request");
-        return;
-    };
-    let header = match std::str::from_utf8(&buffer[..header_end]) {
-        Ok(header) => header,
-        Err(_) => {
-            write_error(stream, 400, "invalid_request");
-            return;
-        }
-    };
-    let mut lines = header.lines();
-    let mut request_line = lines.next().unwrap_or_default().split_whitespace();
-    let method = request_line.next().unwrap_or_default();
-    let path = request_line.next().unwrap_or_default();
-    let version = request_line.next().unwrap_or_default();
-    if request_line.next().is_some() || version != "HTTP/1.1" {
-        write_error(stream, 400, "invalid_request");
-        return;
-    }
-    let authorization = match parse_authorization(header) {
-        Ok(authorization) => authorization,
+    let parsed = match read_broker_http_request(stream, CONNECTION_TIMEOUT) {
+        Ok(parsed) => parsed,
         Err(()) => {
             write_error(stream, 400, "invalid_request");
             return;
         }
     };
     let expected_authorization = Zeroizing::new(format!("Bearer {expected_token}"));
-    if !authorization
+    if !parsed
+        .authorization
+        .as_deref()
         .map(|value| constant_time_equal(value, expected_authorization.as_str()))
         .unwrap_or(false)
     {
         write_error(stream, 401, "unauthorized");
         return;
     }
-    if method != "POST" || path != RESOLVE_PATH {
+    if parsed.method != "POST" || parsed.path != RESOLVE_PATH {
         write_error(stream, 404, "not_found");
         return;
     }
-    let request =
-        match serde_json::from_slice::<CredentialResolveRequest>(&buffer[header_end + 4..]) {
-            Ok(request) => request,
-            Err(_) => {
-                write_error(stream, 400, "invalid_request");
-                return;
-            }
-        };
-    if request.use_case != "imap-test"
-        || request.credential_kind != "imap_password"
-        || request.auth_method != "password"
-        || !matches!(
-            request.secret_backend.as_str(),
-            "windows_credential_manager" | "secret_vault"
-        )
-        || !(request.secret_key.starts_with("ref:v1:")
-            || request.secret_key.starts_with("secret://imap/"))
-    {
+    let request = match serde_json::from_slice::<CredentialResolveRequest>(
+        &parsed.buffer[parsed.body_offset..],
+    ) {
+        Ok(request) => request,
+        Err(_) => {
+            write_error(stream, 400, "invalid_request");
+            return;
+        }
+    };
+    if !is_supported_credential_scope(&request) {
         write_error(stream, 403, "scope_denied");
         return;
     }
@@ -445,29 +345,6 @@ fn handle_connection(
     write_json(stream, 200, &body);
     body.zeroize();
     secret.zeroize();
-}
-
-fn write_error(stream: &mut TcpStream, status: u16, code: &str) {
-    let body = format!(r#"{{"status":"error","code":"{code}"}}"#);
-    write_json(stream, status, body.as_bytes());
-}
-
-fn write_json(stream: &mut TcpStream, status: u16, body: &[u8]) {
-    let reason = match status {
-        200 => "OK",
-        400 => "Bad Request",
-        401 => "Unauthorized",
-        403 => "Forbidden",
-        404 => "Not Found",
-        _ => "Service Unavailable",
-    };
-    let header = format!(
-        "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nCache-Control: no-store\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-        body.len()
-    );
-    let _ = stream.write_all(header.as_bytes());
-    let _ = stream.write_all(body);
-    let _ = stream.flush();
 }
 
 #[cfg(test)]

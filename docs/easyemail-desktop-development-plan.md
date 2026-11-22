@@ -432,6 +432,17 @@ React 控制器已移除全部 M4 `message_*` 与 `verification_*` Tauri 业务�
 - HTTP/UI 端到端证明创建、取消、重试和结果统计；
 - 受控真实 SMTP 测试仅在安全 secret environment 运行，不向 fork PR 暴露凭据。
 
+**当前进度（2026-11-22）**：已落地关系库 schema v7（`mail_accounts` 的 `smtp_*` 非机密字段与触发器校验、
+`mail_send_queue` 持久发送队列表及幂等/租约/到期索引），扩展桌面端受限凭据桥接支持 `smtp_password`
+（`smtp-test` / `smtp-send` 作用域校验），在 `service/base` 实现原生 TLS 1.2+ / STARTTLS SMTP
+传输（`NodeSmtpTransport`）、可审计发件人/SMTP/不透明凭据快照冻结、`Idempotency-Key` 幂等去重与冲突检测、
+原子租约 claim（`lease_owner` / `lease_expires_at`）、过期租约安全恢复至 `delivery_unknown`（显式确认前拒绝自动重发）、
+有界指数退避重试、定时发送 `"未发送"` 标记与重开为本地草稿（`reopenScheduledSend`），以及 `service/base`
+自有的后台队列调度循环（`startMailSendQueueLoop`）。映射清单中归属 M5 的全部出站与定时队列能力已在
+`service/base`、`easyemail-openapi.json`、`clients/typescript` 与桌面端 `sendQueueClient` /
+`mailAccountClient` 对齐，React 侧已移除 15 秒前端 `runSendQueueDueBatch` 调度定时器及全部 M5 Tauri
+业务命令调用，并补充显式授权触发的真实 SMTP 验收脚本（`scripts/test-real-smtp-send-gate.ps1`）。
+
 ### M6 - IMAP 同步和远程操作
 
 **目标**：迁移账户连接、folder discovery、header/body 同步和远程 action，

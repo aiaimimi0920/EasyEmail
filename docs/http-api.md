@@ -342,6 +342,7 @@ authorization tier.
 | `POST` | `/mail/accounts/{accountId}/disable` | Disable receive/send state with version CAS. |
 | `DELETE` | `/mail/accounts/{accountId}?expectedVersion=N` | Soft-delete one account with version CAS. |
 | `POST` | `/mail/accounts/imap/test` | Test a stored IMAP profile using an account-owned opaque credential reference. |
+| `POST` | `/mail/accounts/smtp/test` | Test a stored SMTP profile using an account-owned opaque credential reference. |
 | `GET` | `/mail/taxonomy?kind=folder\|label` | List persistent folders or labels with opaque keyset pagination. |
 | `PUT` | `/mail/taxonomy/{kind}/{key}` | Create or upsert a folder or label by normalized name. |
 | `GET` | `/mail/taxonomy/{itemId}` | Read one folder or label. |
@@ -360,6 +361,15 @@ authorization tier.
 | `GET` | `/mail/verifications` | List recent extracted verification code records with freshness metadata. |
 | `POST` | `/mail/messages/{messageId}/reclassify-verification` | Re-run OTP extraction and reconcile verification records for a message. |
 | `POST` | `/mail/mailboxes/{sessionId}/verification/poll` | Synchronize a temporary session and return any newly detected verification code. |
+| `GET` | `/mail/send-queue` | List persistent outgoing send queue items and worker status. |
+| `POST` | `/mail/send-queue` | Enqueue an immediate or scheduled outgoing email with frozen sender/SMTP snapshot and optional `Idempotency-Key`. |
+| `GET` | `/mail/send-queue/{queueItemId}` | Read one persistent outgoing send queue item. |
+| `POST` | `/mail/send-queue/{queueItemId}/run` | Claim and execute one due outgoing send queue item immediately. |
+| `POST` | `/mail/send-queue/{queueItemId}/cancel` | Cancel a queued outgoing send item with optional version CAS. |
+| `POST` | `/mail/send-queue/{queueItemId}/retry` | Re-queue a failed, auth-failed, cancelled, or explicitly confirmed `delivery_unknown` send item. |
+| `POST` | `/mail/send-queue/run-once` | Claim and execute at most one due outgoing send queue item. |
+| `POST` | `/mail/send-queue/run-due` | Claim and execute a bounded batch of due outgoing send queue items. |
+| `POST` | `/mail/messages/{messageId}/scheduled-send/reopen` | Cancel a queued scheduled send and convert its message back into an editable local draft. |
 
 ### Provider administration and queries
 
@@ -393,6 +403,7 @@ Current status behavior is:
 | `401` | The configured Bearer token is missing or incorrect. |
 | `404` | No route matches the method and path. |
 | `409` | A unique constraint or version compare-and-swap conflict occurred. |
+| `422` | A remote IMAP or SMTP endpoint rejected the referenced credential or delivery envelope. |
 | `500` | An EasyEmail, provider, persistence, or unexpected runtime error occurred. |
 | `503` | A required persistent relational capability is disabled or unavailable. |
 

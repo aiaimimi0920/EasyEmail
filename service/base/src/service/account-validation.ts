@@ -9,7 +9,10 @@ import type {
   MailAccountReceiveStatus,
   MailAccountScope,
   MailAccountSendStatus,
+  MailAccountSmtpProfile,
   MailAccountStatus,
+  MailCredentialRef,
+  MailCredentialRefInput,
 } from "../domain/account.js";
 
 export const DEFAULT_ACCOUNT_PAGE_SIZE = 50;
@@ -32,6 +35,7 @@ export const ACCOUNT_CREATE_FIELDS = new Set([
   "primaryAddress",
   "providerLabel",
   "imap",
+  "smtp",
   "listedInAllAccounts",
   "credentialRefs",
 ]);
@@ -40,6 +44,7 @@ export const ACCOUNT_UPDATE_FIELDS = new Set([
   "displayName",
   "providerLabel",
   "imap",
+  "smtp",
   "listedInAllAccounts",
 ]);
 export const ACCOUNT_DELETE_FIELDS = new Set(["expectedVersion"]);
@@ -49,8 +54,9 @@ const CREDENTIAL_REF_FIELDS = new Set([
   "credentialKind",
   "authMethod",
 ]);
-const IMAP_PROFILE_FIELDS = new Set(["host", "port", "security", "username"]);
+const CONNECTION_PROFILE_FIELDS = new Set(["host", "port", "security", "username"]);
 export const IMAP_TEST_FIELDS = new Set(["accountId", "credentialRefId"]);
+export const SMTP_TEST_FIELDS = new Set(["accountId", "credentialRefId"]);
 
 function asciiLower(value: string): string {
   return value.replace(/[A-Z]/g, (character) => character.toLowerCase());
@@ -127,35 +133,47 @@ export function normalizeOptionalBoolean(value: unknown, field: string): boolean
   return value;
 }
 
-export function normalizeImapProfile(value: unknown, allowNull = false): MailAccountImapProfile | undefined {
+function normalizeServerProfile<TProtocol extends "imap" | "smtp">(
+  protocol: TProtocol,
+  value: unknown,
+  allowNull = false,
+): { protocol: TProtocol; host: string; port: number; security: "tls" | "starttls"; username: string } | undefined {
   if (value === undefined) return undefined;
   if (value === null) {
     if (allowNull) return undefined;
-    throw new EasyEmailError("INVALID_ACCOUNT", "imap must be an object.");
+    throw new EasyEmailError("INVALID_ACCOUNT", `${protocol} must be an object.`);
   }
   if (typeof value !== "object" || Array.isArray(value)) {
-    throw new EasyEmailError("INVALID_ACCOUNT", "imap must be an object or null.");
+    throw new EasyEmailError("INVALID_ACCOUNT", `${protocol} must be an object or null.`);
   }
   assertNoRawSecretFields(value);
   const record = value as Record<string, unknown>;
-  assertOnlyKnownFields(record, IMAP_PROFILE_FIELDS, "imap");
+  assertOnlyKnownFields(record, CONNECTION_PROFILE_FIELDS, protocol);
   const host = typeof record.host === "string" ? asciiLower(record.host.trim()) : "";
   if (!host || host.length > 253 || /[\s\u0000-\u001f\u007f]/u.test(host)) {
-    throw new EasyEmailError("INVALID_ACCOUNT", "imap.host must be a valid non-empty host name.");
+    throw new EasyEmailError("INVALID_ACCOUNT", `${protocol}.host must be a valid non-empty host name.`);
   }
   if (typeof record.port !== "number" || !Number.isSafeInteger(record.port) || record.port < 1 || record.port > 65535) {
-    throw new EasyEmailError("INVALID_ACCOUNT", "imap.port must be an integer from 1 to 65535.");
+    throw new EasyEmailError("INVALID_ACCOUNT", `${protocol}.port must be an integer from 1 to 65535.`);
   }
   const rawSecurity = typeof record.security === "string" ? asciiLower(record.security.trim()) : "";
   const security = rawSecurity === "ssl" ? "tls" : rawSecurity;
   if (security !== "tls" && security !== "starttls") {
-    throw new EasyEmailError("INVALID_ACCOUNT", "imap.security must be tls, ssl, or starttls.");
+    throw new EasyEmailError("INVALID_ACCOUNT", `${protocol}.security must be tls, ssl, or starttls.`);
   }
   const username = typeof record.username === "string" ? record.username.trim() : "";
   if (!username || username.length > 320 || /[\u0000-\u001f\u007f]/u.test(username)) {
-    throw new EasyEmailError("INVALID_ACCOUNT", "imap.username must contain from 1 to 320 safe characters.");
+    throw new EasyEmailError("INVALID_ACCOUNT", `${protocol}.username must contain from 1 to 320 safe characters.`);
   }
-  return { protocol: "imap", host, port: record.port, security, username };
+  return { protocol, host, port: record.port, security, username };
+}
+
+export function normalizeImapProfile(value: unknown, allowNull = false): MailAccountImapProfile | undefined {
+  return normalizeServerProfile("imap", value, allowNull);
+}
+
+export function normalizeSmtpProfile(value: unknown, allowNull = false): MailAccountSmtpProfile | undefined {
+  return normalizeServerProfile("smtp", value, allowNull);
 }
 
 export function assertNoRawSecretFields(value: unknown, seen = new Set<object>()): void {
@@ -187,7 +205,7 @@ export function assertOnlyKnownFields(
   }
 }
 
-export function normalizeCredentialRefs(value: unknown): MailAccountCreateInput["credentialRefs"] {
+export function normalizeCredentialRefs(value: unknown): MailCredentialRefInput[] {
   if (value === undefined) return [];
   if (!Array.isArray(value) || value.length > 16) {
     throw new EasyEmailError("INVALID_ACCOUNT", "credentialRefs must contain at most 16 items.");
@@ -288,19 +306,42 @@ export function sqliteUniqueConstraint(error: unknown): "address" | "credential-
   return undefined;
 }
 
-export function initialState(kind: MailAccountKind): {
+export function deriveSendStatus(
+  smtp: MailAccountSmtpProfile | undefined,
+  credentialRefs: ReadonlyArray<Pick<MailCredentialRef, "credentialKind" | "authMethod"> & { status?: MailCredentialRef["status"] }>,
+  currentStatus: MailAccount["status"],
+): MailAccountSendStatus {
+  if (currentStatus === "disabled" || !smtp) {
+    return "disabled";
+  }
+  const hasUsableSmtpRef = credentialRefs.some(
+    (ref) =>
+      ref.credentialKind === "smtp_password"
+      && ref.authMethod === "password"
+      && ref.status !== "disabled"
+      && ref.status !== "invalid",
+  );
+  return hasUsableSmtpRef ? "enabled" : "disabled";
+}
+
+export function initialState(
+  kind: MailAccountKind,
+  smtp?: MailAccountSmtpProfile,
+  credentialRefs: readonly MailCredentialRefInput[] = [],
+): {
   status: MailAccountStatus;
   authStatus: MailAccountAuthStatus;
   receiveStatus: MailAccountReceiveStatus;
   sendStatus: MailAccountSendStatus;
   listedInAllAccounts: boolean;
 } {
+  const sendStatus = deriveSendStatus(smtp, credentialRefs, "configuring");
   if (kind === "agent_owned") {
     return {
       status: "configuring",
       authStatus: "missing",
       receiveStatus: "disabled",
-      sendStatus: "disabled",
+      sendStatus,
       listedInAllAccounts: false,
     };
   }
@@ -308,7 +349,7 @@ export function initialState(kind: MailAccountKind): {
     status: "configuring",
     authStatus: "missing",
     receiveStatus: "disabled",
-    sendStatus: "disabled",
+    sendStatus,
     listedInAllAccounts: true,
   };
 }

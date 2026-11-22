@@ -406,6 +406,13 @@ class HttpApiContractTests(HttpApiContractTestCase):
             "setMailMessageLocalLabel",
             "reclassifyMailMessageVerification",
             "pollMailboxVerification",
+            "testMailAccountSmtp",
+            "enqueueMailSend",
+            "getMailSendQueueItem",
+            "runMailSendQueueItem",
+            "cancelMailSendQueueItem",
+            "retryMailSendQueueItem",
+            "reopenScheduledSend",
         }
         documented_operation_ids = {
             operation["operationId"]

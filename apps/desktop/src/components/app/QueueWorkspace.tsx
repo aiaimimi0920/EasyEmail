@@ -1,10 +1,17 @@
 import type { AppController } from "../../app/useAppController";
 
+const RETRYABLE_QUEUE_STATUSES = new Set([
+  "failed",
+  "auth_failed",
+  "cancelled",
+  "delivery_unknown",
+]);
+
 export function QueueWorkspace({ controller }: { controller: AppController }) {
   const {
     busy, selectedNormalAccountId, setSelectedNormalAccountId, sendEnabledAccounts, sendTargetAddress,
-    setSendTargetAddress, sendSubject, setSendSubject, sendBodyText, setDraftBodyText, enqueueDraftSend, lastSend, lastSendWorkerRun,
-    sendQueue,
+    setSendTargetAddress, sendSubject, setSendSubject, sendBodyText, setDraftBodyText, enqueueDraftSend,
+    cancelSendQueueItem, retrySendQueueItem, lastSend, lastSendWorkerRun, sendQueueWorkerStatus, sendQueue,
   } = controller;
   return (
     <section className="nt-board-view nt-board-view--content-only">
@@ -71,6 +78,16 @@ export function QueueWorkspace({ controller }: { controller: AppController }) {
               </span>
             </div>
           ) : null}
+          {sendQueueWorkerStatus ? (
+            <div className="nt-result">
+              <strong>Server worker</strong>
+              <span>
+                {sendQueueWorkerStatus.enabled ? "active" : "disabled"} ({sendQueueWorkerStatus.interval_ms}ms) /
+                sent {sendQueueWorkerStatus.total_sent_count}, retry {sendQueueWorkerStatus.total_retry_count},
+                failed {sendQueueWorkerStatus.total_failed_count}
+              </span>
+            </div>
+          ) : null}
         </section>
 
         <section className="nt-list-pane nt-list-pane--wide">
@@ -86,7 +103,35 @@ export function QueueWorkspace({ controller }: { controller: AppController }) {
                   <span>To: {item.target_address}</span>
                   <small>
                     {item.status} / attempts {item.attempt_count} / {item.updated_at}
+                    {item.scheduled_at ? ` / scheduled ${item.scheduled_at}` : ""}
                   </small>
+                  {item.last_error_message ? (
+                    <small>{item.last_error_message}</small>
+                  ) : null}
+                  {item.status === "queued" || RETRYABLE_QUEUE_STATUSES.has(item.status) ? (
+                    <div className="nt-row-actions">
+                      {item.status === "queued" ? (
+                        <button
+                          type="button"
+                          className="nt-mini-btn"
+                          onClick={() => void cancelSendQueueItem(item)}
+                          disabled={busy}
+                        >
+                          Cancel
+                        </button>
+                      ) : null}
+                      {RETRYABLE_QUEUE_STATUSES.has(item.status) ? (
+                        <button
+                          type="button"
+                          className="nt-mini-btn"
+                          onClick={() => void retrySendQueueItem(item)}
+                          disabled={busy}
+                        >
+                          Retry
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </article>
               ))
             ) : (

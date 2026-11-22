@@ -5,6 +5,7 @@ import type {
   MailMessageRepository,
   MailVerificationRepository,
 } from "../domain/mail-message.js";
+import type { MailSendQueueRepository } from "../domain/mail-send-queue.js";
 import type { MailTaxonomyRepository } from "../domain/mail-taxonomy.js";
 import { EasyEmailHttpHandler } from "../http/handler.js";
 import { createEasyEmailHttpServer, type StartedEasyEmailHttpServer } from "../http/server.js";
@@ -20,6 +21,7 @@ import {
 import type {
   MailCredentialResolver,
   MailImapConnectionTester,
+  MailSmtpTransport,
 } from "../service/account-connectivity.js";
 import { createMailAccountService } from "../service/accounts.js";
 import {
@@ -31,8 +33,10 @@ import { createContactService } from "../service/contacts.js";
 import type { EasyEmailService } from "../service/easy-email-service.js";
 import { ImapFlowConnectionTester } from "../service/imapflow-connection-tester.js";
 import { createMailMessageService } from "../service/mail-messages.js";
+import { createMailSendQueueService } from "../service/mail-send-queue.js";
 import { createMailTaxonomyService } from "../service/mail-taxonomy.js";
 import { createMailVerificationService } from "../service/mail-verifications.js";
+import { NodeSmtpTransport } from "../service/smtp-transport.js";
 import { createAliasProvidersFromRuntimeConfig } from "./alias-provider-config.js";
 import { configureCloudflareTempEmailProviderInstance } from "./cloudflare-temp-email-config.js";
 import {
@@ -51,6 +55,7 @@ import {
 import { configureGptMailProviderInstance } from "./gptmail-provider-config.js";
 import { startMailMaintenanceLoop, type MailMaintenanceLoop } from "./maintenance-loop.js";
 import { startMailStatePersistenceLoop, type MailStatePersistenceLoop } from "./persistence-loop.js";
+import { startMailSendQueueLoop, type MailSendQueueLoop } from "./send-queue-loop.js";
 import {
   configureDefaultStrategyProfile,
   configureProviderAvailability,
@@ -67,8 +72,12 @@ export interface EasyEmailServiceRuntimeOptions extends EasyEmailBootstrapOption
   mailAccountRepository?: MailAccountRepository;
   mailMessageRepository?: MailMessageRepository;
   mailVerificationRepository?: MailVerificationRepository;
+  mailSendQueueRepository?: MailSendQueueRepository;
   mailCredentialResolver?: MailCredentialResolver;
   mailImapConnectionTester?: MailImapConnectionTester;
+  mailSmtpTransport?: MailSmtpTransport;
+  sendQueueWorkerEnabled?: boolean;
+  sendQueueWorkerIntervalMs?: number;
 }
 
 export interface StartedEasyEmailServiceRuntime {
@@ -78,12 +87,14 @@ export interface StartedEasyEmailServiceRuntime {
   server: StartedEasyEmailHttpServer;
   maintenanceLoop?: MailMaintenanceLoop;
   persistenceLoop?: MailStatePersistenceLoop;
+  sendQueueLoop?: MailSendQueueLoop;
   queryRepository?: MailStateQueryRepository;
   contactRepository?: ContactRepository;
   mailTaxonomyRepository?: MailTaxonomyRepository;
   mailAccountRepository?: MailAccountRepository;
   mailMessageRepository?: MailMessageRepository;
   mailVerificationRepository?: MailVerificationRepository;
+  mailSendQueueRepository?: MailSendQueueRepository;
   close(): Promise<void>;
 }
 
@@ -145,6 +156,7 @@ export async function startEasyEmailServiceRuntime(
     || !options.mailAccountRepository
     || !options.mailMessageRepository
     || !options.mailVerificationRepository
+    || !options.mailSendQueueRepository
   ) && config.persistence.enabled
     ? new SqliteRelationalDatabase({
         databasePath: resolveRelationalDatabasePath(config.persistence.databasePath),
@@ -155,15 +167,21 @@ export async function startEasyEmailServiceRuntime(
   const mailAccountRepository = options.mailAccountRepository ?? relationalDatabase;
   const mailMessageRepository = options.mailMessageRepository ?? relationalDatabase;
   const mailVerificationRepository = options.mailVerificationRepository ?? relationalDatabase;
+  const mailSendQueueRepository = options.mailSendQueueRepository ?? relationalDatabase;
   let handler: EasyEmailHttpHandler | undefined;
   let server: StartedEasyEmailHttpServer | undefined;
   let maintenanceLoop: MailMaintenanceLoop | undefined;
   let persistenceLoop: MailStatePersistenceLoop | undefined;
+  let sendQueueLoop: MailSendQueueLoop | undefined;
   let closePromise: Promise<void> | undefined;
   const close = (): Promise<void> => {
     closePromise ??= (async () => {
       // Stop ingress and scheduling before taking the last snapshot.
-      const drains = await Promise.allSettled([server?.close(), maintenanceLoop?.stop()]);
+      const drains = await Promise.allSettled([
+        server?.close(),
+        maintenanceLoop?.stop(),
+        sendQueueLoop?.stop(),
+      ]);
       const errors: unknown[] = drains.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
       try {
         await persistenceLoop?.stop();
@@ -184,6 +202,8 @@ export async function startEasyEmailServiceRuntime(
       ?? createDesktopCredentialBrokerResolverFromEnvironment(process.env);
     const mailImapConnectionTester = options.mailImapConnectionTester
       ?? new ImapFlowConnectionTester();
+    const mailSmtpTransport = options.mailSmtpTransport
+      ?? new NodeSmtpTransport();
     const verificationService = mailMessageRepository && mailVerificationRepository
       ? createMailVerificationService(mailMessageRepository, mailVerificationRepository, undefined, {
           easyEmailService: service,
@@ -201,6 +221,14 @@ export async function startEasyEmailServiceRuntime(
         await messageService.ingestObservedMessages();
       });
     }
+    const sendQueueService = mailSendQueueRepository
+      ? createMailSendQueueService(mailSendQueueRepository, undefined, {
+          accountRepository: mailAccountRepository,
+          credentialResolver: mailCredentialResolver,
+          smtpTransport: mailSmtpTransport,
+          workerIntervalMs: options.sendQueueWorkerIntervalMs,
+        })
+      : undefined;
     handler = new EasyEmailHttpHandler(
       service,
       queryRepository,
@@ -210,10 +238,12 @@ export async function startEasyEmailServiceRuntime(
         ? createMailAccountService(mailAccountRepository, undefined, {
             credentialResolver: mailCredentialResolver,
             imapTester: mailImapConnectionTester,
+            smtpTransport: mailSmtpTransport,
           })
         : undefined,
       messageService,
       verificationService,
+      sendQueueService,
     );
     server = await createEasyEmailHttpServer(handler, {
       hostname: config.hostname,
@@ -221,6 +251,12 @@ export async function startEasyEmailServiceRuntime(
       apiKey: config.apiKey,
       corsOrigins: config.corsOrigins,
     });
+
+    sendQueueLoop = sendQueueService && options.sendQueueWorkerEnabled !== false
+      ? startMailSendQueueLoop(sendQueueService, {
+          intervalMs: options.sendQueueWorkerIntervalMs,
+        })
+      : undefined;
 
     maintenanceLoop = config.maintenance.enabled
       ? startMailMaintenanceLoop(service, {
@@ -262,12 +298,14 @@ export async function startEasyEmailServiceRuntime(
     server,
     maintenanceLoop,
     persistenceLoop,
+    sendQueueLoop,
     queryRepository,
     contactRepository,
     mailTaxonomyRepository,
     mailAccountRepository,
     mailMessageRepository,
     mailVerificationRepository,
+    mailSendQueueRepository,
     close,
   };
 }

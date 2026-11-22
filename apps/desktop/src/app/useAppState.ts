@@ -2,11 +2,11 @@ import { useMemo, useRef, useState } from "react";
 import type { EasyEmailAuthenticationLinkResult, EasyEmailObservedMessage } from "../api/easyEmailHttpClient";
 import type { AvatarSettingsDto } from "../api/avatarSettingsClient";
 import type { ContactDto } from "../api/contactClient";
-import type { AccountDto, ManualImapAccountCreateRequest, NormalImapConnectionTestDto } from "../api/mailAccountClient";
+import type { AccountDto, ManualImapAccountCreateRequest, NormalImapConnectionTestDto, NormalSmtpConnectionTestDto } from "../api/mailAccountClient";
 import type { MailTaxonomyItemDto, MailTaxonomyKind } from "../api/mailTaxonomyClient";
 import type { PlatformAccountQueryDto, PlatformAccountSessionDto } from "../api/platformAccountClient";
 import type { EasyEmailHealthDto, EasyEmailSettingsDto } from "../api/settingsClient";
-import type { SendQueueDto, SendQueueWorkerRunResult } from "../api/sendQueueClient";
+import type { SendQueueDto, SendQueueWorkerRunResult, SendQueueWorkerStatusDto } from "../api/sendQueueClient";
 import { COMPOSE_DEFAULT_BACKGROUND_COLOR, COMPOSE_DEFAULT_TEXT_COLOR } from "../compose/composeData";
 import type { ComposeEmojiCategoryId, ComposeRecipientField } from "../compose/composeData";
 import { defaultComposeCustomScheduleDate, defaultComposeExpirationDate, formatComposeLocalDateTimeInput } from "../compose/composeDateUtils";
@@ -194,8 +194,10 @@ export function useAppState() {
       useState<EasyEmailAuthenticationLinkResult | null>(null);
   const [lastPromotion, setLastPromotion] = useState<PromoteTempMailboxDto | null>(null);
   const [normalImapTest, setNormalImapTest] = useState<NormalImapConnectionTestDto | null>(null);
+  const [normalSmtpTest, setNormalSmtpTest] = useState<NormalSmtpConnectionTestDto | null>(null);
   const [lastSend, setLastSend] = useState<SendMessageDto | null>(null);
   const [lastSendWorkerRun, setLastSendWorkerRun] = useState<SendQueueWorkerRunResult | null>(null);
+  const [sendQueueWorkerStatus, setSendQueueWorkerStatus] = useState<SendQueueWorkerStatusDto | null>(null);
   const [lastAgentTask, setLastAgentTask] = useState<AgentSendTaskDto | null>(null);
   const [serviceUrl, setServiceUrl] = useState("");
   const [apiToken, setApiToken] = useState("");
@@ -207,6 +209,10 @@ export function useAppState() {
       useState<ManualImapAccountCreateRequest["imap_security"]>("tls");
   const [normalImapUsername, setNormalImapUsername] = useState("");
   const [normalImapPassword, setNormalImapPassword] = useState("");
+  const [normalSmtpHost, setNormalSmtpHost] = useState("");
+  const [normalSmtpPort, setNormalSmtpPort] = useState("465");
+  const [normalSmtpSecurity, setNormalSmtpSecurity] =
+      useState<NonNullable<ManualImapAccountCreateRequest["smtp_security"]>>("tls");
   const [sendTargetAddress, setSendTargetAddress] = useState("");
   const [sendSubject, setSendSubject] = useState("");
   const [sendBodyText, setSendBodyText] = useState("");
@@ -347,9 +353,10 @@ export function useAppState() {
     composeSavedSelectionRangeRef, composeImageInputRef, composeAttachmentInputRef, copyToast, setCopyToast, copyToastTimerRef, toastVisibleKey, setToastVisibleKey,
     toastFading, setToastFading, toastVersion, setToastVersion, toastFadeTimerRef, toastRemoveTimerRef, recentCodes, setRecentCodes,
     lastRefresh, setLastRefresh, lastAuthenticationLink, setLastAuthenticationLink, lastPromotion, setLastPromotion, normalImapTest, setNormalImapTest,
-    lastSend, setLastSend, lastSendWorkerRun, setLastSendWorkerRun, lastAgentTask, setLastAgentTask, serviceUrl, setServiceUrl,
+    normalSmtpTest, setNormalSmtpTest, lastSend, setLastSend, lastSendWorkerRun, setLastSendWorkerRun, sendQueueWorkerStatus, setSendQueueWorkerStatus, lastAgentTask, setLastAgentTask, serviceUrl, setServiceUrl,
     apiToken, setApiToken, normalDisplayName, setNormalDisplayName, normalEmailAddress, setNormalEmailAddress, normalImapHost, setNormalImapHost,
     normalImapPort, setNormalImapPort, normalImapSecurity, setNormalImapSecurity, normalImapUsername, setNormalImapUsername, normalImapPassword, setNormalImapPassword,
+    normalSmtpHost, setNormalSmtpHost, normalSmtpPort, setNormalSmtpPort, normalSmtpSecurity, setNormalSmtpSecurity,
     sendTargetAddress, setSendTargetAddress, sendSubject, setSendSubject, sendBodyText, setSendBodyText, sendBodyHtml, setSendBodyHtml,
     composeFontFamily, setComposeFontFamily, composeFontSize, setComposeFontSize, composeFormatbarOpen, setComposeFormatbarOpen, composeMoreMenuOpen, setComposeMoreMenuOpen,
     composeMoreMenuAnchor, setComposeMoreMenuAnchor, composeAiMoreMenuOpen, setComposeAiMoreMenuOpen, composeBottomMoreOpen, setComposeBottomMoreOpen, composeEncryptionMenuOpen, setComposeEncryptionMenuOpen,

@@ -1,5 +1,6 @@
 use super::*;
 use crate::secret::fake::FakeSecretVaultAdapter;
+use std::io::Write;
 use std::time::Instant;
 
 struct FixedAuthorizer(ScopeDecision);
@@ -203,17 +204,37 @@ fn broker_resolves_the_same_opaque_ref_after_restart() {
 #[test]
 fn parser_rejects_ambiguous_http_message_lengths() {
     assert_eq!(
-        parse_content_length("POST / HTTP/1.1\r\nContent-Length: 12\r\n").unwrap(),
+        http::parse_content_length("POST / HTTP/1.1\r\nContent-Length: 12\r\n").unwrap(),
         12
     );
-    assert!(parse_content_length(
+    assert!(http::parse_content_length(
         "POST / HTTP/1.1\r\nContent-Length: 12\r\nContent-Length: 12\r\n"
     )
     .is_err());
-    assert!(parse_content_length(
+    assert!(http::parse_content_length(
         "POST / HTTP/1.1\r\nContent-Length: 12\r\nTransfer-Encoding: chunked\r\n"
     )
     .is_err());
+}
+
+#[test]
+fn broker_validates_smtp_send_and_test_credential_scopes() {
+    let valid_send = CredentialResolveRequest {
+        account_id: "acct_v1_test".to_string(),
+        credential_ref_id: "cred_v1_smtp".to_string(),
+        secret_backend: "windows_credential_manager".to_string(),
+        secret_key: "ref:v1:desktop/00000000000000000000000000000002".to_string(),
+        credential_kind: "smtp_password".to_string(),
+        auth_method: "password".to_string(),
+        use_case: "smtp-send".to_string(),
+    };
+    assert!(is_supported_credential_scope(&valid_send));
+
+    let mismatched_kind = CredentialResolveRequest {
+        credential_kind: "imap_password".to_string(),
+        ..valid_send
+    };
+    assert!(!is_supported_credential_scope(&mismatched_kind));
 }
 
 #[test]
