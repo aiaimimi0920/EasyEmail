@@ -39,16 +39,23 @@ function Protect-TempSecretFile {
 }
 
 $resolvedArtifacts = @()
-foreach ($rawPath in $ArtifactPaths) {
-    $full = [System.IO.Path]::GetFullPath($rawPath)
-    if (-not (Test-Path -LiteralPath $full -PathType Leaf)) {
-        throw "Signing target artifact does not exist: $full"
+foreach ($entry in $ArtifactPaths) {
+    foreach ($rawPath in ($entry -split ',')) {
+        $trimmed = $rawPath.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
+        $full = [System.IO.Path]::GetFullPath($trimmed)
+        if (-not (Test-Path -LiteralPath $full -PathType Leaf)) {
+            throw "Signing target artifact does not exist: $full"
+        }
+        $ext = [System.IO.Path]::GetExtension($full).ToLowerInvariant()
+        if ($ext -notin @('.exe', '.msi')) {
+            throw "Unsupported Authenticode signing target extension ($ext): $full"
+        }
+        $resolvedArtifacts += $full
     }
-    $ext = [System.IO.Path]::GetExtension($full).ToLowerInvariant()
-    if ($ext -notin @('.exe', '.msi')) {
-        throw "Unsupported Authenticode signing target extension ($ext): $full"
-    }
-    $resolvedArtifacts += $full
+}
+if ($resolvedArtifacts.Count -lt 1) {
+    throw 'At least one .exe or .msi artifact path is required.'
 }
 
 if (-not $VerifyOnly) {

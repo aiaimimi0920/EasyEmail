@@ -122,13 +122,13 @@ jobs:
             throw 'Expected both MSI and NSIS desktop installer artifacts.'
           }
 
-          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/sign-and-verify-desktop-artifacts.ps1 `
+          & ./scripts/sign-and-verify-desktop-artifacts.ps1 `
             -ArtifactPaths @($releaseExe) -RequireValidSignature
 
           npm --prefix apps/desktop run portable:bundle
 
           $allSignedTargets = @($releaseExe, $msiFiles[0].FullName, $nsisFiles[0].FullName)
-          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/sign-and-verify-desktop-artifacts.ps1 `
+          & ./scripts/sign-and-verify-desktop-artifacts.ps1 `
             -ArtifactPaths $allSignedTargets `
             -RequireValidSignature `
             -ReportOutputPath '.release-artifacts/desktop-signing-report.json'

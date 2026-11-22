@@ -1,6 +1,6 @@
 # EasyEmailAM Desktop Migration
 
-Status: **source imported; business ownership migration in progress**.
+Status: **M0–M10 repository migration, Tauri business-core slimming, ADR 0004 graceful shutdown, SBOM/license gate, and release engineering complete; public `releaseStatus` remains gated on hosted CA code-signing and clean-VM provenance evidence**.
 
 This document records the controlled migration of the EasyEmailAM desktop
 application into [`apps/desktop`](../apps/desktop). It is both an implementation
@@ -64,39 +64,35 @@ provider selection, message persistence, send retries, verification-code
 classification, mailbox promotion, Agent reply association, or remote avatar
 fetching.
 
-## Imported transitional state
+## Completed migration state (M0–M10)
 
-The imported application is buildable and preserves all EasyEmailAM features.
-The Tauri host now starts the compiled `service/base` core with a private Node
-runtime, waits for authenticated loopback readiness, and the React startup path
-queries the canonical `/mail/catalog` resource. Most extended business features
-are still owned by the transitional Rust backend, so this remains an explicitly
-temporary, non-release state. In particular:
+The ownership migration from the transitional Rust backend to `service/base`
+HTTP is complete:
 
-- `src/App.tsx` uses authenticated bundled-core HTTP for startup readiness,
-  temporary-mailbox operations, contacts, and normal-account list/create/test/
-  disable/delete. Other extended client operations remain transitional;
-- `src-tauri/src/commands.rs` still maps UI requests to Rust services;
-- the Rust services and SQLite repositories still implement the extended mail
-  client behavior;
-- normal close reaps the exact child process, but the core does not yet expose a
-  graceful shutdown API;
-- the host now owns a second, separately authenticated loopback credential
-  broker. It stores new IMAP secrets in Windows Credential Manager, gives the
-  renderer only opaque refs, and lets the exact Node child resolve only a
-  canonical account-owned ref for an allowlisted operation;
-- `service/base` now owns the production ImapFlow account connection tester, but
-  React now reaches it through the canonical account HTTP API. New IMAP secrets
-  enter only the Tauri OS-vault bridge; the account request carries only an opaque
-  reference. Normal-account message synchronization and SMTP remain explicitly
-  unavailable in the UI until M6 and M5, so core account IDs are never passed to
-  the legacy Rust account database;
-- the manual desktop candidate workflow uploads only unsigned migration
-  evidence; no desktop release is added to the coordinated release workflow.
+- `src/App.tsx` and all frontend API clients call the packaged `service/base`
+  core exclusively over authenticated loopback HTTP; the unsigned development
+  platform-account stub has been permanently disabled;
+- all superseded Rust business modules (`migrations`, `avatar`, `domain`,
+  `easyemail`, `imap`, `services`, `smtp`, `storage`, `workers`) and direct
+  business SQLite dependencies (`rusqlite`, `imap`, `lettre`, `mailparse`) have
+  been removed from `src-tauri`, which now registers only the 5-command
+  host/diagnostics/OS-vault allowlist;
+- `service/base` owns schema v12 relational persistence and the versioned
+  offline importer (`scripts/import-legacy-easyemailam-db.mjs`) with pre-import
+  backups, opaque credential-ref preservation, and byte-exact failure rollback;
+- the Tauri host owns single-instance file locking, user-only file ACLs,
+  listener PID/nonce verification, ADR 0004 piped-`stdin` graceful shutdown
+  (with parent-pipe `EOF` handling and exact-child timeout fallback), core log
+  rotation/redaction, diagnostic export, and WebView navigation/CSP guards;
+- `build-desktop-candidate.yml` remains read-only (`releaseEligible=false`),
+  while `publish-desktop-release.yml` isolates Authenticode signing in
+  `easyemail-desktop-signing` and publishes the standalone 7-file Desktop
+  distribution + CycloneDX SBOM + provenance attestation in
+  `easyemail-desktop-production`.
 
-Keeping this intermediate state buildable prevents feature loss while each
-ownership boundary is moved and verified. It does not authorize a public desktop
-release.
+Public cutover in `product-contract.json` (`bundledUi.releaseStatus`) remains
+explicitly gated on operator-hosted CA code signing and hosted clean-VM
+provenance evidence.
 
 ## Capability migration matrix
 

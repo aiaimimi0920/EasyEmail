@@ -73,6 +73,7 @@ jobs:
           $portableCoreDir = Join-Path (Split-Path -Parent $portableExecutables[0].FullName) 'core'
           npm run host:install-smoke -- -ExecutablePath $portableExecutables[0].FullName -CoreDirectory $portableCoreDir
           npm run host:upgrade-smoke -- -ExecutablePath $portableExecutables[0].FullName -CoreDirectory $portableCoreDir
+          npm run host:codesign-drill
 
       - name: Assemble Candidate Evidence
         shell: pwsh

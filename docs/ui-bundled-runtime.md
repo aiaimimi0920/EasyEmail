@@ -144,19 +144,31 @@ The current Windows implementation:
   canary credential;
 - launches the built desktop twice against the same isolated data directory and
   proves stable host identity, persisted core state, preserved unauthenticated
-  401 boundaries, normal close, and exact core-child reaping on both runs;
-- disables transitional normal-account message sync and SMTP entry points for
-  canonical core accounts until M6/M5 rather than crossing the two databases;
-- provides a manual, read-only-permission candidate Action that builds unsigned
-  MSI/NSIS installers and an unsigned portable ZIP, proves the portable host
-  lifecycle, and publishes a non-release manifest plus SHA-256 checksums.
+  401 boundaries, ADR 0004 graceful shutdown over piped child `stdin`, parent-pipe
+  `EOF` crash recovery, bounded timeout exact-child fallback, single-instance
+  locking, and survival of an independently started `service/base` server;
+- routes 100% of business operations (temporary mailboxes, accounts, IMAP sync
+  and remote actions, TLS 1.2+ SMTP durable send queue, aggregated messages,
+  drafts, verifications, contacts, taxonomy, newsletters, mailbox promotion,
+  Agent Mail, and SSRF-hardened sender avatars) over authenticated loopback HTTP
+  to `service/base`, with all superseded Rust business/SQLite modules removed and
+  Tauri locked to a 5-command host/diagnostics/OS-vault allowlist;
+- provides a versioned offline full legacy `easyemailam.sqlite` importer
+  (`scripts/import-legacy-easyemailam-db.mjs`) with pre-import backups, opaque
+  credential reference preservation, SHA-256 verification, and byte-exact
+  failure rollback;
+- verifies read-only `Program Files`-equivalent `(RX)` installation directories
+  with zero external Node.js/Docker on `PATH` (including NSIS silent per-user
+  install/uninstall and MSI package verification), cross-version upgrade and
+  rollback drills, a 522-component CycloneDX 1.5 SBOM + license blocker gate,
+  and isolated Authenticode signing + GitHub Release workflows
+  (`publish-desktop-release.yml`, `validate-desktop-controlled-live.yml`, and
+  read-only `build-desktop-candidate.yml`).
 
-This evidence does not yet prove graceful shutdown, a clean-machine installer,
-the composed credential-resolution flow through a restarted packaged desktop
-process, collision/crash recovery, a controlled real IMAP connection, or a real
-mailbox flow through the UI HTTP path. The React account screen now uses the
-canonical HTTP account resources, but old-account import and most other extended
-EasyEmailAM operations still use transitional Tauri commands.
+Only operator-hosted CA code signing in `easyemail-desktop-signing`, a hosted
+clean-VM installer run, and hosted GitHub Release provenance attestation remain
+before `product-contract.json` promotes `bundledUi.releaseStatus` from blocked
+to `releasable`/`released`.
 
 ## HTTP usage
 
