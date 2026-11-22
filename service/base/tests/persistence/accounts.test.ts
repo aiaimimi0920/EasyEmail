@@ -64,7 +64,7 @@ describe("mail account relational persistence", () => {
       const inspector = new DatabaseSync(databasePath);
       try {
         expect(inspector.prepare("SELECT MAX(version) AS version FROM schema_migrations").get())
-          .toEqual({ version: 4 });
+          .toEqual({ version: 5 });
         expect(inspector.prepare("SELECT COUNT(*) AS count FROM mail_account_credential_refs").get())
           .toEqual({ count: 1 });
         expect(inspector.prepare(

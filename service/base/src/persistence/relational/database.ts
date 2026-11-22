@@ -40,6 +40,15 @@ export {
   restoreRelationalDatabaseBackup,
   type RelationalDatabaseRestoreResult,
 } from "./database-backup.js";
+export {
+  LEGACY_ACCOUNT_IMPORTER_VERSION,
+  importLegacyEasyEmailAmAccounts,
+  type LegacyAccountImportOptions,
+  type LegacyAccountImportReceipt,
+  type LegacyAccountImportResult,
+  type LegacyCredentialProbeInput,
+  type LegacyCredentialVaultCheck,
+} from "./legacy-account-importer.js";
 
 export class SqliteRelationalDatabase implements ContactRepository, MailTaxonomyRepository, MailAccountRepository {
   private readonly database: DatabaseSync;

@@ -24,6 +24,7 @@
     "host:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-desktop-host-smoke.ps1",
     "host:startup-smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-desktop-startup-responsiveness.ps1",
     "host:functional-smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-desktop-functional-smoke.ps1",
+    "host:credential-smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-desktop-credential-restart-smoke.ps1",
     "verify": "npm run test:unit && npm run ui:verify && npm run build && npm run preview:smoke && npm run rust:fmt && npm run rust:clippy && npm run rust:test && npm run rust:check && npm run core:bundle && npm run core:verify"
   },
   "dependencies": {

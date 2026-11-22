@@ -75,9 +75,22 @@ Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
   canary credential. The packaged host smoke also launches the built desktop twice against the same
   isolated data directory and proves stable host identity, persistent core state, preserved 401
   boundaries, normal close, and exact core-child reaping on both runs.
-- **Next:** prove composed credential-ref resolution through the restarted packaged desktop process
-  and pass a controlled real-IMAP gate, then implement the compatibility-safe old-account importer.
-  M3 remains incomplete until those proofs pass.
+- **M3 automated closeout (2026-11-22):** schema v5 adds `legacy_import_receipts` and the
+  compatibility-safe offline legacy account importer (`importLegacyEasyEmailAmAccounts`), which
+  backs up and validates `easyemailam.sqlite` without mutating source bytes, normalizes legacy IMAP
+  profiles (`ssl -> tls`), imports only opaque `ref:v1:...` and `secret://...` references, marks
+  missing OS-vault entries `reauthorization_required` without deleting accounts, enforces stopped-
+  target and idempotent re-run invariants, and restores the pre-import target backup on failure.
+  The packaged release portable binary now passes `host:credential-smoke` across two real desktop
+  process runs against a local TLS 1.2+ IMAP server (`ImapFlow`), proving composed resolution for
+  both newly created `ref:v1:desktop/...` and imported legacy `secret://imap/...` credentials,
+  broker rotation, missing-vault 409 fail-closed behavior, vault cleanup on delete, and zero canary
+  matches across SQLite, state, logs, and WebView storage. An opt-in operator script
+  (`scripts/test-real-imap-account-gate.ps1`) guards external live-IMAP runs behind
+  `-ConfirmExternalSideEffects`.
+- **Next:** execute M4 vertical slices (canonical local drafts, aggregated message query/detail/local
+  actions, and verification records in `service/base` + bundled HTTP UI cutover), while keeping live
+  external-provider IMAP testing as an operator-triggered gate.
 
 本计划定义将已导入 `apps/desktop` 的 EasyEmailAM 从“React UI +
 过渡期 Rust 业务后端”收敛为“React UI + 随桌面程序启动的
@@ -349,8 +362,11 @@ resolver，所以这一路径继续 503 fail closed。桌面 adapter 已修复�
 `missing` ref 的错误拒绝；自动测试分别证明 core 重启、broker 重建和 Windows vault
 adapter 重建后仍能解析同一 ref。打包宿主 smoke 已在同一隔离数据目录上完成两次真实
 桌面进程启动，证明 host ID 与 core state 延续、两条未鉴权边界保持 401，且两次正常关闭
-都会回收精确 core child。通过重启后打包进程完成的组合式 credential-ref 解析、旧数据
-导入和受控真实 IMAP 验收仍未完成，因此 M3 总体不得标记为完成。
+都会回收精确 core child。现已通过 `host:credential-smoke` 在真实打包进程重启前后完成
+`ref:v1:desktop/...` 与离线导入 `secret://imap/...` 的组合式凭据解析、TLS 1.2+ ImapFlow 鉴权、
+缺失凭据 409 `ACCOUNT_REAUTHENTICATION_REQUIRED` fail-closed 与 canary 零命中扫描，并落地
+兼容安全的旧账户只读导入器（schema v5 `legacy_import_receipts`）与显式受控真实 IMAP 门禁脚本
+（`scripts/test-real-imap-account-gate.ps1`，外部真实服务器联调保持显式运维授权触发）。
 
 ### M4 - 聚合消息与验证记录
 

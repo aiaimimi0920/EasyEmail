@@ -160,6 +160,28 @@ BEGIN
 END;
 `,
   },
+  {
+    version: 5,
+    name: "legacy-import-receipts",
+    sql: `
+CREATE TABLE legacy_import_receipts (
+  id TEXT PRIMARY KEY,
+  importer_version INTEGER NOT NULL CHECK(importer_version >= 1),
+  domain TEXT NOT NULL CHECK(length(trim(domain)) >= 1 AND length(domain) <= 64),
+  source_sha256 TEXT NOT NULL CHECK(length(source_sha256) = 64),
+  source_schema_version INTEGER NOT NULL CHECK(source_schema_version >= 1),
+  source_account_count INTEGER NOT NULL CHECK(source_account_count >= 0),
+  source_credential_ref_count INTEGER NOT NULL CHECK(source_credential_ref_count >= 0),
+  imported_account_count INTEGER NOT NULL CHECK(imported_account_count >= 0),
+  skipped_existing_count INTEGER NOT NULL CHECK(skipped_existing_count >= 0),
+  reauth_required_count INTEGER NOT NULL CHECK(reauth_required_count >= 0),
+  imported_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_legacy_import_receipts_domain_time
+ON legacy_import_receipts(domain, imported_at DESC, id);
+`,
+  },
 ] as const;
 
 export const EASY_EMAIL_RELATIONAL_SCHEMA_VERSION = RELATIONAL_MIGRATIONS.at(-1)?.version ?? 0;

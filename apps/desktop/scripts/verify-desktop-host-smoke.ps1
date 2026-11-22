@@ -6,6 +6,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'lib/desktop-credential-smoke-support.ps1')
+
 function Start-IsolatedDesktopRuntime {
     param([Parameter(Mandatory = $true)][string]$Executable)
 
@@ -99,7 +101,7 @@ function Stop-IsolatedDesktopRuntime {
     param([Parameter(Mandatory = $true)]$Runtime)
 
     $process = $Runtime.DesktopProcess
-    if (-not $process.CloseMainWindow()) {
+    if (-not (Request-EasyEmailDesktopClose -Process $process)) {
         throw 'Desktop main window did not accept a normal close request.'
     }
     if (-not $process.WaitForExit(10000)) {
@@ -232,9 +234,14 @@ try {
 } finally {
     if ($desktopProcess -and -not $desktopProcess.HasExited) {
         Stop-Process -Id $desktopProcess.Id -Force -ErrorAction SilentlyContinue
+        $null = $desktopProcess.WaitForExit(5000)
     }
     if ($corePid) {
-        Stop-Process -Id $corePid -Force -ErrorAction SilentlyContinue
+        $coreProcess = Get-Process -Id $corePid -ErrorAction SilentlyContinue
+        if ($coreProcess) {
+            Stop-Process -Id $corePid -Force -ErrorAction SilentlyContinue
+            $null = $coreProcess.WaitForExit(5000)
+        }
     }
     if ($null -eq $previousDataDir) {
         Remove-Item Env:EASYEMAILAM_DATA_DIR -ErrorAction SilentlyContinue

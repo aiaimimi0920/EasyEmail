@@ -104,8 +104,13 @@ class DesktopCandidateWorkflowContractTests(unittest.TestCase):
         self.assertTrue(FUNCTIONAL_SMOKE_SCRIPT.is_file())
         self.assertTrue(FUNCTIONAL_CDP_PROBE.is_file())
         self.assertIn('"host:functional-smoke"', self.package_text)
+        self.assertIn('"host:credential-smoke"', self.package_text)
         self.assertIn(
             "npm run host:functional-smoke -- -ExecutablePath $portableExecutables[0].FullName",
+            self.text,
+        )
+        self.assertIn(
+            "npm run host:credential-smoke -- -ExecutablePath $portableExecutables[0].FullName",
             self.text,
         )
         for expected in (

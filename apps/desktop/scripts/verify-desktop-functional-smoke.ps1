@@ -7,6 +7,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'lib/desktop-credential-smoke-support.ps1')
+
 function Stop-IsolatedWebViewProcesses {
     param([Parameter(Mandatory = $true)][string]$WebViewDirectory)
 
@@ -99,7 +101,7 @@ try {
         throw "Packaged desktop functional probe failed with exit code $LASTEXITCODE."
     }
 
-    if (-not $desktopProcess.CloseMainWindow()) {
+    if (-not (Request-EasyEmailDesktopClose -Process $desktopProcess) -and -not $desktopProcess.CloseMainWindow()) {
         throw 'Desktop main window did not accept a normal close request.'
     }
     $normalClose = $desktopProcess.WaitForExit(10000)

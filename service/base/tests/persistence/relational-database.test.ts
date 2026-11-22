@@ -10,6 +10,7 @@ import {
   SqliteRelationalDatabase,
 } from "../../src/persistence/relational/database.js";
 import {
+  EASY_EMAIL_RELATIONAL_SCHEMA_VERSION,
   RELATIONAL_MIGRATIONS,
   prepareRelationalMigrations,
   type RelationalMigration,
@@ -57,6 +58,7 @@ describe("relational SQLite persistence", () => {
           { version: 2, result: "applied" },
           { version: 3, result: "applied" },
           { version: 4, result: "applied" },
+          { version: 5, result: "applied" },
         ]);
       } finally {
         inspector.close();
@@ -159,10 +161,11 @@ describe("relational SQLite persistence", () => {
     });
     base.close();
 
+    const failingVersion = EASY_EMAIL_RELATIONAL_SCHEMA_VERSION + 1;
     const failingMigrations: RelationalMigration[] = [
       ...RELATIONAL_MIGRATIONS,
       {
-        version: 5,
+        version: failingVersion,
         name: "intentional-test-failure",
         sql: "CREATE TABLE should_rollback (id TEXT PRIMARY KEY); SELECT missing_test_function();",
       },
@@ -178,10 +181,10 @@ describe("relational SQLite persistence", () => {
       const inspector = new DatabaseSync(databasePath);
       try {
         const failed = inspector.prepare(
-          "SELECT checksum, result, error_code FROM schema_migrations WHERE version = 5",
-        ).get() as { checksum: string; result: string; error_code: string };
+          "SELECT checksum, result, error_code FROM schema_migrations WHERE version = ?",
+        ).get(failingVersion) as { checksum: string; result: string; error_code: string };
         expect(failed).toEqual({
-          checksum: prepareRelationalMigrations(failingMigrations)[4]?.checksum,
+          checksum: prepareRelationalMigrations(failingMigrations).at(-1)?.checksum,
           result: "failed",
           error_code: "RELATIONAL_MIGRATION_FAILED",
         });
