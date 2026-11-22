@@ -42,29 +42,45 @@ The distribution workflow creates exactly four release files:
 
 The manifest and checksums are verified again after artifact download and before GitHub Release publication. The workflow also emits a build-provenance attestation and a 90-day evidence artifact.
 
-### Bundled UI status
+### Bundled UI (Desktop)
 
-The bundled UI is an approved product architecture but is not one of the current
-release surfaces. It will package the same `service/base` core, start it
-automatically, and call it over authenticated loopback HTTP without requiring a
-separate server, Docker, or external Node.js installation.
-
-It must receive its own workflow, package manifest, lifecycle tests, and
-clean-machine runtime evidence before being added to the coordinator. It must
-not be inserted into the current exact Client/Userscript artifact set. See
+`apps/desktop` packages the same `service/base` core with a private Node.js
+runtime, starts it automatically on loopback, and calls it exclusively over the
+documented HTTP API without Docker or an external Node.js installation. See
 [`ui-bundled-runtime.md`](./ui-bundled-runtime.md).
+
+Its dedicated workflow `.github/workflows/publish-desktop-release.yml` builds
+and verifies a standalone seven-file Desktop distribution (completely separate
+from the exact four-file Client/Userscript artifact set):
+
+- `EasyEmail-Desktop-<release-tag>-x64.msi`
+- `EasyEmail-Desktop-<release-tag>-x64-setup.exe`
+- `EasyEmail-Desktop-<release-tag>-x64-portable.zip`
+- `easy-email-desktop-sbom.cdx.json`
+- `THIRD_PARTY_NOTICES.txt`
+- `easy-email-desktop-release-manifest.json`
+- `SHA256SUMS-desktop.txt`
+
+Code-signing credentials are isolated in `easyemail-desktop-signing` while
+GitHub Release publication and provenance attestation run in
+`easyemail-desktop-production`. Meanwhile, `build-desktop-candidate.yml`
+remains `contents: read` with `releaseEligible=false` and zero secrets, and
+`product-contract.json` keeps `bundledUi.releaseStatus` blocked until a hosted
+signed clean-machine release run completes.
 
 ## Workflow contract
 
 `.github/workflows/release-easyemail.yml` is the only public-tag owner. It runs
 one secret-free preflight, then invokes the selected reusable component
-workflows in `client-userscript -> service-base -> cloudflare-email` order.
+workflows in `client-userscript -> service-base -> cloudflare-email` order (plus
+explicit `desktop-ui` dispatch or `desktop-*` tags for signed Desktop releases).
 
 | Component | Workflow | Tag inputs | Required artifacts | Required capabilities |
 | --- | --- | --- | --- | --- |
 | `service-base` | `.github/workflows/publish-service-base-ghcr.yml` | `release_tag, version` | `service-base-release-manifest, service-base-r2-config-manifest, service-base-import-code-encrypted` | GHCR, R2, encrypted import-code, GitHub Release |
 | `cloudflare-email` | `.github/workflows/deploy-cloudflare-email.yml` | deployment controls | `cloudflare-email-release-manifest, cloudflare-email-deployment-notes, cloudflare-email-runtime-readback` | Cloudflare deployment, health/readback evidence, GitHub Release |
 | `client-userscript` | `.github/workflows/publish-client-userscript.yml` | `release_tag` | `easy-email-client-userscript-distribution, easy-email-client-userscript-release-evidence` | reusable preflight, exact distribution verification, attestation, GitHub Release |
+| `desktop-ui` | `.github/workflows/publish-desktop-release.yml` | `release_tag` | `easy-email-desktop-distribution, easy-email-desktop-release-evidence` | isolated Authenticode signing, CycloneDX SBOM & license gate, host/install/upgrade smokes, attestation, GitHub Release |
 
 The coordinator owns `release-<release-tag>` with `cancel-in-progress: false`.
 Component workflows use component-scoped locks for focused manual runs. This

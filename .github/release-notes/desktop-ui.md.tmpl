@@ -1,0 +1,18 @@
+## EasyEmail Desktop (NMail)
+
+### Release
+- Tag: `{{release.tag}}`
+- Channel: `{{release.channel}}`
+- Desktop version: `{{release.desktopVersion}}` (`{{release.platform}}/{{release.architecture}}`)
+- Bundled Node runtime: `{{lineage.bundledNodeVersion}}` (`{{lineage.coreComponent}}` @ `{{lineage.coreSourceRevision}}`)
+- Imported UI lineage: `{{lineage.importedSourceProject}}@{{lineage.importedSourceCommit}}`
+- Authenticode signing: `{{signing.status}}`
+
+### Validation
+- Host lifecycle & graceful shutdown smoke: `{{validation.hostLifecycleSmoke}}`
+- Read-only clean-install layout smoke: `{{validation.cleanReadOnlyInstallSmoke}}`
+- Upgrade & rollback drill: `{{validation.upgradeAndRollbackDrill}}`
+- CycloneDX SBOM & license policy gate: `{{validation.sbomAndLicenseGate}}` (`{{lineage.sbomComponentCount}}` components)
+
+### Artifacts
+{{markdown.artifacts}}

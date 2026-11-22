@@ -16,6 +16,7 @@ class ReleaseCoordinatorContractTests(unittest.TestCase):
         cls.client = (WORKFLOWS / "publish-client-userscript.yml").read_text(encoding="utf-8")
         cls.service = (WORKFLOWS / "publish-service-base-ghcr.yml").read_text(encoding="utf-8")
         cls.cloudflare = (WORKFLOWS / "deploy-cloudflare-email.yml").read_text(encoding="utf-8")
+        cls.desktop = (WORKFLOWS / "publish-desktop-release.yml").read_text(encoding="utf-8")
 
     def test_public_tags_are_owned_only_by_the_coordinator(self) -> None:
         self.assertIn('- "v*"', self.coordinator)
@@ -26,7 +27,10 @@ class ReleaseCoordinatorContractTests(unittest.TestCase):
         self.assertNotIn('- "release-*"', self.service)
         self.assertNotIn('- "v*"', self.cloudflare)
         self.assertNotIn('- "release-*"', self.cloudflare)
+        self.assertNotIn('- "v*"', self.desktop)
+        self.assertNotIn('- "release-*"', self.desktop)
         self.assertIn('- "service-base-*"', self.service)
+        self.assertIn('- "desktop-*"', self.desktop)
 
     def test_coordinator_runs_one_preflight_and_serial_component_calls(self) -> None:
         self.assertIn("uses: ./.github/workflows/reusable-validate.yml", self.coordinator)

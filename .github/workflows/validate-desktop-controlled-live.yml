@@ -1,0 +1,129 @@
+name: Validate Desktop Controlled Live Gates
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_provider_gate:
+        description: Run controlled real-provider mailbox lifecycle gate
+        required: false
+        default: true
+        type: boolean
+      run_imap_gate:
+        description: Run controlled real-IMAP account sync/action gate
+        required: false
+        default: true
+        type: boolean
+      run_smtp_gate:
+        description: Run controlled real-SMTP queue delivery gate
+        required: false
+        default: true
+        type: boolean
+  schedule:
+    - cron: "0 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-controlled-live-validation
+  cancel-in-progress: false
+
+jobs:
+  controlled-live-gates:
+    runs-on: windows-latest
+    environment: easyemail-desktop-live-validation
+
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install Core Dependencies
+        shell: pwsh
+        working-directory: service/base
+        run: |
+          npm ci
+          npm run build
+
+      - name: Execute Controlled Live Provider, IMAP, And SMTP Gates
+        shell: pwsh
+        env:
+          RUN_PROVIDER_GATE: ${{ inputs.run_provider_gate || github.event_name == 'schedule' }}
+          RUN_IMAP_GATE: ${{ inputs.run_imap_gate || github.event_name == 'schedule' }}
+          RUN_SMTP_GATE: ${{ inputs.run_smtp_gate || github.event_name == 'schedule' }}
+          LIVE_PROVIDER_CONFIG_YAML: ${{ secrets.EASYEMAIL_LIVE_PROVIDER_CONFIG_YAML }}
+          LIVE_IMAP_HOST: ${{ secrets.EASYEMAIL_LIVE_IMAP_HOST }}
+          LIVE_IMAP_PORT: ${{ secrets.EASYEMAIL_LIVE_IMAP_PORT }}
+          LIVE_IMAP_USERNAME: ${{ secrets.EASYEMAIL_LIVE_IMAP_USERNAME }}
+          LIVE_IMAP_PASSWORD: ${{ secrets.EASYEMAIL_LIVE_IMAP_PASSWORD }}
+          LIVE_SMTP_HOST: ${{ secrets.EASYEMAIL_LIVE_SMTP_HOST }}
+          LIVE_SMTP_PORT: ${{ secrets.EASYEMAIL_LIVE_SMTP_PORT }}
+          LIVE_SMTP_USERNAME: ${{ secrets.EASYEMAIL_LIVE_SMTP_USERNAME }}
+          LIVE_SMTP_PASSWORD: ${{ secrets.EASYEMAIL_LIVE_SMTP_PASSWORD }}
+          LIVE_SMTP_RECIPIENT: ${{ secrets.EASYEMAIL_LIVE_SMTP_RECIPIENT }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $evidenceDir = Join-Path $env:RUNNER_TEMP 'easyemail-live-validation'
+          New-Item -ItemType Directory -Path $evidenceDir -Force | Out-Null
+
+          $results = [ordered]@{
+            schemaVersion = 1
+            commit = '${{ github.sha }}'
+            runId = '${{ github.run_id }}'
+            providerGate = 'skipped-unconfigured'
+            imapGate = 'skipped-unconfigured'
+            smtpGate = 'skipped-unconfigured'
+          }
+
+          if ($env:RUN_PROVIDER_GATE -eq 'true' -and -not [string]::IsNullOrWhiteSpace($env:LIVE_PROVIDER_CONFIG_YAML)) {
+            $cfgPath = Join-Path $env:RUNNER_TEMP 'live-provider-config.yaml'
+            try {
+              Set-Content -LiteralPath $cfgPath -Value $env:LIVE_PROVIDER_CONFIG_YAML -Encoding UTF8
+              pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/test-real-provider-lifecycle.ps1 -ConfigPath $cfgPath | Out-Null
+              $results.providerGate = 'passed'
+            } finally {
+              Remove-Item -LiteralPath $cfgPath -Force -ErrorAction SilentlyContinue
+            }
+          }
+
+          if ($env:RUN_IMAP_GATE -eq 'true' -and -not [string]::IsNullOrWhiteSpace($env:LIVE_IMAP_HOST)) {
+            $env:EASY_EMAIL_REAL_IMAP_HOST = $env:LIVE_IMAP_HOST
+            $env:EASY_EMAIL_REAL_IMAP_PORT = if ($env:LIVE_IMAP_PORT) { $env:LIVE_IMAP_PORT } else { '993' }
+            $env:EASY_EMAIL_REAL_IMAP_USERNAME = $env:LIVE_IMAP_USERNAME
+            $env:EASY_EMAIL_REAL_IMAP_PASSWORD = $env:LIVE_IMAP_PASSWORD
+            pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/test-real-imap-account-gate.ps1 | Out-Null
+            $results.imapGate = 'passed'
+          }
+
+          if ($env:RUN_SMTP_GATE -eq 'true' -and -not [string]::IsNullOrWhiteSpace($env:LIVE_SMTP_HOST)) {
+            $env:EASY_EMAIL_REAL_SMTP_HOST = $env:LIVE_SMTP_HOST
+            $env:EASY_EMAIL_REAL_SMTP_PORT = if ($env:LIVE_SMTP_PORT) { $env:LIVE_SMTP_PORT } else { '465' }
+            $env:EASY_EMAIL_REAL_SMTP_USERNAME = $env:LIVE_SMTP_USERNAME
+            $env:EASY_EMAIL_REAL_SMTP_PASSWORD = $env:LIVE_SMTP_PASSWORD
+            $env:EASY_EMAIL_REAL_SMTP_TO = $env:LIVE_SMTP_RECIPIENT
+            pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/test-real-smtp-send-gate.ps1 | Out-Null
+            $results.smtpGate = 'passed'
+          }
+
+          $reportPath = Join-Path $evidenceDir 'live-validation-summary.json'
+          ($results | ConvertTo-Json -Depth 4) + "`n" | Set-Content -LiteralPath $reportPath -Encoding UTF8
+
+          $rawReport = Get-Content -LiteralPath $reportPath -Raw
+          foreach ($secretVal in @($env:LIVE_IMAP_PASSWORD, $env:LIVE_SMTP_PASSWORD, $env:LIVE_PROVIDER_CONFIG_YAML)) {
+            if (-not [string]::IsNullOrWhiteSpace($secretVal) -and $rawReport.Contains($secretVal)) {
+              throw 'Redaction violation: live credential appeared in validation summary.'
+            }
+          }
+
+      - name: Upload Redacted Live Validation Summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: easyemail-desktop-live-validation-evidence
+          path: ${{ runner.temp }}/easyemail-live-validation/*
+          if-no-files-found: warn
+          retention-days: 30

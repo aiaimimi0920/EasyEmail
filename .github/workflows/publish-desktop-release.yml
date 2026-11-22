@@ -1,0 +1,270 @@
+name: Publish EasyEmail Desktop Release
+
+on:
+  push:
+    tags:
+      - "desktop-*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag (vX.Y.Z, release-YYYYMMDD-NNN, or desktop-YYYYMMDD-NNN)
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Release tag (vX.Y.Z, release-YYYYMMDD-NNN, or desktop-YYYYMMDD-NNN)
+        required: true
+        type: string
+      skip_preflight:
+        description: Skip the component preflight when the coordinator already ran it
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-ui-${{ inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: ${{ !inputs.skip_preflight }}
+    uses: ./.github/workflows/reusable-validate.yml
+
+  metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.release.outputs.release_tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Resolve Desktop Release Metadata
+        id: release
+        shell: bash
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" || "${GITHUB_EVENT_NAME}" == "workflow_call" ]]; then
+            release_tag="${INPUT_RELEASE_TAG}"
+          else
+            release_tag="${GITHUB_REF_NAME}"
+          fi
+          python scripts/validate-release-tag.py --mode desktop-ui --tag "${release_tag}" >/dev/null
+          version="$(python -c 'import json; print(json.load(open("apps/desktop/package.json", encoding="utf-8"))["version"])')"
+          echo "release_tag=${release_tag}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+  build-and-sign:
+    needs:
+      - preflight
+      - metadata
+    if: ${{ always() && needs.metadata.result == 'success' && (needs.preflight.result == 'success' || needs.preflight.result == 'skipped') }}
+    runs-on: windows-latest
+    environment: easyemail-desktop-signing
+    permissions:
+      contents: read
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Set Up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Core And Desktop Dependencies
+        shell: pwsh
+        run: |
+          npm --prefix service/base ci
+          npm --prefix apps/desktop ci
+
+      - name: Verify Desktop Codebase And Bundled Core
+        shell: pwsh
+        working-directory: apps/desktop
+        run: npm run verify
+
+      - name: Build Windows MSI, NSIS, And Portable Bundles
+        shell: pwsh
+        working-directory: apps/desktop
+        run: |
+          npm run tauri -- build --ci --no-sign --bundles msi nsis
+          npm run portable:bundle
+
+      - name: Sign And Verify Desktop Executables And Installers
+        shell: pwsh
+        env:
+          WINDOWS_CODESIGN_PFX_BASE64: ${{ secrets.WINDOWS_CODESIGN_PFX_BASE64 }}
+          WINDOWS_CODESIGN_PFX_PASSWORD: ${{ secrets.WINDOWS_CODESIGN_PFX_PASSWORD }}
+          WINDOWS_CODESIGN_TIMESTAMP_URL: ${{ secrets.WINDOWS_CODESIGN_TIMESTAMP_URL }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bundleRoot = 'apps/desktop/src-tauri/target/release/bundle'
+          $releaseExe = 'apps/desktop/src-tauri/target/release/easyemailam.exe'
+          $msiFiles = @(Get-ChildItem -LiteralPath (Join-Path $bundleRoot 'msi') -Filter '*.msi' -File)
+          $nsisFiles = @(Get-ChildItem -LiteralPath (Join-Path $bundleRoot 'nsis') -Filter '*.exe' -File)
+          if ($msiFiles.Count -lt 1 -or $nsisFiles.Count -lt 1) {
+            throw 'Expected both MSI and NSIS desktop installer artifacts.'
+          }
+
+          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/sign-and-verify-desktop-artifacts.ps1 `
+            -ArtifactPaths @($releaseExe) -RequireValidSignature
+
+          npm --prefix apps/desktop run portable:bundle
+
+          $allSignedTargets = @($releaseExe, $msiFiles[0].FullName, $nsisFiles[0].FullName)
+          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/sign-and-verify-desktop-artifacts.ps1 `
+            -ArtifactPaths $allSignedTargets `
+            -RequireValidSignature `
+            -ReportOutputPath '.release-artifacts/desktop-signing-report.json'
+
+      - name: Verify Signed Portable Host Lifecycle, Read-Only Install, And Upgrade/Rollback Gates
+        shell: pwsh
+        working-directory: apps/desktop
+        run: |
+          $portableExecutables = @(
+            Get-ChildItem -LiteralPath 'src-tauri/target/release/bundle/portable' `
+              -Filter 'EasyEmail.exe' -Recurse -File
+          )
+          if ($portableExecutables.Count -ne 1) {
+            throw "Expected one portable EasyEmail.exe, found $($portableExecutables.Count)."
+          }
+          $portableExe = $portableExecutables[0].FullName
+          $portableCore = Join-Path (Split-Path -Parent $portableExe) 'core'
+          npm run host:smoke -- -ExecutablePath $portableExe
+          npm run host:startup-smoke -- -ExecutablePath $portableExe
+          npm run host:functional-smoke -- -ExecutablePath $portableExe
+          npm run host:credential-smoke -- -ExecutablePath $portableExe
+          npm run host:install-smoke -- -ExecutablePath $portableExe -CoreDirectory $portableCore
+          npm run host:upgrade-smoke -- -ExecutablePath $portableExe -CoreDirectory $portableCore
+
+      - name: Generate SBOM, Notices, And Verified Desktop Distribution
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ needs.metadata.outputs.release_tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bundleRoot = 'apps/desktop/src-tauri/target/release/bundle'
+          $sbomDir = '.release-artifacts/desktop-sbom'
+          python scripts/generate-desktop-sbom-and-notices.py `
+            --output-dir $sbomDir `
+            --bundle-dir $bundleRoot `
+            --git-commit '${{ github.sha }}'
+
+          $msi = (Get-ChildItem -LiteralPath (Join-Path $bundleRoot 'msi') -Filter '*.msi' -File | Select-Object -First 1).FullName
+          $nsis = (Get-ChildItem -LiteralPath (Join-Path $bundleRoot 'nsis') -Filter '*.exe' -File | Select-Object -First 1).FullName
+          $portableZip = (Get-ChildItem -LiteralPath (Join-Path $bundleRoot 'portable') -Filter '*.zip' -File | Select-Object -First 1).FullName
+
+          python scripts/build-desktop-distribution.py `
+            --release-tag $env:RELEASE_TAG `
+            --msi $msi `
+            --nsis $nsis `
+            --portable-zip $portableZip `
+            --sbom-dir $sbomDir `
+            --signing-report '.release-artifacts/desktop-signing-report.json' `
+            --require-release-eligible `
+            --output-dir '.release-artifacts/desktop-distribution'
+
+      - name: Upload Desktop Distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: easy-email-desktop-distribution
+          path: .release-artifacts/desktop-distribution/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs:
+      - metadata
+      - build-and-sign
+    if: ${{ always() && needs.metadata.result == 'success' && needs.build-and-sign.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment: easyemail-desktop-production
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v6
+
+      - name: Set Up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Download Desktop Distribution
+        uses: actions/download-artifact@v5
+        with:
+          name: easy-email-desktop-distribution
+          path: dist
+
+      - name: Re-Verify Downloaded Desktop Distribution
+        run: python scripts/build-desktop-distribution.py --verify-only --require-release-eligible --output-dir dist
+
+      - name: Attest Desktop Distribution Provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/*
+
+      - name: Render Managed Desktop Release Notes Section
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.metadata.outputs.release_tag }}
+        run: |
+          python scripts/render-release-template.py \
+            --template .github/release-notes/desktop-ui.md.tmpl \
+            --context dist/easy-email-desktop-release-manifest.json \
+            --output desktop-ui-notes.md
+          if gh release view "${RELEASE_TAG}" --json body --jq .body > existing-release-notes.md 2>/dev/null; then
+            :
+          else
+            : > existing-release-notes.md
+          fi
+          python scripts/upsert-release-notes-section.py \
+            --section-id desktop-ui \
+            --section-file desktop-ui-notes.md \
+            --existing existing-release-notes.md \
+            --output merged-release-notes.md
+
+      - name: Publish GitHub Release Assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.metadata.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          tag="${RELEASE_TAG}"
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release edit "${tag}" --notes-file merged-release-notes.md
+          else
+            gh release create "${tag}" --target "${GITHUB_SHA}" --title "${tag}" --notes-file merged-release-notes.md
+          fi
+          gh release upload "${tag}" dist/* --clobber
+
+      - name: Upload Desktop Release Evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: easy-email-desktop-release-evidence
+          path: |
+            dist/*
+            desktop-ui-notes.md
+            merged-release-notes.md
+          if-no-files-found: error
+          retention-days: 90

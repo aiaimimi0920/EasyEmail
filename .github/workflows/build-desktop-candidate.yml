@@ -70,6 +70,9 @@ jobs:
           npm run host:startup-smoke -- -ExecutablePath $portableExecutables[0].FullName
           npm run host:functional-smoke -- -ExecutablePath $portableExecutables[0].FullName
           npm run host:credential-smoke -- -ExecutablePath $portableExecutables[0].FullName
+          $portableCoreDir = Join-Path (Split-Path -Parent $portableExecutables[0].FullName) 'core'
+          npm run host:install-smoke -- -ExecutablePath $portableExecutables[0].FullName -CoreDirectory $portableCoreDir
+          npm run host:upgrade-smoke -- -ExecutablePath $portableExecutables[0].FullName -CoreDirectory $portableCoreDir
 
       - name: Assemble Candidate Evidence
         shell: pwsh

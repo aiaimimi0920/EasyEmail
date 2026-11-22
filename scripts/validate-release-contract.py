@@ -127,6 +127,20 @@ def validate_workflow(workflow: dict[str, Any]) -> None:
         if "scripts/build-distribution.py" not in text or "--verify-only" not in text:
             raise AssertionError(f"{relative} must build and re-verify the client/userscript distribution")
 
+    if workflow.get("requiresDesktopDistributionBuilder"):
+        require_file("scripts/build-desktop-distribution.py")
+        require_file("scripts/generate-desktop-sbom-and-notices.py")
+        require_file("scripts/sign-and-verify-desktop-artifacts.ps1")
+        for required_token in (
+            "scripts/build-desktop-distribution.py",
+            "--verify-only",
+            "--require-release-eligible",
+            "scripts/generate-desktop-sbom-and-notices.py",
+            "scripts/sign-and-verify-desktop-artifacts.ps1",
+        ):
+            if required_token not in text:
+                raise AssertionError(f"{relative} must invoke {required_token}")
+
     if workflow.get("requiresReusableValidation"):
         if "uses: ./.github/workflows/reusable-validate.yml" not in text:
             raise AssertionError(f"{relative} must call the reusable validation workflow")
@@ -141,6 +155,10 @@ def validate_workflow(workflow: dict[str, Any]) -> None:
 
     if workflow.get("forbidsProductionSecrets") and "secrets." in text:
         raise AssertionError(f"{relative} must not read repository or environment secrets")
+
+    signing_env = str(workflow.get("signingEnvironment") or "").strip()
+    if signing_env and signing_env not in text:
+        raise AssertionError(f"{relative} must isolate signing in environment {signing_env}")
 
     environment = str(workflow.get("environment") or "").strip()
     if environment and environment not in text:
@@ -179,7 +197,7 @@ def validate_coordinator(contract: dict[str, Any]) -> None:
     require_text(path, "cancel-in-progress: false")
 
     targets = coordinator.get("targets", [])
-    if targets != ["all", "service-base", "cloudflare-email", "client-userscript"]:
+    if targets != ["all", "service-base", "cloudflare-email", "client-userscript", "desktop-ui"]:
         raise AssertionError("coordinator targets must declare the supported release surfaces")
     for target in targets:
         require_text(path, f"- {target}")
@@ -233,7 +251,8 @@ def validate_product_contract(contract: dict[str, Any]) -> None:
         raise AssertionError("bundled UI product contract is required")
     expected_ui_contract = {
         "core": "service-base",
-        "implementationStatus": "bundled-core-hosted-http-migration-in-progress",
+        "implementationStatus": "bundled-core-hosted-http-complete",
+        "releaseStatus": "blocked-until-signed-clean-machine-and-hosted-provenance-gates-pass",
         "bundlesCore": True,
         "startsCoreAutomatically": True,
         "transport": "loopback-http",

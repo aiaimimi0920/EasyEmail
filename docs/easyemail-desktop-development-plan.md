@@ -637,6 +637,13 @@ Tauri 无邮件业务实现；旧源仓库和用户数据仍保留。
 10. `product-contract.json` 只在上述证据齐全后才可将 Desktop `releaseStatus`
     从 blocked 改为 releasable/released。
 
+**M10 当前进度（2026-11-22）**：已在仓库侧完成全部 M10 发布工程交付物与本地实机演练：
+- **独立 Desktop 发布组件与分发构建器（`scripts/build-desktop-distribution.py` + `.github/release-notes/desktop-ui.md.tmpl`）**：生成并校验独立的 7 文件桌面发布集（`EasyEmail-Desktop-<tag>-x64.msi`、`-setup.exe`、`-portable.zip`、`easy-email-desktop-sbom.cdx.json`、`THIRD_PARTY_NOTICES.txt`、`easy-email-desktop-release-manifest.json`、`SHA256SUMS-desktop.txt`），与 `client-userscript` 精确 4 文件清单完全隔离，且在 `--require-release-eligible` 下对未签名构建严格失败闭合。
+- **SBOM 与许可证/NOTICE 阻塞门禁（`scripts/generate-desktop-sbom-and-notices.py`）**：覆盖 `EasyEmailAM` 导入源快照、打包私有 Node.js 运行时、`service/base` 与 `apps/desktop` 生产 npm 依赖以及 `src-tauri` Cargo 依赖图（实测 522 个组件），对缺失许可证或传染性/受限许可证（`GPL`/`AGPL`/`SSPL`/`BUSL`/`UNLICENSED`）执行发布阻塞，并支持 `--verify-only` 二次核验。
+- **只读安装目录与无外部 Node/Docker 干净环境实机校验（`apps/desktop/scripts/verify-desktop-clean-install-layout.ps1` + `src-tauri/src/lib.rs`）**：默认将 Windows `WEBVIEW2_USER_DATA_FOLDER` 定向至 `<data_dir>/webview2`，并在剥离外部 Node/Docker `PATH` 及施加 `Program Files` 等价 `(RX)` 只读权限的安装目录上通过启动、鉴权就绪、可写状态仅落入用户数据目录及优雅关闭验收。
+- **跨版本升级与故障回滚实演（`apps/desktop/scripts/verify-desktop-upgrade-and-rollback.ps1` + `seed-desktop-upgrade-fixture.mjs`）**：完成预升级账户/不透明 `ref:v1:desktop/...` 凭据引用/OS 凭据库密钥/联系人/标签/草稿/定时发送队列/设置注入、备份、候选版本启动与读回校验，以及模拟损坏后的上一版本二进制与预升级状态完整恢复演练（金丝雀密钥零落盘泄露）。
+- **受保护环境签名隔离、受控真实联调与发布工作流（`scripts/sign-and-verify-desktop-artifacts.ps1`、`publish-desktop-release.yml`、`validate-desktop-controlled-live.yml`、`release-contract.json`）**：将 Authenticode 签名凭据隔离于 `easyemail-desktop-signing`，发布与 provenance attestation 运行于最小写权限的 `easyemail-desktop-production`，同时保持 `build-desktop-candidate.yml` 为只读无密钥 `releaseEligible=false`；遵循第 10 条硬门禁与诚实证据边界，`product-contract.json` 已更新 `implementationStatus = "bundled-core-hosted-http-complete"`，并继续将 `releaseStatus` 保持为 `"blocked-until-signed-clean-machine-and-hosted-provenance-gates-pass"`，直至运维方在受保护 GitHub Environment 配置真实代码签名证书并完成托管干净虚拟机与线上 provenance 发布记录后方可切换为 `releasable`/`released`。
+
 ---
 
 ## 5. 测试分层与 CI 门禁
@@ -798,7 +805,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-all.ps1
 
 ## 10. 下一个可执行批次
 
-M0–M7（含 M2 全部延后项、**M7A 临时邮箱提升**、**M7B Agent Mail** 及 **M7C Avatar SSRF 防护与 Platform 开发桩永久禁用**）均已完成并通过门禁，全部 52 项业务迁移命令已切换至 `service/base` 鉴权 HTTP 且 2 项未签名平台开发桩已永久禁用；**下一可执行里程碑为 M8（旧数据全量版本化导入与 Tauri 第二业务核心瘦身）**。
+M0–M10 的全部仓库侧研发与本地实机自动化门禁均已完成（M0–M7 全量业务 HTTP 收口、M8 版本化旧数据导入器与 Tauri 瘦身、M9 ADR 0004 私有优雅关停与宿主本地安全加固、M10 独立发布组件、SBOM/许可证门禁、只读安装目录与升级/回滚演练及受保护环境发布工作流）；**剩余外部运维发布前置动作仅限：在受保护 GitHub Environment（`easyemail-desktop-signing` / `easyemail-desktop-production`）注入正式 Windows 代码签名证书并完成托管干净虚拟机安装与 provenance 发布归档后，将 `product-contract.json` 中 `bundledUi.releaseStatus` 切换为 `releasable`/`released`**。
 
 建议精确交付顺序：
 

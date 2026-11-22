@@ -327,6 +327,7 @@ try {
         }
     }
     Stop-StandaloneServiceBase -Standalone $standaloneServer
+    Stop-IsolatedEasyEmailWebViewProcesses -WebViewDirectory (Join-Path $dataDir 'webview2')
     if ($null -eq $previousDataDir) {
         Remove-Item Env:EASYEMAILAM_DATA_DIR -ErrorAction SilentlyContinue
     } else {

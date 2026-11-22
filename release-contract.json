@@ -9,7 +9,8 @@
       "all",
       "service-base",
       "cloudflare-email",
-      "client-userscript"
+      "client-userscript",
+      "desktop-ui"
     ],
     "publicTagPatterns": [
       "v*",
@@ -80,6 +81,27 @@
       "requiresGitHubRelease": true,
       "forbidsProductionSecrets": true,
       "environment": "easyemail-public-release"
+    },
+    {
+      "component": "desktop-ui",
+      "path": ".github/workflows/publish-desktop-release.yml",
+      "releaseTagInputs": [
+        "release_tag"
+      ],
+      "releaseTagOutputs": [
+        "release_tag",
+        "version"
+      ],
+      "artifacts": [
+        "easy-email-desktop-distribution",
+        "easy-email-desktop-release-evidence"
+      ],
+      "requiresDesktopDistributionBuilder": true,
+      "requiresReusableValidation": true,
+      "requiresAttestation": true,
+      "requiresGitHubRelease": true,
+      "signingEnvironment": "easyemail-desktop-signing",
+      "environment": "easyemail-desktop-production"
     }
   ],
   "requiredFiles": [
@@ -90,6 +112,9 @@
     "clients/typescript/package.json",
     "clients/typescript/src/index.ts",
     "scripts/build-distribution.py",
+    "scripts/build-desktop-distribution.py",
+    "scripts/generate-desktop-sbom-and-notices.py",
+    "scripts/sign-and-verify-desktop-artifacts.ps1",
     "scripts/build-userscript-release.py",
     "scripts/userscript_release.py",
     "docs/release-operations.md"

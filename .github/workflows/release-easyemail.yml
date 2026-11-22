@@ -21,6 +21,7 @@ on:
           - service-base
           - cloudflare-email
           - client-userscript
+          - desktop-ui
 
 permissions:
   contents: write
@@ -70,6 +71,8 @@ jobs:
           mode="distribution"
           if [[ "${target}" == "service-base" ]]; then
             mode="service-base"
+          elif [[ "${target}" == "desktop-ui" ]]; then
+            mode="desktop-ui"
           fi
           python scripts/validate-release-tag.py --mode "${mode}" --tag "${release_tag}"
 
@@ -127,12 +130,27 @@ jobs:
       skip_preflight: true
     secrets: inherit
 
+  desktop-ui:
+    needs:
+      - preflight
+      - metadata
+      - client-userscript
+      - service-base
+      - cloudflare-email
+    if: ${{ always() && needs.preflight.result == 'success' && needs.metadata.result == 'success' && (needs.client-userscript.result == 'success' || needs.client-userscript.result == 'skipped') && (needs.service-base.result == 'success' || needs.service-base.result == 'skipped') && (needs.cloudflare-email.result == 'success' || needs.cloudflare-email.result == 'skipped') && needs.metadata.outputs.target == 'desktop-ui' }}
+    uses: ./.github/workflows/publish-desktop-release.yml
+    with:
+      release_tag: ${{ needs.metadata.outputs.release_tag }}
+      skip_preflight: true
+    secrets: inherit
+
   summary:
     needs:
       - metadata
       - client-userscript
       - service-base
       - cloudflare-email
+      - desktop-ui
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -144,6 +162,7 @@ jobs:
           CLIENT_RESULT: ${{ needs.client-userscript.result }}
           SERVICE_RESULT: ${{ needs.service-base.result }}
           CLOUDFLARE_RESULT: ${{ needs.cloudflare-email.result }}
+          DESKTOP_RESULT: ${{ needs.desktop-ui.result }}
         run: |
           set -euo pipefail
           {
@@ -154,6 +173,7 @@ jobs:
             echo "- Client/Userscript: \`${CLIENT_RESULT}\`"
             echo "- Service base: \`${SERVICE_RESULT}\`"
             echo "- Cloudflare email: \`${CLOUDFLARE_RESULT}\`"
+            echo "- Desktop UI: \`${DESKTOP_RESULT}\`"
           } >> "${GITHUB_STEP_SUMMARY}"
 
           failed="false"
@@ -165,5 +185,8 @@ jobs:
           fi
           if [[ "${TARGET}" == "all" || "${TARGET}" == "cloudflare-email" ]]; then
             [[ "${CLOUDFLARE_RESULT}" == "success" ]] || failed="true"
+          fi
+          if [[ "${TARGET}" == "desktop-ui" ]]; then
+            [[ "${DESKTOP_RESULT}" == "success" ]] || failed="true"
           fi
           [[ "${failed}" == "false" ]]

@@ -156,6 +156,7 @@ try {
         $env:EASY_EMAIL_DESKTOP_CORE_ENTRY = $previousCoreEntry
     }
     if (Test-Path -LiteralPath $dataDir) {
+        Stop-IsolatedEasyEmailWebViewProcesses -WebViewDirectory (Join-Path $dataDir 'webview2')
         $resolvedSmokeRoot = [System.IO.Path]::GetFullPath($smokeRoot)
         $resolvedDataDir = [System.IO.Path]::GetFullPath($dataDir)
         if (-not $resolvedDataDir.StartsWith($resolvedSmokeRoot + [System.IO.Path]::DirectorySeparatorChar)) {

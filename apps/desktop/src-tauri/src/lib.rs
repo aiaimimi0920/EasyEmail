@@ -26,6 +26,13 @@ pub fn run() {
         }
     };
     let application_data_dir = app_state.data_dir.clone();
+    #[cfg(windows)]
+    if std::env::var_os("WEBVIEW2_USER_DATA_FOLDER").is_none() {
+        std::env::set_var(
+            "WEBVIEW2_USER_DATA_FOLDER",
+            application_data_dir.join("webview2"),
+        );
+    }
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())

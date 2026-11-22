@@ -39,6 +39,9 @@ Create these environments before the first hosted run:
 | `easyemail-service-production` | GHCR/R2/import-code publication | required reviewer and public/service tag restriction |
 | `easyemail-cloudflare-validation` | direct Cloudflare dry runs | no production deployment credentials unless required for read-only validation |
 | `easyemail-cloudflare-production` | Cloudflare publication | required reviewer and public-tag restriction |
+| `easyemail-desktop-live-validation` | manual/scheduled controlled live provider/IMAP/SMTP gates | non-fork manual/schedule restriction; rotated test-account credentials only |
+| `easyemail-desktop-signing` | Desktop `build-and-sign` job | required reviewer, tag restriction, isolated `WINDOWS_CODESIGN_PFX_BASE64` / `WINDOWS_CODESIGN_PFX_PASSWORD` |
+| `easyemail-desktop-production` | Desktop provenance attestation & GitHub Release publication | required reviewer and release-tag restriction |
 
 GitHub creates an unconfigured environment when one is first referenced. Merely
 naming an environment in YAML does not create reviewer or tag protections; the
@@ -162,6 +165,31 @@ created by `remove-cloudflare-email.ps1` is a topology/removal safety record, no
 proof of a tested database restore. A schema/data incident therefore requires a
 separately reviewed Cloudflare backup/restore procedure; do not claim full data
 rollback from the deployment workflow alone.
+
+### Desktop (NMail)
+
+Before upgrading a Desktop installation across schema or binary versions, back up
+`%LOCALAPPDATA%\com.easyemailam.app\desktop-host-id` and
+`%LOCALAPPDATA%\com.easyemailam.app\core\state\` (or the custom
+`EASYEMAILAM_DATA_DIR` directory). Do **not** delete Windows Credential Manager
+entries (`EasyEmailAM:ref:v1:desktop/*`), which remain bound to opaque account
+credential references across binary rollbacks.
+
+If a candidate Desktop release fails verification or exhibits a post-upgrade
+regression:
+
+1. Close NMail so the bundled `service/base` child drains and exits cleanly.
+2. Verify `SHA256SUMS-desktop.txt`, `easy-email-desktop-release-manifest.json`,
+   Authenticode signature (`Get-AuthenticodeSignature`), and provenance
+   attestation on the previous known-good release tag's installer or portable
+   archive.
+3. Reinstall the previous signed MSI/NSIS package (or replace the portable
+   directory) and restore the pre-upgrade `desktop-host-id` + `core\state\`
+   backup.
+4. Launch NMail and confirm authenticated loopback readiness, preserved accounts,
+   opaque credential references, queued sends, and settings. This exact backup,
+   corruption recovery, and binary+state restore drill is automated in
+   `apps/desktop/scripts/verify-desktop-upgrade-and-rollback.ps1`.
 
 ## Proof boundary
 

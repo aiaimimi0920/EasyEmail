@@ -104,6 +104,8 @@ Write-Host "Validating release automation scripts..."
     (Join-Path $repoRoot 'scripts/easyemail-import-code.py') `
     (Join-Path $repoRoot 'scripts/build-userscript-release.py') `
     (Join-Path $repoRoot 'scripts/build-distribution.py') `
+    (Join-Path $repoRoot 'scripts/build-desktop-distribution.py') `
+    (Join-Path $repoRoot 'scripts/generate-desktop-sbom-and-notices.py') `
     (Join-Path $repoRoot 'scripts/release_tag.py') `
     (Join-Path $repoRoot 'scripts/userscript_release.py') `
     (Join-Path $repoRoot 'scripts/render-release-template.py') `

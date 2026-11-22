@@ -36,11 +36,11 @@ class ProductArchitectureContractTests(unittest.TestCase):
         self.assertEqual(ui["framework"], "tauri-2-react-19")
         self.assertEqual(
             ui["implementationStatus"],
-            "bundled-core-hosted-http-migration-in-progress",
+            "bundled-core-hosted-http-complete",
         )
         self.assertEqual(
             ui["releaseStatus"],
-            "blocked-until-business-http-and-release-acceptance-gates-pass",
+            "blocked-until-signed-clean-machine-and-hosted-provenance-gates-pass",
         )
         self.assertTrue(ui["bundlesCore"])
         self.assertTrue(ui["startsCoreAutomatically"])

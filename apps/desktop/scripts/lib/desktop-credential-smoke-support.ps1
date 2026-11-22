@@ -251,3 +251,29 @@ function Assert-ZeroCanarySecretMatches {
         }
     }
 }
+
+function Stop-IsolatedEasyEmailWebViewProcesses {
+    param([Parameter(Mandatory = $true)][string]$WebViewDirectory)
+
+    if (-not (Test-Path -LiteralPath $WebViewDirectory)) {
+        return
+    }
+    $isolatedPath = [System.IO.Path]::GetFullPath($WebViewDirectory)
+    $processes = @(
+        Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.CommandLine -and
+                $_.CommandLine.IndexOf($isolatedPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+            }
+    )
+    foreach ($process in $processes) {
+        Stop-Process -Id ([int]$process.ProcessId) -Force -ErrorAction SilentlyContinue
+        $ownedProcess = Get-Process -Id ([int]$process.ProcessId) -ErrorAction SilentlyContinue
+        if ($ownedProcess) {
+            $null = $ownedProcess.WaitForExit(5000)
+        }
+    }
+    if ($processes.Count -gt 0) {
+        Start-Sleep -Milliseconds 200
+    }
+}
