@@ -275,6 +275,34 @@ export async function verifyBundledCoreRelationalDomains({
   if (!settingsGet.ok || settingsPayload?.settings?.hasApiToken !== true) {
     throw new Error("Authenticated packaged-core EasyEmail settings read failed.");
   }
+  const unauthAgentAccounts = await fetch(`${baseUrl}/mail/agent/accounts`);
+  await unauthAgentAccounts.arrayBuffer();
+  if (unauthAgentAccounts.status !== 401) {
+    throw new Error(`Expected unauthenticated agent accounts to return 401, got ${unauthAgentAccounts.status}.`);
+  }
+  const agentAccountCreate = await fetch(`${baseUrl}/mail/agent/accounts`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${apiToken}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      displayName: "Packaged Agent Bot",
+      emailAddress: "packaged-agent@example.test",
+    }),
+  });
+  const agentAccountPayload = await agentAccountCreate.json();
+  if (
+    !agentAccountCreate.ok
+    || agentAccountPayload?.account?.scope !== "agent"
+    || agentAccountPayload?.account?.listedInAllAccounts !== false
+  ) {
+    throw new Error("Authenticated packaged-core Agent account create failed.");
+  }
+  const agentServicesList = await fetch(`${baseUrl}/mail/agent/services`, {
+    headers: { authorization: `Bearer ${apiToken}` },
+  });
+  const agentServicesPayload = await agentServicesList.json();
+  if (!agentServicesList.ok || !Array.isArray(agentServicesPayload?.services)) {
+    throw new Error("Authenticated packaged-core Agent services list failed.");
+  }
   const taxonomyList = await fetch(`${baseUrl}/mail/taxonomy?kind=folder`, {
     headers: { authorization: `Bearer ${apiToken}` },
   });

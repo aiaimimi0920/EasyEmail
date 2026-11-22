@@ -137,6 +137,7 @@ export async function deliverClaimedSendPayload(
         subject: queueItem.subject,
         bodyText: claimed.bodyText,
         bodyHtml: claimed.bodyHtml,
+        rfcMessageId: claimed.rfcMessageId,
       },
     );
     const sentNow = now().toISOString();

@@ -31,10 +31,22 @@ const VALID_FOLDER_KINDS = new Set<MailImapFolderKind>([
   "mail",
 ]);
 
+export interface MailAgentImapReplyAssociator {
+  associateImapIncomingMessage(input: {
+    accountId: string;
+    messageId: string;
+    fromAddress: string;
+    subject: string;
+    inReplyTo?: string;
+    references: string[];
+  }): Promise<unknown>;
+}
+
 export interface MailImapServiceDependencies {
   credentialResolver?: MailCredentialResolver;
   imapTransport?: MailImapTransport;
   verificationService?: MailVerificationService;
+  agentReplyAssociator?: MailAgentImapReplyAssociator;
   staleAfterMs?: number;
 }
 
@@ -356,6 +368,24 @@ export class MailImapService {
           await this.dependencies.verificationService?.classifyStoredMessage(messageId, {
             missingIsError: false,
           });
+        }
+        if (
+          account.scope === "agent"
+          && this.dependencies.agentReplyAssociator
+          && folder.folderKind !== "sent"
+          && folder.folderKind !== "drafts"
+          && folder.folderKind !== "trash"
+        ) {
+          for (const entry of persisted.insertedMessages ?? []) {
+            await this.dependencies.agentReplyAssociator.associateImapIncomingMessage({
+              accountId: account.id,
+              messageId: entry.messageId,
+              fromAddress: entry.fromAddress,
+              subject: entry.subject,
+              inReplyTo: entry.inReplyTo,
+              references: entry.references,
+            });
+          }
         }
         folderSummaries.push({
           folderId: folder.id,

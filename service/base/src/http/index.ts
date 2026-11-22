@@ -2,6 +2,7 @@ export * from "./contracts.js";
 export * from "./error-status.js";
 export * from "./handler.js";
 export * from "./routes/admin.js";
+export * from "./routes/agent-mail.js";
 export * from "./routes/extensions.js";
 export * from "./routes/imap-sync.js";
 export * from "./routes/internal.js";

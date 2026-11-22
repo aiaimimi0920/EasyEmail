@@ -1223,6 +1223,111 @@
           "503": { "$ref": "#/components/responses/ServiceUnavailable" }
         }
       }
+    },
+    "/mail/agent/accounts": {
+      "get": {
+        "operationId": "listAgentMailAccounts",
+        "summary": "List Agent-scoped accounts isolated from normal mailboxes",
+        "parameters": [
+          { "$ref": "#/components/parameters/AccountLimit" },
+          { "$ref": "#/components/parameters/AccountCursor" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ListAgentMailAccountsResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "post": {
+        "operationId": "createAgentMailAccount",
+        "summary": "Create an Agent-scoped account using opaque versioned credential references",
+        "requestBody": { "$ref": "#/components/requestBodies/CreateAgentMailAccountRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/CreateAgentMailAccountResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/agent/services": {
+      "get": {
+        "operationId": "listAgentMailServices",
+        "summary": "List registered remote Agent email services",
+        "responses": {
+          "200": { "$ref": "#/components/responses/ListAgentMailServicesResponse" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      },
+      "post": {
+        "operationId": "createAgentMailService",
+        "summary": "Register a remote Agent email service and trust level",
+        "requestBody": { "$ref": "#/components/requestBodies/CreateAgentMailServiceRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/CreateAgentMailServiceResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/agent/tasks": {
+      "post": {
+        "operationId": "sendAgentMailTask",
+        "summary": "Atomically create an Agent thread and enqueue outgoing task delivery via the M5 send queue",
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/SendAgentMailTaskRequest" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/SendAgentMailTaskResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/agent/threads": {
+      "get": {
+        "operationId": "listAgentMailThreads",
+        "summary": "List Agent Mail threads ordered by recent activity",
+        "parameters": [
+          { "$ref": "#/components/parameters/AgentThreadStatusQuery" },
+          { "$ref": "#/components/parameters/AgentSenderAccountIdQuery" },
+          { "$ref": "#/components/parameters/AgentServiceIdQuery" },
+          { "$ref": "#/components/parameters/AgentThreadLimitQuery" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/ListAgentMailThreadsResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
+    },
+    "/mail/agent/threads/{threadId}": {
+      "get": {
+        "operationId": "getAgentMailThreadDetail",
+        "summary": "Read one Agent Mail thread and its ordered messages",
+        "parameters": [
+          { "$ref": "#/components/parameters/AgentThreadId" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/GetAgentMailThreadDetailResponse" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "503": { "$ref": "#/components/responses/PersistenceUnavailable" }
+        }
+      }
     }
   },
   "components": {
@@ -1470,6 +1575,45 @@
         "in": "path",
         "required": true,
         "schema": { "type": "string", "minLength": 1 }
+      },
+      "AgentThreadId": {
+        "name": "threadId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "AgentThreadStatusQuery": {
+        "name": "status",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "sent",
+            "awaiting_reply",
+            "in_progress",
+            "completed",
+            "failed",
+            "expired",
+            "needs_attention",
+            "archived"
+          ]
+        }
+      },
+      "AgentSenderAccountIdQuery": {
+        "name": "senderAccountId",
+        "in": "query",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "AgentServiceIdQuery": {
+        "name": "agentServiceId",
+        "in": "query",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "AgentThreadLimitQuery": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 200 }
       }
     },
     "requestBodies": {
@@ -1718,6 +1862,30 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/EasyEmailConnectionTestInput" }
+          }
+        }
+      },
+      "CreateAgentMailAccountRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailAgentAccountCreateInput" }
+          }
+        }
+      },
+      "CreateAgentMailServiceRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailAgentServiceCreateInput" }
+          }
+        }
+      },
+      "SendAgentMailTaskRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailAgentTaskSendInput" }
           }
         }
       }
@@ -2072,6 +2240,62 @@
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/TestEasyEmailConnectionResponse" }
+          }
+        }
+      },
+      "ListAgentMailAccountsResponse": {
+        "description": "Page of Agent-scoped accounts",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ListAgentMailAccountsResponse" }
+          }
+        }
+      },
+      "CreateAgentMailAccountResponse": {
+        "description": "Created Agent-scoped account",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CreateAgentMailAccountResponse" }
+          }
+        }
+      },
+      "ListAgentMailServicesResponse": {
+        "description": "Registered remote Agent email services",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ListAgentMailServicesResponse" }
+          }
+        }
+      },
+      "CreateAgentMailServiceResponse": {
+        "description": "Created remote Agent email service",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CreateAgentMailServiceResponse" }
+          }
+        }
+      },
+      "SendAgentMailTaskResponse": {
+        "description": "Enqueued Agent task thread, message, and send-queue item",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/MailAgentTaskSendResult" }
+          }
+        }
+      },
+      "ListAgentMailThreadsResponse": {
+        "description": "Agent Mail threads",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ListAgentMailThreadsResponse" }
+          }
+        }
+      },
+      "GetAgentMailThreadDetailResponse": {
+        "description": "Agent Mail thread and ordered messages",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/GetAgentMailThreadDetailResponse" }
           }
         }
       },
@@ -3953,6 +4177,219 @@
         "required": ["health"],
         "properties": {
           "health": { "$ref": "#/components/schemas/EasyEmailConnectionHealth" }
+        },
+        "additionalProperties": false
+      },
+      "MailAgentAccountCreateInput": {
+        "type": "object",
+        "required": ["displayName", "emailAddress"],
+        "properties": {
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "emailAddress": { "type": "string", "format": "email" },
+          "providerLabel": { "type": ["string", "null"], "maxLength": 128 },
+          "imap": { "$ref": "#/components/schemas/MailAccountImapProfileInput" },
+          "smtp": { "$ref": "#/components/schemas/MailAccountSmtpProfileInput" },
+          "credentialRefs": {
+            "type": "array",
+            "maxItems": 16,
+            "items": { "$ref": "#/components/schemas/MailCredentialRefInput" }
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateAgentMailAccountResponse": {
+        "type": "object",
+        "required": ["account"],
+        "properties": {
+          "account": { "$ref": "#/components/schemas/MailAccount" }
+        },
+        "additionalProperties": false
+      },
+      "ListAgentMailAccountsResponse": {
+        "type": "object",
+        "required": ["accounts"],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MailAccount" }
+          },
+          "nextCursor": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "MailAgentServiceRecord": {
+        "type": "object",
+        "required": [
+          "id",
+          "displayName",
+          "emailAddress",
+          "serviceKind",
+          "trustLevel",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "emailAddress": { "type": "string", "format": "email" },
+          "description": { "type": "string" },
+          "serviceKind": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "trustLevel": {
+            "type": "string",
+            "enum": ["unknown", "trusted", "restricted", "blocked"]
+          },
+          "defaultSenderAccountId": { "type": "string", "minLength": 1 },
+          "status": {
+            "type": "string",
+            "enum": ["active", "disabled", "archived"]
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      },
+      "MailAgentServiceCreateInput": {
+        "type": "object",
+        "required": ["displayName", "emailAddress", "trustLevel"],
+        "properties": {
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "emailAddress": { "type": "string", "format": "email" },
+          "description": { "type": ["string", "null"], "maxLength": 2000 },
+          "serviceKind": { "type": ["string", "null"], "maxLength": 64 },
+          "trustLevel": {
+            "type": "string",
+            "enum": ["unknown", "trusted", "restricted", "blocked"]
+          },
+          "defaultSenderAccountId": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      },
+      "CreateAgentMailServiceResponse": {
+        "type": "object",
+        "required": ["service"],
+        "properties": {
+          "service": { "$ref": "#/components/schemas/MailAgentServiceRecord" }
+        },
+        "additionalProperties": false
+      },
+      "ListAgentMailServicesResponse": {
+        "type": "object",
+        "required": ["services"],
+        "properties": {
+          "services": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MailAgentServiceRecord" }
+          }
+        },
+        "additionalProperties": false
+      },
+      "MailAgentThread": {
+        "type": "object",
+        "required": [
+          "id",
+          "agentServiceId",
+          "senderAccountId",
+          "subject",
+          "status",
+          "correlationKey",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "agentServiceId": { "type": "string", "minLength": 1 },
+          "senderAccountId": { "type": "string", "minLength": 1 },
+          "subject": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "sent",
+              "awaiting_reply",
+              "in_progress",
+              "completed",
+              "failed",
+              "expired",
+              "needs_attention",
+              "archived"
+            ]
+          },
+          "lastOutgoingMessageId": { "type": "string" },
+          "lastIncomingMessageId": { "type": "string" },
+          "correlationKey": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "completedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      },
+      "MailAgentMessage": {
+        "type": "object",
+        "required": ["id", "threadId", "messageId", "direction", "semanticRole", "createdAt"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "threadId": { "type": "string", "minLength": 1 },
+          "messageId": { "type": "string", "minLength": 1 },
+          "direction": { "type": "string", "enum": ["outgoing", "incoming"] },
+          "semanticRole": { "type": "string" },
+          "parsedStatus": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      },
+      "MailAgentThreadDetail": {
+        "type": "object",
+        "required": ["thread", "messages"],
+        "properties": {
+          "thread": { "$ref": "#/components/schemas/MailAgentThread" },
+          "messages": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MailAgentMessage" }
+          }
+        },
+        "additionalProperties": false
+      },
+      "MailAgentTaskSendInput": {
+        "type": "object",
+        "required": ["agentServiceId", "senderAccountId", "subject", "bodyText", "confirmRestricted"],
+        "properties": {
+          "agentServiceId": { "type": "string", "minLength": 1 },
+          "senderAccountId": { "type": "string", "minLength": 1 },
+          "subject": { "type": "string", "minLength": 1, "maxLength": 998 },
+          "bodyText": { "type": "string" },
+          "confirmRestricted": { "type": "boolean" },
+          "idempotencyKey": { "type": ["string", "null"], "maxLength": 256 }
+        },
+        "additionalProperties": false
+      },
+      "MailAgentTaskSendResult": {
+        "type": "object",
+        "required": ["thread", "agentMessage", "queueItem", "deduplicated"],
+        "properties": {
+          "thread": { "$ref": "#/components/schemas/MailAgentThread" },
+          "agentMessage": { "$ref": "#/components/schemas/MailAgentMessage" },
+          "queueItem": { "$ref": "#/components/schemas/MailSendQueueItem" },
+          "deduplicated": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "ListAgentMailThreadsResponse": {
+        "type": "object",
+        "required": ["threads"],
+        "properties": {
+          "threads": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MailAgentThread" }
+          }
+        },
+        "additionalProperties": false
+      },
+      "GetAgentMailThreadDetailResponse": {
+        "type": "object",
+        "required": ["detail"],
+        "properties": {
+          "detail": { "$ref": "#/components/schemas/MailAgentThreadDetail" }
         },
         "additionalProperties": false
       }

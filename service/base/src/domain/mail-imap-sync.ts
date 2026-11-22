@@ -193,10 +193,20 @@ export interface MailImapFolderIngestInput {
   now: string;
 }
 
+export interface MailImapInsertedMessageRef {
+  messageId: string;
+  folderKind: MailImapFolderKind;
+  fromAddress: string;
+  subject: string;
+  inReplyTo?: string;
+  references: string[];
+}
+
 export interface MailImapFolderIngestResult {
   fetchedCount: number;
   insertedCount: number;
   insertedMessageIds: string[];
+  insertedMessages?: MailImapInsertedMessageRef[];
 }
 
 export interface MailImapRepository {

@@ -508,6 +508,10 @@ React 控制器已移除全部 M4 `message_*` 与 `verification_*` Tauri 业务�
 - 依赖 M5 的队列而不自建发信 worker，依赖 M6 的收信而不自建 IMAP 客户端；
 - 使用 fake IMAP/SMTP 验证新 task、reply、不受信 sender、重复邮件和账户隔离。
 
+**M7B 当前进度（2026-11-22）**：已在 `service/base` 落地关系库 schema v10（`mail_agent_services`、`mail_agent_threads`、`mail_agent_messages`），
+为所有出站队列消息生成并持久化稳定 `rfc_message_id` 且通过 SMTP `Message-ID` 原样发出，在 M5 发送队列状态推进（`sent` / 终态失败）时自动同步更新
+`mail_agent_messages.parsed_status` 与 `mail_agent_threads.status`，并在 M6 IMAP 同步中对 `scope="agent"` 账户严格隔离常规 `rfc_message_id` 合并（`classification="agent"`）且通过 `MailAgentService.associateImapIncomingMessage` 自动完成 `In-Reply-To`/`References` 回复溯源（匹配同 `(service.id, account.id)` 转为 `in_progress` + `linked`，未匹配或跨服务伪造引用分流为独立 `needs_attention` 线程，`blocked`/非活跃/未知发送方直接忽略且 `UIDVALIDITY` 重置重复同步严格幂等）。已暴露全部 7 条 `/mail/agent/*` HTTP 路由，对齐 OpenAPI、`docs/http-api.md`、TypeScript SDK 与 Python 契约测试，桌面端新增 `agentMailClient` 并将 `useInitialDataController`、`useAppLoaders`、`useDeliveryAgentController` 中全部 7 项 `agent_*` Tauri 业务调用切换至鉴权 HTTP，loopback TLS 1.2+ Fake IMAP/SMTP 端到端测试已通过。
+
 #### M7C - Avatar 与 platform stub 清理
 
 - 迁移 avatar settings/resolution/cache，实施 HTTPS-only、public-address 检查、DNS rebinding
@@ -778,7 +782,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-all.ps1
 
 ## 10. 下一个可执行批次
 
-M0–M6、M2 全部延后项及 **M7A（临时邮箱提升）** 均已完成并通过门禁；**M7 正在执行中，下一可执行切片为 M7B（Agent Mail）与 M7C（Avatar 与 platform stub 清理）**。
+M0–M6、M2 全部延后项、**M7A（临时邮箱提升）** 及 **M7B（Agent Mail）** 均已完成并通过门禁；**M7 正在收尾中，下一可执行切片为 M7C（Avatar 与 platform stub 清理）**。
 
 建议精确交付顺序：
 

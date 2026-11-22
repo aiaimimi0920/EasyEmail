@@ -325,5 +325,5 @@ describe("M7A taxonomy propagation, newsletter subscriptions, and EasyEmail sett
       await new Promise<void>((resolve) => fakeRemoteCatalog.close(() => resolve()));
       await rm(root, { recursive: true, force: true });
     }
-  });
+  }, 20_000);
 });

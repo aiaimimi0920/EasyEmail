@@ -25,6 +25,13 @@ import {
 
 const PENDING_SCHEDULED_LABEL = "未发送";
 
+function hasAgentTables(database: DatabaseSync): boolean {
+  const row = database.prepare(
+    "SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'mail_agent_messages' LIMIT 1",
+  ).get() as { ok: number } | undefined;
+  return Boolean(row?.ok);
+}
+
 function stripPendingLabel(rawLabelsJson: string): string {
   const labels = parseStringArrayJson(rawLabelsJson).filter(
     (label) => label !== PENDING_SCHEDULED_LABEL,
@@ -219,9 +226,20 @@ export class SqliteMailSendQueueRepository implements MailSendQueueRepository {
 
       this.database.prepare(`
         UPDATE mail_messages
-        SET observed_at = ?, updated_at = ?, version = version + 1
+        SET rfc_message_id = COALESCE(rfc_message_id, ?),
+            observed_at = ?,
+            updated_at = ?,
+            version = version + 1
         WHERE id = ? AND deleted_at IS NULL
-      `).run(now, now, updated.message_id);
+      `).run(providerMessageId ?? null, now, now, updated.message_id);
+
+      if (hasAgentTables(this.database)) {
+        this.database.prepare(`
+          UPDATE mail_agent_messages
+          SET parsed_status = 'sent'
+          WHERE message_id = ? AND direction = 'outgoing'
+        `).run(updated.message_id);
+      }
 
       const sources = this.database.prepare(`
         SELECT id, labels_json
@@ -303,8 +321,23 @@ export class SqliteMailSendQueueRepository implements MailSendQueueRepository {
       WHERE id = ?
         AND status = 'sending'
         AND lease_owner = ?
-    `).run(terminalStatus, errorCode, errorMessage, now, id, leaseOwner);
-    if (Number(result.changes) === 0) return undefined;
+      RETURNING message_id
+    `).get(terminalStatus, errorCode, errorMessage, now, id, leaseOwner) as unknown as {
+      message_id: string;
+    } | undefined;
+    if (!result) return undefined;
+    if (hasAgentTables(this.database)) {
+      this.database.prepare(`
+        UPDATE mail_agent_messages
+        SET parsed_status = ?
+        WHERE message_id = ? AND direction = 'outgoing'
+      `).run(terminalStatus, result.message_id);
+      this.database.prepare(`
+        UPDATE mail_agent_threads
+        SET status = 'failed', updated_at = ?
+        WHERE last_outgoing_message_id = ? AND status = 'awaiting_reply'
+      `).run(now, result.message_id);
+    }
     const row = this.readRawById(id);
     return row ? mapMailSendQueueRow(row) : undefined;
   }

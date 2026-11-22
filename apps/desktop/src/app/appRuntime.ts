@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { createAgentMailClient } from "../api/agentMailClient";
 import { createAvatarSettingsClient } from "../api/avatarSettingsClient";
 import { createBundledCoreClient } from "../api/bundledCoreClient";
 import { createContactClient } from "../api/contactClient";
@@ -12,6 +13,7 @@ import { createSendQueueClient } from "../api/sendQueueClient";
 import { createSettingsClient } from "../api/settingsClient";
 
 export const bundledCoreClient = createBundledCoreClient(invoke);
+export const agentMailClient = createAgentMailClient(bundledCoreClient);
 export const avatarSettingsClient = createAvatarSettingsClient(invoke);
 export const contactClient = createContactClient(bundledCoreClient);
 export const desktopCredentialClient = createDesktopCredentialClient(invoke);

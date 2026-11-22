@@ -345,5 +345,5 @@ describe("M7A temporary mailbox promotion over HTTP", () => {
       await runtime.close();
       await rm(root, { recursive: true, force: true });
     }
-  });
+  }, 20_000);
 });

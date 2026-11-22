@@ -1,4 +1,11 @@
 import type { CSSProperties } from "react";
+import type {
+  AgentMessageDto,
+  AgentSendTaskDto,
+  AgentServiceDto,
+  AgentThreadDetailDto,
+  AgentThreadDto,
+} from "../api/agentMailClient";
 import type { AccountDto } from "../api/mailAccountClient";
 import type { MailTaxonomyKind } from "../api/mailTaxonomyClient";
 import type { NewsletterSubscriptionDto } from "../api/newsletterClient";
@@ -25,53 +32,12 @@ export type SendMessageDto = {
   status: string;
 };
 
-export type AgentServiceDto = {
-  id: string;
-  display_name: string;
-  email_address: string;
-  description: string | null;
-  service_kind: string;
-  trust_level: string;
-  default_sender_account_id: string | null;
-  status: string;
-  created_at: string;
-  updated_at: string;
-};
-
-export type AgentThreadDto = {
-  id: string;
-  agent_service_id: string;
-  sender_account_id: string;
-  subject: string;
-  status: string;
-  last_outgoing_message_id: string | null;
-  last_incoming_message_id: string | null;
-  correlation_key: string;
-  created_at: string;
-  updated_at: string;
-  completed_at: string | null;
-};
-
-export type AgentMessageDto = {
-  id: string;
-  thread_id: string;
-  message_id: string;
-  direction: string;
-  semantic_role: string;
-  parsed_status: string | null;
-  created_at: string;
-};
-
-export type AgentThreadDetailDto = {
-  thread: AgentThreadDto;
-  messages: AgentMessageDto[];
-};
-
-export type AgentSendTaskDto = {
-  thread: AgentThreadDto;
-  agent_message: AgentMessageDto;
-  queue_id: string;
-  queue_status: string;
+export type {
+  AgentMessageDto,
+  AgentSendTaskDto,
+  AgentServiceDto,
+  AgentThreadDetailDto,
+  AgentThreadDto,
 };
 
 export type AnonymousMessageDto = {

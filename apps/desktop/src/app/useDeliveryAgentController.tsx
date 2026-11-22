@@ -1,12 +1,10 @@
-import { invoke } from "@tauri-apps/api/core";
 import type { SendQueueDto } from "../api/sendQueueClient";
 import { joinComposeAddressList } from "../compose/composeData";
 import { formatComposeScheduleDate } from "../compose/composeDateUtils";
 import { sanitizeComposeHtml } from "../compose/composeHtmlSanitizer";
 import { COMPOSE_DRAFT_STORAGE_KEY } from "./appConfig";
 import { asErrorDto, optionalValue } from "./appDomain";
-import { mailMessageClient, sendQueueClient } from "./appRuntime";
-import type { LegacyAccountDto, AgentServiceDto, AgentThreadDetailDto, AgentSendTaskDto } from "./appTypes";
+import { agentMailClient, mailMessageClient, sendQueueClient } from "./appRuntime";
 import type { AppState } from "./useAppState";
 
 type Dependencies = {
@@ -27,6 +25,13 @@ function generateSendIdempotencyKey(): string {
     return `compose:${globalThis.crypto.randomUUID()}`;
   }
   return `compose:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function generateAgentTaskIdempotencyKey(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return `agent-task:${globalThis.crypto.randomUUID()}`;
+  }
+  return `agent-task:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function useDeliveryAgentController(appState: AppState, dependencies: Dependencies) {
@@ -221,11 +226,9 @@ export function useDeliveryAgentController(appState: AppState, dependencies: Dep
   async function addAgentAccount() {
       setBusy(true);
       try {
-        const account = await invoke<LegacyAccountDto>("agent_add_account", {
-          request: {
-            display_name: agentDisplayName,
-            email_address: agentEmailAddress,
-          },
+        const account = await agentMailClient.addAgentAccount({
+          display_name: agentDisplayName,
+          email_address: agentEmailAddress,
         });
         await loadAgentAccounts();
         setSelectedAgentSenderId(account.id);
@@ -243,15 +246,13 @@ export function useDeliveryAgentController(appState: AppState, dependencies: Dep
   async function addAgentService() {
       setBusy(true);
       try {
-        const service = await invoke<AgentServiceDto>("agent_add_service", {
-          request: {
-            display_name: agentServiceName,
-            email_address: agentServiceEmail,
-            description: optionalValue(agentServiceDescription),
-            service_kind: "email_agent",
-            trust_level: agentTrustLevel,
-            default_sender_account_id: selectedAgentSenderId,
-          },
+        const service = await agentMailClient.addAgentService({
+          display_name: agentServiceName,
+          email_address: agentServiceEmail,
+          description: optionalValue(agentServiceDescription),
+          service_kind: "email_agent",
+          trust_level: agentTrustLevel,
+          default_sender_account_id: selectedAgentSenderId,
         });
         await loadAgentServices();
         setSelectedAgentServiceId(service.id);
@@ -277,14 +278,13 @@ export function useDeliveryAgentController(appState: AppState, dependencies: Dep
 
       setBusy(true);
       try {
-        const result = await invoke<AgentSendTaskDto>("agent_send_task", {
-          request: {
-            agent_service_id: selectedAgentServiceId,
-            sender_account_id: selectedAgentSenderId,
-            subject: agentTaskSubject,
-            body_text: agentTaskBody,
-            confirm_restricted: confirmRestrictedAgent,
-          },
+        const result = await agentMailClient.sendAgentTask({
+          agent_service_id: selectedAgentServiceId,
+          sender_account_id: selectedAgentSenderId,
+          subject: agentTaskSubject,
+          body_text: agentTaskBody,
+          confirm_restricted: confirmRestrictedAgent,
+          idempotency_key: generateAgentTaskIdempotencyKey(),
         });
         setLastAgentTask(result);
         await Promise.all([loadAgentThreads(), loadSendQueue()]);
@@ -303,8 +303,8 @@ export function useDeliveryAgentController(appState: AppState, dependencies: Dep
   async function loadAgentThreadDetail(threadId: string) {
       setBusy(true);
       try {
-        const detail = await invoke<AgentThreadDetailDto>("agent_get_thread_detail", {
-          request: { thread_id: threadId },
+        const detail = await agentMailClient.getAgentThreadDetail({
+          thread_id: threadId,
         });
         setSelectedAgentThreadDetail(detail);
         setStatusMessage(`Loaded Agent thread ${detail.thread.subject}.`);

@@ -419,6 +419,9 @@ class HttpApiContractTests(HttpApiContractTestCase):
             "promoteMailboxSession",
             "listNewsletterSubscriptions",
             "setNewsletterSubscriptionHidden",
+            "createAgentMailService",
+            "sendAgentMailTask",
+            "getAgentMailThreadDetail",
         }
         documented_operation_ids = {
             operation["operationId"]

@@ -153,6 +153,7 @@ export interface MailSendQueueRepositoryEnqueueInput {
   snippet: string;
   bodyText: string;
   bodyHtml?: string;
+  rfcMessageId?: string;
   idempotencyKey?: string;
   payloadFingerprint: string;
   now: string;
@@ -162,6 +163,7 @@ export interface MailSendQueueClaimedPayload {
   queueItem: MailSendQueueItem;
   bodyText: string;
   bodyHtml?: string;
+  rfcMessageId?: string;
 }
 
 export interface MailSendQueueRepository {

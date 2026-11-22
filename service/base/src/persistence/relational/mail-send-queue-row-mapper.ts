@@ -27,6 +27,7 @@ export interface RawMailSendQueueRow {
   subject: string;
   body_text: string | null;
   body_html: string | null;
+  rfc_message_id: string | null;
   status: MailSendQueueStatus;
   attempt_count: number;
   scheduled_at: string | null;
@@ -62,6 +63,7 @@ export const SEND_QUEUE_SELECT_COLUMNS = `
   COALESCE(m.subject, '') AS subject,
   m.body_text AS body_text,
   m.body_html AS body_html,
+  m.rfc_message_id AS rfc_message_id,
   q.status,
   q.attempt_count,
   q.scheduled_at,
@@ -115,5 +117,6 @@ export function mapClaimedSendPayload(row: RawMailSendQueueRow): MailSendQueueCl
     queueItem: mapMailSendQueueRow(row),
     bodyText: row.body_text ?? "",
     ...(row.body_html ? { bodyHtml: row.body_html } : {}),
+    ...(row.rfc_message_id ? { rfcMessageId: row.rfc_message_id } : {}),
   };
 }

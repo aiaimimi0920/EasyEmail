@@ -58,6 +58,24 @@ export interface EasyEmailClientApi extends EasyEmailMessageClientApi {
   testEasyEmailConnection(
     input?: Contracts.EasyEmailConnectionTestInput,
   ): Promise<Contracts.EasyEmailConnectionHealth>;
+  listAgentMailAccounts(
+    query?: Contracts.MailAgentAccountListQuery,
+  ): Promise<Contracts.MailAgentAccountListResult>;
+  createAgentMailAccount(
+    input: Contracts.MailAgentAccountCreateInput,
+  ): Promise<Contracts.MailAccount>;
+  listAgentMailServices(): Promise<Contracts.MailAgentServiceRecord[]>;
+  createAgentMailService(
+    input: Contracts.MailAgentServiceCreateInput,
+  ): Promise<Contracts.MailAgentServiceRecord>;
+  sendAgentMailTask(
+    input: Contracts.MailAgentTaskSendInput,
+    options?: { idempotencyKey?: string },
+  ): Promise<Contracts.MailAgentTaskSendResult>;
+  listAgentMailThreads(
+    query?: Contracts.MailAgentThreadListQuery,
+  ): Promise<Contracts.MailAgentThread[]>;
+  getAgentMailThreadDetail(threadId: string): Promise<Contracts.MailAgentThreadDetail>;
 }
 
 export class EasyEmailClient extends EasyEmailMessageClientBase implements EasyEmailClientApi {
@@ -306,5 +324,80 @@ export class EasyEmailClient extends EasyEmailMessageClientBase implements EasyE
       { health: Contracts.EasyEmailConnectionHealth }
     >(EASY_EMAIL_HTTP_ROUTES.testSettingsEasyEmail, input);
     return response.health;
+  }
+
+  public async listAgentMailAccounts(
+    query: Contracts.MailAgentAccountListQuery = {},
+  ): Promise<Contracts.MailAgentAccountListResult> {
+    return this.httpClient.get<Contracts.MailAgentAccountListResult>(
+      EASY_EMAIL_HTTP_ROUTES.agentAccounts,
+      { limit: query.limit, cursor: query.cursor },
+    );
+  }
+
+  public async createAgentMailAccount(
+    input: Contracts.MailAgentAccountCreateInput,
+  ): Promise<Contracts.MailAccount> {
+    const response = await this.httpClient.post<
+      Contracts.MailAgentAccountCreateInput,
+      { account: Contracts.MailAccount }
+    >(EASY_EMAIL_HTTP_ROUTES.agentAccounts, input);
+    return response.account;
+  }
+
+  public async listAgentMailServices(): Promise<Contracts.MailAgentServiceRecord[]> {
+    const response = await this.httpClient.get<{ services: Contracts.MailAgentServiceRecord[] }>(
+      EASY_EMAIL_HTTP_ROUTES.agentServices,
+    );
+    return response.services;
+  }
+
+  public async createAgentMailService(
+    input: Contracts.MailAgentServiceCreateInput,
+  ): Promise<Contracts.MailAgentServiceRecord> {
+    const response = await this.httpClient.post<
+      Contracts.MailAgentServiceCreateInput,
+      { service: Contracts.MailAgentServiceRecord }
+    >(EASY_EMAIL_HTTP_ROUTES.agentServices, input);
+    return response.service;
+  }
+
+  public async sendAgentMailTask(
+    input: Contracts.MailAgentTaskSendInput,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<Contracts.MailAgentTaskSendResult> {
+    const idempotencyKey = options.idempotencyKey?.trim() || input.idempotencyKey?.trim();
+    return this.httpClient.post<
+      Contracts.MailAgentTaskSendInput,
+      Contracts.MailAgentTaskSendResult
+    >(
+      EASY_EMAIL_HTTP_ROUTES.agentTasks,
+      input,
+      idempotencyKey ? { "idempotency-key": idempotencyKey } : undefined,
+    );
+  }
+
+  public async listAgentMailThreads(
+    query: Contracts.MailAgentThreadListQuery = {},
+  ): Promise<Contracts.MailAgentThread[]> {
+    const response = await this.httpClient.get<{ threads: Contracts.MailAgentThread[] }>(
+      EASY_EMAIL_HTTP_ROUTES.agentThreads,
+      {
+        status: query.status,
+        senderAccountId: query.senderAccountId,
+        agentServiceId: query.agentServiceId,
+        limit: query.limit,
+      },
+    );
+    return response.threads;
+  }
+
+  public async getAgentMailThreadDetail(
+    threadId: string,
+  ): Promise<Contracts.MailAgentThreadDetail> {
+    const response = await this.httpClient.get<{ detail: Contracts.MailAgentThreadDetail }>(
+      EASY_EMAIL_HTTP_ROUTES.agentThread(threadId),
+    );
+    return response.detail;
   }
 }

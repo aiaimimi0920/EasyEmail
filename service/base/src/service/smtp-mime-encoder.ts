@@ -108,7 +108,7 @@ export function buildSmtpMimeSubmission(
   }
   const rcptTo = Array.from(new Set([...toList, ...ccList, ...bccList]));
   const senderDomain = mailFrom.slice(mailFrom.lastIndexOf("@") + 1) || "easyemail.local";
-  const rfcMessageId = `<${randomUUID()}@${senderDomain}>`;
+  const rfcMessageId = envelope.rfcMessageId?.trim() || `<${randomUUID()}@${senderDomain}>`;
   const headers: string[] = [
     `Date: ${now.toUTCString()}`,
     `Message-ID: ${rfcMessageId}`,

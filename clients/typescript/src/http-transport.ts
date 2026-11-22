@@ -10,6 +10,10 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   settingsEasyEmail: "/mail/settings/easyemail",
   testSettingsEasyEmail: "/mail/settings/easyemail/test",
   accounts: "/mail/accounts",
+  agentAccounts: "/mail/agent/accounts",
+  agentServices: "/mail/agent/services",
+  agentTasks: "/mail/agent/tasks",
+  agentThreads: "/mail/agent/threads",
   testAccountImap: "/mail/accounts/imap/test",
   testAccountSmtp: "/mail/accounts/smtp/test",
   drafts: "/mail/drafts",
@@ -102,6 +106,9 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   },
   reopenScheduledSend(messageId: string): string {
     return `/mail/messages/${encodeURIComponent(messageId)}/scheduled-send/reopen`;
+  },
+  agentThread(threadId: string): string {
+    return `/mail/agent/threads/${encodeURIComponent(threadId)}`;
   },
 } as const;
 

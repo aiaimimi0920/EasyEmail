@@ -53,6 +53,7 @@ export interface MailSmtpSendEnvelope {
   subject: string;
   bodyText: string;
   bodyHtml?: string;
+  rfcMessageId?: string;
 }
 
 export interface MailSmtpSendResult {

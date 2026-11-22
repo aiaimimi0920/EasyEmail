@@ -21,6 +21,18 @@ import type {
   MailNewsletterSubscription,
 } from "../../domain/mail-extensions.js";
 import type {
+  MailAgentIncomingReplyAssociationResult,
+  MailAgentRepository,
+  MailAgentRepositoryCreateServiceInput,
+  MailAgentRepositoryIncomingReplyInput,
+  MailAgentRepositoryTaskEnqueueInput,
+  MailAgentServiceRecord,
+  MailAgentTaskSendResult,
+  MailAgentThread,
+  MailAgentThreadDetail,
+  MailAgentThreadListQuery,
+} from "../../domain/mail-agent.js";
+import type {
   MailTaxonomyItem,
   MailTaxonomyRepository,
   MailTaxonomyRepositoryListQuery,
@@ -36,6 +48,7 @@ import {
 } from "./database-bootstrap.js";
 import { SqliteMessageQueueImapDatabaseBase } from "./database-mail-base.js";
 import { SqliteMailAccountRepository } from "./mail-account-repository.js";
+import { SqliteMailAgentRepository } from "./mail-agent-repository.js";
 import { SqliteMailExtensionsRepository } from "./mail-extensions-repository.js";
 import { SqliteMailTaxonomyRepository } from "./mail-taxonomy-repository.js";
 
@@ -61,11 +74,13 @@ export class SqliteRelationalDatabase
     ContactRepository,
     MailTaxonomyRepository,
     MailAccountRepository,
-    MailExtensionsRepository
+    MailExtensionsRepository,
+    MailAgentRepository
 {
   private readonly trackedDatabasePath?: string;
   private readonly contacts: SqliteContactRepository;
   private readonly mailAccounts: SqliteMailAccountRepository;
+  private readonly mailAgent: SqliteMailAgentRepository;
   private readonly mailExtensions: SqliteMailExtensionsRepository;
   private readonly mailTaxonomy: SqliteMailTaxonomyRepository;
   private closed = false;
@@ -78,6 +93,7 @@ export class SqliteRelationalDatabase
     this.backupPath = opened.backupPath;
     this.contacts = new SqliteContactRepository(this.database);
     this.mailAccounts = new SqliteMailAccountRepository(this.database);
+    this.mailAgent = new SqliteMailAgentRepository(this.database);
     this.mailExtensions = new SqliteMailExtensionsRepository(this.database);
     this.mailTaxonomy = new SqliteMailTaxonomyRepository(this.database);
   }
@@ -189,6 +205,44 @@ export class SqliteRelationalDatabase
     now: string,
   ): Promise<void> {
     return this.mailExtensions.setClientSetting(settingKey, settingValue, now);
+  }
+
+  public createAgentService(
+    input: MailAgentRepositoryCreateServiceInput,
+  ): Promise<MailAgentServiceRecord> {
+    return this.mailAgent.createAgentService(input);
+  }
+
+  public getAgentService(id: string): Promise<MailAgentServiceRecord | undefined> {
+    return this.mailAgent.getAgentService(id);
+  }
+
+  public getAgentServiceByEmail(emailAddress: string): Promise<MailAgentServiceRecord | undefined> {
+    return this.mailAgent.getAgentServiceByEmail(emailAddress);
+  }
+
+  public listAgentServices(): Promise<MailAgentServiceRecord[]> {
+    return this.mailAgent.listAgentServices();
+  }
+
+  public enqueueAgentTask(
+    input: MailAgentRepositoryTaskEnqueueInput,
+  ): Promise<MailAgentTaskSendResult> {
+    return this.mailAgent.enqueueAgentTask(input);
+  }
+
+  public listAgentThreads(query?: MailAgentThreadListQuery): Promise<MailAgentThread[]> {
+    return this.mailAgent.listAgentThreads(query);
+  }
+
+  public getAgentThreadDetail(threadId: string): Promise<MailAgentThreadDetail | undefined> {
+    return this.mailAgent.getAgentThreadDetail(threadId);
+  }
+
+  public associateIncomingAgentReply(
+    input: MailAgentRepositoryIncomingReplyInput,
+  ): Promise<MailAgentIncomingReplyAssociationResult> {
+    return this.mailAgent.associateIncomingAgentReply(input);
   }
 
   public close(): void {

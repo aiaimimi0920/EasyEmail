@@ -5,6 +5,7 @@ import type {
   MailImapFolderIngestInput,
   MailImapFolderIngestResult,
   MailImapFolderKind,
+  MailImapInsertedMessageRef,
   MailImapRemoteMessageHeader,
 } from "../../domain/mail-imap-sync.js";
 
@@ -104,6 +105,11 @@ export function ingestImapFolderHeadersInDatabase(
 
     let insertedCount = 0;
     const insertedMessageIds: string[] = [];
+    const insertedMessages: MailImapInsertedMessageRef[] = [];
+    const targetAccountRow = database
+      .prepare("SELECT scope FROM mail_accounts WHERE id = ? LIMIT 1")
+      .get(accountId) as { scope: string } | undefined;
+    const isAgentAccount = targetAccountRow?.scope === "agent";
 
     for (const header of batch.headers) {
       if (header.isDeleted) {
@@ -167,26 +173,46 @@ export function ingestImapFolderHeadersInDatabase(
 
       const normalizedRfcId = header.rfcMessageId?.trim() || undefined;
       const matchedByRfc = normalizedRfcId
-        ? (database.prepare(`
-            SELECT m.id AS id
-            FROM mail_messages m
-            WHERE lower(m.rfc_message_id) = lower(?)
-              AND m.deleted_at IS NULL
-              AND EXISTS (
-                SELECT 1
-                FROM mail_message_sources s2
-                LEFT JOIN mail_accounts a2 ON a2.id = s2.account_id
-                WHERE s2.message_id = m.id
-                  AND (s2.account_id IS NULL OR a2.scope != 'agent')
-              )
-            ORDER BY m.created_at ASC, m.id ASC
-            LIMIT 1
-          `).get(normalizedRfcId) as unknown as { id: string } | undefined)
+        ? isAgentAccount
+          ? (database.prepare(`
+              SELECT m.id AS id
+              FROM mail_messages m
+              WHERE lower(m.rfc_message_id) = lower(?)
+                AND m.deleted_at IS NULL
+                AND EXISTS (
+                  SELECT 1
+                  FROM mail_message_sources s2
+                  WHERE s2.message_id = m.id
+                    AND s2.account_id = ?
+                )
+              ORDER BY m.created_at ASC, m.id ASC
+              LIMIT 1
+            `).get(normalizedRfcId, accountId) as unknown as { id: string } | undefined)
+          : (database.prepare(`
+              SELECT m.id AS id
+              FROM mail_messages m
+              WHERE lower(m.rfc_message_id) = lower(?)
+                AND m.deleted_at IS NULL
+                AND EXISTS (
+                  SELECT 1
+                  FROM mail_message_sources s2
+                  LEFT JOIN mail_accounts a2 ON a2.id = s2.account_id
+                  WHERE s2.message_id = m.id
+                    AND (s2.account_id IS NULL OR a2.scope != 'agent')
+                )
+              ORDER BY m.created_at ASC, m.id ASC
+              LIMIT 1
+            `).get(normalizedRfcId) as unknown as { id: string } | undefined)
         : undefined;
 
       const messageId = matchedByRfc?.id ?? `msg_v1_${randomUUID()}`;
       if (!matchedByRfc) {
         const unsubscribeJson = JSON.stringify(header.newsletterUnsubscribeMethods ?? []);
+        const messageClassification = isAgentAccount
+          ? "agent"
+          : header.isNewsletter
+            ? "newsletter"
+            : "general";
         database.prepare(`
           INSERT INTO mail_messages (
             id, rfc_message_id, thread_key, subject, from_address, from_name,
@@ -203,7 +229,7 @@ export function ingestImapFolderHeadersInDatabase(
           header.fromName ?? null,
           header.snippet,
           header.hasAttachments ? 1 : 0,
-          header.isNewsletter ? "newsletter" : "general",
+          messageClassification,
           header.newsletterListId ?? null,
           unsubscribeJson,
           header.observedAt,
@@ -267,6 +293,14 @@ export function ingestImapFolderHeadersInDatabase(
         );
         insertedCount += 1;
         insertedMessageIds.push(messageId);
+        insertedMessages.push({
+          messageId,
+          folderKind: folder.folderKind,
+          fromAddress: header.fromAddress,
+          subject: header.subject,
+          ...(header.inReplyTo ? { inReplyTo: header.inReplyTo } : {}),
+          references: header.references,
+        });
       }
     }
 
@@ -285,6 +319,7 @@ export function ingestImapFolderHeadersInDatabase(
       fetchedCount: batch.headers.length,
       insertedCount,
       insertedMessageIds,
+      insertedMessages,
     };
   } catch (error) {
     try {

@@ -1,42 +1,31 @@
 import type { InvokeCommand } from "./invokeCommand";
+import { createBundledCoreMailboxMethods } from "./bundledCoreMailboxMethods.ts";
 import { createDesktopCoreClient } from "./desktopCoreClient.ts";
 import {
   createEasyEmailHttpClient,
-  type EasyEmailAuthenticationLinkResponse,
-  type EasyEmailAuthenticationLinkResult,
+  type EasyEmailAgentAccountCreateRequest,
+  type EasyEmailAgentAccountListQuery,
+  type EasyEmailAgentAccountResponse,
+  type EasyEmailAgentAccountsResponse,
+  type EasyEmailAgentServiceCreateRequest,
+  type EasyEmailAgentServiceResponse,
+  type EasyEmailAgentServicesResponse,
+  type EasyEmailAgentTaskSendRequest,
+  type EasyEmailAgentTaskSendResponse,
+  type EasyEmailAgentThreadDetailResponse,
+  type EasyEmailAgentThreadListQuery,
+  type EasyEmailAgentThreadsResponse,
   type EasyEmailCatalogResponse,
   type EasyEmailContact,
   type EasyEmailContactCreateRequest,
   type EasyEmailContactListQuery,
   type EasyEmailContactResponse,
   type EasyEmailContactsResponse,
-  type EasyEmailMailboxOutcomeRequest,
-  type EasyEmailMailboxOutcomeResult,
-  type EasyEmailMailboxRefreshResponse,
-  type EasyEmailMailboxSendResult,
-  type EasyEmailMailboxSendRequest,
-  type EasyEmailMailboxSession,
-  type EasyEmailMailboxSessionQuery,
-  type EasyEmailMailboxSessionsResponse,
-  type EasyEmailMailboxUpdateRequest,
-  type EasyEmailMailTaxonomyDeleteResponse,
-  type EasyEmailMailTaxonomyKind,
-  type EasyEmailMailTaxonomyListQuery,
-  type EasyEmailMailTaxonomyListResponse,
-  type EasyEmailMailTaxonomyMutationResponse,
-  type EasyEmailMailTaxonomyUpdateRequest,
-  type EasyEmailMailTaxonomyUpsertRequest,
   type EasyEmailGetEasyEmailSettingsResponse,
+  type EasyEmailGetMailAccountSyncStatusResponse,
+  type EasyEmailListMailAccountFoldersResponse,
   type EasyEmailListNewsletterSubscriptionsQuery,
   type EasyEmailListNewsletterSubscriptionsResponse,
-  type EasyEmailPromoteMailboxRequest,
-  type EasyEmailPromoteMailboxResponse,
-  type EasyEmailTestEasyEmailConnectionRequest,
-  type EasyEmailTestEasyEmailConnectionResponse,
-  type EasyEmailUpdateEasyEmailSettingsRequest,
-  type EasyEmailUpdateEasyEmailSettingsResponse,
-  type EasyEmailUpdateNewsletterSubscriptionRequest,
-  type EasyEmailUpdateNewsletterSubscriptionResponse,
   type EasyEmailMailAccountCreateRequest,
   type EasyEmailMailAccountImapTestRequest,
   type EasyEmailMailAccountImapTestResponse,
@@ -47,9 +36,6 @@ import {
   type EasyEmailMailAccountSmtpTestResponse,
   type EasyEmailMailAccountSyncRequest,
   type EasyEmailMailAccountUpdateRequest,
-  type EasyEmailGetMailAccountSyncStatusResponse,
-  type EasyEmailListMailAccountFoldersResponse,
-  type EasyEmailSyncMailAccountResponse,
   type EasyEmailMailDraftSaveRequest,
   type EasyEmailMailDraftSaveResponse,
   type EasyEmailMailMessageDetailQuery,
@@ -75,31 +61,26 @@ import {
   type EasyEmailMailSendQueueRunBatchRequest,
   type EasyEmailMailSendQueueRunItemResponse,
   type EasyEmailMailSendQueueRunWorkerResponse,
+  type EasyEmailMailTaxonomyDeleteResponse,
+  type EasyEmailMailTaxonomyKind,
+  type EasyEmailMailTaxonomyListQuery,
+  type EasyEmailMailTaxonomyListResponse,
+  type EasyEmailMailTaxonomyMutationResponse,
+  type EasyEmailMailTaxonomyUpdateRequest,
+  type EasyEmailMailTaxonomyUpsertRequest,
   type EasyEmailMailTrashEmptyRequest,
   type EasyEmailMailTrashEmptyResponse,
   type EasyEmailMailVerificationListQuery,
   type EasyEmailMailVerificationsResponse,
-  type EasyEmailObservedMessage,
-  type EasyEmailObservedMessageResponse,
-  type EasyEmailObservedMessagesResponse,
-  type EasyEmailObservedMessageQuery,
-  type EasyEmailOpenMailboxRequest,
-  type EasyEmailOpenMailboxResponse,
-  type EasyEmailPlanMailboxResponse,
-  type EasyEmailProviderInstance,
-  type EasyEmailProviderInstanceQuery,
-  type EasyEmailProviderInstancesResponse,
-  type EasyEmailRecoverMailboxRequest,
-  type EasyEmailRecoverMailboxResult,
-  type EasyEmailRecoverMailboxResponse,
-  type EasyEmailReleaseMailboxResult,
-  type EasyEmailReleaseMailboxResponse,
-  type EasyEmailReportMailboxOutcomeResponse,
-  type EasyEmailSendMailboxResponse,
-  type EasyEmailUpdateMailboxResponse,
-  type EasyEmailVerificationCodeResponse,
-  type EasyEmailVerificationCodeResult,
-  type EasyEmailVerificationMailboxOpenResult,
+  type EasyEmailPromoteMailboxRequest,
+  type EasyEmailPromoteMailboxResponse,
+  type EasyEmailSyncMailAccountResponse,
+  type EasyEmailTestEasyEmailConnectionRequest,
+  type EasyEmailTestEasyEmailConnectionResponse,
+  type EasyEmailUpdateEasyEmailSettingsRequest,
+  type EasyEmailUpdateEasyEmailSettingsResponse,
+  type EasyEmailUpdateNewsletterSubscriptionRequest,
+  type EasyEmailUpdateNewsletterSubscriptionResponse,
 } from "./easyEmailHttpClient.ts";
 
 export function createBundledCoreClient(
@@ -348,76 +329,40 @@ export function createBundledCoreClient(
     ): Promise<EasyEmailTestEasyEmailConnectionResponse> {
       return (await getHttpClient()).testEasyEmailConnection(request);
     },
-    async planMailbox<TResult = unknown>(
-      request: EasyEmailOpenMailboxRequest,
-    ): Promise<EasyEmailPlanMailboxResponse<TResult>> {
-      return (await getHttpClient()).planMailbox<TResult>(request);
+    async listAgentMailAccounts(
+      query: EasyEmailAgentAccountListQuery = {},
+    ): Promise<EasyEmailAgentAccountsResponse> {
+      return (await getHttpClient()).listAgentMailAccounts(query);
     },
-    async openMailbox<TResult = EasyEmailVerificationMailboxOpenResult>(
-      request: EasyEmailOpenMailboxRequest,
-    ): Promise<EasyEmailOpenMailboxResponse<TResult>> {
-      return (await getHttpClient()).openMailbox<TResult>(request);
+    async createAgentMailAccount(
+      request: EasyEmailAgentAccountCreateRequest,
+    ): Promise<EasyEmailAgentAccountResponse> {
+      return (await getHttpClient()).createAgentMailAccount(request);
     },
-    async queryProviderInstances<TInstance = EasyEmailProviderInstance>(
-      query: EasyEmailProviderInstanceQuery = {},
-    ): Promise<EasyEmailProviderInstancesResponse<TInstance>> {
-      return (await getHttpClient()).queryProviderInstances<TInstance>(query);
+    async listAgentMailServices(): Promise<EasyEmailAgentServicesResponse> {
+      return (await getHttpClient()).listAgentMailServices();
     },
-    async queryMailboxSessions<TSession = EasyEmailMailboxSession>(
-      query: EasyEmailMailboxSessionQuery,
-    ): Promise<EasyEmailMailboxSessionsResponse<TSession>> {
-      return (await getHttpClient()).queryMailboxSessions<TSession>(query);
+    async createAgentMailService(
+      request: EasyEmailAgentServiceCreateRequest,
+    ): Promise<EasyEmailAgentServiceResponse> {
+      return (await getHttpClient()).createAgentMailService(request);
     },
-    async queryObservedMessages<TMessage = EasyEmailObservedMessage>(
-      query: EasyEmailObservedMessageQuery,
-    ): Promise<EasyEmailObservedMessagesResponse<TMessage>> {
-      return (await getHttpClient()).queryObservedMessages<TMessage>(query);
+    async sendAgentMailTask(
+      request: EasyEmailAgentTaskSendRequest,
+      options?: { idempotencyKey?: string },
+    ): Promise<EasyEmailAgentTaskSendResponse> {
+      return (await getHttpClient()).sendAgentMailTask(request, options);
     },
-    async getObservedMessage<TMessage = EasyEmailObservedMessage>(
-      messageId: string,
-    ): Promise<EasyEmailObservedMessageResponse<TMessage>> {
-      return (await getHttpClient()).getObservedMessage<TMessage>(messageId);
+    async listAgentMailThreads(
+      query: EasyEmailAgentThreadListQuery = {},
+    ): Promise<EasyEmailAgentThreadsResponse> {
+      return (await getHttpClient()).listAgentMailThreads(query);
     },
-    async readVerificationCode<TResult = EasyEmailVerificationCodeResult>(
-      sessionId: string,
-    ): Promise<EasyEmailVerificationCodeResponse<TResult>> {
-      return (await getHttpClient()).readVerificationCode<TResult>(sessionId);
+    async getAgentMailThreadDetail(
+      threadId: string,
+    ): Promise<EasyEmailAgentThreadDetailResponse> {
+      return (await getHttpClient()).getAgentMailThreadDetail(threadId);
     },
-    async readAuthenticationLink<TResult = EasyEmailAuthenticationLinkResult>(
-      sessionId: string,
-    ): Promise<EasyEmailAuthenticationLinkResponse<TResult>> {
-      return (await getHttpClient()).readAuthenticationLink<TResult>(sessionId);
-    },
-    async refreshMailbox(sessionId: string): Promise<EasyEmailMailboxRefreshResponse> {
-      return (await getHttpClient()).refreshMailbox(sessionId);
-    },
-    async refreshAnonymousMailboxes(hostId: string): Promise<EasyEmailMailboxRefreshResponse> {
-      return (await getHttpClient()).refreshAnonymousMailboxes({ hostId });
-    },
-    async updateMailbox<TSession = EasyEmailMailboxSession>(
-      request: EasyEmailMailboxUpdateRequest,
-    ): Promise<EasyEmailUpdateMailboxResponse<TSession>> {
-      return (await getHttpClient()).updateMailbox<TSession>(request);
-    },
-    async releaseMailbox<TResult = EasyEmailReleaseMailboxResult>(
-      request: { sessionId: string; reason?: string },
-    ): Promise<EasyEmailReleaseMailboxResponse<TResult>> {
-      return (await getHttpClient()).releaseMailbox<TResult>(request);
-    },
-    async recoverMailbox<TResult = EasyEmailRecoverMailboxResult>(
-      request: EasyEmailRecoverMailboxRequest,
-    ): Promise<EasyEmailRecoverMailboxResponse<TResult>> {
-      return (await getHttpClient()).recoverMailbox<TResult>(request);
-    },
-    async reportMailboxOutcome<TResult = EasyEmailMailboxOutcomeResult>(
-      request: EasyEmailMailboxOutcomeRequest,
-    ): Promise<EasyEmailReportMailboxOutcomeResponse<TResult>> {
-      return (await getHttpClient()).reportMailboxOutcome<TResult>(request);
-    },
-    async sendMailboxMessage<TResult = EasyEmailMailboxSendResult>(
-      request: EasyEmailMailboxSendRequest,
-    ): Promise<EasyEmailSendMailboxResponse<TResult>> {
-      return (await getHttpClient()).sendMailboxMessage<TResult>(request);
-    },
+    ...createBundledCoreMailboxMethods(getHttpClient),
   };
 }

@@ -63,6 +63,10 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   newsletterSubscriptions: "/mail/newsletters/subscriptions",
   settingsEasyEmail: "/mail/settings/easyemail",
   testSettingsEasyEmail: "/mail/settings/easyemail/test",
+  agentAccounts: "/mail/agent/accounts",
+  agentServices: "/mail/agent/services",
+  agentTasks: "/mail/agent/tasks",
+  agentThreads: "/mail/agent/threads",
   planMailbox: "/mail/mailboxes/plan",
   openMailbox: "/mail/mailboxes/open",
   refreshAnonymousMailboxes: "/mail/mailboxes/anonymous/refresh",
@@ -92,6 +96,9 @@ export const EASY_EMAIL_HTTP_ROUTES = {
   },
   newsletterSubscription(subscriptionId: string): string {
     return `/mail/newsletters/subscriptions/${encodeURIComponent(subscriptionId)}`;
+  },
+  agentThread(threadId: string): string {
+    return `/mail/agent/threads/${encodeURIComponent(threadId)}`;
   },
   getObservedMessage(messageId: string): string {
     return `/mail/query/observed-messages/${encodeURIComponent(messageId)}`;
@@ -310,3 +317,4 @@ export * from "./mail-message-contracts.js";
 export * from "./mail-send-queue-contracts.js";
 export * from "./mail-imap-sync-contracts.js";
 export * from "./mail-m7a-contracts.js";
+export * from "./mail-m7b-contracts.js";

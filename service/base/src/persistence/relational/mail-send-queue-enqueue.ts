@@ -60,6 +60,10 @@ export function enqueueOutgoingSendInDatabase(
     const messageId = `msg_v1_${randomUUID()}`;
     const queueId = `send_v1_${randomUUID()}`;
     const sourceId = `smtp:${input.accountId}`;
+    const senderDomain =
+      input.senderAddress.slice(input.senderAddress.lastIndexOf("@") + 1).trim().toLowerCase()
+      || "easyemail.local";
+    const rfcMessageId = input.rfcMessageId?.trim() || `<${randomUUID()}@${senderDomain}>`;
     const observedAt = input.scheduledAt ?? input.now;
     const labelsJson = input.scheduledAt ? JSON.stringify([PENDING_SCHEDULED_LABEL]) : "[]";
     const ccJson = JSON.stringify(input.ccAddresses);
@@ -70,9 +74,10 @@ export function enqueueOutgoingSendInDatabase(
         id, rfc_message_id, thread_key, subject, from_address, from_name,
         snippet, body_text, body_html, body_cache_state, has_attachments,
         classification, observed_at, version, created_at, updated_at, deleted_at
-      ) VALUES (?, NULL, NULL, ?, ?, ?, ?, ?, ?, 'cached', 0, 'outgoing', ?, 1, ?, ?, NULL)
+      ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, 'cached', 0, 'outgoing', ?, 1, ?, ?, NULL)
     `).run(
       messageId,
+      rfcMessageId,
       input.subject,
       input.senderAddress,
       input.senderName ?? null,

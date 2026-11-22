@@ -379,6 +379,18 @@ authorization tier.
 | `POST` | `/mail/send-queue/run-due` | Claim and execute a bounded batch of due outgoing send queue items. |
 | `POST` | `/mail/messages/{messageId}/scheduled-send/reopen` | Cancel a queued scheduled send and convert its message back into an editable local draft. |
 
+### Agent Mail (M7B)
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/mail/agent/accounts` | List Agent-scoped (`agent_owned`) accounts isolated from normal mailboxes. |
+| `POST` | `/mail/agent/accounts` | Create an Agent-scoped account with IMAP/SMTP profiles and opaque `ref:v1:*` credential references. |
+| `GET` | `/mail/agent/services` | List registered remote Agent email services and trust levels. |
+| `POST` | `/mail/agent/services` | Register a remote Agent email service (`unknown`, `trusted`, `restricted`, or `blocked`). |
+| `POST` | `/mail/agent/tasks` | Atomically create an Agent thread/message and enqueue outgoing SMTP delivery via the M5 persistent send queue. |
+| `GET` | `/mail/agent/threads` | List Agent threads filtered by optional `status`, `senderAccountId`, `agentServiceId`, and `limit`. |
+| `GET` | `/mail/agent/threads/{threadId}` | Read one Agent thread and its ordered outgoing/incoming Agent messages. |
+
 ### Provider administration and queries
 
 | Method | Path | Purpose |

@@ -95,6 +95,7 @@ export const whitespaceTolerantCss = (raw) => {
 export const css = whitespaceTolerantCss(cssRaw);
 export const canonicalCss = whitespaceTolerantCss(canonicalCssRaw);
 export const invokeCommand = readText("src/api/invokeCommand.ts");
+export const agentMailClient = readText("src/api/agentMailClient.ts");
 export const avatarSettingsClient = readText("src/api/avatarSettingsClient.ts");
 export const contactAvatarImage = readText("src/avatar/contactAvatarImage.ts");
 export const contactClient = readText("src/api/contactClient.ts");

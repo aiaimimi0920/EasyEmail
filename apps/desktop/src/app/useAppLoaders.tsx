@@ -1,6 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
-import { contactClient, mailAccountClient, mailMessageClient, sendQueueClient } from "./appRuntime";
-import type { LegacyAccountDto, AgentServiceDto, AgentThreadDto } from "./appTypes";
+import { agentMailClient, contactClient, mailAccountClient, mailMessageClient, sendQueueClient } from "./appRuntime";
 import type { AppState } from "./useAppState";
 
 export function useAppLoaders(appState: AppState) {
@@ -62,17 +60,17 @@ export function useAppLoaders(appState: AppState) {
       return rows;
     }
   async function loadAgentAccounts() {
-      const accounts = await invoke<LegacyAccountDto[]>("agent_list_accounts");
+      const accounts = await agentMailClient.listAgentAccounts();
       setAgentAccounts(accounts);
       return accounts;
     }
   async function loadAgentServices() {
-      const services = await invoke<AgentServiceDto[]>("agent_list_services");
+      const services = await agentMailClient.listAgentServices();
       setAgentServices(services);
       return services;
     }
   async function loadAgentThreads() {
-      const threads = await invoke<AgentThreadDto[]>("agent_list_threads");
+      const threads = await agentMailClient.listAgentThreads();
       setAgentThreads(threads);
       return threads;
     }

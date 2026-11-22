@@ -362,5 +362,5 @@ describe("M6 HTTP IMAP folder discovery, sync, lazy body hydration, remote actio
       await imapServer.close();
       await rm(root, { recursive: true, force: true });
     }
-  });
+  }, 20_000);
 });

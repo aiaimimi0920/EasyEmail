@@ -33,6 +33,10 @@ STATIC_ROUTE_NAMES = (
     "newsletterSubscriptions",
     "settingsEasyEmail",
     "testSettingsEasyEmail",
+    "agentAccounts",
+    "agentServices",
+    "agentTasks",
+    "agentThreads",
 )
 
 
@@ -77,6 +81,7 @@ class ClientServerContractTests(unittest.TestCase):
             "/mail/accounts/${encodeURIComponent(accountId)}/sync",
             "/mail/mailboxes/${encodeURIComponent(sessionId)}/promote",
             "/mail/newsletters/subscriptions/${encodeURIComponent(subscriptionId)}",
+            "/mail/agent/threads/${encodeURIComponent(threadId)}",
         )
         for template in templates:
             self.assertIn(template, server_text)

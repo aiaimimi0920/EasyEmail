@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { MAIL_IMAP_SYNC_MIGRATION_SQL } from "./migrations-imap-sync.js";
 import { MAIL_M7A_EXTENSIONS_MIGRATION_SQL } from "./migrations-m7a.js";
+import { MAIL_M7B_AGENT_MIGRATION_SQL } from "./migrations-m7b.js";
 
 export interface RelationalMigration {
   version: number;
@@ -384,6 +385,11 @@ ON mail_send_queue(message_id, status);
     version: 9,
     name: "mail-promotion-newsletters-and-settings",
     sql: MAIL_M7A_EXTENSIONS_MIGRATION_SQL,
+  },
+  {
+    version: 10,
+    name: "mail-agent-services-threads-and-messages",
+    sql: MAIL_M7B_AGENT_MIGRATION_SQL,
   },
 ] as const;
 

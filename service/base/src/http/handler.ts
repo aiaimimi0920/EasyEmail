@@ -1,14 +1,15 @@
 import type * as Contracts from "./contracts.js";
-import { EasyEmailCoreMailboxHttpHandler } from "./handler-mailbox-core.js";
+import { EasyEmailDeliveryAndAgentHttpHandlerBase } from "./handler-delivery-agent-base.js";
 import { EasyEmailError } from "../domain/errors.js";
 import type { MailTaxonomyKind } from "../domain/mail-taxonomy.js";
 import type { MailStateQueryRepository } from "../persistence/contracts.js";
 import type { MailAccountService } from "../service/accounts.js";
 import type { ContactService } from "../service/contacts.js";
 import { createEasyEmailService, type EasyEmailService } from "../service/easy-email-service.js";
-import type { MailMessageService } from "../service/mail-messages.js";
+import type { MailAgentService } from "../service/mail-agent.js";
 import type { MailExtensionsService } from "../service/mail-extensions.js";
 import type { MailImapService } from "../service/mail-imap-sync.js";
+import type { MailMessageService } from "../service/mail-messages.js";
 import type { MailPromotionService } from "../service/mail-promotion.js";
 import type { MailSendQueueService } from "../service/mail-send-queue.js";
 import {
@@ -17,7 +18,7 @@ import {
 } from "../service/mail-taxonomy.js";
 import type { MailVerificationService } from "../service/mail-verifications.js";
 
-export class EasyEmailHttpHandler extends EasyEmailCoreMailboxHttpHandler {
+export class EasyEmailHttpHandler extends EasyEmailDeliveryAndAgentHttpHandlerBase {
   public constructor(
     service: EasyEmailService = createEasyEmailService(),
     queryRepository?: MailStateQueryRepository,
@@ -26,12 +27,22 @@ export class EasyEmailHttpHandler extends EasyEmailCoreMailboxHttpHandler {
     private readonly accounts?: MailAccountService,
     messages?: MailMessageService,
     private readonly verifications?: MailVerificationService,
-    private readonly sendQueue?: MailSendQueueService,
-    private readonly imapSync?: MailImapService,
-    private readonly mailPromotion?: MailPromotionService,
-    private readonly mailExtensions?: MailExtensionsService,
+    sendQueue?: MailSendQueueService,
+    imapSync?: MailImapService,
+    mailPromotion?: MailPromotionService,
+    mailExtensions?: MailExtensionsService,
+    mailAgent?: MailAgentService,
   ) {
-    super(service, queryRepository, messages);
+    super(
+      service,
+      queryRepository,
+      messages,
+      sendQueue,
+      imapSync,
+      mailPromotion,
+      mailExtensions,
+      mailAgent,
+    );
   }
 
   protected requireContacts(): ContactService {
@@ -82,46 +93,6 @@ export class EasyEmailHttpHandler extends EasyEmailCoreMailboxHttpHandler {
       );
     }
     return this.verifications;
-  }
-
-  protected requireSendQueue(): MailSendQueueService {
-    if (!this.sendQueue) {
-      throw new EasyEmailError(
-        "SEND_QUEUE_PERSISTENCE_UNAVAILABLE",
-        "Persistent send queue is not available in this runtime.",
-      );
-    }
-    return this.sendQueue;
-  }
-
-  protected requireImapSync(): MailImapService {
-    if (!this.imapSync) {
-      throw new EasyEmailError(
-        "IMAP_SYNC_PERSISTENCE_UNAVAILABLE",
-        "Persistent IMAP synchronization is not available in this runtime.",
-      );
-    }
-    return this.imapSync;
-  }
-
-  protected requireMailPromotion(): MailPromotionService {
-    if (!this.mailPromotion) {
-      throw new EasyEmailError(
-        "PROMOTION_PERSISTENCE_UNAVAILABLE",
-        "Persistent mailbox promotion is not available in this runtime.",
-      );
-    }
-    return this.mailPromotion;
-  }
-
-  protected requireMailExtensions(): MailExtensionsService {
-    if (!this.mailExtensions) {
-      throw new EasyEmailError(
-        "EXTENSIONS_PERSISTENCE_UNAVAILABLE",
-        "Persistent mail extensions are not available in this runtime.",
-      );
-    }
-    return this.mailExtensions;
   }
 
   public async listContacts(
@@ -330,129 +301,5 @@ export class EasyEmailHttpHandler extends EasyEmailCoreMailboxHttpHandler {
     sessionId: string,
   ): Promise<Contracts.PollMailboxVerificationHttpResponse> {
     return this.requireVerifications().pollMailboxVerification(sessionId);
-  }
-
-  public async enqueueMailSend(
-    request: Contracts.EnqueueMailSendHttpRequest,
-    idempotencyKey?: string,
-  ): Promise<Contracts.EnqueueMailSendHttpResponse> {
-    return this.requireSendQueue().enqueueSend(request, idempotencyKey);
-  }
-
-  public async listMailSendQueue(
-    request: Contracts.ListMailSendQueueHttpRequest = {},
-  ): Promise<Contracts.ListMailSendQueueHttpResponse> {
-    return this.requireSendQueue().listSendQueue(request);
-  }
-
-  public async getMailSendQueueItem(
-    queueItemId: string,
-  ): Promise<Contracts.GetMailSendQueueItemHttpResponse> {
-    return { queueItem: await this.requireSendQueue().getSendQueueItem(queueItemId) };
-  }
-
-  public async runMailSendQueueItem(
-    queueItemId: string,
-  ): Promise<Contracts.RunMailSendQueueItemHttpResponse> {
-    return this.requireSendQueue().runItem(queueItemId);
-  }
-
-  public async runMailSendQueueOnce(): Promise<Contracts.RunMailSendQueueWorkerHttpResponse> {
-    return { runResult: await this.requireSendQueue().runOnce() };
-  }
-
-  public async runMailSendQueueDueBatch(
-    request: Contracts.RunMailSendQueueDueBatchHttpRequest = {},
-  ): Promise<Contracts.RunMailSendQueueWorkerHttpResponse> {
-    return { runResult: await this.requireSendQueue().runDueBatch(request) };
-  }
-
-  public async cancelMailSendQueueItem(
-    queueItemId: string,
-    request: Contracts.CancelMailSendQueueItemHttpRequest = {},
-  ): Promise<Contracts.CancelMailSendQueueItemHttpResponse> {
-    return { queueItem: await this.requireSendQueue().cancelSendQueueItem(queueItemId, request) };
-  }
-
-  public async retryMailSendQueueItem(
-    queueItemId: string,
-    request: Contracts.RetryMailSendQueueItemHttpRequest = {},
-  ): Promise<Contracts.RetryMailSendQueueItemHttpResponse> {
-    return { queueItem: await this.requireSendQueue().retrySendQueueItem(queueItemId, request) };
-  }
-
-  public async reopenScheduledSend(
-    messageId: string,
-  ): Promise<Contracts.ReopenScheduledSendHttpResponse> {
-    return this.requireSendQueue().reopenScheduledSend(messageId);
-  }
-
-  public async listMailAccountFolders(
-    accountId: string,
-    request: Contracts.ListMailAccountFoldersHttpRequest = {},
-  ): Promise<Contracts.ListMailAccountFoldersHttpResponse> {
-    return this.requireImapSync().listFolders(accountId, request);
-  }
-
-  public async getMailAccountSyncStatus(
-    accountId: string,
-  ): Promise<Contracts.GetMailAccountSyncStatusHttpResponse> {
-    return { status: await this.requireImapSync().getSyncStatus(accountId) };
-  }
-
-  public async syncMailAccount(
-    accountId: string,
-    request: Contracts.SyncMailAccountHttpRequest = {},
-  ): Promise<Contracts.SyncMailAccountHttpResponse> {
-    return this.requireImapSync().syncAccount(accountId, request);
-  }
-
-  public async promoteMailboxSession(
-    sessionId: string,
-    request: Contracts.PromoteMailboxHttpRequest,
-  ): Promise<Contracts.PromoteMailboxHttpResponse> {
-    return this.requireMailPromotion().promoteMailboxSession(sessionId, request);
-  }
-
-  public async listNewsletterSubscriptions(
-    request: Contracts.ListNewsletterSubscriptionsHttpRequest,
-  ): Promise<Contracts.ListNewsletterSubscriptionsHttpResponse> {
-    return {
-      subscriptions: await this.requireMailExtensions().listNewsletterSubscriptions(request),
-    };
-  }
-
-  public async setNewsletterSubscriptionHidden(
-    subscriptionId: string,
-    request: Contracts.UpdateNewsletterSubscriptionHttpRequest,
-  ): Promise<Contracts.UpdateNewsletterSubscriptionHttpResponse> {
-    return {
-      action: await this.requireMailExtensions().setNewsletterSubscriptionHidden(
-        subscriptionId,
-        request,
-      ),
-    };
-  }
-
-  public async getEasyEmailSettings(): Promise<Contracts.GetEasyEmailSettingsHttpResponse> {
-    return {
-      settings: await this.requireMailExtensions().getEasyEmailSettings(),
-    };
-  }
-
-  public async updateEasyEmailSettings(
-    request: Contracts.UpdateEasyEmailSettingsHttpRequest,
-  ): Promise<Contracts.UpdateEasyEmailSettingsHttpResponse> {
-    return {
-      settings: await this.requireMailExtensions().updateEasyEmailSettings(request),
-    };
-  }
-
-  public async testEasyEmailConnection(
-    request: Contracts.TestEasyEmailConnectionHttpRequest = {},
-  ): Promise<Contracts.TestEasyEmailConnectionHttpResponse> {
-    return {
-      health: await this.requireMailExtensions().testEasyEmailConnection(request),
-    };
   }
 }

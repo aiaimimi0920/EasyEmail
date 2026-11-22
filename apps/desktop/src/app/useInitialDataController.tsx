@@ -1,10 +1,9 @@
 import { useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { temporaryMailboxViewFromSession, temporaryObservedMessageView, temporaryVerificationCodeView } from "../mail/temporaryMailboxAdapter";
 import { TOAST_FADE_MS, TOAST_VISIBLE_MS } from "./appConfig";
 import { asErrorDto, mergeByIdentity } from "./appDomain";
-import { avatarSettingsClient, bundledCoreClient, contactClient, mailAccountClient, mailMessageClient, mailTaxonomyClient, newsletterClient, platformAccountClient, sendQueueClient, settingsClient } from "./appRuntime";
-import type { CoreTemporaryState, LegacyAccountDto, AgentServiceDto, AgentThreadDto, MessageCache, NewsletterSubscriptionCache } from "./appTypes";
+import { agentMailClient, avatarSettingsClient, bundledCoreClient, contactClient, mailAccountClient, mailMessageClient, mailTaxonomyClient, newsletterClient, platformAccountClient, sendQueueClient, settingsClient } from "./appRuntime";
+import type { CoreTemporaryState, MessageCache, NewsletterSubscriptionCache } from "./appTypes";
 import type { AppState } from "./useAppState";
 
 type Dependencies = {
@@ -144,9 +143,9 @@ export function useInitialDataController(appState: AppState, dependencies: Depen
           mailMessageClient.listRecentVerifications(null, 100),
           sendQueueClient.listSendQueue({ limit: 25 }),
           contactClient.listContacts(),
-          invoke<LegacyAccountDto[]>("agent_list_accounts"),
-          invoke<AgentServiceDto[]>("agent_list_services"),
-          invoke<AgentThreadDto[]>("agent_list_threads"),
+          agentMailClient.listAgentAccounts(),
+          agentMailClient.listAgentServices(),
+          agentMailClient.listAgentThreads(),
           loadMailTaxonomyItems(isCurrent),
         ]);
         if (!isCurrent()) {

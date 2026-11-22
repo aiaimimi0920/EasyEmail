@@ -53,6 +53,12 @@ DOMAIN_MAIL_EXTENSIONS = (
 HTTP_MAIL_M7A_CONTRACTS = (
     ROOT / "service" / "base" / "src" / "http" / "mail-m7a-contracts.ts"
 )
+DOMAIN_MAIL_AGENT = (
+    ROOT / "service" / "base" / "src" / "domain" / "mail-agent.ts"
+)
+HTTP_MAIL_M7B_CONTRACTS = (
+    ROOT / "service" / "base" / "src" / "http" / "mail-m7b-contracts.ts"
+)
 SHARED_CREDENTIAL_MODELS = (
     ROOT / "service" / "base" / "src" / "shared" / "credential-models.ts"
 )
@@ -109,6 +115,7 @@ DYNAMIC_ROUTE_METHODS = {
     "reopenScheduledSend": {"post": "reopenScheduledSend"},
     "promoteMailbox": {"post": "promoteMailboxSession"},
     "newsletterSubscription": {"patch": "setNewsletterSubscriptionHidden"},
+    "agentThread": {"get": "getAgentMailThreadDetail"},
 }
 
 STATIC_ROUTE_DISPATCH = re.compile(
