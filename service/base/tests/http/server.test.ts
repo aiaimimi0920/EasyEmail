@@ -97,3 +97,82 @@ describe("HTTP server CORS boundary", () => {
     }
   });
 });
+
+describe("HTTP server request body boundary", () => {
+  it("rejects oversized chunked JSON without making the server unavailable", async () => {
+    const server = await createEasyEmailHttpServer(
+      new EasyEmailHttpHandler(createEasyEmailService()),
+      { maxRequestBodyBytes: 64 },
+    );
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode('{"providerTypeKey":"'));
+        controller.enqueue(encoder.encode("x".repeat(128)));
+        controller.enqueue(encoder.encode('"}'));
+        controller.close();
+      },
+    });
+
+    try {
+      const oversized = await fetch(`${server.baseUrl}/mail/mailboxes/open`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+        duplex: "half",
+      } as RequestInit & { duplex: "half" });
+      expect(oversized.status).toBe(413);
+      await expect(oversized.json()).resolves.toMatchObject({
+        code: "REQUEST_BODY_TOO_LARGE",
+      });
+
+      const followUp = await fetch(`${server.baseUrl}/mail/catalog`);
+      expect(followUp.status).toBe(200);
+    } finally {
+      await server.close();
+    }
+  });
+});
+
+describe("HTTP server authentication boundary", () => {
+  it("keeps the sensitive snapshot unavailable when no API key is configured", async () => {
+    const server = await createEasyEmailHttpServer(
+      new EasyEmailHttpHandler(createEasyEmailService()),
+    );
+
+    try {
+      const snapshot = await fetch(`${server.baseUrl}/mail/snapshot`);
+      expect(snapshot.status).toBe(403);
+      await expect(snapshot.json()).resolves.toMatchObject({
+        code: "SNAPSHOT_AUTH_REQUIRED",
+      });
+
+      const catalog = await fetch(`${server.baseUrl}/mail/catalog`);
+      expect(catalog.status).toBe(200);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("refuses an unauthenticated non-loopback listener", async () => {
+    const outcome = await Promise.resolve()
+      .then(() => createEasyEmailHttpServer(
+        new EasyEmailHttpHandler(createEasyEmailService()),
+        { hostname: "0.0.0.0" },
+      ))
+      .then(
+        (server) => ({ server }),
+        (error: unknown) => ({ error }),
+      );
+
+    try {
+      expect(outcome).toHaveProperty("error");
+      if ("error" in outcome) {
+        expect(outcome.error).toBeInstanceOf(TypeError);
+        expect(String(outcome.error)).toContain("apiKey is required");
+      }
+    } finally {
+      if ("server" in outcome) await outcome.server.close();
+    }
+  });
+});

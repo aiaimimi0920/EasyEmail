@@ -143,6 +143,26 @@ export async function startEasyEmailServiceRuntime(
   let server: StartedEasyEmailHttpServer | undefined;
   let maintenanceLoop: MailMaintenanceLoop | undefined;
   let persistenceLoop: MailStatePersistenceLoop | undefined;
+  let closePromise: Promise<void> | undefined;
+  const close = (): Promise<void> => {
+    closePromise ??= (async () => {
+      // Stop ingress and scheduling before taking the last snapshot.
+      const drains = await Promise.allSettled([server?.close(), maintenanceLoop?.stop()]);
+      const errors: unknown[] = drains.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
+      try {
+        await persistenceLoop?.stop();
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        relationalDatabase?.close();
+      } catch (error) {
+        errors.push(error);
+      }
+      if (errors.length > 0) throw new AggregateError(errors, "EASY_EMAIL_SHUTDOWN_FAILED");
+    })();
+    return closePromise;
+  };
   try {
     const mailCredentialResolver = options.mailCredentialResolver
       ?? createDesktopCredentialBrokerResolverFromEnvironment(process.env);
@@ -187,25 +207,10 @@ export async function startEasyEmailServiceRuntime(
       await persistenceLoop.flush();
     }
   } catch (error) {
-    maintenanceLoop?.stop();
-    if (persistenceLoop) {
-      try {
-        await persistenceLoop.stop();
-      } catch {
-        // Preserve the original startup failure after stopping the interval.
-      }
-    }
-    if (server) {
-      try {
-        await server.close();
-      } catch {
-        // Preserve the original startup failure after closing the listener.
-      }
-    }
     try {
-      relationalDatabase?.close();
+      await close();
     } catch {
-      // Preserve the original startup failure after releasing persistence.
+      // Preserve the startup failure after draining writers and releasing resources.
     }
     throw error;
   }
@@ -226,19 +231,6 @@ export async function startEasyEmailServiceRuntime(
     contactRepository,
     mailTaxonomyRepository,
     mailAccountRepository,
-    async close() {
-      maintenanceLoop?.stop();
-      try {
-        if (persistenceLoop) {
-          await persistenceLoop.stop();
-        }
-      } finally {
-        try {
-          await server.close();
-        } finally {
-          relationalDatabase?.close();
-        }
-      }
-    },
+    close,
   };
 }

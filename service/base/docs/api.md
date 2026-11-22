@@ -290,6 +290,28 @@ curl -X POST http://127.0.0.1:18081/mail/messages/observe \
 | `PATCH` | `/mail/taxonomy/{itemId}` | 使用 `expectedVersion` 更新 taxonomy item |
 | `DELETE` | `/mail/taxonomy/{itemId}?expectedVersion=N` | 使用版本 CAS 删除非 system item |
 
+### Cloudflare 显式发信模式
+
+`POST /mail/providers/cloudflare_temp_email/register` 支持可选的实例级
+`sendTransport: "worker" | "binding"`。未配置的新实例仍使用原 Worker 普通发送路径；
+更新旧实例时省略该字段会保留已存配置，显式传 `"worker"` 可以恢复普通发送模式。
+非法值会拒绝注册，不会静默选用某个后端。
+
+`"binding"` 要求实例配置 `adminAuth`，且邮箱发件域已被 Worker 的
+`SEND_MAIL_DOMAINS` 允许。发送时只调用 `/admin/send_mail_by_binding`，发件地址固定
+来自当前 mailbox，不接受发送请求覆盖地址。支持显示姓名、纯文本和 HTML 正文；成功
+的 `POST /mail/mailboxes/send` 返回 `result.deliveryMode = "native_binding"`。
+
+该模式不会先申请 mailbox 发送权限，也不会因失败切换到 Resend、SMTP 或旧管理员
+发送接口。HTTP 拒绝、socket/reset 和 abort 不重发；仍保留现有 transport 对明确
+`UND_ERR_CONNECT_TIMEOUT` 的一次同路径、同 deadline 连接阶段恢复。
+原生管理员接口保留 Worker 的发送域与总量限制，但不走普通发送链的 mailbox 余额、
+普通 sendbox 保存或 recipient blocklist 逻辑。需要这些规则的实例应保留 `"worker"`。
+
+实例上的 probe 成功不表示发送成功，原生发送返回成功也只表示上游接受；真实收件需要
+另行验收。不要给承载其他发件域的通用实例直接开启 `"binding"`，也不要为修复某个域
+的 Resend 错误删除全局 token 或改变全局后端优先级。
+
 ### 联系人资源
 
 联系人由独立的 `easy-email-relational.sqlite3` 持久化，字段使用 HTTP 的
@@ -398,6 +420,7 @@ Folder/label 使用关系库 schema v2 持久化。`GET /mail/taxonomy` 必须�
   - `{ "catalog": ... }`
 - `GET /mail/snapshot`
   - `{ "snapshot": ... }`
+  - 完整快照可能包含凭据、连接引用和邮件正文；必须配置 `server.apiKey` 并使用 Bearer token 调用。未配置 API key 时返回 `403 SNAPSHOT_AUTH_REQUIRED`。
 - `POST /mail/mailboxes/plan`
   - `{ "plan": ... }`
 - `POST /mail/mailboxes/open`

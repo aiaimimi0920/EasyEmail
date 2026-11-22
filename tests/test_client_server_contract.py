@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVER_CONTRACTS = ROOT / "service" / "base" / "src" / "http" / "contracts.ts"
-CLIENT_SOURCE = ROOT / "clients" / "typescript" / "src" / "http-client.ts"
+CLIENT_TRANSPORT_SOURCE = ROOT / "clients" / "typescript" / "src" / "http-transport.ts"
 
 STATIC_ROUTE_NAMES = (
     "catalog",
@@ -35,7 +35,7 @@ def extract_static_routes(text: str) -> dict[str, str]:
 class ClientServerContractTests(unittest.TestCase):
     def test_client_static_routes_match_server_contract(self) -> None:
         server_routes = extract_static_routes(SERVER_CONTRACTS.read_text(encoding="utf-8"))
-        client_routes = extract_static_routes(CLIENT_SOURCE.read_text(encoding="utf-8"))
+        client_routes = extract_static_routes(CLIENT_TRANSPORT_SOURCE.read_text(encoding="utf-8"))
 
         for name in STATIC_ROUTE_NAMES:
             self.assertIn(name, server_routes)
@@ -44,7 +44,7 @@ class ClientServerContractTests(unittest.TestCase):
 
     def test_dynamic_route_templates_remain_aligned(self) -> None:
         server_text = SERVER_CONTRACTS.read_text(encoding="utf-8")
-        client_text = CLIENT_SOURCE.read_text(encoding="utf-8")
+        client_text = CLIENT_TRANSPORT_SOURCE.read_text(encoding="utf-8")
         templates = (
             "/mail/mailboxes/${encodeURIComponent(sessionId)}/code",
             "/mail/mailboxes/${encodeURIComponent(sessionId)}/auth-link",

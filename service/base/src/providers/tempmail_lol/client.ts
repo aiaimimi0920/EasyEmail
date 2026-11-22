@@ -13,6 +13,7 @@ declare const fetch: (
 
 import type { ObservedMessage, ProviderInstance } from "../../domain/models.js";
 import { extractOtpFromContent } from "../../domain/otp.js";
+import { fetchProviderResource } from "../http-policy.js";
 
 export interface TempmailLolConfig {
   apiBase: string;
@@ -188,7 +189,7 @@ async function requestRaw(
   const normalizedBase = config.apiBase.replace(/\/$/, "");
 
   for (let attempt = 0; attempt <= TEMPMAIL_LOL_MAX_RETRIES; attempt += 1) {
-    const response = await fetch(`${normalizedBase}${path}`, {
+    const response = await fetchProviderResource(`${normalizedBase}${path}`, {
       method,
       headers: {
         Accept: "application/json",

@@ -12,6 +12,7 @@ declare const fetch: (
 }>;
 
 import * as childProcess from "node:child_process";
+import { fetchProviderResource } from "../http-policy.js";
 import {
   M2U_DEFAULT_PROXY_HELPER_TIMEOUT_MS,
   M2U_DEFAULT_PROXY_MAX_ATTEMPTS,
@@ -107,7 +108,7 @@ async function requestJsonDirect(
   options: RequestJsonOptions = {},
   userAgentOverride?: string,
 ): Promise<{ status: number; body: unknown }> {
-  const response = await fetch(`${config.apiBase.replace(/\/$/, "")}${path}`, {
+  const response = await fetchProviderResource(`${config.apiBase.replace(/\/$/, "")}${path}`, {
     method,
     headers: buildRequestHeaders(config, options, userAgentOverride),
     body: options.jsonBody ? JSON.stringify(options.jsonBody) : undefined,

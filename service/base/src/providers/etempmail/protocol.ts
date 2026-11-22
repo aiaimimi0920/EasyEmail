@@ -16,6 +16,7 @@ declare const fetch: (
 
 import type { ProviderInstance } from "../../domain/models.js";
 import { extractOtpFromContent } from "../../domain/otp.js";
+import { fetchProviderResource } from "../http-policy.js";
 
 export interface EtempmailConfig {
   apiBase: string;
@@ -268,7 +269,7 @@ export async function requestRaw(
   const normalizedCookieHeader = normalizeCookieHeader(options.cookieHeader);
 
   for (let attempt = 0; attempt <= ETEMPMAIL_MAX_RETRIES; attempt += 1) {
-    const response = await fetch(`${normalizedBase}${path}`, {
+    const response = await fetchProviderResource(`${normalizedBase}${path}`, {
       method,
       headers: {
         Accept: options.accept ?? "*/*",

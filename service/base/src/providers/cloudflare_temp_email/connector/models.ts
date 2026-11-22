@@ -1,7 +1,10 @@
+import type { CloudflareTempEmailSendTransport } from "../../../domain/cloudflare-send-policy.js";
+
 export interface CloudflareTempEmailConfig {
   baseUrl: string;
   customAuth?: string;
   adminAuth?: string;
+  sendTransport?: CloudflareTempEmailSendTransport;
   domain?: string;
   domains: string[];
   randomSubdomainDomains: string[];
@@ -14,7 +17,7 @@ export interface CloudflareTempMailboxCredentials {
 }
 
 export interface CloudflareTempEmailSendResult {
-  deliveryMode: "mailbox_token" | "admin_delegate";
+  deliveryMode: "mailbox_token" | "admin_delegate" | "native_binding";
   detail?: string;
 }
 
@@ -70,4 +73,3 @@ export function decodeCloudflareTempMailboxRef(mailboxRef: string, expectedInsta
     return undefined;
   }
 }
-

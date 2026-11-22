@@ -1,5 +1,6 @@
 import { clamp, createId, type CredentialSetDefinition } from "../shared/index.js";
 import { EasyEmailError } from "../domain/errors.js";
+import { parseCloudflareSendTransport } from "../domain/cloudflare-send-policy.js";
 import { normalizeMailProviderTypeKey } from "../domain/models.js";
 import type { MailRegistry } from "../domain/registry.js";
 import type { MailProviderAdapter } from "../providers/contracts.js";
@@ -134,6 +135,7 @@ export class EasyEmailProviderManagement {
     request: RegisterCloudflareTempEmailRuntimeRequest,
     now: Date = new Date(),
   ): Promise<RegisterCloudflareTempEmailRuntimeResult> {
+    const sendTransport = parseCloudflareSendTransport(request.sendTransport);
     const template = this.resolveCloudflareTempEmailTemplate(request.templateId);
     const requestedInstanceId = request.instanceId?.trim() || undefined;
     const existing = requestedInstanceId ? this.registry.findInstanceById(requestedInstanceId) : undefined;
@@ -166,6 +168,7 @@ export class EasyEmailProviderManagement {
           || "worker-node",
         baseUrl: request.baseUrl.trim(),
         strictMode: String(this.strictProviderMode),
+        ...(sendTransport !== undefined ? { sendTransport } : {}),
         ...(request.customAuth !== undefined
           ? { customAuth: request.customAuth.trim() }
           : (existing?.metadata.customAuth ? { customAuth: existing.metadata.customAuth } : {})),
@@ -231,6 +234,8 @@ export class EasyEmailProviderManagement {
       ? clamp(Math.max(instance.healthScore, 0.85), 0.1, 1)
       : clamp(Math.min(instance.healthScore, 0.25), 0.1, 1);
     const nextStatus = probe.ok ? "active" : "degraded";
+    const metadata = { ...instance.metadata, ...(probe.metadata ?? {}) };
+    if (probe.ok) delete metadata.errorClass;
 
     const nextInstance: ProviderInstance = {
       ...instance,
@@ -238,10 +243,7 @@ export class EasyEmailProviderManagement {
       healthScore: nextHealthScore,
       averageLatencyMs: probe.averageLatencyMs,
       updatedAt: now.toISOString(),
-      metadata: {
-        ...instance.metadata,
-        ...(probe.metadata ?? {}),
-      },
+      metadata,
     };
     this.registry.saveInstance(nextInstance);
     this.syncOperationalState(now);

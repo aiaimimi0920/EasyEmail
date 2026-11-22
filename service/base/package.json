@@ -21,6 +21,6 @@
   },
   "dependencies": {
     "imapflow": "1.7.8",
-    "yaml": "^2.8.1"
+    "yaml": "^2.9.0"
   }
 }

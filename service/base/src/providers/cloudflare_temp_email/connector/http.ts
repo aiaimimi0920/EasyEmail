@@ -4,6 +4,7 @@ declare const fetch: (
     method?: string;
     headers?: Record<string, string>;
     body?: string;
+    redirect?: "error";
   },
 ) => Promise<{
   ok: boolean;
@@ -48,6 +49,7 @@ export async function requestJson(
         body: options.jsonBody ? JSON.stringify(options.jsonBody) : undefined,
         signal: controller.signal,
       },
+      "cloudflare_temp_email",
     );
 
     const text = await response.text();
@@ -113,6 +115,7 @@ export async function requestAdminJson(
         body: options.jsonBody ? JSON.stringify(options.jsonBody) : undefined,
         signal: controller.signal,
       },
+      "cloudflare_temp_email",
     );
 
     const text = await response.text();

@@ -40,6 +40,65 @@ function proveRelationalDatabaseCanBeReopened(databasePath: string): void {
 }
 
 describe("runtime startup cleanup", () => {
+  it("releases the owned database even when the final shutdown flush fails", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "easy-email-final-flush-"));
+    const config = parseEasyEmailServiceRuntimeConfig({
+      server: { host: "127.0.0.1", port: 0 }, maintenance: { enabled: false },
+      persistence: { enabled: true, driver: "file", intervalMs: 60_000,
+        databasePath: join(directory, "state.sqlite"), filePath: join(directory, "state.json") },
+      providers: { enabledProviders: [] },
+    });
+    let saves = 0;
+    try {
+      const runtime = await startEasyEmailServiceRuntime({
+        config,
+        stateStore: {
+          async loadSeed() { return undefined; },
+          async saveSnapshot() {
+            if (++saves > 1) throw new Error("intentional final flush failure");
+          },
+        },
+      });
+      await expect(runtime.close()).rejects.toThrow("EASY_EMAIL_SHUTDOWN_FAILED");
+      await expect(runtime.close()).rejects.toThrow("EASY_EMAIL_SHUTDOWN_FAILED");
+      expect(saves).toBe(2);
+      await expect(provePortCanBeRebound(runtime.server.port)).resolves.toBeUndefined();
+      expect(() => proveRelationalDatabaseCanBeReopened(
+        resolveRelationalDatabasePath(config.persistence.databasePath),
+      )).not.toThrow();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("releases the owned database after an occupied HTTP port rejects startup", async () => {
+    const occupied = createServer();
+    await new Promise<void>((resolve) => occupied.listen(0, "127.0.0.1", resolve));
+    const address = occupied.address();
+    if (!address || typeof address === "string") throw new Error("Expected TCP address");
+    const directory = await mkdtemp(join(tmpdir(), "easy-email-listen-cleanup-"));
+    const config = parseEasyEmailServiceRuntimeConfig({
+      server: { host: "127.0.0.1", port: address.port },
+      maintenance: { enabled: false },
+      persistence: {
+        enabled: true,
+        driver: "file",
+        filePath: join(directory, "state.json"),
+        databasePath: join(directory, "snapshot.sqlite3"),
+      },
+      providers: { enabledProviders: [] },
+    });
+    try {
+      await expect(startEasyEmailServiceRuntime({ config })).rejects.toMatchObject({ code: "EADDRINUSE" });
+      expect(() => proveRelationalDatabaseCanBeReopened(
+        resolveRelationalDatabasePath(config.persistence.databasePath),
+      )).not.toThrow();
+    } finally {
+      await new Promise<void>((resolve) => occupied.close(() => resolve()));
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("does not acquire the relational database before service bootstrap succeeds", async () => {
     const directory = await mkdtemp(join(tmpdir(), "easy-email-startup-cleanup-"));
     const config = parseEasyEmailServiceRuntimeConfig({

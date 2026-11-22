@@ -8,7 +8,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVER_CONTRACTS = ROOT / "service" / "base" / "src" / "http" / "contracts.ts"
-DOMAIN_MODELS = ROOT / "service" / "base" / "src" / "domain" / "models.ts"
+DOMAIN_MODELS = tuple(
+    ROOT / "service" / "base" / "src" / "domain" / name
+    for name in (
+        "mailbox-models.ts",
+        "provider-models.ts",
+        "provider-taxonomy.ts",
+        "query-models.ts",
+        "state-models.ts",
+    )
+)
 DOMAIN_CONTACT = ROOT / "service" / "base" / "src" / "domain" / "contact.ts"
 DOMAIN_ACCOUNT = ROOT / "service" / "base" / "src" / "domain" / "account.ts"
 ACCOUNT_CONNECTIVITY = (
@@ -101,9 +110,10 @@ def resolve_local_ref(document: dict[str, object], ref: str) -> object:
 
 
 def extract_interface_fields(
-    path: Path, interface_name: str
+    path: Path | tuple[Path, ...], interface_name: str
 ) -> tuple[set[str], set[str]]:
-    source = path.read_text(encoding="utf-8")
+    paths = (path,) if isinstance(path, Path) else path
+    source = "\n".join(item.read_text(encoding="utf-8") for item in paths)
     matched = re.search(
         rf"^export interface {re.escape(interface_name)}"
         rf"(?:\s+extends\s+[^{{]+)?\s*\{{\n(.*?)^\}}",

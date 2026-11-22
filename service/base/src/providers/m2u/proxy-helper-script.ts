@@ -14,6 +14,10 @@ headers = json.loads(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4].strip() e
 body = json.loads(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[5].strip() else None
 proxy_cfg = json.loads(sys.argv[6]) if len(sys.argv) > 6 and sys.argv[6].strip() else {}
 
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
 def read_json_response(opener, req):
     with opener.open(req, timeout=10) as resp:
         return json.loads(resp.read().decode("utf-8"))
@@ -29,8 +33,8 @@ def build_management_opener(api_base):
         except ValueError:
             should_bypass_proxy = False
     if should_bypass_proxy:
-        return urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    return urllib.request.build_opener()
+        return urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirectHandler())
+    return urllib.request.build_opener(NoRedirectHandler())
 
 def api_request(method_name, api_base, api_key, path_value):
     effective_base = str(api_base or "").rstrip("/")
@@ -132,7 +136,7 @@ def main():
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({
         "http": proxy_url,
         "https": proxy_url,
-    }))
+    }), NoRedirectHandler())
     request_body = None
     if body is not None:
         request_body = json.dumps(body).encode("utf-8")

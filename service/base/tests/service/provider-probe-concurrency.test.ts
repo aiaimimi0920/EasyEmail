@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { ProviderInstance, ProviderTypeDefinition } from "../../src/domain/models.js";
 import { createBootstrappedEasyEmailService } from "../../src/service/bootstrap.js";
 
@@ -39,33 +39,28 @@ function createProviderInstance(index: number): ProviderInstance {
 describe("provider probe concurrency", () => {
   it("limits probe-all to three simultaneous provider probes while preserving result order", async () => {
     const instances = Array.from({ length: 7 }, (_, index) => createProviderInstance(index + 1));
+    let activeProbes = 0;
+    let maxActiveProbes = 0;
     const service = createBootstrappedEasyEmailService({
       providerTypes: [providerType],
       providerInstances: instances,
-    });
-    let activeProbes = 0;
-    let maxActiveProbes = 0;
-
-    vi.spyOn(service, "probeProviderInstance").mockImplementation(async (instanceId, now = new Date()) => {
-      activeProbes += 1;
-      maxActiveProbes = Math.max(maxActiveProbes, activeProbes);
-      await new Promise((resolve) => setTimeout(resolve, 5));
-      activeProbes -= 1;
-      return {
-        instanceId,
-        providerTypeKey: "mailtm",
-        ok: true,
-        status: "active",
-        healthScore: 1,
-        averageLatencyMs: 5,
-        checkedAt: now.toISOString(),
-        detail: "MAILTM_OK",
-      };
+      adapters: [{
+        typeKey: "mailtm",
+        createMailboxSession() { throw new Error("unused"); },
+        async probeInstance() {
+          activeProbes += 1;
+          maxActiveProbes = Math.max(maxActiveProbes, activeProbes);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          activeProbes -= 1;
+          return { ok: true, averageLatencyMs: 5, detail: "MAILTM_OK" };
+        },
+      }],
     });
 
     const results = await service.probeAllProviderInstances(new Date("2026-07-25T00:00:00.000Z"));
 
     expect(maxActiveProbes).toBeLessThanOrEqual(3);
+    expect(maxActiveProbes).toBe(3);
     expect(results.map((result) => result.instanceId)).toEqual(instances.map((instance) => instance.id));
   });
 });

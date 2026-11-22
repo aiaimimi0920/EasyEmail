@@ -193,7 +193,8 @@ export class EasyEmailHttpHandler {
   public async queryObservedMessages(
     filters: QueryObservedMessagesHttpRequest = {},
   ): Promise<QueryObservedMessagesHttpResponse> {
-    if (filters.sync && filters.sessionId) {
+    const synchronized = Boolean(filters.sync && filters.sessionId);
+    if (synchronized) {
       await this.service.syncObservedMessages(filters.sessionId);
     }
     const queryFilters = {
@@ -201,7 +202,8 @@ export class EasyEmailHttpHandler {
       sync: undefined,
     };
     return {
-      messages: this.queryRepository
+      // A successful sync updates the registry before the periodic durable flush.
+      messages: this.queryRepository && !synchronized
         ? await this.queryRepository.listObservedMessages(queryFilters)
         : queryObservedMessagesFromSnapshot(this.service.getSnapshot(), queryFilters),
     };

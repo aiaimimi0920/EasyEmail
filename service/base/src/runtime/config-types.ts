@@ -1,3 +1,4 @@
+import type { CloudflareTempEmailSendTransport } from "../domain/cloudflare-send-policy.js";
 import type {
   MailRoutingProfileDescriptor,
   MailStrategyModeResolution,
@@ -99,6 +100,7 @@ export interface CloudflareTempEmailRuntimeConfig {
   baseUrl?: string;
   apiKey?: string;
   adminAuth?: string;
+  sendTransport?: CloudflareTempEmailSendTransport;
   domain?: string;
   domains?: string[];
   randomSubdomainDomains?: string[];
@@ -287,6 +289,7 @@ export interface EasyEmailServiceConfigDocument {
       baseUrl?: unknown;
       apiKey?: unknown;
       adminAuth?: unknown;
+      sendTransport?: unknown;
       domain?: unknown;
       domains?: unknown;
       randomSubdomainDomains?: unknown;

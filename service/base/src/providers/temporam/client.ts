@@ -270,13 +270,15 @@ export async function probeTemporamInstance(instance: ProviderInstance): Promise
     };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
+    const errorClass = classifyTemporamError(detail);
     return {
       ok: false,
       detail,
       averageLatencyMs: Date.now() - startedAt,
       metadata: {
         provider: "temporam",
-        errorClass: classifyTemporamError(detail),
+        errorClass,
+        ...(errorClass === "configuration" ? { state: "missing-api-key" } : {}),
       },
     };
   }

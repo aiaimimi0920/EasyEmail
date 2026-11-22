@@ -93,14 +93,28 @@ export class SqliteMailAccountRepository implements MailAccountRepository {
   public constructor(private readonly database: DatabaseSync) {}
 
   private async listMailCredentialRefs(accountId: string): Promise<MailCredentialRef[]> {
+    return (await this.listMailCredentialRefsForAccounts([accountId])).get(accountId) ?? [];
+  }
+
+  private async listMailCredentialRefsForAccounts(
+    accountIds: readonly string[],
+  ): Promise<ReadonlyMap<string, MailCredentialRef[]>> {
+    if (accountIds.length === 0) return new Map();
+    const placeholders = accountIds.map(() => "?").join(", ");
     const rows = this.database.prepare(`
       SELECT id, owner_account_id, secret_backend, secret_key, credential_kind,
              auth_method, status, created_at, updated_at, last_verified_at
       FROM mail_account_credential_refs
-      WHERE owner_account_id = ?
-      ORDER BY created_at ASC, id ASC
-    `).all(accountId) as unknown as MailCredentialRefSqlRow[];
-    return rows.map(mapMailCredentialRef);
+      WHERE owner_account_id IN (${placeholders})
+      ORDER BY owner_account_id ASC, created_at ASC, id ASC
+    `).all(...accountIds) as unknown as MailCredentialRefSqlRow[];
+    const refsByAccountId = new Map<string, MailCredentialRef[]>();
+    for (const row of rows) {
+      const refs = refsByAccountId.get(row.owner_account_id) ?? [];
+      refs.push(mapMailCredentialRef(row));
+      refsByAccountId.set(row.owner_account_id, refs);
+    }
+    return refsByAccountId;
   }
 
   private async mapMailAccountRow(row: MailAccountSqlRow): Promise<MailAccount> {
@@ -135,10 +149,13 @@ export class SqliteMailAccountRepository implements MailAccountRepository {
       ORDER BY created_at ASC, id ASC
       LIMIT ?
     `).all(...params) as unknown as MailAccountSqlRow[];
-    const accounts = [];
-    for (const row of rows.slice(0, query.limit)) {
-      accounts.push(await this.mapMailAccountRow(row));
-    }
+    const pageRows = rows.slice(0, query.limit);
+    const refsByAccountId = await this.listMailCredentialRefsForAccounts(
+      pageRows.map((row) => row.id),
+    );
+    const accounts = pageRows.map((row) => (
+      mapMailAccount(row, refsByAccountId.get(row.id) ?? [])
+    ));
     return {
       accounts,
       hasMore: rows.length > query.limit,

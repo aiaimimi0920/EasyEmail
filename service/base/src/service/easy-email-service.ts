@@ -4,46 +4,24 @@ import {
   createDefaultEasyEmailProviderAdapters,
   createEasyEmailRegistryFromCatalog,
 } from "./catalog.js";
-import {
-  openMailboxWithPlan,
-  resolveMailboxOpenCandidateProviderTypeKeys,
-  shouldFallbackMailboxOpen,
-} from "./mailbox.js";
-import {
-  recordMailboxOpenFailure,
-} from "./outcomes.js";
-import {
-  cleanupMailboxMessages,
-  cleanupMailboxSessions,
-  expireMailboxSessions,
-  refreshInstanceHealth,
-} from "../workers/index.js";
-import {
-  resetProviderOperationalState,
-  synchronizeProviderOperationalState,
-} from "./provider-operational-state.js";
-import { EasyEmailError } from "../domain/errors.js";
+import { synchronizeProviderOperationalState } from "./provider-operational-state.js";
 import { MailRegistry } from "../domain/registry.js";
-import {
-  normalizeMailProviderTypeKey,
-} from "../domain/models.js";
 import { MailboxBindingService, MailboxDispatcher } from "../dispatch/index.js";
 import type {
   AuthenticationLinkResult,
-  MailboxSendRequest,
-  MailboxSendResult,
-  MailboxSessionUpdateRequest,
+  EasyEmailCatalog,
+  EasyEmailSnapshot,
   HostBinding,
   MailboxOutcomeReport,
   MailboxOutcomeReportResult,
-  MailBusinessStrategyId,
+  MailboxPlanResult,
+  MailboxSendRequest,
+  MailboxSendResult,
+  MailboxSession,
+  MailboxSessionUpdateRequest,
   MailProviderTypeKey,
   MailRoutingProfileDescriptor,
   MailStrategyModeResolution,
-  EasyEmailCatalog,
-  EasyEmailSnapshot,
-  MailboxPlanResult,
-  MailboxSession,
   ObserveMessageInput,
   ObservedMessage,
   ProviderCredentialBinding,
@@ -59,9 +37,7 @@ import type {
   VerificationMailboxOpenResult,
   VerificationMailboxRequest,
 } from "../domain/models.js";
-import type {
-  MailProviderAdapter,
-} from "../providers/contracts.js";
+import type { MailProviderAdapter } from "../providers/contracts.js";
 import { createMailProviderAdapterMap } from "../providers/index.js";
 import { CloudflareTempEmailRuntimeController } from "../providers/cloudflare_temp_email/control/index.js";
 import { CloudflareTempEmailProvisioner } from "../providers/cloudflare_temp_email/provisioning/index.js";
@@ -69,34 +45,23 @@ import {
   createDefaultDispatchStrategyRegistry,
   type DispatchStrategyRegistry,
 } from "../strategies/index.js";
+import { mergeMailRoutingProfiles } from "../domain/strategy-mode.js";
 import {
-  mergeMailRoutingProfiles,
-} from "../domain/strategy-mode.js";
-import {
-  attachMailboxOpenErrorContext,
-  createAliasOutcomeSafely,
-  isUnresolvedProviderPlanError,
-  persistAliasOutcomeOnSession,
-  planAliasSafely,
-} from "./mailbox-open-support.js";
-import { normalizeMailboxRequest } from "./mailbox-request-normalization.js";
-import {
-  cleanupMoemailMailboxes,
-  inferMailboxCapacityRecoveryProviderType,
-  type MailboxCapacityRecoveryInput,
-  type MoemailMailboxCleanupResult,
+  EasyEmailMailboxOperations,
+  type MailboxCapacityRecoveryResult,
+} from "./easy-email-mailbox-operations.js";
+import { EasyEmailRegistryOperations } from "./easy-email-registry-operations.js";
+import type {
+  MailboxCapacityRecoveryInput,
+  MoemailMailboxCleanupResult,
 } from "./moemail-mailbox-maintenance.js";
 import { EasyEmailMessageOperations } from "./message-operations.js";
-import {
-  recoverMailboxSessionByEmailAddress,
-  type MailboxSessionRecoveryInput,
-  type MailboxSessionRecoveryResult,
+import type {
+  MailboxSessionRecoveryInput,
+  MailboxSessionRecoveryResult,
 } from "./mailbox-session-recovery.js";
 import { EasyEmailProviderManagement } from "./provider-management.js";
-import {
-  releaseMailboxSession,
-  type MailboxReleaseResult,
-} from "./mailbox-release.js";
+import type { MailboxReleaseResult } from "./mailbox-release.js";
 
 function createDefaultRegistry(now: Date = new Date()): MailRegistry {
   return createEasyEmailRegistryFromCatalog({}, now);
@@ -112,20 +77,17 @@ export interface EasyEmailServiceOptions {
   aliasService?: MailAliasService;
 }
 
-
 export class EasyEmailService {
   private readonly adapterMap = new Map<MailProviderTypeKey, MailProviderAdapter>();
-
   private readonly bindings: MailboxBindingService;
-
   private readonly provisioner: CloudflareTempEmailProvisioner;
-
   private readonly runtimeController = new CloudflareTempEmailRuntimeController();
-
   private readonly dispatcher: MailboxDispatcher;
   private readonly routingProfiles: MailRoutingProfileDescriptor[];
   private readonly messageOperations: EasyEmailMessageOperations;
   private readonly providerManagement: EasyEmailProviderManagement;
+  private readonly mailboxOperations: EasyEmailMailboxOperations;
+  private readonly registryOperations: EasyEmailRegistryOperations;
 
   public constructor(
     private readonly registry: MailRegistry = createDefaultRegistry(),
@@ -139,7 +101,6 @@ export class EasyEmailService {
     this.adapterMap = createMailProviderAdapterMap(
       adapters.length > 0 ? adapters : createDefaultEasyEmailProviderAdapters(),
     );
-
     this.bindings = new MailboxBindingService(this.registry);
     this.provisioner = new CloudflareTempEmailProvisioner(this.registry);
     this.routingProfiles = mergeMailRoutingProfiles(routingProfiles);
@@ -167,6 +128,21 @@ export class EasyEmailService {
       this.routingProfiles,
       (now) => this.syncOperationalState(now),
     );
+    this.registryOperations = new EasyEmailRegistryOperations({
+      registry: this.registry,
+      adapterMap: this.adapterMap,
+      syncOperationalState: (now) => this.syncOperationalState(now),
+    });
+    this.mailboxOperations = new EasyEmailMailboxOperations({
+      registry: this.registry,
+      bindings: this.bindings,
+      dispatcher: this.dispatcher,
+      adapterMap: this.adapterMap,
+      routingProfiles: this.routingProfiles,
+      aliasService: this.aliasService,
+      getSnapshot: () => this.getSnapshot(),
+      syncOperationalState: (now) => this.syncOperationalState(now),
+    });
   }
 
   public getCatalog(): EasyEmailCatalog {
@@ -239,85 +215,14 @@ export class EasyEmailService {
   }
 
   public planMailbox(request: VerificationMailboxRequest, now: Date = new Date()): MailboxPlanResult {
-    this.syncOperationalState(now);
-    const normalizedRequest = normalizeMailboxRequest(request, this.routingProfiles);
-    return {
-      ...this.dispatcher.resolveMailboxPlan(normalizedRequest, now, false),
-      aliasPlan: planAliasSafely(this.aliasService, normalizedRequest),
-    };
+    return this.mailboxOperations.planMailbox(request, now);
   }
 
   public async openMailbox(
     request: VerificationMailboxRequest,
     now: Date = new Date(),
   ): Promise<VerificationMailboxOpenResult> {
-    this.syncOperationalState(now);
-    const normalizedRequest = normalizeMailboxRequest(request, this.routingProfiles);
-    const initialPlan = this.dispatcher.resolveMailboxPlan(normalizedRequest, now, true);
-    const candidateProviderTypeKeys = resolveMailboxOpenCandidateProviderTypeKeys(initialPlan);
-    let lastError: unknown;
-
-    for (const providerTypeKey of candidateProviderTypeKeys) {
-      let plan: MailboxPlanResult | undefined;
-
-      try {
-        plan = providerTypeKey === initialPlan.providerType.key
-          ? initialPlan
-          : this.dispatcher.resolveMailboxPlan(
-            {
-              ...normalizedRequest,
-              providerTypeKey,
-              strategyProfileId: normalizedRequest.strategyProfileId ?? initialPlan.strategyMode?.strategyProfileId,
-            },
-            now,
-            true,
-          );
-        const opened = await openMailboxWithPlan({
-          request: normalizedRequest,
-          plan,
-          now,
-          registry: this.registry,
-          bindings: this.bindings,
-          adapterMap: this.adapterMap,
-        });
-
-        const aliasOutcome = await createAliasOutcomeSafely(this.aliasService, normalizedRequest, now);
-        const session = persistAliasOutcomeOnSession(this.registry, opened.session, aliasOutcome);
-
-        return {
-          ...opened,
-          session,
-          aliasOutcome,
-        };
-      } catch (error) {
-        const normalizedError = attachMailboxOpenErrorContext(error, plan, providerTypeKey);
-        if (plan) {
-          recordMailboxOpenFailure(this.registry, plan.instance, normalizedError, now);
-        }
-        this.syncOperationalState(now);
-        if (
-          !plan
-          && lastError !== undefined
-          && !normalizedRequest.providerTypeKey
-          && isUnresolvedProviderPlanError(normalizedError)
-        ) {
-          continue;
-        }
-        lastError = normalizedError;
-        if (!shouldFallbackMailboxOpen(request, initialPlan, providerTypeKey)) {
-          throw normalizedError;
-        }
-      }
-    }
-
-    if (lastError instanceof Error) {
-      throw lastError;
-    }
-
-    throw new EasyEmailError(
-      "PROVIDER_SELECTION_FAILED",
-      "Unable to open a mailbox session for any eligible provider route.",
-    );
+    return await this.mailboxOperations.openMailbox(request, now);
   }
 
   public async releaseMailbox(
@@ -325,67 +230,14 @@ export class EasyEmailService {
     reason?: string,
     now: Date = new Date(),
   ): Promise<MailboxReleaseResult> {
-    return await releaseMailboxSession({
-      sessionId,
-      reason,
-      now,
-      registry: this.registry,
-      adapterMap: this.adapterMap,
-      syncOperationalState: (at) => this.syncOperationalState(at),
-    });
+    return await this.mailboxOperations.releaseMailbox(sessionId, reason, now);
   }
 
   public async recoverMailboxCapacity(
     input: MailboxCapacityRecoveryInput,
     now: Date = new Date(),
-  ): Promise<{
-    ok: boolean;
-    status: string;
-    providerTypeKey?: MailProviderTypeKey;
-    providerInstanceId?: string;
-    action?: string;
-    detail?: string;
-    recovery?: unknown;
-  }> {
-    this.syncOperationalState(now);
-
-    const detail = input.detail?.trim() || undefined;
-    const failureCode = input.failureCode?.trim() || undefined;
-    const providerTypeKey = inferMailboxCapacityRecoveryProviderType({
-      providerTypeKey: input.providerTypeKey,
-      failureCode,
-      detail,
-    });
-    const providerInstanceId = input.providerInstanceId?.trim() || undefined;
-
-    if (providerTypeKey === "moemail") {
-      const recovery = await this.cleanupMoemailMailboxes(
-        input.staleAfterSeconds,
-        input.maxDeleteCount,
-        input.force,
-        providerInstanceId,
-        now,
-      );
-      return {
-        ok: true,
-        status: "provider_capacity_recovery_finished",
-        providerTypeKey,
-        providerInstanceId: recovery.providerInstanceId,
-        action: "cleanup_mailboxes",
-        detail,
-        recovery,
-      };
-    }
-
-    return {
-      ok: false,
-      status: providerTypeKey
-        ? "provider_capacity_recovery_not_supported"
-        : "provider_capacity_recovery_not_needed",
-      providerTypeKey,
-      providerInstanceId,
-      detail: detail || failureCode,
-    };
+  ): Promise<MailboxCapacityRecoveryResult> {
+    return await this.mailboxOperations.recoverMailboxCapacity(input, now);
   }
 
   public async cleanupMoemailMailboxes(
@@ -395,16 +247,13 @@ export class EasyEmailService {
     providerInstanceId?: string,
     now: Date = new Date(),
   ): Promise<MoemailMailboxCleanupResult> {
-    this.syncOperationalState(now);
-    return await cleanupMoemailMailboxes({
-      registry: this.registry,
-      getSnapshot: () => this.getSnapshot(),
+    return await this.mailboxOperations.cleanupMoemailMailboxes(
       staleAfterSeconds,
       maxDeleteCount,
       force,
       providerInstanceId,
       now,
-    });
+    );
   }
 
   public observeMessage(input: ObserveMessageInput, now: Date = new Date()): ObservedMessage {
@@ -442,101 +291,81 @@ export class EasyEmailService {
   }
 
   public getSnapshot(): EasyEmailSnapshot {
-    this.syncOperationalState();
-    return this.registry.snapshot();
+    return this.registryOperations.getSnapshot();
   }
 
   public listProviderTypes() {
-    return this.registry.listProviderTypes();
+    return this.registryOperations.listProviderTypes();
   }
 
   public getProviderType(typeKey: MailProviderTypeKey) {
-    return this.registry.getProviderType(normalizeMailProviderTypeKey(typeKey) ?? typeKey);
+    return this.registryOperations.getProviderType(typeKey);
   }
 
   public listRuntimeTemplates() {
-    return this.registry.listRuntimeTemplates();
+    return this.registryOperations.listRuntimeTemplates();
   }
 
   public listInstances() {
-    this.syncOperationalState();
-    return this.registry.listInstances();
+    return this.registryOperations.listInstances();
   }
 
   public findInstanceById(instanceId: string) {
-    this.syncOperationalState();
-    return this.registry.findInstanceById(instanceId);
+    return this.registryOperations.findInstanceById(instanceId);
   }
 
   public listBindings() {
-    return this.registry.listBindings();
+    return this.registryOperations.listBindings();
   }
 
   public listCredentialSets() {
-    return this.registry.listCredentialSets();
+    return this.registryOperations.listCredentialSets();
   }
 
   public listCredentialBindings() {
-    return this.registry.listCredentialBindings();
+    return this.registryOperations.listCredentialBindings();
   }
 
   public listStrategies() {
-    return this.registry.listStrategies();
+    return this.registryOperations.listStrategies();
   }
 
   public findMailboxSessionByEmailAddress(
     emailAddress: string,
     providerTypeKey?: MailProviderTypeKey,
   ) {
-    this.syncOperationalState();
-    return this.registry.findLatestSessionByEmailAddress(
-      emailAddress,
-      providerTypeKey ? (normalizeMailProviderTypeKey(providerTypeKey) ?? providerTypeKey) : undefined,
-    );
+    return this.registryOperations.findMailboxSessionByEmailAddress(emailAddress, providerTypeKey);
   }
 
   public async recoverMailboxSessionByEmailAddress(
     input: MailboxSessionRecoveryInput,
     now: Date = new Date(),
   ): Promise<MailboxSessionRecoveryResult> {
-    return await recoverMailboxSessionByEmailAddress({
-      input,
-      registry: this.registry,
-      adapterMap: this.adapterMap,
-      now,
-      syncOperationalState: (at) => this.syncOperationalState(at),
-    });
+    return await this.registryOperations.recoverMailboxSessionByEmailAddress(input, now);
   }
 
   public expireSessions(now: Date = new Date()) {
-    return expireMailboxSessions(this.registry, now);
+    return this.registryOperations.expireSessions(now);
   }
 
   public cleanupMessages(keepRecentCount?: number) {
-    return cleanupMailboxMessages(this.registry, { keepRecentCount });
+    return this.registryOperations.cleanupMessages(keepRecentCount);
   }
 
   public cleanupSessions(keepRecentCount?: number) {
-    return cleanupMailboxSessions(this.registry, { keepRecentCount });
+    return this.registryOperations.cleanupSessions(keepRecentCount);
   }
 
   public refreshHealth() {
-    this.syncOperationalState();
-    return refreshInstanceHealth(this.registry);
+    return this.registryOperations.refreshHealth();
   }
 
   public runMaintenance(now: Date = new Date()) {
-    this.syncOperationalState(now);
-    return {
-      expired: expireMailboxSessions(this.registry, now),
-      cleanedSessions: cleanupMailboxSessions(this.registry),
-      cleaned: cleanupMailboxMessages(this.registry),
-      refreshed: refreshInstanceHealth(this.registry),
-    };
+    return this.registryOperations.runMaintenance(now);
   }
 
   public resetOperationalState(now: Date = new Date()) {
-    return resetProviderOperationalState(this.registry, now);
+    return this.registryOperations.resetOperationalState(now);
   }
 
   private syncOperationalState(now: Date = new Date()): void {
