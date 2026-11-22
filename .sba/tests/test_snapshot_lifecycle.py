@@ -85,5 +85,17 @@ class SnapshotLifecycleTests(unittest.TestCase):
             restore_objects(target, result['manifest'], result['directory'])
         self.assertEqual(target.writes, [])
 
+    def test_bounded_quiet_window_retry_recovers_transient_cron_drift_without_weakening_exact_witness(self):
+        original = exporter_fixture(self.source); pauses = []
+        def transient_cron(api, database, role, directory, **kwargs):
+            if kwargs.get('phase') == 'sourcecheck' and role == 'platform':
+                return exported_sql(Path(directory) / 'platform.sql', "CREATE TABLE platform_test(value); INSERT INTO platform_test VALUES('cron-tick');")
+            return original(api, database, role, directory, **kwargs)
+        result = capture_backup(None, self.source, self.record, self.key, self.root / 'quiet-retry',
+                                exporter=transient_cron, attempts=3, clock=lambda: 50, pause=pauses.append)
+        self.assertEqual(self.source.writes, ['snapshot-archive-persisted'])
+        self.assertEqual(pauses, [14, 14])
+        self.assertEqual(len(result['manifest']['objects']), 2)
+
 
 if __name__ == '__main__': unittest.main()

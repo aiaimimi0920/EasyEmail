@@ -16,6 +16,7 @@ from preview_repair import repair_preview
 from cleanup_repair import repair_cleanup
 from publication_repair import repair_publication
 from readiness_repair import repair_readiness
+from prewrite_update_repair import repair_prewrite_update
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,6 +43,7 @@ def run(request, directory=None):
         if request['context']['repairId'] == 'complete-preview-cleanup': return repair_cleanup(request, directory)
         if request['context']['repairId'] == 'complete-fresh-publication': return repair_publication(request, directory)
         if request['context']['repairId'] == 'complete-fresh-readiness': return repair_readiness(request, directory)
+        if request['context']['repairId'] == 'complete-prewrite-update': return repair_prewrite_update(request, directory)
         return repair(request, directory)
     raise DeploymentError('EASYEMAIL_REQUEST_INVALID')
 

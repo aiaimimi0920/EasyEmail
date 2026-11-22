@@ -1,32 +1,58 @@
 """Capture and independently restore-check encrypted two-D1/two-R2 backups before upgrades."""
 from pathlib import Path
+import time
 
-from boundary import digest, require
+from boundary import DeploymentError, digest, require
 from d1_snapshot import export_database, prove_preserved
 from object_snapshot import PRIVATE_PREFIX, business_inventory
 from snapshot_bundle import file_digest, private_directory, seal_backup, open_backup
 from snapshot_links import rebind_outbox
 
 
-def capture_backup(api, store, source, key, directory, *, exporter=export_database):
-    directory = private_directory(directory)
-    data = private_directory(directory / 'data')
-    config = source['configuration']
+def _align_quiet_window(clock, pause, force_next_minute=False):
+    second = int(clock()) % 60
+    if force_next_minute or second >= 42 or second <= 2:
+        pause(((64 - second) % 60) or 4)
+
+
+def _sample_consistent_state(api, store, config, directory, exporter, attempt, align, clock, pause):
+    suffix = '' if attempt == 0 else f'-{attempt}'
+    data = private_directory(directory / ('data' + suffix))
     inventory = business_inventory(store)
     require(sum(row['size'] for rows in inventory.values() for row in rows) <= 134217728, 'EASYEMAIL_SNAPSHOT_TOO_LARGE')
-    databases = {role: exporter(api, config[role]['database']['id'], role, data) for role in ('email', 'platform')}
     objects = []
     for bucket, rows in inventory.items():
         for row in rows:
             path = data / (str(len(objects)) + '.object')
             checksum = store.get(bucket, row, path)
             objects.append({'bucket': bucket, 'source': row, 'path': path, 'sha256': checksum})
+    if align:
+        _align_quiet_window(clock, pause, force_next_minute=attempt > 0)
+    databases = {role: exporter(api, config[role]['database']['id'], role, data, phase='backup' + suffix)
+                 for role in ('email', 'platform')}
     require(digest(business_inventory(store)) == digest(inventory), 'EASYEMAIL_SOURCE_OBJECTS_CHANGED')
-    checks = private_directory(directory / 'sourcecheck')
+    checks = private_directory(directory / ('sourcecheck' + suffix))
     for role in ('email', 'platform'):
-        latest = exporter(api, config[role]['database']['id'], role, checks, phase='sourcecheck')
+        latest = exporter(api, config[role]['database']['id'], role, checks, phase='sourcecheck' + suffix)
         prove_preserved(databases[role]['witness'], latest['path'], exact=True)
     require(digest(business_inventory(store)) == digest(inventory), 'EASYEMAIL_SOURCE_OBJECTS_CHANGED')
+    return databases, objects
+
+
+def capture_backup(api, store, source, key, directory, *, exporter=export_database, attempts=1,
+                   clock=time.time, pause=time.sleep):
+    require(type(attempts) is int and 1 <= attempts <= 4, 'EASYEMAIL_SNAPSHOT_SOURCE_INVALID')
+    directory = private_directory(directory)
+    config = source['configuration']
+    databases = objects = None
+    for attempt in range(attempts):
+        try:
+            databases, objects = _sample_consistent_state(
+                api, store, config, directory, exporter, attempt, attempts > 1, clock, pause)
+            break
+        except DeploymentError as error:
+            if error.code not in ('EASYEMAIL_SOURCE_DATABASE_CHANGED', 'EASYEMAIL_SOURCE_OBJECTS_CHANGED') or attempt + 1 == attempts:
+                raise
     sealed = seal_backup(source, databases, objects, directory, key)
     # Prove the archive is recoverable before creating the sole persistent backup object.
     manifest = open_backup(sealed['path'], key, sealed['id'], directory / 'local-restore-proof', source)
