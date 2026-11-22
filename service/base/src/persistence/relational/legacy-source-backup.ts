@@ -12,6 +12,30 @@ const REQUIRED_LEGACY_TABLES = [
   "mailbox_sources",
   "credential_refs",
 ] as const;
+const FOUNDATION_V1_LEGACY_TABLES = [
+  "accounts",
+  "mailbox_sources",
+  "credential_refs",
+  "mail_folders",
+  "temp_mailboxes",
+  "messages",
+  "message_sources",
+  "send_queue",
+  "agent_services",
+  "agent_threads",
+  "agent_messages",
+  "sync_states",
+  "verification_codes",
+  "app_settings",
+] as const;
+const ALL_KNOWN_LEGACY_DATA_TABLES = [
+  ...FOUNDATION_V1_LEGACY_TABLES,
+  "sender_avatar_cache",
+  "contact_avatar_overrides",
+  "contacts",
+  "newsletter_subscription_overrides",
+  "mail_taxonomy_items",
+] as const;
 
 export interface LegacySourceBackupArtifacts {
   sourceDatabasePath: string;
@@ -22,6 +46,8 @@ export interface LegacySourceBackupArtifacts {
   maxMigrationVersion: number;
   sourceAccountCount: number;
   sourceCredentialRefCount: number;
+  existingTables: string[];
+  sourceTableRowCounts: Record<string, number>;
 }
 
 export function computeFileSha256(filePath: string): string {
@@ -47,10 +73,38 @@ export function assertLegacySourceUnchanged(artifacts: LegacySourceBackupArtifac
   }
 }
 
-function validateLegacySnapshotDatabase(snapshotDatabasePath: string): {
+function requiredTablesForSchemaVersion(
+  maxMigrationVersion: number,
+  requireAllFoundationTables: boolean,
+): string[] {
+  if (!requireAllFoundationTables) {
+    return [...REQUIRED_LEGACY_TABLES];
+  }
+  const required: string[] = ["schema_migrations", ...FOUNDATION_V1_LEGACY_TABLES];
+  if (maxMigrationVersion >= 2) {
+    required.push("sender_avatar_cache", "contact_avatar_overrides");
+  }
+  if (maxMigrationVersion >= 4) {
+    required.push("contacts");
+  }
+  if (maxMigrationVersion >= 5) {
+    required.push("newsletter_subscription_overrides");
+  }
+  if (maxMigrationVersion >= 6) {
+    required.push("mail_taxonomy_items");
+  }
+  return required;
+}
+
+function validateLegacySnapshotDatabase(
+  snapshotDatabasePath: string,
+  requireAllFoundationTables: boolean,
+): {
   maxMigrationVersion: number;
   sourceAccountCount: number;
   sourceCredentialRefCount: number;
+  existingTables: string[];
+  sourceTableRowCounts: Record<string, number>;
 } {
   // Consolidate any copied WAL frames on the isolated snapshot copy only.
   const checkpointDb = new DatabaseSync(snapshotDatabasePath);
@@ -75,16 +129,19 @@ function validateLegacySnapshotDatabase(snapshotDatabasePath: string): {
       );
     }
 
-    for (const table of REQUIRED_LEGACY_TABLES) {
-      const present = database.prepare(
-        "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = ?",
-      ).get(table) as { present?: number } | undefined;
-      if (present?.present !== 1) {
-        throw new EasyEmailError(
-          "LEGACY_SOURCE_SCHEMA_UNSUPPORTED",
-          `Legacy EasyEmailAM database is missing required table: ${table}.`,
-        );
-      }
+    const masterTables = new Set(
+      (
+        database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{
+          name: string;
+        }>
+      ).map((row) => row.name),
+    );
+
+    if (!masterTables.has("schema_migrations")) {
+      throw new EasyEmailError(
+        "LEGACY_SOURCE_SCHEMA_UNSUPPORTED",
+        "Legacy EasyEmailAM database is missing required table: schema_migrations.",
+      );
     }
 
     const migrationRows = database.prepare(
@@ -114,17 +171,32 @@ function validateLegacySnapshotDatabase(snapshotDatabasePath: string): {
       );
     }
 
-    const accountCountRow = database.prepare("SELECT COUNT(*) AS count FROM accounts").get() as {
-      count: number;
-    };
-    const credentialCountRow = database.prepare(
-      "SELECT COUNT(*) AS count FROM credential_refs",
-    ).get() as { count: number };
+    for (const table of requiredTablesForSchemaVersion(maxMigrationVersion, requireAllFoundationTables)) {
+      if (!masterTables.has(table)) {
+        throw new EasyEmailError(
+          "LEGACY_SOURCE_SCHEMA_UNSUPPORTED",
+          `Legacy EasyEmailAM database is missing required table: ${table}.`,
+        );
+      }
+    }
+
+    const sourceTableRowCounts: Record<string, number> = {};
+    const existingTables: string[] = [];
+    for (const table of ALL_KNOWN_LEGACY_DATA_TABLES) {
+      if (!masterTables.has(table)) continue;
+      existingTables.push(table);
+      const countRow = database.prepare(`SELECT COUNT(*) AS count FROM "${table}"`).get() as {
+        count: number;
+      };
+      sourceTableRowCounts[table] = countRow.count;
+    }
 
     return {
       maxMigrationVersion,
-      sourceAccountCount: accountCountRow.count,
-      sourceCredentialRefCount: credentialCountRow.count,
+      sourceAccountCount: sourceTableRowCounts.accounts ?? 0,
+      sourceCredentialRefCount: sourceTableRowCounts.credential_refs ?? 0,
+      existingTables,
+      sourceTableRowCounts,
     };
   } finally {
     database.close();
@@ -136,6 +208,7 @@ export function prepareLegacyEasyEmailAmSourceSnapshot(options: {
   targetDatabasePath: string;
   backupRootDirectory?: string;
   now?: Date;
+  requireAllFoundationTables?: boolean;
 }): LegacySourceBackupArtifacts {
   const resolvedSource = resolve(options.sourceDatabasePath);
   const resolvedTarget = resolve(options.targetDatabasePath);
@@ -176,7 +249,10 @@ export function prepareLegacyEasyEmailAmSourceSnapshot(options: {
       copyFileSync(sourceShmPath, `${snapshotDatabasePath}-shm`);
     }
 
-    const validated = validateLegacySnapshotDatabase(snapshotDatabasePath);
+    const validated = validateLegacySnapshotDatabase(
+      snapshotDatabasePath,
+      options.requireAllFoundationTables === true,
+    );
     const artifacts: LegacySourceBackupArtifacts = {
       sourceDatabasePath: resolvedSource,
       sourceSha256,

@@ -178,10 +178,20 @@ try {
         throw "Unauthenticated credential broker returned $unauthenticatedBrokerStatus instead of 401."
     }
 
-    $database = Join-Path $dataDir 'easyemailam.sqlite'
+    $legacyDatabase = Join-Path $dataDir 'easyemailam.sqlite'
+    $nestedRelationalDb = Join-Path $dataDir 'core/state/state/easy-email-relational.sqlite3'
+    $directRelationalDb = Join-Path $dataDir 'core/state/easy-email-relational.sqlite3'
+    $relationalDb = if (Test-Path -LiteralPath $nestedRelationalDb -PathType Leaf) {
+        $nestedRelationalDb
+    } else {
+        $directRelationalDb
+    }
     $stateFile = Join-Path $dataDir 'core/state/easy-email-state.json'
-    if (-not (Test-Path -LiteralPath $database -PathType Leaf)) {
-        throw 'Desktop SQLite state was not created.'
+    if (Test-Path -LiteralPath $legacyDatabase -PathType Leaf) {
+        throw 'Slimmed Tauri host unexpectedly created legacy easyemailam.sqlite.'
+    }
+    if (-not (Test-Path -LiteralPath $relationalDb -PathType Leaf)) {
+        throw 'Packaged core relational SQLite database was not created.'
     }
     if (-not (Test-Path -LiteralPath $stateFile -PathType Leaf)) {
         throw 'Packaged core state was not created.'
@@ -194,7 +204,8 @@ try {
     Write-Output 'DESKTOP_CORS_PREFLIGHT=True'
     Write-Output 'BROKER_LOOPBACK=True'
     Write-Output 'BROKER_UNAUTHENTICATED_STATUS=401'
-    Write-Output "DESKTOP_DB_BYTES=$((Get-Item -LiteralPath $database).Length)"
+    Write-Output 'LEGACY_DESKTOP_DB_ABSENT=True'
+    Write-Output "CORE_RELATIONAL_DB_BYTES=$((Get-Item -LiteralPath $relationalDb).Length)"
     Write-Output "CORE_STATE_BYTES=$((Get-Item -LiteralPath $stateFile).Length)"
 
     $hostIdPath = Join-Path $dataDir 'desktop-host-id'

@@ -1,21 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 
-use rusqlite::Connection;
-
-use crate::diagnostics::DiagnosticLogger;
 use crate::error::{ActionRequired, AppError, ErrorCategory};
-use crate::events::InMemoryEventBus;
-use crate::storage::account_repository::ensure_anonymous_virtual_account;
-use crate::storage::db::open_database;
-use crate::storage::migrations::run_migrations;
-use crate::time::now_rfc3339;
 
 pub struct AppState {
-    pub connection: Mutex<Connection>,
-    pub event_bus: InMemoryEventBus,
-    pub diagnostic_logger: DiagnosticLogger,
     pub data_dir: PathBuf,
 }
 
@@ -54,46 +42,7 @@ impl AppState {
             metadata: Box::new(serde_json::json!({ "path": data_dir.display().to_string() })),
         })?;
 
-        let database_path = data_dir.join("easyemailam.sqlite");
-        let connection = open_database(&database_path).map_err(|err| AppError {
-            code: "sqlite_open_failed".to_string(),
-            category: ErrorCategory::Storage,
-            user_message: "The local database could not be opened.".to_string(),
-            technical_message: Some(err.to_string()),
-            retryable: false,
-            action_required: ActionRequired::None,
-            correlation_id: uuid::Uuid::new_v4().to_string(),
-            metadata: Box::new(serde_json::json!({ "path": database_path.display().to_string() })),
-        })?;
-
-        run_migrations(&connection).map_err(|err| AppError {
-            code: "sqlite_migration_failed".to_string(),
-            category: ErrorCategory::Storage,
-            user_message: "The local database schema could not be prepared.".to_string(),
-            technical_message: Some(err.to_string()),
-            retryable: false,
-            action_required: ActionRequired::None,
-            correlation_id: uuid::Uuid::new_v4().to_string(),
-            metadata: Box::new(serde_json::json!({})),
-        })?;
-
-        ensure_anonymous_virtual_account(&connection, now_rfc3339()).map_err(|err| AppError {
-            code: "anonymous_account_init_failed".to_string(),
-            category: ErrorCategory::Storage,
-            user_message: "The anonymous mailbox account could not be initialized.".to_string(),
-            technical_message: Some(err.to_string()),
-            retryable: false,
-            action_required: ActionRequired::None,
-            correlation_id: uuid::Uuid::new_v4().to_string(),
-            metadata: Box::new(serde_json::json!({})),
-        })?;
-
-        Ok(Self {
-            connection: Mutex::new(connection),
-            event_bus: InMemoryEventBus::default(),
-            diagnostic_logger: DiagnosticLogger::default(),
-            data_dir,
-        })
+        Ok(Self { data_dir })
     }
 }
 

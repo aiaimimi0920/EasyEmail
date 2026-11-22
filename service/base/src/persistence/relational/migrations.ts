@@ -397,6 +397,14 @@ ON mail_send_queue(message_id, status);
     name: "mail-avatar-settings-cache-and-overrides",
     sql: MAIL_M7C_AVATARS_MIGRATION_SQL,
   },
+  {
+    version: 12,
+    name: "legacy-import-receipts-details",
+    sql: `
+ALTER TABLE legacy_import_receipts
+ADD COLUMN details_json TEXT NOT NULL DEFAULT '{}';
+`,
+  },
 ] as const;
 
 export const EASY_EMAIL_RELATIONAL_SCHEMA_VERSION = RELATIONAL_MIGRATIONS.at(-1)?.version ?? 0;

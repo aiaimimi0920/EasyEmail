@@ -78,6 +78,15 @@ export {
   type LegacyCredentialProbeInput,
   type LegacyCredentialVaultCheck,
 } from "./legacy-account-importer.js";
+export {
+  LEGACY_FULL_IMPORTER_VERSION,
+  importLegacyEasyEmailAmDatabase,
+  type LegacyFullImportOptions,
+  type LegacyFullImportReceipt,
+  type LegacyFullImportResult,
+  type LegacyMessageSampleHash,
+  type LegacyTargetDomainCounts,
+} from "./legacy-full-importer.js";
 
 export class SqliteRelationalDatabase
   extends SqliteMessageQueueImapDatabaseBase

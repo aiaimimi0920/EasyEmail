@@ -9,7 +9,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MAPPING_PATH = ROOT / "docs" / "desktop-command-http-migration-map.json"
-TAURI_LIB = ROOT / "apps" / "desktop" / "src-tauri" / "src" / "lib.rs"
+OPENAPI_PATH = ROOT / "docs" / "easyemail-openapi.json"
+TAURI_ROOT = ROOT / "apps" / "desktop" / "src-tauri"
+TAURI_LIB = TAURI_ROOT / "src" / "lib.rs"
+TAURI_APP_STATE = TAURI_ROOT / "src" / "app_state.rs"
+TAURI_CARGO = TAURI_ROOT / "Cargo.toml"
 
 ALLOWED_HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
 ALLOWED_DISPOSITIONS = {
@@ -17,6 +21,38 @@ ALLOWED_DISPOSITIONS = {
     "migrate_http",
     "remove_development_stub",
 }
+EXPECTED_HOST_ALLOWLIST = [
+    "health_check",
+    "desktop_core_runtime",
+    "desktop_credential_store",
+    "desktop_credential_delete",
+]
+REMOVED_TAURI_BUSINESS_PATHS = (
+    "migrations",
+    "src/avatar.rs",
+    "src/avatar",
+    "src/commands",
+    "src/diagnostics.rs",
+    "src/domain",
+    "src/easyemail",
+    "src/events.rs",
+    "src/imap",
+    "src/services",
+    "src/smtp",
+    "src/storage",
+    "src/time.rs",
+    "src/workers",
+)
+FORBIDDEN_TAURI_CRATES = (
+    "rusqlite",
+    "imap",
+    "lettre",
+    "mailparse",
+    "encoding_rs",
+    "chrono",
+    "base64",
+    "url =",
+)
 
 
 def registered_tauri_commands(source: str) -> list[str]:
@@ -28,34 +64,55 @@ def registered_tauri_commands(source: str) -> list[str]:
     )
     if not matched:
         raise AssertionError("missing Tauri generate_handler registration")
-    return re.findall(r"(?:commands|core_runtime)::(\w+)", matched.group(1))
+    return re.findall(r"(?:\w+::)+(\w+)", matched.group(1))
 
 
 class DesktopCommandMigrationMapTests(unittest.TestCase):
     def setUp(self) -> None:
         self.mapping = json.loads(MAPPING_PATH.read_text(encoding="utf-8"))
+        self.openapi = json.loads(OPENAPI_PATH.read_text(encoding="utf-8"))
         self.commands = self.mapping["commands"]
         self.registered = registered_tauri_commands(
             TAURI_LIB.read_text(encoding="utf-8")
         )
 
-    def test_mapping_covers_every_registered_command_exactly_once(self) -> None:
+    def test_tauri_registers_only_the_host_and_vault_allowlist(self) -> None:
+        self.assertTrue(self.mapping.get("tauriSlimmed"))
+        self.assertEqual(self.mapping.get("tauriHostAllowlist"), EXPECTED_HOST_ALLOWLIST)
+        self.assertEqual(self.registered, EXPECTED_HOST_ALLOWLIST)
+
+        migrated_or_removed = {
+            entry["command"]
+            for entry in self.commands
+            if entry["disposition"] != "retain_host"
+        }
+        self.assertTrue(migrated_or_removed.isdisjoint(self.registered))
+
+    def test_tauri_has_no_mail_business_modules_or_sqlite_dependencies(self) -> None:
+        for relative in REMOVED_TAURI_BUSINESS_PATHS:
+            self.assertFalse(
+                (TAURI_ROOT / relative).exists(),
+                f"superseded Tauri business path must be removed: {relative}",
+            )
+
+        cargo_text = TAURI_CARGO.read_text(encoding="utf-8")
+        for forbidden_crate in FORBIDDEN_TAURI_CRATES:
+            self.assertNotIn(forbidden_crate, cargo_text)
+
+        app_state_text = TAURI_APP_STATE.read_text(encoding="utf-8")
+        self.assertNotIn("rusqlite", app_state_text)
+        self.assertNotIn("easyemailam.sqlite", app_state_text)
+
+    def test_historical_56_command_ledger_and_disposition_counts_are_preserved(self) -> None:
         mapped_names = [entry["command"] for entry in self.commands]
+        self.assertEqual(len(mapped_names), 56)
+        self.assertEqual(len(set(mapped_names)), 56)
+        self.assertEqual(self.mapping["counts"]["registered"], 56)
 
-        self.assertEqual(len(self.registered), 56)
-        self.assertEqual(len(set(self.registered)), len(self.registered))
-        self.assertEqual(len(set(mapped_names)), len(mapped_names))
-        self.assertEqual(set(mapped_names), set(self.registered))
-        self.assertEqual(self.mapping["counts"]["registered"], len(self.registered))
-
-    def test_disposition_counts_and_owners_are_explicit(self) -> None:
         counts = Counter(entry["disposition"] for entry in self.commands)
-
         self.assertEqual(set(counts), ALLOWED_DISPOSITIONS)
         self.assertEqual(counts["retain_host"], self.mapping["counts"]["retainHost"])
-        self.assertEqual(
-            counts["migrate_http"], self.mapping["counts"]["migrateHttp"]
-        )
+        self.assertEqual(counts["migrate_http"], self.mapping["counts"]["migrateHttp"])
         self.assertEqual(
             counts["remove_development_stub"],
             self.mapping["counts"]["removeDevelopmentStub"],
@@ -77,8 +134,9 @@ class DesktopCommandMigrationMapTests(unittest.TestCase):
             {"platform_account_get_session", "platform_account_query_data"},
         )
 
-    def test_http_migrations_use_explicit_version_one_resources(self) -> None:
+    def test_http_migrations_use_explicit_documented_resources(self) -> None:
         capabilities = self.mapping["capabilities"]
+        openapi_paths = self.openapi["paths"]
 
         for entry in self.commands:
             self.assertIn(entry["capability"], capabilities, entry["command"])
@@ -93,6 +151,12 @@ class DesktopCommandMigrationMapTests(unittest.TestCase):
             self.assertTrue(target["path"].startswith("/mail/"), entry["command"])
             self.assertNotIn("/commands", target["path"], entry["command"])
             self.assertNotIn("?", target["path"], entry["command"])
+            self.assertIn(target["path"], openapi_paths, entry["command"])
+            self.assertIn(
+                target["method"].lower(),
+                openapi_paths[target["path"]],
+                entry["command"],
+            )
 
     def test_mapping_references_existing_current_implementation_paths(self) -> None:
         for capability, details in self.mapping["capabilities"].items():

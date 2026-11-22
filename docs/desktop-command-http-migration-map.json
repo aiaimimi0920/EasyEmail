@@ -2,6 +2,13 @@
   "schemaVersion": 1,
   "baselineCommit": "97dd334fbcd2f95330a8e19a23b366af54671220",
   "sourceRegistration": "apps/desktop/src-tauri/src/lib.rs",
+  "tauriSlimmed": true,
+  "tauriHostAllowlist": [
+    "health_check",
+    "desktop_core_runtime",
+    "desktop_credential_store",
+    "desktop_credential_delete"
+  ],
   "counts": {
     "registered": 56,
     "retainHost": 2,
@@ -16,72 +23,76 @@
   },
   "capabilities": {
     "host": {
-      "currentBackend": ["apps/desktop/src-tauri/src/core_runtime.rs", "apps/desktop/src-tauri/src/commands.rs"],
-      "frontend": ["apps/desktop/src/api/desktopCoreClient.ts"],
+      "currentBackend": [
+        "apps/desktop/src-tauri/src/core_runtime.rs",
+        "apps/desktop/src-tauri/src/commands.rs",
+        "apps/desktop/src-tauri/src/desktop_credentials.rs"
+      ],
+      "frontend": ["apps/desktop/src/api/desktopCoreClient.ts", "apps/desktop/src/api/desktopCredentialClient.ts"],
       "finalOwner": "tauri-host"
     },
     "platform-development-stub": {
-      "currentBackend": ["apps/desktop/src-tauri/src/commands.rs"],
+      "currentBackend": ["apps/desktop/src/api/platformAccountClient.ts"],
       "frontend": ["apps/desktop/src/api/platformAccountClient.ts"],
       "finalOwner": "remove-or-real-external-account-api"
     },
     "settings": {
-      "currentBackend": ["apps/desktop/src-tauri/src/commands.rs", "apps/desktop/src-tauri/src/storage/settings_repository.rs"],
+      "currentBackend": ["service/base/src/service/mail-extensions.ts", "service/base/src/http/routes/extensions.ts"],
       "frontend": ["apps/desktop/src/api/settingsClient.ts"],
       "finalOwner": "service/base"
     },
     "temporary-mailbox": {
-      "currentBackend": ["apps/desktop/src-tauri/src/services/easyemail_service.rs", "apps/desktop/src-tauri/src/services/temp_mailbox_service.rs", "apps/desktop/src-tauri/src/storage/temp_mailbox_repository.rs"],
+      "currentBackend": ["service/base/src/service/easy-email-mailbox-operations.ts", "service/base/src/service/mail-promotion.ts"],
       "frontend": ["apps/desktop/src/App.tsx", "apps/desktop/src/api/easyEmailHttpClient.ts"],
       "finalOwner": "service/base"
     },
     "normal-account": {
-      "currentBackend": ["apps/desktop/src-tauri/src/services/normal_account_service.rs", "apps/desktop/src-tauri/src/storage/account_repository.rs", "apps/desktop/src-tauri/src/imap/native.rs"],
-      "frontend": ["apps/desktop/src/App.tsx"],
+      "currentBackend": ["service/base/src/service/accounts.ts", "service/base/src/service/mail-imap-sync.ts"],
+      "frontend": ["apps/desktop/src/api/mailAccountClient.ts"],
       "finalOwner": "service/base"
     },
     "outbound-message": {
-      "currentBackend": ["apps/desktop/src-tauri/src/services/send_service.rs", "apps/desktop/src-tauri/src/storage/message_repository.rs"],
-      "frontend": ["apps/desktop/src/App.tsx"],
+      "currentBackend": ["service/base/src/service/mail-messages.ts", "service/base/src/service/mail-send-queue.ts"],
+      "frontend": ["apps/desktop/src/api/sendQueueClient.ts", "apps/desktop/src/api/mailMessageClient.ts"],
       "finalOwner": "service/base"
     },
     "send-queue": {
-      "currentBackend": ["apps/desktop/src-tauri/src/storage/send_queue_repository.rs", "apps/desktop/src-tauri/src/workers/send_queue_worker.rs", "apps/desktop/src-tauri/src/smtp/native.rs"],
+      "currentBackend": ["service/base/src/service/mail-send-queue.ts", "service/base/src/service/smtp-transport.ts"],
       "frontend": ["apps/desktop/src/api/sendQueueClient.ts"],
       "finalOwner": "service/base"
     },
     "contacts": {
-      "currentBackend": ["apps/desktop/src-tauri/src/storage/contact_repository.rs"],
+      "currentBackend": ["service/base/src/service/contacts.ts", "service/base/src/persistence/relational/contact-repository.ts"],
       "frontend": ["apps/desktop/src/api/contactClient.ts"],
       "finalOwner": "service/base"
     },
     "agent": {
-      "currentBackend": ["apps/desktop/src-tauri/src/services/agent_service.rs", "apps/desktop/src-tauri/src/storage/agent_repository.rs"],
-      "frontend": ["apps/desktop/src/App.tsx"],
+      "currentBackend": ["service/base/src/service/mail-agent.ts", "service/base/src/persistence/relational/mail-agent-repository.ts"],
+      "frontend": ["apps/desktop/src/api/agentMailClient.ts"],
       "finalOwner": "service/base"
     },
     "messages": {
-      "currentBackend": ["apps/desktop/src-tauri/src/storage/message_repository.rs", "apps/desktop/src-tauri/src/services/normal_account_service.rs"],
-      "frontend": ["apps/desktop/src/App.tsx"],
+      "currentBackend": ["service/base/src/service/mail-messages.ts", "service/base/src/persistence/relational/mail-message-repository.ts"],
+      "frontend": ["apps/desktop/src/api/mailMessageClient.ts"],
       "finalOwner": "service/base"
     },
     "newsletters": {
-      "currentBackend": ["apps/desktop/src-tauri/src/storage/message_repository.rs"],
+      "currentBackend": ["service/base/src/service/mail-extensions.ts", "service/base/src/persistence/relational/mail-extensions-repository.ts"],
       "frontend": ["apps/desktop/src/api/newsletterClient.ts"],
       "finalOwner": "service/base"
     },
     "taxonomy": {
-      "currentBackend": ["apps/desktop/src-tauri/src/storage/mail_taxonomy_repository.rs"],
+      "currentBackend": ["service/base/src/service/mail-taxonomy.ts", "service/base/src/persistence/relational/mail-taxonomy-repository.ts"],
       "frontend": ["apps/desktop/src/api/mailTaxonomyClient.ts"],
       "finalOwner": "service/base"
     },
     "verification": {
-      "currentBackend": ["apps/desktop/src-tauri/src/services/verification_service.rs", "apps/desktop/src-tauri/src/storage/verification_repository.rs"],
-      "frontend": ["apps/desktop/src/App.tsx"],
+      "currentBackend": ["service/base/src/service/mail-verifications.ts", "service/base/src/persistence/relational/mail-message-repository.ts"],
+      "frontend": ["apps/desktop/src/api/mailMessageClient.ts"],
       "finalOwner": "service/base"
     },
     "avatar": {
-      "currentBackend": ["apps/desktop/src-tauri/src/avatar.rs", "apps/desktop/src-tauri/src/commands.rs"],
+      "currentBackend": ["service/base/src/service/mail-avatar.ts", "service/base/src/service/avatar-network.ts"],
       "frontend": ["apps/desktop/src/api/avatarSettingsClient.ts"],
       "finalOwner": "service/base"
     }

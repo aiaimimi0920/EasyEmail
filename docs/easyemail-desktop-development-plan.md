@@ -1,6 +1,6 @@
 # EasyEmail Desktop 业务核心迁移与产品化开发计划
 
-Status: **execution in progress; M0–M7 complete (M7 exit gate satisfied — zero business Tauri invokes in desktop UI)**
+Status: **execution in progress; M0–M8 complete (legacy SQLite full importer & Tauri business-core slimming complete)**
 Created: **2026-09-01**  
 Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
 
@@ -103,8 +103,9 @@ Validated baseline: **`97dd334fbcd2f95330a8e19a23b366af54671220`**
 - **M6 complete (2026-11-22):** relational schema v8, `ImapFlow` TLS 1.2+ folder discovery, initial/incremental UID sync, `UIDVALIDITY` recovery, lazy body fetch, fail-closed remote flag/move/delete actions, and offline cached readback completed (`19ca697`).
 - **M2 closeout + M7A complete (2026-11-22):** relational schema v9, zero-copy temporary mailbox promotion (`POST /mail/mailboxes/{sessionId}/promote`), taxonomy rename/delete message-reference propagation, durable newsletter subscription aggregation/hide overrides, and EasyEmail client settings/probe HTTP cutover completed (`36ae2c3`).
 - **M7B complete (2026-11-22):** relational schema v10 (`mail_agent_services`, `mail_agent_threads`, `mail_agent_messages`), stable outbound `Message-ID` tracking, M5 queue-backed atomic agent task enqueue, M6 IMAP `In-Reply-To`/`References` reply association with `agent` scope isolation and sender-trust gating, and all 7 `/mail/agent/*` HTTP/UI cutovers completed (`5520899`).
-- **M7C complete & M7 exit gate satisfied (2026-11-22):** relational schema v11 (`mail_avatar_settings`, `mail_sender_avatar_cache`, `mail_contact_avatar_overrides`), SSRF-hardened `MailAvatarService` (HTTPS-only, public DNS/IP checks, pinned-IP anti-DNS-rebinding, redirect/MIME/byte/SVG sanitization limits, 14d positive / 24h negative cache), all 6 `/mail/avatars/*` HTTP/UI cutovers, and permanent disablement of unsigned `platform_account_*` development stubs completed; zero business or dev-stub Tauri `invoke` calls remain in `apps/desktop/src/`.
-- **Next:** execute M8 (full versioned `easyemailam.sqlite` offline importer with backup/receipt/rollback and Tauri Rust business-core slimming).
+- **M7C complete & M7 exit gate satisfied (2026-11-22):** relational schema v11 (`mail_avatar_settings`, `mail_sender_avatar_cache`, `mail_contact_avatar_overrides`), SSRF-hardened `MailAvatarService` (HTTPS-only, public DNS/IP checks, pinned-IP anti-DNS-rebinding, redirect/MIME/byte/SVG sanitization limits, 14d positive / 24h negative cache), all 6 `/mail/avatars/*` HTTP/UI cutovers, and permanent disablement of unsigned `platform_account_*` development stubs completed (`e1ab367`); zero business or dev-stub Tauri `invoke` calls remain in `apps/desktop/src/`.
+- **M8 complete (2026-11-22):** relational schema v12 (`legacy_import_receipts.details_json`) and the versioned offline full-database importer (`importLegacyEasyEmailAmDatabase` + `scripts/import-legacy-easyemailam-db.mjs`) back up `easyemailam.sqlite`/`-wal`/`-shm` and target relational/state snapshots, validate schema v1..v10 integrity and row counts, idempotently import accounts, opaque credential refs (marking missing vault items for reauth without copying secrets), temporary mailbox sessions, contacts, taxonomy folders/labels, IMAP folders/checkpoints, messages/sources, verification codes, newsletter overrides, send queue (`sending -> delivery_unknown`), Agent Mail, and client/avatar settings/cache (re-sanitizing cached SVG bytes), verify FK/source-linkage/queue-state/sample-message SHA-256 hashes, write receipts, and roll back byte-for-byte on failure. Tauri is now slimmed to the 4-command host/OS-vault allowlist (`health_check`, `desktop_core_runtime`, `desktop_credential_store`, `desktop_credential_delete`) with all superseded Rust business modules, SQL migrations, and `rusqlite`/`imap`/`lettre`/`mailparse`/`encoding_rs`/`chrono`/`base64`/`url` dependencies removed.
+- **Next:** execute M9 (host graceful shutdown control plane, startup/crash-loop resilience, temp runtime ACLs, log rotation/redaction, and diagnostic bundle export).
 
 本计划定义将已导入 `apps/desktop` 的 EasyEmailAM 从“React UI +
 过渡期 Rust 业务后端”收敛为“React UI + 随桌面程序启动的
@@ -560,6 +561,8 @@ React 控制器已移除全部 M4 `message_*` 与 `verification_*` Tauri 业务�
 
 **出口门禁**：导入、幂等重跑、失败回滚、旧版本升级 fixture 全部通过；
 Tauri 无邮件业务实现；旧源仓库和用户数据仍保留。
+
+**M8 当前进度（2026-11-22）**：已在 `service/base` 落地关系库 schema v12（`legacy_import_receipts.details_json`）与全量版本化离线导入器 `importLegacyEasyEmailAmDatabase`（及 CLI 入口 `scripts/import-legacy-easyemailam-db.mjs`），完整实现停机保护、源库 `easyemailam.sqlite`/`-wal`/`-shm` 与目标关系库/`easy-email-state.json` 双重预备份、v1..v10 连续迁移账本与完整性校验、全域非密钥数据与不透明凭据引用幂等导入、缺失 OS 凭据项重鉴权标记、临时会话快照密钥剥离、缓存 SVG 二次消毒、中断态 `sending -> delivery_unknown` 收敛、外键/来源关联/队列终态与最多 16 条采样消息 SHA-256 校验、结构化导入回执以及故障注入字节级完整回滚（源库 SHA-256 零变更）。同时已完成 Tauri 宿主彻底瘦身：物理移除 `migrations`、`avatar`、`domain`、`easyemail`、`imap`、`services`、`smtp`、`storage`、`workers` 等全部旧业务核心与 `AppState` 业务 SQLite 直连，清理 `Cargo.toml` 中 `rusqlite`、`imap`、`lettre`、`mailparse`、`encoding_rs`、`chrono`、`base64`、`url` 等旧业务依赖，并通过 `desktop-command-http-migration-map.json`、`test_desktop_command_migration_map.py` 与 `host:smoke` 锁定 Tauri 仅注册 4 项宿主与系统凭据桥命令（`health_check`、`desktop_core_runtime`、`desktop_credential_store`、`desktop_credential_delete`），**M8 出口门禁已全部达成**。
 
 ### M9 - 宿主生命周期与本地安全加固
 

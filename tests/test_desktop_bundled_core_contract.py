@@ -120,6 +120,8 @@ class DesktopBundledCoreContractTests(unittest.TestCase):
             ".AddSeconds($StartupTimeoutSeconds)",
             "$restartedRuntime = Start-IsolatedDesktopRuntime -Executable $executable",
             "$restartedHostId -ne $firstHostId",
+            "LEGACY_DESKTOP_DB_ABSENT=True",
+            "CORE_RELATIONAL_DB_BYTES=",
             "RESTART_HOST_ID_STABLE=True",
             "RESTART_CORE_STATE_PERSISTED=True",
             "RESTART_AUTH_BOUNDARIES=True",

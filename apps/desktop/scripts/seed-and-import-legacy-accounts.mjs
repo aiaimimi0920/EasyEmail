@@ -34,7 +34,7 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const importerModuleUrl = pathToFileURL(
   path.resolve(currentDir, "../../../service/base/dist/src/persistence/relational/database.js"),
 ).href;
-const { importLegacyEasyEmailAmAccounts } = await import(importerModuleUrl);
+const { importLegacyEasyEmailAmDatabase } = await import(importerModuleUrl);
 
 const legacyDbPath = path.join(dataDir, "easyemailam.sqlite");
 const nestedRelationalDbPath = path.join(
@@ -65,6 +65,31 @@ const imapConfigJson = JSON.stringify({
 
 const legacyDb = new DatabaseSync(legacyDbPath);
 try {
+  legacyDb.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS accounts (
+      id TEXT PRIMARY KEY, scope TEXT NOT NULL, kind TEXT NOT NULL, display_name TEXT NOT NULL,
+      primary_address TEXT, provider_label TEXT, status TEXT NOT NULL, auth_status TEXT NOT NULL,
+      receive_status TEXT NOT NULL, send_status TEXT NOT NULL, listed_in_all_accounts INTEGER NOT NULL,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS mailbox_sources (
+      id TEXT PRIMARY KEY, account_id TEXT, source_kind TEXT NOT NULL, address TEXT, provider_id TEXT,
+      config_json TEXT NOT NULL DEFAULT '{}', credential_ref_id TEXT, status TEXT NOT NULL,
+      last_sync_at TEXT, last_success_at TEXT, last_error_code TEXT, last_error_message TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS credential_refs (
+      id TEXT PRIMARY KEY, owner_account_id TEXT, source_id TEXT, secret_backend TEXT NOT NULL,
+      secret_key TEXT NOT NULL, credential_kind TEXT NOT NULL, auth_method TEXT NOT NULL,
+      status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_verified_at TEXT
+    );
+  `);
+  for (let v = 1; v <= 10; v += 1) {
+    legacyDb.prepare(
+      "INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)",
+    ).run(v, `step-${v}`, nowIso);
+  }
   legacyDb.exec("BEGIN IMMEDIATE");
   legacyDb.prepare(`
     INSERT INTO accounts (
@@ -102,28 +127,30 @@ try {
 
 const sourceShaBefore = crypto.createHash("sha256").update(fs.readFileSync(legacyDbPath)).digest("hex");
 
-const firstResult = await importLegacyEasyEmailAmAccounts({
+const firstResult = await importLegacyEasyEmailAmDatabase({
   sourceDatabasePath: legacyDbPath,
   targetDatabasePath: relationalDbPath,
+  requireAllFoundationTables: false,
   vaultExistenceCheck: ({ secretKey }) => (secretKey === presentSecretKey ? "present" : "missing"),
 });
 const sourceShaAfter = crypto.createHash("sha256").update(fs.readFileSync(legacyDbPath)).digest("hex");
 if (sourceShaAfter !== sourceShaBefore) {
   throw new Error("Legacy EasyEmailAM database SHA-256 mutated during account import.");
 }
-if (firstResult.receipt.importedAccountCount !== 2 || firstResult.receipt.reauthRequiredCount !== 1) {
+if (firstResult.receipt.importedCounts.accounts !== 2 || firstResult.receipt.reauthRequiredCount !== 1) {
   throw new Error(`Unexpected first import receipt: ${JSON.stringify(firstResult.receipt)}`);
 }
 
-const secondResult = await importLegacyEasyEmailAmAccounts({
+const secondResult = await importLegacyEasyEmailAmDatabase({
   sourceDatabasePath: legacyDbPath,
   targetDatabasePath: relationalDbPath,
+  requireAllFoundationTables: false,
   vaultExistenceCheck: ({ secretKey }) => (secretKey === presentSecretKey ? "present" : "missing"),
 });
-if (secondResult.receipt.importedAccountCount !== 0 || secondResult.receipt.skippedExistingCount !== 2) {
+if (secondResult.receipt.importedCounts.accounts !== 0 || secondResult.receipt.skippedExistingCounts.accounts !== 2) {
   throw new Error(`Legacy importer was not idempotent: ${JSON.stringify(secondResult.receipt)}`);
 }
 
 console.log("LEGACY_ACCOUNT_IMPORT_OK=True");
-console.log(`LEGACY_ACCOUNT_IMPORTED=${firstResult.receipt.importedAccountCount}`);
+console.log(`LEGACY_ACCOUNT_IMPORTED=${firstResult.receipt.importedCounts.accounts}`);
 console.log(`LEGACY_ACCOUNT_REAUTH_MARKED=${firstResult.receipt.reauthRequiredCount}`);

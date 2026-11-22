@@ -125,26 +125,34 @@ export const mailSelectors = readText("src/mail/mailSelectors.ts");
 export const mailSearch = readText("src/mail/mailSearch.ts");
 export const mailTaxonomy = readText("src/mail/mailTaxonomy.ts");
 export const mailProjectionSource = readText("src/app/mailProjection.ts");
-export const imapModels = readText("src-tauri/src/imap/models.rs");
-export const imapNative = readSourceWithModules("src-tauri/src/imap/native.rs");
-export const smtpNative = readSourceWithModules("src-tauri/src/smtp/native.rs");
-export const normalAccountService = readSourceWithModules("src-tauri/src/services/normal_account_service.rs");
-export const verificationDomain = readText("src-tauri/src/domain/verification.rs");
-export const platformAccountService = readText("src-tauri/src/services/platform_account_service.rs");
-export const commands = readSourceWithModules("src-tauri/src/commands.rs");
-export const sendService = readText("src-tauri/src/services/send_service.rs");
-export const sendQueueRepository = readSourceWithModules("src-tauri/src/storage/send_queue_repository.rs");
-export const messageRepository = readSourceWithModules("src-tauri/src/storage/message_repository.rs");
-export const contactRepository = readText("src-tauri/src/storage/contact_repository.rs");
-export const migrations = [
-  readText("src-tauri/src/storage/migrations.rs"),
-  readText("src-tauri/src/storage/migration_steps.rs"),
-].join("\n");
-export const smtpModels = readText("src-tauri/src/smtp/models.rs");
+export const commands = readText("src-tauri/src/commands.rs");
+export const tauriAppState = readText("src-tauri/src/app_state.rs");
+export const tauriCargoToml = readText("src-tauri/Cargo.toml");
 export const tauriLib = readText("src-tauri/src/lib.rs");
 export const tauriCapability = readText("src-tauri/capabilities/default.json");
-export const avatarBackend = readSourceWithModules("src-tauri/src/avatar.rs");
 export const tauriConfig = readText("src-tauri/tauri.conf.json");
+export const avatarBackend = readText("../../service/base/src/service/avatar-identity-and-remote.ts");
+export const serviceAccounts = readText("../../service/base/src/service/accounts.ts");
+export const serviceExtensions = readText("../../service/base/src/service/mail-extensions.ts");
+export const serviceImapSync = [
+  readText("../../service/base/src/service/mail-imap-sync.ts"),
+  readText("../../service/base/src/service/imap-mime-parser.ts"),
+  readText("../../service/base/src/service/imap-transport.ts"),
+].join("\n");
+export const serviceMessages = [
+  readText("../../service/base/src/service/mail-messages.ts"),
+  readText("../../service/base/src/persistence/relational/mail-message-repository.ts"),
+  readText("../../service/base/src/persistence/relational/mail-draft-persistence.ts"),
+].join("\n");
+export const serviceMigrations = [
+  readText("../../service/base/src/persistence/relational/migrations.ts"),
+  readText("../../service/base/src/persistence/relational/migrations-m7a.ts"),
+].join("\n");
+export const serviceSmtp = [
+  readText("../../service/base/src/service/mail-send-queue.ts"),
+  readText("../../service/base/src/service/smtp-transport.ts"),
+  readText("../../service/base/src/service/smtp-mime-encoder.ts"),
+].join("\n");
 export const readme = readText("README.md");
 export const designRules = readText("docs/design/easyemailam-design-rules.md");
 export const platformAccountApi = readText("docs/design/nmail-platform-account-api.md");
