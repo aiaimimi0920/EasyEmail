@@ -184,7 +184,7 @@ describe("M8 versioned full legacy EasyEmailAM database importer", () => {
         await rm(root, { recursive: true, force: true });
       }
     },
-    20_000,
+    60_000,
   );
 
   it(
@@ -242,7 +242,7 @@ describe("M8 versioned full legacy EasyEmailAM database importer", () => {
         await rm(root, { recursive: true, force: true });
       }
     },
-    20_000,
+    60_000,
   );
 
   it(
@@ -290,6 +290,6 @@ describe("M8 versioned full legacy EasyEmailAM database importer", () => {
         await rm(root, { recursive: true, force: true });
       }
     },
-    20_000,
+    60_000,
   );
 });

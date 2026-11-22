@@ -12,14 +12,6 @@ on:
       - 'apps/desktop/src/components/AppIcons.tsx'
   push:
     branches: [main, migration/cloudflare-web]
-    paths:
-      - '.sba/**'
-      - '.github/workflows/validate-cloudflare-sba.yml'
-      - 'service/cloudflare/**'
-      - 'service/base/src/**'
-      - 'upstreams/cloudflare_temp_email/worker/**'
-      - 'upstreams/cloudflare_temp_email/db/**'
-      - 'apps/desktop/src/components/AppIcons.tsx'
   workflow_dispatch:
 
 permissions:
