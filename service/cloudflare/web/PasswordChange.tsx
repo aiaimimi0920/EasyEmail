@@ -1,11 +1,68 @@
-import { Button, Field, Input, Notice, Panel } from '@neuro/ui';
+import { Button, ButtonLink, Field, Input, Notice, Panel } from '@neuro/ui';
 import { useRef, useState, type FormEvent } from "react";
 import { api, errorMessage } from "./api";
+import { useConfirmation } from "./Confirmation";
+import { buildNaccountLogoutUrl, type AuthConfig, type NaccountAuthConfig } from "./naccount-auth";
 
-export function PasswordChange({ onSignedOut }: { onSignedOut: (message: string) => void }) {
+export function PasswordChange({ userId, authConfig, onSignedOut }: {
+  userId: string; authConfig: AuthConfig; onSignedOut: (message: string) => void;
+}) {
   const busy = useRef(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const confirm = useConfirmation([userId, authConfig.mode]);
+
+  async function revokeAllCredentials() {
+    if (busy.current) return;
+    const accepted = await confirm("将退出 EasyEmail 所有设备会话并撤销全部 API Key，程序需要重新创建 Key。确认继续？");
+    if (!accepted || busy.current) return;
+    busy.current = true;
+    setPending(true);
+    setError("");
+    try {
+      await api("/account/revoke-credentials", "POST", {});
+      onSignedOut("全部会话和 API Key 已撤销，请重新登录");
+    } catch (failure) {
+      setError(errorMessage(failure));
+    } finally {
+      busy.current = false;
+      setPending(false);
+    }
+  }
+
+  async function ssoLogout(config: NaccountAuthConfig) {
+    if (busy.current) return;
+    busy.current = true;
+    setPending(true);
+    setError("");
+    try {
+      await api("/auth/logout", "POST");
+      window.location.assign(buildNaccountLogoutUrl(config));
+    } catch (failure) {
+      setError(errorMessage(failure));
+      busy.current = false;
+      setPending(false);
+    }
+  }
+
+  if (authConfig.mode === "naccount") {
+    return <Panel className="card" aria-label="账号安全">
+      <h2>账号安全</h2>
+      <p>密码、双重验证、通行密钥与绑定邮箱由 NAccount 统一管理。</p>
+      {error && <Notice role="alert" tone="danger">{error}</Notice>}
+      <div className="row">
+        <ButtonLink href={authConfig.accountUrl} target="_blank" rel="noopener noreferrer" variant="primary" wrap>
+          前往 NAccount 账号中心
+        </ButtonLink>
+        <Button type="button" disabled={pending} onClick={() => void revokeAllCredentials()} variant="quiet" wrap>
+          {pending ? "处理中…" : "撤销本应用全部会话与 API Key"}
+        </Button>
+        <Button type="button" disabled={pending} onClick={() => void ssoLogout(authConfig)} variant="quiet" wrap>
+          退出 EasyEmail 与 NAccount 全站登录
+        </Button>
+      </div>
+    </Panel>;
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

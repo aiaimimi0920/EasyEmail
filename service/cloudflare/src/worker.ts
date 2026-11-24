@@ -9,7 +9,8 @@ import { rateLimit } from "./rate-limits";
 import { patchMailbox } from "./organization";
 import { isAdministrator } from "./admin-access";
 import { adminRoute, isAdminPath } from "./admin-routes";
-import { changePassword } from "./account-password";
+import { changePassword, revokeOwnCredentials } from "./account-password";
+import { authConfigRoute, completeNaccountLogin } from "./naccount-routes";
 import { draftRoute, isDraftPath } from "./draft-routes";
 import { isOrganizationPath, organizationRoute } from "./organization-routes";
 import { contactRoute, isContactPath } from "./contact-routes";
@@ -41,16 +42,21 @@ async function route(request: Request, env: Env): Promise<Response> {
   const path = new URL(request.url).pathname;
   if (path === "/healthz" && request.method === "GET") return json({ service: "easyemail-cloudflare", status: "alive" });
   if (path === "/oauth/google/callback") return googleCallback(request, env);
-  if (path === "/" || path.startsWith("/assets/")) {
+  if (path === "/" || path === "/auth/callback" || path.startsWith("/assets/")) {
     if (request.method !== "GET" && request.method !== "HEAD") throw new HttpError(405, "method_not_allowed");
-    const asset = await env.ASSETS.fetch(request);
+    const assetRequest = path === "/auth/callback"
+      ? new Request(new URL("/", request.url), { method: request.method, headers: request.headers })
+      : request;
+    const asset = await env.ASSETS.fetch(assetRequest);
     return new Response(asset.body, asset);
   }
+  if (path === "/api/v1/auth/config") return authConfigRoute(request, env);
+  if (path === "/api/v1/auth/naccount/complete") return completeNaccountLogin(request, env);
   if (path === "/api/v1/auth/register" || path === "/api/v1/auth/login") {
     if (request.method !== "POST") throw new HttpError(405, "method_not_allowed");
     return signIn(request, env, path.endsWith("/register"));
   }
-  const known = ["/api/v1/me", "/api/v1/auth/logout", "/api/v1/account/password", "/api/v1/api-keys", "/api/v1/mailboxes"];
+  const known = ["/api/v1/me", "/api/v1/auth/logout", "/api/v1/account/password", "/api/v1/account/revoke-credentials", "/api/v1/api-keys", "/api/v1/mailboxes"];
   const keyMatch = /^\/api\/v1\/api-keys\/([0-9a-f-]{36})$/.exec(path);
   const mailboxMatch = /^\/api\/v1\/mailboxes\/([0-9a-f-]{36})$/.exec(path);
   if (!known.includes(path) && !keyMatch && !mailboxMatch && !isMailPath(path) && !isAdminPath(path) && !isDraftPath(path) && !isOrganizationPath(path) && !isContactPath(path) && !isConversationPath(path) && !isSubscriptionPath(path) && !isOutboxPath(path) && !isSendJobPath(path) && !isNormalAccountPath(path) && !isNormalSendPath(path) && !isNormalSendJobPath(path) && !isGoogleOAuthPath(path) && !isAgentServicePath(path) && !isAgentAccountPath(path) && !isAgentSmtpPath(path) && !isAgentTaskPath(path) && !isAgentInboxPath(path) && !isAgentReviewPath(path) && !isAgentThreadPath(path) && !isAgentInboundPath(path) && !isAgentFollowupPath(path) && !isAutoInboxPath(path)) throw new HttpError(404, "not_found");
@@ -83,6 +89,7 @@ async function route(request: Request, env: Env): Promise<Response> {
   }
   if (path === "/api/v1/auth/logout" && request.method === "POST") return logout(request, env, identity);
   if (path === "/api/v1/account/password" && request.method === "POST") return changePassword(request, env, identity);
+  if (path === "/api/v1/account/revoke-credentials" && request.method === "POST") return revokeOwnCredentials(request, env, identity);
   if (path === "/api/v1/api-keys") {
     if (request.method === "GET") return listKeys(request, env, identity);
     if (request.method === "POST") return createKey(request, env, identity);

@@ -24,8 +24,8 @@ test('preparation produces relocatable, externally hash-verifiable artifacts for
     'email/bundle/worker.js', 'email/schema.sql', 'platform/migrations/0053_normal_remote_flags.sql',
     'platform/migrations/0054_normal_server_folders.sql', 'platform/migrations/0055_normal_server_folder_inbox.sql', 'platform/migrations/0056_normal_folder_organization.sql',
     'platform/migrations/0057_normal_folder_remote_flags.sql', 'platform/migrations/0058_normal_remote_mutations.sql',
-    'platform/migrations/0059_mailbox_access_recoveries.sql', 'required-secrets.json']) assert.ok(files.includes(required), required);
-  assert.equal(files.filter(file => file.startsWith('platform/migrations/') && file.endsWith('.sql')).length, 59);
+    'platform/migrations/0059_mailbox_access_recoveries.sql', 'platform/migrations/0060_naccount_identity.sql', 'required-secrets.json']) assert.ok(files.includes(required), required);
+  assert.equal(files.filter(file => file.startsWith('platform/migrations/') && file.endsWith('.sql')).length, 60);
   assert.equal(files.some(file => /(?:\.dev\.vars|config\.yaml|node_modules|\.ts$)/.test(file)), false);
   const configs = await Promise.all(['email', 'platform'].map(component => fs.readFile(path.join(result.directory, component, 'wrangler.json'), 'utf8')));
   for (const config of configs) { assert.equal(config.includes('synthetic-local-build-secret'), false); assert.equal(config.includes('C:\\'), false); assert.equal(config.includes('JWT_SECRET'), false); }

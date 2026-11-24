@@ -5,14 +5,19 @@ import { ACTIVE_SESSION_FENCE, assertActiveSession } from './session-security';
 
 interface AccountChange {
   userId: string; expectedRevision: number; action: 'disable' | 'enable' | 'revoke-credentials' | 'password-change';
-  status?: 'active' | 'disabled'; previousPasswordHash?: string; passwordHash?: string;
+  status?: 'active' | 'disabled'; previousPasswordHash?: string; passwordHash?: string; selfRevoke?: boolean;
 }
 
 export async function changeAccount(env: Env, identity: Identity, change: AccountChange): Promise<void> {
+  if (change.selfRevoke && (change.action !== 'revoke-credentials' || change.userId !== identity.userId)) {
+    throw new HttpError(400, 'invalid_account_request');
+  }
   const id = crypto.randomUUID(), now = unixNow(), revision = change.expectedRevision + 1;
-  const admin = change.action !== 'password-change';
-  const targetFence = admin ? ADMIN_EXISTS : 'EXISTS (SELECT 1 FROM users WHERE id=? AND status=\'active\' AND password_hash=?)';
-  const targetValues = admin ? [identity.userId] : [identity.userId, change.previousPasswordHash!];
+  const admin = change.action !== 'password-change' && !change.selfRevoke;
+  const targetFence = admin ? ADMIN_EXISTS
+    : change.selfRevoke ? 'EXISTS (SELECT 1 FROM users WHERE id=? AND status=\'active\')'
+      : 'EXISTS (SELECT 1 FROM users WHERE id=? AND status=\'active\' AND password_hash=?)';
+  const targetValues = admin ? [identity.userId] : change.selfRevoke ? [identity.userId] : [identity.userId, change.previousPasswordHash!];
   const reservation = env.DB.prepare(`INSERT INTO account_audit(id,actor_id,user_id,action,revision,created_at)
     SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM users WHERE id=?)
     AND COALESCE((SELECT revision FROM account_revisions WHERE user_id=?),0)=?

@@ -5,6 +5,8 @@
 
 ## 当前入口与边界
 
+1.0.19 为 `mail.aiaimimi.com` 接入 NAccount 统一登录（Authorization Code + S256 PKCE 后端交换、JWKS RS256 与 `/oauth2/v1/userinfo` 联合核验、存量未绑定账号关联与 `super_admin` 权限同步），新增只增不减迁移 `0060_naccount_identity.sql`，同时保持公开配置、Worker 绑定清单与 SBA 升级验收契约完全兼容。
+
 1.0.18 为 `complete-prewrite-update` 补齐 SBA v3 修复结果契约要求的四项完备检查标识（`unchanged-resources-verified`、`data-preserved`、`repair-completed`、`service-ready`），并支持对已完成备份与双 Worker 发布但因缺少上述标识被执行器标记为 `SBA_RESULT_INVALID` 的父任务，在核验父备份存在且线上公开版本精确匹配父版本后完成受控闭环升级。
 
 1.0.17 将 `complete-prewrite-update` 收敛为复用与 `update_deploy.py` 完全相同的短路径单次构建（`build/`），避免在 Windows 执行器临时目录下为旧父版本二次检出长路径构建触发 `MAX_PATH` 限制（`EASYEMAIL_BUILD_FAILED`），同时继续核验线上公开版本证明、双 Worker 配置读回与私有 OUTBOX 无父任务备份写入后再执行四次静默窗口采样的持久备份与保数据升级。
@@ -35,7 +37,7 @@ CLI 输出只在私有临时文件处理，公开错误最多附唯一数字 Clo
 - `release.py`：在源码树外创建兄弟 `EasyEmail`/`NeuroDesign`，固定设计库提交、npm/pnpm 版本和冻结安装，然后复用现有双 Worker 发布准备链及 dry-run。它没有发布或资源创建模式。
 - `prepare.mjs`/`release-stamp.mjs`：用真实运行时解析器核供应商配置，保留封存基础候选，生成自包含 Worker 入口、公开版本证明和带外摘要校验的发布文件清单。
 - `public_verify.py`：不读取凭据，仅 GET 两个版本证明、两个健康入口、匿名 API 和 Web 资源；核 SHA/version/配置摘要及资源字节。不能替代私有数据、管理员或真实收发信验收。
-- `initial_deploy.py`：首次部署编排；隔离模式复核同账号 workers.dev，正式模式先核声明的空闲 HTTP 域名和可选的中性收信路由。两模式均核两 D1 的真实 ID/空态和两 R2 的私有空态；原生 Wrangler 应用自营 schema 和 59 项迁移，再核完整迁移名与数据库完整性。
+- `initial_deploy.py`：首次部署编排；隔离模式复核同账号 workers.dev，正式模式先核声明的空闲 HTTP 域名和可选的中性收信路由。两模式均核两 D1 的真实 ID/空态和两 R2 的私有空态；原生 Wrangler 应用自营 schema 和 60 项迁移，再核完整迁移名与数据库完整性。
 - `production_domains.py`：完整读取所属账号的 active Zones，以最长域名后缀选择真实 Zone，并在每个 Worker 发布前复查精确 hostname 的 DNS/custom-domain 空态。拒绝接管现有域名；custom-domain 列表必须以总数证明完整。
 - `email_routing.py`：仅接受已启用且 ready 的根收信域；声明的 catch-all 必须是 API 管理、disabled/drop 的中性规则。公开验真通过后才复查快照并单次绑定到自营 Worker，核写响应和独立 GET。不启用 Email Routing、不改共享 MX/DNS；`routing=null` 严格不写邮件路由。
 - `deployment_secrets.py`/`deployment_process.py`：稳定实例密钥派生、角色级秘密映射和发布前封存复核；构建不取部署秘密，只有发布命令取得 Cloudflare token 与当前 Worker 的临时 JSON 秘密文件，不把业务秘密放进命令参数。

@@ -1,6 +1,7 @@
 import { SESSION_COOKIE, SESSION_SECONDS, unixNow, type Env, type Identity, type UserRow } from "./contracts";
 import { HttpError, json, readJson, textField } from "./http";
 import { requireOrigin, requireSession } from "./identity";
+import { resolveNaccountConfig } from "./naccount-config";
 import { rateLimit } from "./rate-limits";
 import { hashPassword, randomToken, secretEquals, tokenHash, verifyPassword } from "./security";
 
@@ -30,9 +31,14 @@ function pruneSessions(env: Env, userId: string, hash: string): D1PreparedStatem
 
 export async function signIn(request: Request, env: Env, registering: boolean): Promise<Response> {
   requireOrigin(request, env);
+  const naccount = resolveNaccountConfig(env);
+  if (naccount && registering) throw new HttpError(403, "naccount_login_required");
   await rateLimit(env, "auth-ip", request.headers.get("cf-connecting-ip") ?? "local", 30);
   const body = await readJson(request);
   const { username, password } = credentials(body, registering);
+  if (naccount && username !== naccount.bootstrapAdminUsername) {
+    throw new HttpError(403, "naccount_login_required");
+  }
   await rateLimit(env, "auth-account", username, 5);
   const now = unixNow();
   const token = randomToken("es_");

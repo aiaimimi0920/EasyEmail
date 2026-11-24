@@ -15,10 +15,20 @@ export async function rateLimit(env: Env, category: string, subject: string, lim
 
 export async function cleanupIdentity(env: Env): Promise<void> {
   const now = unixNow();
-  await env.DB.batch([
+  const hasCodes = await env.DB.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='naccount_auth_codes'",
+  ).first();
+  const statements = [
     env.DB.prepare(`DELETE FROM auth_rate_limits WHERE bucket IN
       (SELECT bucket FROM auth_rate_limits WHERE expires_at < ? LIMIT 5000)`).bind(now),
     env.DB.prepare(`DELETE FROM sessions WHERE token_hash IN
       (SELECT token_hash FROM sessions WHERE expires_at < ? LIMIT 5000)`).bind(now),
-  ]);
+  ];
+  if (hasCodes) {
+    statements.push(
+      env.DB.prepare(`DELETE FROM naccount_auth_codes WHERE code_hash IN
+        (SELECT code_hash FROM naccount_auth_codes WHERE expires_at < ? LIMIT 5000)`).bind(now),
+    );
+  }
+  await env.DB.batch(statements);
 }

@@ -19,6 +19,7 @@ import { OrganizationGateProvider } from "./OrganizationGate";
 import { MixedOrganizationProvider } from "./MixedOrganization";
 import { NormalReplyProvider } from "./NormalReply";
 import { completeGoogleReturn, discardGoogleReturn, hasGoogleReturn } from "./google-oauth-return";
+import { completeNaccountReturn, discardNaccountReturn, hasNaccountReturn, type AuthConfig } from "./naccount-auth";
 import { AgentServices } from "./AgentServices";
 import { AgentAccounts } from "./AgentAccounts";
 import { AgentTasks } from "./AgentTasks";
@@ -32,6 +33,7 @@ import "./app.css";
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [authConfig, setAuthConfig] = useState<AuthConfig>({ mode: "local" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -46,19 +48,47 @@ function App() {
 
   useEffect(() => {
     let active = true;
-    api<{ user: User }>("/me").then(async response => {
-      if (!active) return; setUser(response.user);
-      if (hasGoogleReturn()) {
-        try { const result = await completeGoogleReturn(response.user.id); if (active) {
-          if (result.account.scope === "agent") { setAuthorizedAgentId(result.account.id); setView("agent-accounts"); }
-          else { setAuthorizedId(result.account.id); setView("normal"); }
-          setNotice("Google 邮箱授权已保存；SMTP 发信仍须单独启用");
-        } } catch (failure) { if (active) setError(errorMessage(failure)); }
+    const returningFromNaccount = hasNaccountReturn();
+    Promise.allSettled([
+      api<{ auth: AuthConfig }>("/auth/config"),
+      returningFromNaccount ? Promise.reject(new ApiError(401, "pending_callback")) : api<{ user: User }>("/me"),
+    ]).then(async ([configOutcome, meOutcome]) => {
+      if (!active) return;
+      let resolvedAuth: AuthConfig = { mode: "local" };
+      if (configOutcome.status === "fulfilled") {
+        resolvedAuth = configOutcome.value.auth;
+        setAuthConfig(resolvedAuth);
       }
-    }).catch((failure) => { if (!active) return;
-      if (hasGoogleReturn()) { discardGoogleReturn(); setError("授权会话已失效，请登录后重新发起 Google 授权"); }
-      else if (!(failure instanceof ApiError && failure.status === 401)) setError(errorMessage(failure)); })
-      .finally(() => { if (active) setLoading(false); });
+      if (returningFromNaccount) {
+        if (resolvedAuth.mode !== "naccount") {
+          discardNaccountReturn();
+          setError("当前环境未启用 NAccount 登录");
+          return;
+        }
+        try {
+          const nextUser = await completeNaccountReturn(resolvedAuth);
+          if (active) setUser(nextUser);
+        } catch (failure) {
+          if (active) setError(errorMessage(failure));
+        }
+        return;
+      }
+      if (meOutcome.status === "fulfilled") {
+        const response = meOutcome.value;
+        setUser(response.user);
+        if (hasGoogleReturn()) {
+          try { const result = await completeGoogleReturn(response.user.id); if (active) {
+            if (result.account.scope === "agent") { setAuthorizedAgentId(result.account.id); setView("agent-accounts"); }
+            else { setAuthorizedId(result.account.id); setView("normal"); }
+            setNotice("Google 邮箱授权已保存；SMTP 发信仍须单独启用");
+          } } catch (failure) { if (active) setError(errorMessage(failure)); }
+        }
+      } else {
+        const failure = meOutcome.reason;
+        if (hasGoogleReturn()) { discardGoogleReturn(); setError("授权会话已失效，请登录后重新发起 Google 授权"); }
+        else if (!(failure instanceof ApiError && failure.status === 401)) setError(errorMessage(failure));
+      }
+    }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
 
@@ -95,7 +125,7 @@ function App() {
     {error && <Notice role="alert" tone="danger">{error}</Notice>}
     {notice && <Notice role="status" tone="info">{notice}</Notice>}
   </>;
-  if (!user) return <main className="auth-page">{notices}<Authentication onAuthenticated={(next) => { setNotice(""); setUser(next); }} /></main>;
+  if (!user) return <main className="auth-page">{notices}<Authentication authConfig={authConfig} onAuthenticated={(next) => { setNotice(""); setUser(next); }} /></main>;
   return <WorkbenchShell user={user} view={view} onNavigate={setView} onLogout={logout}>
     {notices}<OrganizationGateProvider key={user.id}>
       <MixedOrganizationProvider><NormalOrganizationProvider><NormalRemoteFlagsProvider><NormalRemoteMutationsProvider><NormalReplyProvider onOpen={() => setView("normal")}>
@@ -112,7 +142,7 @@ function App() {
       {view === "admin" && user.isAdmin && <Administration key={user.id} />}
       {view === "admin" && user.isAdmin && <AccountAdministration key={user.id} userId={user.id} onSignedOut={signedOut} />}
       {user.isAdmin && <div hidden={view !== "admin"}><RetentionPanel key={user.id} visible={view === "admin"} /></div>}
-      {view === "security" && <PasswordChange key={user.id} onSignedOut={signedOut} />}
+      {view === "security" && <PasswordChange key={user.id} userId={user.id} authConfig={authConfig} onSignedOut={signedOut} />}
       <div hidden={view !== "keys"}>{keys && <ApiKeys initial={keys} />}</div>
       </NormalReplyProvider></NormalRemoteMutationsProvider></NormalRemoteFlagsProvider></NormalOrganizationProvider></MixedOrganizationProvider>
     </OrganizationGateProvider>

@@ -1,6 +1,7 @@
 import type { Env, Identity } from './contracts';
 import { HttpError, json, readJson, textField } from './http';
 import { requireSession } from './identity';
+import { resolveNaccountConfig } from './naccount-config';
 import { hashPassword, verifyPassword } from './security';
 import { rateLimit } from './rate-limits';
 import { accountRow } from './account-store';
@@ -9,6 +10,7 @@ import { sessionCookie } from './auth';
 
 export async function changePassword(request: Request, env: Env, identity: Identity): Promise<Response> {
   requireSession(identity, request, env);
+  if (resolveNaccountConfig(env)) throw new HttpError(403, 'naccount_account_managed');
   await rateLimit(env, 'account-password', identity.userId, 5);
   const body = await readJson(request);
   if (Object.keys(body).some((key) => !['currentPassword', 'newPassword'].includes(key))) throw new HttpError(400, 'invalid_password_request');
@@ -21,5 +23,20 @@ export async function changePassword(request: Request, env: Env, identity: Ident
   const account = await accountRow(env, identity.userId), passwordHash = await hashPassword(password);
   await changeAccount(env, identity, { userId: identity.userId, expectedRevision: account.revision, action: 'password-change',
     previousPasswordHash: row!.password_hash, passwordHash });
+  return json({ success: true, reauthenticate: true }, 200, { 'set-cookie': sessionCookie('', 0) });
+}
+
+export async function revokeOwnCredentials(request: Request, env: Env, identity: Identity): Promise<Response> {
+  requireSession(identity, request, env);
+  await rateLimit(env, 'account-revoke', identity.userId, 5);
+  const body = await readJson(request);
+  if (Object.keys(body).length > 0) throw new HttpError(400, 'invalid_account_request');
+  const account = await accountRow(env, identity.userId);
+  await changeAccount(env, identity, {
+    userId: identity.userId,
+    expectedRevision: account.revision,
+    action: 'revoke-credentials',
+    selfRevoke: true,
+  });
   return json({ success: true, reauthenticate: true }, 200, { 'set-cookie': sessionCookie('', 0) });
 }

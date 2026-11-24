@@ -10,7 +10,7 @@ import { migrationStatements } from './migration-sql.mjs';
 export const RELEASE_PASSWORD = 'Synthetic-release-password-735296';
 export const RELEASE_INVITE = 'synthetic-release-invitation-32bytes-minimum';
 const sitePassword = 'synthetic-release-site-password', adminPassword = 'synthetic-release-admin-password';
-const expectedMigrations = 59;
+const expectedMigrations = 60;
 
 // Only packaged production bundles run here. No test Worker, provider adapter or HTTP mail-injection route.
 export async function releaseRuntimeFixture(target = deploymentFixture(), { prepare = prepareRelease, verify = verifyRelease, workerSecrets = {}, initialize = true } = {}) {

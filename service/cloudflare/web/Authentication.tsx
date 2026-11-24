@@ -2,11 +2,41 @@ import { Button, Field, Input, Notice, Panel } from '@neuro/ui';
 import { useState, type FormEvent } from "react";
 import { api, errorMessage, type User } from "./api";
 import { BrandIcon } from './BrandIcon';
+import { startNaccountLogin, type AuthConfig, type NaccountAuthConfig } from "./naccount-auth";
 
-export function Authentication({ onAuthenticated }: { onAuthenticated: (user: User) => void }) {
+export function Authentication({ authConfig, onAuthenticated }: { authConfig: AuthConfig; onAuthenticated: (user: User) => void }) {
   const [registering, setRegistering] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+
+  async function launchNaccount(config: NaccountAuthConfig, screen?: "signup" | "reset") {
+    setPending(true);
+    setError("");
+    try {
+      await startNaccountLogin(config, screen);
+    } catch (failure) {
+      setError(errorMessage(failure));
+      setPending(false);
+    }
+  }
+
+  if (authConfig.mode === "naccount") {
+    return <Panel className="card auth">
+      <BrandIcon />
+      <h1>EasyEmail</h1>
+      <h2>账号登录</h2>
+      {error && <Notice role="alert" tone="danger">{error}</Notice>}
+      <Button type="button" disabled={pending} onClick={() => void launchNaccount(authConfig)} variant="primary" wrap>
+        {pending ? "正在跳转 NAccount…" : "使用 NAccount 登录"}
+      </Button>
+      <Button type="button" disabled={pending} onClick={() => void launchNaccount(authConfig, "signup")} variant="quiet" wrap>
+        注册 NAccount 账号
+      </Button>
+      <Button type="button" disabled={pending} onClick={() => void launchNaccount(authConfig, "reset")} variant="quiet" wrap>
+        找回密码
+      </Button>
+    </Panel>;
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

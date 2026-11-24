@@ -13,6 +13,7 @@ export interface Env {
   SMTP_ENDPOINTS?: string;
   GOOGLE_OAUTH_CLIENT_ID?: string;
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
+  NACCOUNT_CONFIG?: string;
 }
 
 export interface Identity {
