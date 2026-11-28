@@ -7,6 +7,7 @@ import { DesktopChrome, WorkspacePageHeader } from "./app/DesktopChrome";
 import { EasyEmailSetupPanel } from "./app/EasyEmailSetupPanel";
 import { MailAccountSetupPanel } from "./app/MailAccountSetupPanel";
 import { MailWorkspace } from "./app/MailWorkspace";
+import { OmnimailSetupDrawers } from "./app/OmnimailSetupDrawers";
 import { QueueWorkspace } from "./app/QueueWorkspace";
 import { SideRail } from "./app/SideRail";
 
@@ -63,6 +64,8 @@ export function AppView({ controller }: { controller: AppController }) {
 
               <MailAccountSetupPanel controller={controller} />
             </div>
+
+            <OmnimailSetupDrawers controller={controller} />
           </section>
         ) : null}
       </section>

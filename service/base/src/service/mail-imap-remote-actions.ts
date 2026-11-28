@@ -82,7 +82,9 @@ export class MailImapRemoteActions {
       if (!fetched) {
         return;
       }
-      const sanitizedHtml = fetched.bodyHtml ? sanitizeMailHtml(fetched.bodyHtml) : undefined;
+      const sanitizedHtml = fetched.bodyHtml
+        ? sanitizeMailHtml(fetched.bodyHtml, { cidUrlMap: fetched.inlineCidDataUrls })
+        : undefined;
       const snippet = extractSnippetFromBodies(fetched.bodyText, sanitizedHtml, "");
       await imapRepository.cacheMailMessageBody(
         messageId,

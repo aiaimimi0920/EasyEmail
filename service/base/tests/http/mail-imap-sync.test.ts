@@ -357,6 +357,77 @@ describe("M6 HTTP IMAP folder discovery, sync, lazy body hydration, remote actio
         result: { changedCount: 1, remoteAppliedCount: 1 },
       });
       expect(imapServer.getFolder("Trash")?.messages).toHaveLength(0);
+
+      // Append a multipart/related MIME email with inline CID image, remote image, tracking pixel, and .ics calendar
+      const cidPngBase64 = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).toString("base64");
+      imapServer.appendMessage("INBOX", {
+        uid: 103,
+        flags: [],
+        subject: "MIME Rich Invite",
+        fromName: "Calendar",
+        fromAddress: "cal@example.com",
+        messageId: "<mime-rich-103@example.com>",
+        rawRfc822: [
+          "Subject: MIME Rich Invite",
+          "From: Calendar <cal@example.com>",
+          "Message-ID: <mime-rich-103@example.com>",
+          'Content-Type: multipart/related; boundary="rich-rel"',
+          "",
+          "--rich-rel",
+          'Content-Type: multipart/alternative; boundary="rich-alt"',
+          "",
+          "--rich-alt",
+          'Content-Type: text/html; charset="utf-8"',
+          "",
+          '<style>.card{color:#234}</style><div class="card"><img src="cid:logo@example.com" alt="Logo"><img src="https://cdn.example/banner.png" width="320" height="100" alt="Banner"><img src="https://track.example/open.gif" width="1" height="1"></div>',
+          "--rich-alt",
+          'Content-Type: text/calendar; method=REQUEST; charset="utf-8"',
+          "",
+          "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:rich-evt@example.com\r\nSUMMARY:Design Review\r\nEND:VEVENT\r\nEND:VCALENDAR",
+          "--rich-alt--",
+          "--rich-rel",
+          "Content-Type: image/png",
+          "Content-Transfer-Encoding: base64",
+          'Content-Disposition: inline; filename="logo.png"',
+          "Content-ID: <logo@example.com>",
+          "",
+          cidPngBase64,
+          "--rich-rel",
+          "Content-Type: application/octet-stream",
+          "Content-Disposition: attachment; filename*=UTF-8''%E9%99%84%E4%BB%B6.bin",
+          "Content-Transfer-Encoding: base64",
+          "",
+          Buffer.from("BIN").toString("base64"),
+          "--rich-rel--",
+          "",
+        ].join("\r\n"),
+      });
+
+      const richSyncRes = await fetch(`${runtime.server.baseUrl}/mail/accounts/${account.id}/sync`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      });
+      expect(richSyncRes.status).toBe(200);
+      const richListRes = await fetch(
+        `${runtime.server.baseUrl}/mail/messages?scope=normal_account&accountId=${account.id}`,
+        { headers },
+      );
+      const richList = (await richListRes.json()) as {
+        messages: Array<{ id: string; subject: string }>;
+      };
+      const richMsg = richList.messages.find((m) => m.subject === "MIME Rich Invite");
+      expect(richMsg).toBeDefined();
+
+      // Hydrate via real HTTP GET /mail/messages/:id and verify resolved CID + preserved remote-image markers
+      const firstRichDetail = (await (
+        await fetch(`${runtime.server.baseUrl}/mail/messages/${richMsg!.id}`, { headers })
+      ).json()) as { message: { bodyHtml?: string; bodyText?: string; hasAttachments: boolean } };
+      expect(firstRichDetail.message.bodyHtml).toContain(`src="data:image/png;base64,${cidPngBase64}"`);
+      expect(firstRichDetail.message.bodyHtml).toContain('data-ee-remote-src="https://cdn.example/banner.png"');
+      expect(firstRichDetail.message.bodyHtml).toContain('data-ee-tracking-blocked="1"');
+      expect(firstRichDetail.message.bodyText).toContain("BEGIN:VCALENDAR");
+      expect(firstRichDetail.message.hasAttachments).toBe(true);
     } finally {
       await runtime.close();
       await imapServer.close();

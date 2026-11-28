@@ -1,4 +1,5 @@
 import type { AppController } from "../../app/useAppController";
+import { OmnimailAgentLanes } from "./OmnimailAgentLanes";
 
 export function AgentWorkspace({ controller }: { controller: AppController }) {
   const {
@@ -293,6 +294,7 @@ export function AgentWorkspace({ controller }: { controller: AppController }) {
           </section>
         ) : null}
       </div>
+      <OmnimailAgentLanes openUrl={controller.openUrl} />
     </section>
   );
 }

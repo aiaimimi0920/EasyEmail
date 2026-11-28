@@ -70,7 +70,7 @@ export function secured(response: Response, requestId: string): Response {
   response.headers.set("x-content-type-options", "nosniff");
   response.headers.set("referrer-policy", "no-referrer");
   response.headers.set("x-frame-options", "DENY");
-  response.headers.set("content-security-policy", "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+  response.headers.set("content-security-policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'self'; img-src blob: data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   response.headers.set("x-request-id", requestId);
   return response;
 }

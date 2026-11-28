@@ -113,6 +113,7 @@ export interface MailImapMessageBody {
   bodyText: string;
   bodyHtml?: string;
   hasAttachments: boolean;
+  inlineCidDataUrls?: Record<string, string>;
 }
 
 export interface MailImapMoveResult {

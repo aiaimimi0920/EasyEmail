@@ -25,7 +25,13 @@ export function UnifiedInboxResults({ query, onCompose, labels, folders, action,
   useEffect(() => {
     const current = ++generation.current; setPending(true); setError(""); setSelection([]); setPage(null);
     api<Page<UnifiedMessageSummary>>(path).then(value => {
-      if (current === generation.current) { setPage(value); setPageIds(value.items.filter(canOrganizeMessage).map(messageSelectionKey)); }
+      if (current !== generation.current) return;
+      setPage(value); setPageIds(value.items.filter(canOrganizeMessage).map(messageSelectionKey));
+      setSelected(previous => {
+        if (!previous) return null;
+        const key = messageSelectionKey(previous);
+        return value.items.find(item => messageSelectionKey(item) === key) ?? null;
+      });
     }).catch(failure => { if (current === generation.current) setError(errorMessage(failure)); })
       .finally(() => { if (current === generation.current) setPending(false); });
     return () => { generation.current++; };

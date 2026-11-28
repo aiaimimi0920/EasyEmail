@@ -52,6 +52,8 @@ export async function getNormalMessage(env: Env, identity: Identity, accountId: 
   const content = await normalContent(env, row);
   if (content.recipient !== context.account.email_address) throw new HttpError(503, "normal_content_unavailable");
   const message = { ...(await summary(env, row)), ...(serverFolderId ? { serverFolderId } : {}), accountRevision: context.account.revision, textBody: content.textBody, htmlBody: content.htmlBody,
+    ...(content.authenticationResults ? { authenticationResults: content.authenticationResults } : {}),
+    ...(content.replyToHeader ? { replyAddress: content.replyToHeader } : {}),
     attachmentsTruncated: content.attachmentsTruncated, attachments: content.attachments.map(part => ({ filename: part.filename,
       size: part.size, downloadAvailable: downloadable(part) })) };
   await assertFolderInboxCurrent(env, identity, context); return { message };

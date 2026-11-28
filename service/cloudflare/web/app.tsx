@@ -28,6 +28,9 @@ import { NormalRemoteFlagsProvider } from "./NormalRemoteFlags";
 import { NormalRemoteMutationsProvider } from "./NormalRemoteMutations";
 import { WorkbenchShell } from "./WorkbenchShell";
 import { ConfirmationProvider } from "./Confirmation";
+import { AiSettingsPanel } from "./AiSettingsPanel";
+import { WorkBuddyPanel } from "./WorkBuddyPanel";
+import { InboxRulesPanel } from "./InboxRulesPanel";
 import '@neuro/ui/styles.css';
 import "./app.css";
 
@@ -139,6 +142,9 @@ function App() {
       <AgentAccounts key={user.id} visible={view === "agent-accounts"} authorizedId={authorizedAgentId} />
       <AgentTasks key={user.id} visible={view === "agent-tasks"} />
       <AgentThreads key={user.id} visible={view === "agent-threads"} />
+      {view === "rules" && <InboxRulesPanel key={`rules:${user.id}`} />}
+      {view === "workbuddy" && <WorkBuddyPanel key={`wb:${user.id}`} />}
+      {view === "ai-settings" && <AiSettingsPanel key={`ai:${user.id}`} />}
       {view === "admin" && user.isAdmin && <Administration key={user.id} />}
       {view === "admin" && user.isAdmin && <AccountAdministration key={user.id} userId={user.id} onSignedOut={signedOut} />}
       {user.isAdmin && <div hidden={view !== "admin"}><RetentionPanel key={user.id} visible={view === "admin"} /></div>}

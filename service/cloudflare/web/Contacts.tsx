@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import type { Contact } from "./contacts-api";
 import { useContacts } from "./useContacts";
 import { useContactMutation } from "./useContactMutation";
+import { ContactToolsPanel } from "./ContactToolsPanel";
 
 export function Contacts({ visible }: { visible: boolean }) {
   const list = useContacts(visible), [query, setQuery] = useState("");
@@ -45,5 +46,6 @@ export function Contacts({ visible }: { visible: boolean }) {
         }} variant="quiet" wrap>删除联系人 {contact.displayName}</Button></div>
     </article></li>)}</ul>
     {list.page?.nextCursor && <Button disabled={list.pending || action.locked} onClick={list.loadMore} wrap>加载更多联系人</Button>}
+    <ContactToolsPanel onChanged={list.refresh} />
   </Panel>;
 }

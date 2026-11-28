@@ -1,4 +1,4 @@
-import { Button, Field, Input, Notice, Panel, Select } from '@neuro/ui';
+import { Button, Checkbox, Field, Input, Notice, Panel, Select } from '@neuro/ui';
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, errorMessage, type Compose } from "./api";
 import { loadLabels, type Label } from "./labels-api";
@@ -57,6 +57,10 @@ export function AggregateInbox({ onCompose, visible }: { onCompose: Compose; vis
     const params = new URLSearchParams();
     for (const [key, raw] of values.entries()) {
       const value = String(raw).trim();
+      if (key === "dedup") {
+        if (value === "on") params.set("dedup", "true");
+        continue;
+      }
       if (value) params.set(key, key === "since" || key === "until" ? String(Math.floor(new Date(value).getTime() / 1000)) : value);
     }
     setQuery(params.toString());
@@ -80,6 +84,7 @@ export function AggregateInbox({ onCompose, visible }: { onCompose: Compose; vis
         <Field label="收件时间至"><Input name="until" type="datetime-local" /></Field>
         <Field label="标签筛选"><Select name="labelId"><option value="">全部标签</option>{labels.map(label => <option key={label.id} value={label.id}>{label.name}</option>)}</Select></Field>
         <Field label="自定义文件夹筛选"><Select name="folderId"><option value="">不指定文件夹</option>{folderOptions(folders).map(({ folder, path }) => <option key={folder.id} value={folder.id}>{path}</option>)}</Select></Field>
+        <Checkbox name="dedup" label="跨目录去重（折叠 All Mail 副本）" />
         <Button type="submit" wrap>搜索邮件</Button></div>
       </fieldset>
     </form>

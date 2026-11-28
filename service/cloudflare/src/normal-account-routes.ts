@@ -5,10 +5,13 @@ import { normalAccountInput, imapEndpoints } from "./normal-account-input";
 import { normalAccountView, type NormalAccount } from "./normal-account-model";
 import { mutateNormalAccount, normalAccount } from "./normal-account-store";
 import { testNormalAccount } from "./normal-account-test";
+import { diagnoseNormalAccount } from "./normal-connection-diagnostics";
+import { detectCloudflareProviderPresetResponse, getCloudflareProviderPresetsResponse } from "./normal-provider-presets";
 import { isNormalInboxPath, normalInboxRoute } from "./normal-inbox-routes";
 import { isServerFolderPath, serverFolderRoute } from "./normal-server-folder-routes";
 
-export const isNormalAccountPath = (path: string) => isServerFolderPath(path) || isNormalInboxPath(path) || /^\/api\/v1\/normal-accounts(?:\/endpoints|\/[0-9a-f-]{36}(?:\/test)?)?$/.test(path);
+export const isNormalAccountPath = (path: string) => isServerFolderPath(path) || isNormalInboxPath(path)
+  || /^\/api\/v1\/normal-accounts(?:\/endpoints|\/presets|\/detect-preset|\/[0-9a-f-]{36}(?:\/test|\/diagnose)?)?$/.test(path);
 export async function normalAccountRoute(request: Request, env: Env, identity: Identity) {
   const path = new URL(request.url).pathname;
   if (isServerFolderPath(path)) return serverFolderRoute(request, env, identity);
@@ -16,6 +19,8 @@ export async function normalAccountRoute(request: Request, env: Env, identity: I
   if (request.method === "GET") {
     requireScope(identity, "mail-accounts:read");
     if (path.endsWith("/endpoints")) return json({ items: imapEndpoints(env) });
+    if (path.endsWith("/presets")) return getCloudflareProviderPresetsResponse(env);
+    if (path.endsWith("/detect-preset")) return detectCloudflareProviderPresetResponse(request, env);
     const id = /^\/api\/v1\/normal-accounts\/([0-9a-f-]{36})$/.exec(path)?.[1];
     if (id) {
       const account = await normalAccount(env, identity.userId, id);
@@ -30,10 +35,13 @@ export async function normalAccountRoute(request: Request, env: Env, identity: I
     return json({ items: items.map(normalAccountView), nextCursor: results.length > limit ? items.at(-1)!.id : null });
   }
   if (identity.kind === "session") requireOrigin(request, env);
-  const match = /^\/api\/v1\/normal-accounts\/([0-9a-f-]{36})(\/test)?$/.exec(path);
+  const match = /^\/api\/v1\/normal-accounts\/([0-9a-f-]{36})(\/test|\/diagnose)?$/.exec(path);
   if (!match) throw new HttpError(405, "method_not_allowed");
-  if (match[2] && request.method === "POST") {
+  if (match[2] === "/test" && request.method === "POST") {
     requireScope(identity, "mail-accounts:sync"); return testNormalAccount(request, env, identity, match[1]);
+  }
+  if (match[2] === "/diagnose" && request.method === "POST") {
+    requireScope(identity, "mail-accounts:sync"); return diagnoseNormalAccount(request, env, identity, match[1]);
   }
   if (!match[2] && ["PUT", "DELETE"].includes(request.method)) {
     requireScope(identity, "mail-accounts:write");

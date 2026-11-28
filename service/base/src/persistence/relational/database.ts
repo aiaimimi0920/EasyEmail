@@ -62,6 +62,7 @@ import { SqliteMailAgentRepository } from "./mail-agent-repository.js";
 import { SqliteMailAvatarRepository } from "./mail-avatar-repository.js";
 import { SqliteMailExtensionsRepository } from "./mail-extensions-repository.js";
 import { SqliteMailTaxonomyRepository } from "./mail-taxonomy-repository.js";
+import { SqliteOmnimailWorkbenchRepository } from "./omnimail-workbench-repository.js";
 
 export type { SqliteRelationalDatabaseOptions } from "./database-bootstrap.js";
 export {
@@ -105,6 +106,7 @@ export class SqliteRelationalDatabase
   private readonly mailAvatar: SqliteMailAvatarRepository;
   private readonly mailExtensions: SqliteMailExtensionsRepository;
   private readonly mailTaxonomy: SqliteMailTaxonomyRepository;
+  public readonly omnimailWorkbench: SqliteOmnimailWorkbenchRepository;
   private closed = false;
   public readonly backupPath?: string;
 
@@ -119,6 +121,7 @@ export class SqliteRelationalDatabase
     this.mailAvatar = new SqliteMailAvatarRepository(this.database);
     this.mailExtensions = new SqliteMailExtensionsRepository(this.database);
     this.mailTaxonomy = new SqliteMailTaxonomyRepository(this.database);
+    this.omnimailWorkbench = new SqliteOmnimailWorkbenchRepository(this.database);
   }
 
   public listContacts(query: ContactRepositoryListQuery): Promise<ContactRepositoryListResult> {

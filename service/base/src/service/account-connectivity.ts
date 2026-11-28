@@ -44,6 +44,13 @@ export interface MailSmtpConnectionTestResult {
   capabilitySummary: string;
 }
 
+export interface MailSmtpInlineAttachment {
+  contentId: string;
+  filename: string;
+  mimeType: string;
+  contentBase64: string;
+}
+
 export interface MailSmtpSendEnvelope {
   fromAddress: string;
   fromName?: string;
@@ -54,6 +61,7 @@ export interface MailSmtpSendEnvelope {
   bodyText: string;
   bodyHtml?: string;
   rfcMessageId?: string;
+  inlineAttachments?: MailSmtpInlineAttachment[];
 }
 
 export interface MailSmtpSendResult {

@@ -5,7 +5,11 @@ export interface NormalMailSummary {
   receivedAt: number; observedAt: number; remoteFlags: string[]; serverFolderId?: string; serverFolderName?: string;
   platformState: { isRead: boolean; starred: boolean; archived: boolean; trashedAt: number | null };
 }
-export interface NormalMail extends NormalMailSummary { accountRevision: number; textBody: string; htmlBody: string; attachments: Attachment[]; attachmentsTruncated: boolean }
+export interface NormalMail extends NormalMailSummary {
+  accountRevision: number; textBody: string; htmlBody: string;
+  replyAddress?: string | null; authenticationResults?: string;
+  attachments: Attachment[]; attachmentsTruncated: boolean;
+}
 export interface NormalAggregateSummary extends NormalMailSummary { sourceKind: "normal"; mailboxAddress: string; mailboxDisplayName: string }
 export type UnifiedMessageSummary = MessageSummary | NormalAggregateSummary;
 export interface NormalMailPage extends Page<NormalMailSummary> { epochId: string | null; accountRevision: number; sourceReady: boolean }

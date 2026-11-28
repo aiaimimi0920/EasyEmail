@@ -77,6 +77,67 @@ describe("IMAP folder classifier and RFC 5322 MIME parser", () => {
     expect(parsed.bodyHtml).toContain("<b>EasyEmail</b>");
     expect(parsed.hasAttachments).toBe(true);
   });
+
+  it("parses multipart/related inline CID images, RFC 2231 filenames, line-anchored boundaries, Big5 headers, and text/calendar", () => {
+    const big5Subject = Buffer.from([0xb4, 0xfa, 0xb8, 0xd5]); // "測試" in Big5
+    const pngBase64 = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).toString("base64");
+    const raw = Buffer.concat([
+      Buffer.from("Subject: "),
+      big5Subject,
+      Buffer.from(
+        [
+          "",
+          "From: sender@example.com",
+          'Content-Type: multipart/related; boundary="rel-bound"; charset="big5"',
+          "",
+          "--rel-bound",
+          'Content-Type: multipart/alternative; boundary="alt-bound"',
+          "",
+          "--alt-bound",
+          'Content-Type: text/plain; charset="utf-8"',
+          "Content-Transfer-Encoding: quoted-printable",
+          "",
+          "Inline text mentioning --rel-bound mid-line =   ",
+          "continued cleanly.",
+          "--alt-bound",
+          'Content-Type: text/html; charset="utf-8"',
+          "",
+          '<p>Meeting <img src="cid:logo@example.com" alt="Logo" /></p>',
+          "--alt-bound",
+          'Content-Type: text/calendar; method=REQUEST; charset="utf-8"',
+          "",
+          "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:cal-1@example.com\r\nSUMMARY:Review\r\nEND:VEVENT\r\nEND:VCALENDAR",
+          "--alt-bound--",
+          "--rel-bound",
+          'Content-Type: image/png; name="logo.png"',
+          "Content-Transfer-Encoding: base64",
+          'Content-Disposition: inline; filename="logo.png"',
+          "Content-ID: <logo@example.com>",
+          "",
+          pngBase64,
+          "--rel-bound",
+          "Content-Type: application/pdf",
+          "Content-Disposition: attachment; filename*=UTF-8''%E6%8A%A5%E5%91%8A.pdf",
+          "Content-Transfer-Encoding: base64",
+          "",
+          Buffer.from("PDF").toString("base64"),
+          "--rel-bound--",
+          "",
+        ].join("\r\n"),
+        "latin1",
+      ),
+    ]);
+
+    const headers = extractStructuredMimeHeaders(raw);
+    expect(headers.subject).toBe("測試");
+
+    const parsed = parseImapRfc822MessageBody(raw);
+    expect(parsed.bodyText).toContain("--rel-bound mid-line continued cleanly.");
+    expect(parsed.bodyText).toContain("BEGIN:VCALENDAR");
+    expect(parsed.bodyHtml).toContain('src="cid:logo@example.com"');
+    expect(parsed.inlineCidDataUrls?.["logo@example.com"]).toBe(`data:image/png;base64,${pngBase64}`);
+    expect(parsed.hasAttachments).toBe(true);
+  });
 });
 
 describe("ImapFlowTransport over stateful loopback TLS 1.2+", () => {

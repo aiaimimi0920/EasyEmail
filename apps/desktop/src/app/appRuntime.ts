@@ -11,6 +11,7 @@ import { createNewsletterClient } from "../api/newsletterClient";
 import { createPlatformAccountClient } from "../api/platformAccountClient";
 import { createSendQueueClient } from "../api/sendQueueClient";
 import { createSettingsClient } from "../api/settingsClient";
+import { createOmnimailWorkbenchClient } from "../api/omnimailWorkbenchClient";
 
 export const bundledCoreClient = createBundledCoreClient(invoke);
 export const agentMailClient = createAgentMailClient(bundledCoreClient);
@@ -24,3 +25,4 @@ export const newsletterClient = createNewsletterClient(bundledCoreClient);
 export const platformAccountClient = createPlatformAccountClient();
 export const settingsClient = createSettingsClient(bundledCoreClient);
 export const sendQueueClient = createSendQueueClient(bundledCoreClient);
+export const omnimailWorkbenchClient = createOmnimailWorkbenchClient(bundledCoreClient);

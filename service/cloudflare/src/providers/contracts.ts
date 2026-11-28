@@ -29,6 +29,8 @@ export interface MailContent {
   attachments: MailAttachment[];
   receivedAt: number | null;
   rfcMessageId?: string | null;
+  authenticationResults?: string;
+  replyToHeader?: string;
   threadHeaders?: import("../message-thread-model").ThreadHeaders;
   subscriptionHeaders?: import("../subscription-model").SubscriptionHeaders;
   attachmentsTruncated?: boolean;

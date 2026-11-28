@@ -4,6 +4,7 @@ import { MAIL_IMAP_SYNC_MIGRATION_SQL } from "./migrations-imap-sync.js";
 import { MAIL_M7A_EXTENSIONS_MIGRATION_SQL } from "./migrations-m7a.js";
 import { MAIL_M7B_AGENT_MIGRATION_SQL } from "./migrations-m7b.js";
 import { MAIL_M7C_AVATARS_MIGRATION_SQL } from "./migrations-m7c.js";
+import { MAIL_OMNIMAIL_WORKBENCH_MIGRATION_SQL } from "./migrations-omnimail.js";
 
 export interface RelationalMigration {
   version: number;
@@ -404,6 +405,11 @@ ON mail_send_queue(message_id, status);
 ALTER TABLE legacy_import_receipts
 ADD COLUMN details_json TEXT NOT NULL DEFAULT '{}';
 `,
+  },
+  {
+    version: 13,
+    name: "omnimail-ai-workbuddy-rules-contacts-calendar",
+    sql: MAIL_OMNIMAIL_WORKBENCH_MIGRATION_SQL,
   },
 ] as const;
 

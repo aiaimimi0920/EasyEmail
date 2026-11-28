@@ -1,6 +1,8 @@
 import { Button, Checkbox, Field, Input, Select } from '@neuro/ui';
 import { useState, type FormEvent } from "react";
 import type { ImapEndpoint, NormalAccount } from "./normal-accounts";
+import { ProviderPresetGuide } from "./ProviderPresetGuide";
+import { normalizeProviderAppSecret } from "../../base/src/domain/mail-provider-presets";
 
 export function MailAccountForm({ account, endpoints, disabled, onSave, onDirty, label = "普通邮箱", immutableAddress = false }: {
   account: Omit<NormalAccount, "deleted"> | null; endpoints: ImapEndpoint[]; disabled: boolean;
@@ -10,7 +12,9 @@ export function MailAccountForm({ account, endpoints, disabled, onSave, onDirty,
   const oauth = endpoints.find(row => row.id === endpointId)?.authentication === "google-oauth2";
   const separator = /^[A-Za-z]/.test(label) ? " " : "";
   function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const fields = new FormData(event.currentTarget), password = String(fields.get("password") ?? "");
+    event.preventDefault(); const fields = new FormData(event.currentTarget), rawPassword = String(fields.get("password") ?? "");
+    const emailStr = String(fields.get("emailAddress") ?? "");
+    const password = rawPassword ? normalizeProviderAppSecret(emailStr, rawPassword) : "";
     onSave({ expectedRevision: account?.revision ?? 0, emailAddress: fields.get("emailAddress"), displayName: fields.get("displayName"),
       endpointId: fields.get("endpointId"), username: fields.get("username"), ...(password ? { password } : {}),
       enabled: oauth && (!account?.credentialConfigured || account.authentication !== "google-oauth2") ? false : fields.get("enabled") === "on",
@@ -19,6 +23,7 @@ export function MailAccountForm({ account, endpoints, disabled, onSave, onDirty,
   return <form onSubmit={submit} onChange={onDirty} aria-label={`${label}配置`}>
     <fieldset disabled={disabled}>
       <legend>{account ? `编辑${separator}${label}` : `添加${separator}${label}`}</legend>
+      {label === "普通邮箱" && <ProviderPresetGuide endpoints={endpoints} selectedEndpointId={endpointId} onSelectEndpoint={(id) => { setEndpointId(id); onDirty(); }} />}
       <Field label="邮箱地址"><Input name="emailAddress" type="email" maxLength={254} required defaultValue={account?.emailAddress ?? ""} readOnly={immutableAddress && account !== null} /></Field>
       <Field label="邮箱名称"><Input name="displayName" maxLength={100} defaultValue={account?.displayName ?? ""} /></Field>
       <Field label="IMAP 服务器"><Select name="endpointId" required value={endpointId} onChange={event => setEndpointId(event.target.value)}>

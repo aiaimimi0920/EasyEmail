@@ -15,6 +15,10 @@ export function normalMimeHeaders(headers: Header[]) {
     return "";
   }
   const inReplyTo = field("in-reply-to", "thread"), references = field("references", "thread");
+  const authenticationResults = headers.filter(header => header.key.toLowerCase() === "authentication-results")
+    .map(header => header.value).join(" ; ").replace(/\r?\n[ \t]+/g, " ").replace(/[\r\n\x00]/g, " ").slice(0, 4096);
+  const replyToHeader = headers.filter(header => header.key.toLowerCase() === "reply-to")
+    .map(header => header.value).join(", ").replace(/\r?\n[ \t]+/g, " ").replace(/[\r\n\x00]/g, " ").slice(0, 1024);
   const list = {
     listId: field("list-id", "list"), unsubscribe: field("list-unsubscribe", "list"),
     unsubscribePost: field("list-unsubscribe-post", "list"), precedence: field("precedence", "list"),
@@ -23,6 +27,8 @@ export function normalMimeHeaders(headers: Header[]) {
   const ownIds = headers.filter(header => header.key.toLowerCase() === "message-id");
   return {
     rfcMessageId: ownIds.length === 1 ? rfcMessageId(ownIds[0].value.trim()) : null,
+    ...(authenticationResults ? { authenticationResults } : {}),
+    ...(replyToHeader ? { replyToHeader } : {}),
     threadHeaders: parseThreadHeaders({ version: 1, inReplyTo, references, limited: threadLimited }),
     subscriptionHeaders: parseSubscriptionHeaders({ version: 1, ...list, limited: listLimited }),
   };

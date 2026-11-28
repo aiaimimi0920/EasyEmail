@@ -4,6 +4,7 @@ import { mailAddress } from "./mail-address";
 import { normalMimeHeaders } from "./normal-mime-headers";
 import { IMAP_MESSAGE_BYTES } from "./normal-imap-fetch";
 import type { MailContent, MailAttachment } from "./providers/contracts";
+import { decodeMailHeaderTextWithFallback, repairRawMimeHeaderCharsetBytes } from "../../base/src/domain/mail-charset-fallback";
 
 export type NormalMimeContent = Omit<MailContent, "remoteId" | "resourceVersion" | "remoteDeleteEnabled"> & { headerRecipient?: string };
 export async function normalMimeHash(bytes: Uint8Array) {
@@ -14,7 +15,8 @@ export async function parseNormalMimeParts(raw: Uint8Array) {
   if (!(raw instanceof Uint8Array) || !raw.length) throw new HttpError(502, "invalid_normal_message");
   if (raw.byteLength > IMAP_MESSAGE_BYTES) throw new HttpError(502, "normal_message_too_large");
   try {
-    return await PostalMime.parse(raw, { attachmentEncoding: "arraybuffer", maxNestingDepth: 32,
+    const repaired = repairRawMimeHeaderCharsetBytes(raw);
+    return await PostalMime.parse(repaired, { attachmentEncoding: "arraybuffer", maxNestingDepth: 32,
       maxHeadersSize: 256 * 1024, maxPartCount: 200, maxRfc822NestingDepth: 5, maxForwardedAddresses: 100 });
   } catch { throw new HttpError(502, "normal_mime_parse_failed"); }
 }
@@ -29,9 +31,11 @@ export async function parseNormalMime(raw: Uint8Array, recipient: string, receiv
       size: bytes.byteLength, sha256: await normalMimeHash(bytes) });
   }
   const from = parsed.from;
-  const sender = from && !from.group ? (from.name ? `${from.name} <${from.address}>` : from.address) : "";
+  const decodedFromName = from && !from.group && from.name ? decodeMailHeaderTextWithFallback(from.name) : "";
+  const sender = from && !from.group ? (decodedFromName ? `${decodedFromName} <${from.address}>` : from.address) : "";
+  const decodedSubject = decodeMailHeaderTextWithFallback(parsed.subject ?? "");
   const content: NormalMimeContent = {
-    sender: sender.slice(0, 2048), recipient, subject: (parsed.subject ?? "").slice(0, 4096),
+    sender: sender.slice(0, 2048), recipient, subject: decodedSubject.slice(0, 4096),
     textBody: (parsed.text ?? "").slice(0, 131072), htmlBody: (parsed.html ?? "").slice(0, 131072),
     attachments, attachmentsTruncated: parsed.attachments.length > 100, receivedAt, ...normalMimeHeaders(parsed.headers),
   };

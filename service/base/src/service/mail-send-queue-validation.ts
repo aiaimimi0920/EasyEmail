@@ -40,6 +40,19 @@ const ALLOWED_QUEUE_STATUSES = new Set<MailSendQueueStatus>([
   "failed",
 ]);
 
+export function assertReplySenderIdentityLocked(
+  accountId: string,
+  lockedReplyAccountId: string | null | undefined,
+): void {
+  const locked = typeof lockedReplyAccountId === "string" ? lockedReplyAccountId.trim() : "";
+  if (locked && locked !== accountId.trim()) {
+    throw new EasyEmailError(
+      "ERR_IDENTITY_LOCKED",
+      "Reply or forward sender identity is locked to the original receiving account.",
+    );
+  }
+}
+
 export function normalizeSendQueueStatus(value: unknown): MailSendQueueStatus {
   if (typeof value !== "string" || !ALLOWED_QUEUE_STATUSES.has(value as MailSendQueueStatus)) {
     throw new EasyEmailError("INVALID_QUERY", "Invalid send queue status filter.");

@@ -2,7 +2,7 @@ import { HttpError } from "./http";
 import { tokenHash } from "./security";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const FIELDS = new Set(["q", "sender", "recipient", "mailboxId", "providerId", "folder", "isRead", "starred", "since", "until", "limit", "cursor", "labelId", "folderId"]);
+const FIELDS = new Set(["q", "sender", "recipient", "mailboxId", "providerId", "folder", "isRead", "starred", "since", "until", "limit", "cursor", "labelId", "folderId", "dedup"]);
 interface Cursor { time: number; id: string; filter: string }
 
 export function encodeInboxCursor(time: number, id: string, filter: string): string {
@@ -44,6 +44,7 @@ export async function inboxQuery(url: URL, userId: string) {
   const filters = { q: text("q", 256), sender: text("sender", 320), recipient: text("recipient", 320),
     mailboxId: text("mailboxId", 36), providerId: text("providerId", 48), folder: params.get("folder") ?? "inbox",
     isRead: boolean("isRead"), starred: boolean("starred"), since: date("since"), until: date("until"),
+    ...(params.has("dedup") ? { dedup: boolean("dedup") === true } : {}),
     ...(params.has("labelId") ? { labelId: text("labelId", 36) } : {}), ...(params.has("folderId") ? { folderId: text("folderId", 36) } : {}) };
   if ((filters.mailboxId && !UUID.test(filters.mailboxId))
     || (filters.providerId && !/^[a-z][a-z0-9-]{0,47}$/.test(filters.providerId))

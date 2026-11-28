@@ -13,6 +13,7 @@ export function MessageDetail({ mailboxId, id, onStateChanged, onRemoved, onComp
   onLabelsChanged?: () => void;
 }) {
   const [message, setMessage] = useState<Message | null>(null);
+  const [readAttempt, setReadAttempt] = useState(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const active = useRef(false);
@@ -20,12 +21,13 @@ export function MessageDetail({ mailboxId, id, onStateChanged, onRemoved, onComp
   const path = `/mailboxes/${mailboxId}/messages/${id}`;
 
   useEffect(() => {
-    let current = true;
+    const controller = new AbortController();
     active.current = true;
-    api<{ message: Message }>(path).then((value) => { if (current) setMessage(value.message); })
-      .catch((failure) => { if (current) setError(errorMessage(failure)); });
-    return () => { current = false; active.current = false; };
-  }, [path]);
+    api<{ message: Message }>(path, "GET", undefined, undefined, controller.signal)
+      .then(value => { if (!controller.signal.aborted) setMessage(value.message); })
+      .catch(failure => { if (!controller.signal.aborted) setError(errorMessage(failure)); });
+    return () => { controller.abort(); active.current = false; };
+  }, [path, readAttempt]);
 
   async function patch(fields: Partial<Omit<MessageState, "id">>) {
     if (busy.current) return;
@@ -39,6 +41,9 @@ export function MessageDetail({ mailboxId, id, onStateChanged, onRemoved, onComp
 
   return <article className="message-detail" aria-label="邮件详情">
     {error && <Notice role="alert" tone="danger">{error}</Notice>}
+    {!message && error && <Button type="button" variant="quiet" onClick={() => {
+      setError(""); setReadAttempt(attempt => attempt + 1);
+    }} wrap>重新读取邮件</Button>}
     {!message && !error && <Notice role="status" tone="info">读取邮件…</Notice>}
     {message && <>
       <h3>{message.subject || "（无主题）"}</h3><p className="message-addresses">{message.sender} → {message.recipient}</p>
@@ -49,7 +54,7 @@ export function MessageDetail({ mailboxId, id, onStateChanged, onRemoved, onComp
         <Button disabled={pending} onClick={() => patch({ starred: !message.starred })} variant="quiet" wrap>{message.starred ? "取消星标" : "加星标"}</Button>
         <Button disabled={pending} onClick={() => patch({ archived: !message.archived })} variant="quiet" wrap>{message.archived ? "移回收件箱" : "归档"}</Button>
       </div>
-      <SafeMailBody key={path} text={message.textBody} html={message.htmlBody} />
+      <SafeMailBody key={path} subject={message.subject} text={message.textBody} html={message.htmlBody} sender={message.sender} replyAddress={message.replyAddress} attachmentFilenames={message.attachments.map(a => a.filename)} />
       <MessageLabels key={`labels-${path}`} path={path} id={id} onChanged={onLabelsChanged} />
       <MessageFolder key={`folder-${path}`} path={path} id={id} onChanged={onLabelsChanged} />
       <AttachmentList key={`attachments-${path}`} path={path} items={message.attachments} truncated={message.attachmentsTruncated} />

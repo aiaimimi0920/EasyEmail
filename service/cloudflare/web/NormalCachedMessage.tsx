@@ -19,7 +19,9 @@ function RawDownload({ path }: { path: string }) {
 }
 export function NormalCachedMessage({ path, message }: { path: string; message: NormalMail }) {
   return <>
-    <SafeMailBody key={message.id} text={message.textBody} html={message.htmlBody} />
+    <SafeMailBody key={message.id} subject={message.subject} text={message.textBody} html={message.htmlBody} sender={message.sender}
+      replyAddress={message.replyAddress} authenticationResults={message.authenticationResults}
+      attachmentFilenames={message.attachments.map(a => a.filename)} />
     <AttachmentList key={path} path={path} items={message.attachments} truncated={message.attachmentsTruncated} />
     <RawDownload key={`${path}:raw`} path={path} />
   </>;
