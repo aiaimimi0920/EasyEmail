@@ -57,16 +57,55 @@ function escapeIcsText(raw: string): string {
     .replace(/,/g, "\\,");
 }
 
-export function parseIcsTimestampMs(rawValue: string): number | null {
+// Intl converts instants to wall times. Try the offsets on either side of a
+// transition and require exactly one instant that round-trips to the input.
+function resolveZonedTime(wall: number, zone: string): number | null {
+  if (!/^(?:UTC|GMT|[A-Za-z_]+(?:\/[A-Za-z0-9_+-]+)+)$/i.test(zone)) return null;
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longOffset" });
+  } catch (error) {
+    if (error instanceof RangeError) return null;
+    throw error;
+  }
+  const offsetAt = (instant: number) => {
+    const name = formatter.formatToParts(instant).find(part => part.type === "timeZoneName")?.value;
+    if (name === "GMT") return 0;
+    const parts = /^GMT([+-])(\d\d):(\d\d)(?::(\d\d))?$/.exec(name ?? "");
+    if (!parts) return null;
+    return (parts[1] === "-" ? -1 : 1) * (+parts[2]! * 3600 + +parts[3]! * 60 + Number(parts[4] ?? 0)) * 1000;
+  };
+  const day = 86400000;
+  const offsets = new Set([offsetAt(wall - day), offsetAt(wall), offsetAt(wall + day)]);
+  let match: number | null = null;
+  for (const offset of offsets) {
+    if (offset === null) return null;
+    const candidate = wall - offset;
+    if (offsetAt(candidate) !== offset) continue;
+    if (match !== null) return null; // Repeated wall time.
+    match = candidate;
+  }
+  return match; // A skipped wall time has no match.
+}
+
+export function parseIcsTimestampMs(rawValue: string, zone?: string): number | null {
   const cleaned = rawValue.trim();
   const dateTimeMatch = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/i.exec(cleaned);
   if (dateTimeMatch) {
     const [, y, m, d, hh, mm, ss, utcFlag] = dateTimeMatch;
+    if (zone !== undefined) {
+      if (utcFlag) return null;
+      const iso = `${y}-${m}-${d}T${hh}:${mm}:${ss}.000Z`;
+      const wall = Date.parse(iso);
+      if (!Number.isFinite(wall) || new Date(wall).toISOString() !== iso) return null;
+      return resolveZonedTime(wall, zone);
+    }
     const ms = utcFlag
       ? Date.UTC(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm), Number(ss))
       : new Date(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm), Number(ss)).getTime();
     return Number.isNaN(ms) ? null : ms;
   }
+  if (zone !== undefined) return null;
   const dateOnlyMatch = /^(\d{4})(\d{2})(\d{2})$/.exec(cleaned);
   if (dateOnlyMatch) {
     const [, y, m, d] = dateOnlyMatch;
@@ -150,8 +189,15 @@ export function parseIcsMeetingInvite(rawIcs: string, selfEmail = "", extraBodyT
     else if (prop === "SUMMARY") summary = unescapeIcsText(value);
     else if (prop === "LOCATION") location = unescapeIcsText(value);
     else if (prop === "DESCRIPTION") description = unescapeIcsText(value);
-    else if (prop === "DTSTART") startAtMs = parseIcsTimestampMs(value);
-    else if (prop === "DTEND") endAtMs = parseIcsTimestampMs(value);
+    else if (prop === "DTSTART" || prop === "DTEND") {
+      const zones = head.split(";").slice(1).filter(token => /^TZID(?:\s*=|$)/i.test(token.trim()));
+      const zone = zones.length ? /^TZID\s*=\s*(?:"([^"]+)"|([^"\s]+))$/i.exec(zones[0]!.trim()) : null;
+      if (zones.length && (zones.length !== 1 || !zone)) return null;
+      const instant = parseIcsTimestampMs(value, zone?.[1] ?? zone?.[2]);
+      if (zones.length && instant === null) return null;
+      if (prop === "DTSTART") startAtMs = instant;
+      else endAtMs = instant;
+    }
     else if (prop === "ORGANIZER") {
       organizerEmail = value.replace(/^mailto:/i, "").trim().toLowerCase();
       organizerName = params["CN"] ?? "";
