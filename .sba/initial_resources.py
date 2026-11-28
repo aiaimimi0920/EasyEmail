@@ -19,7 +19,8 @@ def fresh_resources(config, api):
 def verify_database_initialization(config, api, release):
     directory = release / 'publish/platform/migrations'
     names = sorted(path.name for path in directory.glob('*.sql'))
-    require(len(names) == 60 and names[-1] == '0060_naccount_identity.sql', 'EASYEMAIL_MIGRATION_SET_INVALID')
+    require(len(names) == 61 and names[-2:] == ['0060_naccount_identity.sql', '0061_omnimail_ai_workbuddy_workbench.sql'],
+            'EASYEMAIL_MIGRATION_SET_INVALID')
     platform = config['platform']['database']['id']; email = config['email']['database']['id']
     applied = api.query(platform, 'SELECT name FROM d1_migrations ORDER BY name')
     require(applied == [{'name': name} for name in names], 'EASYEMAIL_MIGRATION_SET_INVALID')
