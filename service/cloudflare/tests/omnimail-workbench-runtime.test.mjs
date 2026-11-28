@@ -125,8 +125,8 @@ test("Cloudflare Omnimail workbench routes: presets, PrivacyGuard BYOK vault, ru
       "METHOD:REQUEST",
       "BEGIN:VEVENT",
       "UID:slot-1@example.test",
-      "DTSTART:20261210T100000Z",
-      "DTEND:20261210T110000Z",
+      "DTSTART;TZID=Asia/Shanghai:20261129T090000",
+      "DTEND;TZID=Asia/Shanghai:20261129T100000",
       "SUMMARY:Sprint Review",
       "ORGANIZER:mailto:pm@example.test",
       "END:VEVENT",
@@ -139,8 +139,14 @@ test("Cloudflare Omnimail workbench routes: presets, PrivacyGuard BYOK vault, ru
     });
     assert.equal(rsvp1.status, 200);
     assert.match(rsvp1.body.replyDraft.icsContent, /METHOD:REPLY/);
+    assert.match(rsvp1.body.replyDraft.icsContent, /DTSTART:20261129T010000Z\r\nDTEND:20261129T020000Z\r\n/);
+    const slot = await h.db.prepare("SELECT start_at_ms,end_at_ms FROM calendar_events WHERE user_id=? AND uid=?")
+      .bind(user.id, "slot-1@example.test").first();
+    assert.deepEqual(slot, { start_at_ms: Date.UTC(2026, 10, 29, 1), end_at_ms: Date.UTC(2026, 10, 29, 2) });
 
-    const icsOverlap = ics1.replace("UID:slot-1@example.test", "UID:slot-2@example.test").replace("Sprint Review", "Urgent Sync");
+    const icsOverlap = ics1.replace("UID:slot-1@example.test", "UID:slot-2@example.test").replace("Sprint Review", "Urgent Sync")
+      .replace(";TZID=Asia/Shanghai:20261129T090000", ":20261129T013000Z")
+      .replace(";TZID=Asia/Shanghai:20261129T100000", ":20261129T023000Z");
     const parsedOverlap = await h.request("/api/v1/calendar/parse", {
       cookie: user.cookie,
       method: "POST",
