@@ -18,7 +18,11 @@ test("Chrome: allocate, sync, text-only mail, fresh extraction, scoped key and r
     const errors = [];
     const externalRequests = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    page.on("request", (request) => { if (!request.url().startsWith(h.baseUrl.origin)) externalRequests.push(request.url()); });
+    await context.route("**/*", route => {
+      if (new URL(route.request().url()).origin === h.baseUrl.origin) return route.continue();
+      externalRequests.push(route.request().url());
+      return route.abort();
+    });
     await page.goto(h.baseUrl.href);
     await page.getByRole("button", { name: "使用邀请口令注册", exact: true }).click();
     await page.getByLabel("用户名", { exact: true }).fill("mail-web-alice");
@@ -44,12 +48,14 @@ test("Chrome: allocate, sync, text-only mail, fresh extraction, scoped key and r
     assert.equal(text.includes("synthetic-mail-jwt"), false);
     assert.equal(text.includes("synthetic-cf-admin"), false);
     const htmlOnly = { ...cfMail(mailbox.address, 2, ""), subject: "HTML-only safety" };
-    htmlOnly.html += '<img src="https://untrusted.invalid/track" onerror="window.mailExecuted=true">';
+    htmlOnly.html = '<style>.private{color:red}</style><script>window.mailExecuted=true</script>'
+      + '<p>取件码：<b>724681</b></p><p>A &amp; B<br>请在前台领取</p>'
+      + '<img src="https://untrusted.invalid/track" onerror="window.mailExecuted=true">';
     fixture.messages.get(mailbox.address).push(htmlOnly);
     await page.getByRole("button", { name: "刷新收信", exact: true }).click();
     await page.getByRole("button", { name: "HTML-only safety", exact: true }).click();
     await page.locator("article").getByRole("heading", { name: "HTML-only safety", exact: true }).waitFor();
-    assert.ok((await page.getByTestId("mail-body").textContent()).includes("<script>"));
+    assert.equal(await page.getByTestId("mail-body").textContent(), "取件码：724681\nA & B\n请在前台领取");
     assert.equal(await page.locator("article script, article img, article a").count(), 0);
     assert.equal(await page.evaluate(() => window.mailExecuted), undefined);
     assert.deepEqual(externalRequests, []);

@@ -1,4 +1,6 @@
+import { useState } from "react";
 import type { AppController } from "../../app/useAppController";
+import { omnimailWorkbenchClient } from "../../app/appRuntime";
 
 export function ComposeBodyEditor({ controller }: { controller: AppController }) {
   const {
@@ -6,6 +8,36 @@ export function ComposeBodyEditor({ controller }: { controller: AppController })
     composeBodyEditorRef, composeFontCss, composeFontFamily, composeFontSize, composeTextColor, composeBackgroundColor, handleComposeRichInput, handleComposeRichPaste,
     saveComposeEditorSelection, syncComposeRichBodyState,
   } = controller;
+  const [aiPolishing, setAiPolishing] = useState(false);
+
+  async function runByokPolish() {
+    const rawText = (composeBodyEditorRef.current?.innerText || controller.sendBodyText || "").trim();
+    if (!rawText) {
+      controller.setStatusMessage("请先输入邮件草稿内容后再执行 BYOK 润色。");
+      return;
+    }
+    setAiPolishing(true);
+    try {
+      const res = await omnimailWorkbenchClient.analyzeMail({
+        task: "polish",
+        subject: controller.sendSubject,
+        text: rawText,
+        consentConfirmed: true,
+      });
+      if (res.result.polishedText?.trim()) {
+        if (composeBodyEditorRef.current) {
+          composeBodyEditorRef.current.textContent = res.result.polishedText.trim();
+          syncComposeRichBodyState();
+        }
+        controller.setSendBodyText(res.result.polishedText.trim());
+        controller.setStatusMessage("已通过 PrivacyGuard BYOK 模型完成草稿润色（未自动发送）。");
+      }
+    } catch (err) {
+      controller.setStatusMessage(err instanceof Error ? err.message : "BYOK 润色请求失败");
+    } finally {
+      setAiPolishing(false);
+    }
+  }
   return (
     <div
       className={`nt-compose-popover__body ${
@@ -30,6 +62,9 @@ export function ComposeBodyEditor({ controller }: { controller: AppController })
           </button>
           <button type="button" onClick={() => insertComposeRichText("请将上文缩短为更简洁的版本。")}>
             ↔ 缩短
+          </button>
+          <button type="button" disabled={aiPolishing} onClick={() => void runByokPolish()}>
+            {aiPolishing ? "润色中…" : "✦ BYOK 润色"}
           </button>
           <span className="nt-compose-ai-more-control">
             <button

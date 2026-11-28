@@ -12,6 +12,7 @@ import { handleExtensionsRoute } from "./routes/extensions.js";
 import { handleImapSyncRoute } from "./routes/imap-sync.js";
 import { handleInternalRoute } from "./routes/internal.js";
 import { handleMessageRoute } from "./routes/messages.js";
+import { handleOmnimailWorkbenchRoute } from "./routes/omnimail-workbench.js";
 import { handlePublicRoute } from "./routes/public.js";
 import { handleSendQueueRoute } from "./routes/send-queue.js";
 
@@ -262,7 +263,13 @@ export function createEasyEmailHttpServer(
 
     try {
       const query = parseQueryString(url);
-      const result = await handleImapSyncRoute({
+      const result = await handleOmnimailWorkbenchRoute({
+        method,
+        path,
+        query,
+        handler,
+        readJsonBody: readBodyJson,
+      }) ?? await handleImapSyncRoute({
         method,
         path,
         query,
@@ -376,6 +383,7 @@ export function createEasyEmailHttpServer(
         close() {
           if (!closePromise) {
             closing = true;
+            handler.omnimail.closeMemorySessions();
             const listenerClosed = new Promise<void>((res, rej) => {
               server.close((error) => error ? rej(error) : res());
               server.closeIdleConnections?.();

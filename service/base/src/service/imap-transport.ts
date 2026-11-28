@@ -36,6 +36,10 @@ import {
   parseImapRfc822MessageBody,
 } from "./imap-mime-parser.js";
 import { decodeMimeHeaderWords, parseSenderHeader } from "./mail-header-codec.js";
+import {
+  normalizeProviderAppSecret,
+  shouldSendRfc2971ImapId,
+} from "../domain/mail-provider-presets.js";
 
 const DEFAULT_CONNECTION_TIMEOUT_MS = 12_000;
 const HEADER_FETCH_NAMES = [
@@ -209,12 +213,13 @@ export class ImapFlowTransport implements MailImapTransport, MailImapConnectionT
     operation: (client: ImapFlowTransportClient) => Promise<T>,
   ): Promise<T> {
     const sniServername = net.isIP(profile.host) === 0 ? profile.host : undefined;
-    const client = this.createClient({
+    const makeClient = (pass: string) => this.createClient({
       host: profile.host,
       port: profile.port,
       secure: profile.security === "tls",
       doSTARTTLS: profile.security === "starttls" ? true : undefined,
-      auth: { user: profile.username, pass: secret },
+      auth: { user: profile.username, pass },
+      clientInfo: { name: "EasyEmail", version: "1.0.0", vendor: "EasyEmail Client" },
       logger: false,
       disableAutoIdle: true,
       connectionTimeout: this.timeoutMs,
@@ -227,10 +232,26 @@ export class ImapFlowTransport implements MailImapTransport, MailImapConnectionT
         ...(sniServername !== undefined ? { servername: sniServername } : {}),
       },
     });
+    let client = makeClient(secret);
     let connected = false;
     try {
-      await client.connect();
+      try {
+        await client.connect();
+      } catch (firstErr) {
+        const normalizedPass = normalizeProviderAppSecret(profile.username, secret);
+        if (isAuthenticationFailure(firstErr) && normalizedPass !== secret) {
+          client.close();
+          client = makeClient(normalizedPass);
+          await client.connect();
+        } else {
+          throw firstErr;
+        }
+      }
       connected = true;
+      const maybeCommandRunner = client as unknown as { run?: (command: string, ...args: unknown[]) => Promise<unknown> };
+      if (typeof maybeCommandRunner.run === "function" && shouldSendRfc2971ImapId(profile.host, [...client.capabilities.keys()])) {
+        await maybeCommandRunner.run("ID", { name: "EasyEmail", version: "1.0.0", vendor: "EasyEmail Client" }).catch(() => undefined);
+      }
       return await operation(client);
     } catch (error) {
       throw mapImapTransportError(error, "Could not complete IMAP operation.");

@@ -6,6 +6,7 @@ import {
 } from "./desktopCoreClient.ts";
 import {
   createEasyEmailHttpClient,
+  type EasyEmailHttpRequest,
   type EasyEmailAgentAccountCreateRequest,
   type EasyEmailAgentAccountListQuery,
   type EasyEmailAgentAccountResponse,
@@ -415,6 +416,9 @@ export function createBundledCoreClient(
       query: EasyEmailClearAvatarCacheQuery = {},
     ): Promise<EasyEmailClearAvatarCacheResponse> {
       return (await getHttpClient()).clearMailAvatarCache(query);
+    },
+    async requestWorkbench<TResponse = unknown>(req: EasyEmailHttpRequest): Promise<TResponse> {
+      return (await getHttpClient()).request<TResponse>(req);
     },
     ...createBundledCoreMailboxMethods(getHttpClient),
   };

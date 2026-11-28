@@ -54,7 +54,7 @@ export function AgentInbox({ account, visible, disabled = false, onBusy, onReply
         onSubmit={(id, body) => { void review.submit(id, body); }} />}
       {!threadId && state.page && <AgentInboundCreate key={`inbound-${message.id}`} message={message} accountRevision={state.page.accountRevision} disabled={disabled || locked}
         onSubmit={(id, body) => { void creation.submit(id, body); }} />}
-      <SafeMailBody key={message.id} text={message.content.textBody} html={message.content.htmlBody} />
+      <SafeMailBody key={message.id} subject={message.subject} text={message.content.textBody} html={message.content.htmlBody} sender={message.sender} attachmentFilenames={message.content.attachments.map(a => a.filename)} />
       <AttachmentList key={message.id} path={`${agentInboxPath(account.id)}/messages/${message.id}`} items={message.content.attachments} truncated={message.content.attachmentsTruncated} />
     </article>}
   </section>;

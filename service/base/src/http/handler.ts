@@ -18,8 +18,11 @@ import {
   type MailTaxonomyService,
 } from "../service/mail-taxonomy.js";
 import type { MailVerificationService } from "../service/mail-verifications.js";
+import { OmnimailWorkbenchFacade } from "../service/omnimail-workbench-facade.js";
 
 export class EasyEmailHttpHandler extends EasyEmailDeliveryAndAgentHttpHandlerBase {
+  public readonly omnimail: OmnimailWorkbenchFacade;
+
   public constructor(
     service: EasyEmailService = createEasyEmailService(),
     queryRepository?: MailStateQueryRepository,
@@ -34,6 +37,7 @@ export class EasyEmailHttpHandler extends EasyEmailDeliveryAndAgentHttpHandlerBa
     mailExtensions?: MailExtensionsService,
     mailAgent?: MailAgentService,
     mailAvatar?: MailAvatarService,
+    omnimail?: OmnimailWorkbenchFacade,
   ) {
     super(
       service,
@@ -46,6 +50,54 @@ export class EasyEmailHttpHandler extends EasyEmailDeliveryAndAgentHttpHandlerBa
       mailAgent,
       mailAvatar,
     );
+    this.omnimail =
+      omnimail ??
+      new OmnimailWorkbenchFacade({
+        getAccount: accounts ? (id) => accounts.getAccount(id) : undefined,
+        listRecentMessages: async () => {
+          if (!messages) return [];
+          const res = await messages.listMessages({ limit: 100, includeArchived: true });
+          return res.messages.map((m) => ({
+            id: m.id,
+            accountId: m.accountId ?? undefined,
+            sender: m.fromAddress,
+            subject: m.subject,
+            bodySnippet: m.snippet,
+            receivedAtMs: Date.parse(m.observedAt) || Date.now(),
+            hasAttachments: m.hasAttachments,
+          }));
+        },
+        applyMessageRuleAction: messages
+          ? async (messageId, actions) => {
+              let touched = false;
+              if (actions.markRead) {
+                await messages.setLocalFlag(messageId, { flagName: "read", enabled: true });
+                touched = true;
+              }
+              if (actions.star) {
+                await messages.setLocalFlag(messageId, { flagName: "starred", enabled: true });
+                touched = true;
+              }
+              if (actions.addLabelIds) {
+                for (const labelName of actions.addLabelIds) {
+                  await messages.setLocalLabel(messageId, { labelName, enabled: true });
+                  touched = true;
+                }
+              }
+              if (actions.trash) {
+                await messages.deleteLocal(messageId);
+                touched = true;
+              } else if (actions.archive) {
+                await messages.setLocalFolder(messageId, { folderName: "archive" });
+                touched = true;
+              } else if (actions.moveToFolderId) {
+                await messages.setLocalFolder(messageId, { folderName: actions.moveToFolderId });
+                touched = true;
+              }
+              return touched;
+            }
+          : undefined,
+      });
   }
 
   protected requireContacts(): ContactService {

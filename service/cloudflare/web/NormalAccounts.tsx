@@ -10,6 +10,7 @@ import { NormalSmtp } from "./NormalSmtp";
 import { useNormalReply, type NormalReplyIntent } from "./NormalReply";
 import { GoogleAuthorization } from "./GoogleAuthorization";
 import { NormalServerFolders } from "./NormalServerFolders";
+import { NormalConnectionDiagnostics } from "./NormalConnectionDiagnostics";
 
 export function NormalAccounts({ visible, authorizedId }: { visible: boolean; authorizedId?: string }) {
   const action = useNormalOrganization();
@@ -55,6 +56,7 @@ export function NormalAccounts({ visible, authorizedId }: { visible: boolean; au
       {account.testError && <p>{errorMessage(new ApiError(502, account.testError))}</p>}
       {account.inboxUidValidity && <p>只读 INBOX：{account.inboxMessages} 封 · UIDVALIDITY {account.inboxUidValidity}</p>}
       <Button disabled={locked || dirty || !account.enabled || !account.credentialConfigured} onClick={() => void state.testConnection()} wrap>测试 IMAP 连接</Button>
+      <NormalConnectionDiagnostics account={account} disabled={locked || dirty || !account.enabled || !account.credentialConfigured} onAccount={state.replaceAccount} />
       <Button variant="danger" disabled={locked || dirty} onClick={async () => {
         if ((await confirm("移除平台普通邮箱账号和凭据？不会删除服务器上的邮件。"))) void state.write({ path: `/normal-accounts/${account.id}`,
           method: "DELETE", key: crypto.randomUUID(), body: { expectedRevision: account.revision } });

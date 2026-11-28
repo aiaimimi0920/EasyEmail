@@ -14,6 +14,9 @@ import { outboxRefs } from "./outbox-attachments";
 import { SendSchedule, scheduledValue, type SendMode } from "./SendSchedule";
 import { SendJobs } from "./SendJobs";
 import { jobState, type SendJob } from "./send-jobs";
+import { UndoSendBanner } from "./UndoSendBanner";
+import { RichComposeToolbar } from "./RichComposeToolbar";
+import { ComposeInlineAiHelper } from "./ComposeInlineAiHelper";
 
 interface Outgoing {
   id: string; accountId: string; requestKey: string; from: string; subject: string; state: string; error: string | null; createdAt: number;
@@ -120,8 +123,10 @@ export function NormalSend({ account, smtp, disabled, onBusy, reply, replyGuard,
   const confirm = useConfirmation([account.id, account.revision, account.emailAddress, disabled, locked, draft, attempt, mode, time]);
   return <section aria-label="普通邮箱发信"><h3>普通邮箱发信</h3>
     <p>{attempt?.from ?? account.emailAddress}</p>
-    {draft.replyToMessageId && <div><p>回复原邮件 {draft.replyToMessageId}</p>
-      <Button disabled={disabled || locked} onClick={() => update({ replyToMessageId: undefined })} variant="quiet" wrap>改为新邮件</Button></div>}
+    {draft.replyToMessageId && <div className="row"><p>回复原邮件 {draft.replyToMessageId}</p>
+      <Button disabled={disabled || locked} onClick={async () => {
+        if (await confirm("解除与原邮件的回复关联将不再附带原线程头，确认改为独立新邮件？")) update({ replyToMessageId: undefined });
+      }} variant="quiet" wrap>改为新邮件</Button></div>}
     {staleSource && <div role="status">草稿关联账号版本 {draft.accountRevision}，当前版本 {account.revision}
       <Button disabled={disabled || locked} onClick={async () => {
         if ((await confirm(`账号身份或配置可能已变化。确认以当前发件地址 ${account.emailAddress} 继续编辑并重新保存此草稿？`))) update({ accountRevision: account.revision });
@@ -131,6 +136,8 @@ export function NormalSend({ account, smtp, disabled, onBusy, reply, replyGuard,
       <ComposeRecipients ids="normal-send" value={draft} disabled={disabled || locked} onChange={update} />
       <Field label="普通邮件主题"><Input id="normal-send-subject" value={draft.subject} maxLength={200} required disabled={disabled || locked} onChange={event => update({ subject: event.target.value })} /></Field>
       <Field label="普通邮件正文"><Textarea id="normal-send-text" value={draft.text} maxLength={6000} required disabled={disabled || locked} onChange={event => update({ text: event.target.value })} /></Field>
+      <RichComposeToolbar text={draft.text} disabled={disabled || locked} onUpdateText={nextText => update({ text: nextText })} />
+      <ComposeInlineAiHelper text={draft.text} disabled={disabled || locked} onApplyPolished={nextText => update({ text: nextText })} />
       <OutboxAttachments value={draft.attachments ?? []} disabled={disabled || baseLocked} supported
         onChange={attachments => { setAssetsReady(!attachments.length); update({ attachments }); }} onReady={setAssetsReady}
         onLock={value => { uploadBusy.current = value; setUploadLocked(value); }} />
@@ -149,6 +156,9 @@ export function NormalSend({ account, smtp, disabled, onBusy, reply, replyGuard,
     </div>}
     {receipt && <Notice role="status" tone="info">{stateText(receipt.state)}{receipt.error ? ` · ${receipt.error}` : ""}</Notice>}
     {job && <Notice role="status" tone="info">{jobState(job.state)} · {dateText(job.dueAt)}</Notice>}
+    <UndoSendBanner job={job} basePath={`/normal-accounts/${account.id}/send-jobs`} onUndone={cancelled => {
+      setAttempt(null); setJob(cancelled); setQueueRevision(old => old + 1); setNotice("已撤回发送并保留当前草稿编辑内容");
+    }} onStatusError={setError} />
     {notice && <Notice role="status" tone="info">{notice}</Notice>}{error && <Notice role="alert" tone="danger">{error}</Notice>}
     <Button disabled={pending || queueLocked} onClick={() => void loadHistory()} variant="quiet" wrap>刷新普通发送记录</Button>
     <ul>{history?.items.map(row => <li key={row.id}><div><strong>{row.subject || "内容已清理"}</strong>

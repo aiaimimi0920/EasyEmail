@@ -14,6 +14,10 @@ import { OutboxAttachments } from "./OutboxAttachments";
 import { SendSchedule, scheduledValue, type SendMode } from "./SendSchedule";
 import { SendJobs } from "./SendJobs";
 import { jobState, type SendJob } from "./send-jobs";
+import { useConfirmation } from "./Confirmation";
+import { UndoSendBanner } from "./UndoSendBanner";
+import { RichComposeToolbar } from "./RichComposeToolbar";
+import { ComposeInlineAiHelper } from "./ComposeInlineAiHelper";
 
 interface Provider { id: string; capabilities: { send: boolean; replyHeaders: boolean; multipleRecipients: boolean; attachmentSend: boolean } }
 interface Attempt { key: string; draft: ComposeDraft; uncertain: boolean; scheduledAt?: number | null; cloud?: { draftId: string; draftRevision: number } }
@@ -27,6 +31,7 @@ export function Composer({ visible, request }: { visible: boolean; request: Comp
   const [result, setResult] = useState<Outgoing | null>(null);
   const [job, setJob] = useState<SendJob | null>(null);
   const [mode, setMode] = useState<SendMode>("direct"), [scheduleTime, setScheduleTime] = useState("");
+  const [replyIdentityUnlocked, setReplyIdentityUnlocked] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -66,10 +71,12 @@ export function Composer({ visible, request }: { visible: boolean; request: Comp
       setDraft({ mailboxId: request.mailboxId, to: request.message?.replyAddress ?? "", text: "",
         subject: request.message ? (/^re:/i.test(request.message.subject) ? request.message.subject : `Re: ${request.message.subject}`).slice(0, 200) : "",
         ...(request.message ? { replyToMessageId: request.message.id } : {}) });
-      setConfirmed(false); setError(""); setMode("direct"); setScheduleTime(""); setJob(null);
+      setConfirmed(false); setError(""); setMode("direct"); setScheduleTime(""); setJob(null); setReplyIdentityUnlocked(false);
     })();
     return () => { current = false; };
   }, [request]);
+
+  const confirm = useConfirmation([draft.mailboxId, draft.replyToMessageId, visible]);
 
   const selected = boxes.find((box) => box.id === draft.mailboxId);
   const capability = providers.find((provider) => provider.id === selected?.providerId)?.capabilities;
@@ -136,9 +143,15 @@ export function Composer({ visible, request }: { visible: boolean; request: Comp
         update({ [target]: append && draft[target] ? `${draft[target]}, ${address}` : address });
       }} />
       <form onSubmit={send}>
-        <Field label="发件邮箱"><Select id={`${ids}-from`} value={draft.mailboxId} disabled={editingLocked} onChange={(event) => update({ mailboxId: event.target.value, replyToMessageId: undefined })} required>
+        <Field label="发件邮箱"><Select id={`${ids}-from`} value={draft.mailboxId} disabled={editingLocked || (!!draft.replyToMessageId && !replyIdentityUnlocked)} onChange={(event) => update({ mailboxId: event.target.value, replyToMessageId: undefined })} required>
           <option value="">选择发件邮箱</option>{boxes.filter((box) => box.status === "active" && !mailboxExpired(box) && !box.disabled && box.releasedAt === null).map((box) => <option key={box.id} value={box.id}>{box.address}</option>)}
         </Select></Field>
+        {draft.replyToMessageId && !replyIdentityUnlocked && <div className="row">
+          <small>已锁定原收件身份以防多邮箱串号</small>
+          <Button type="button" variant="quiet" disabled={editingLocked} onClick={async () => {
+            if (await confirm("解锁并更换发件邮箱将解除与原邮件的回复关联，确认继续？")) setReplyIdentityUnlocked(true);
+          }} wrap>解锁更换发件身份</Button>
+        </div>}
         {selected && !capability?.send && <Notice role="status" tone="info">此邮箱尚未启用发送</Notice>}
         {selected && mailboxExpired(selected) && <Notice role="status" tone="info">平台访问已到期；仍可核对原发送结果</Notice>}
         {draft.replyToMessageId && <p>{capability?.replyHeaders ? "可用的原邮件线程头将随回复提交；未验证实际会话归并。" : "此通道不支持线程头，回复将作为普通邮件发送。"} 收件地址来自原发件人，请核对。</p>}
@@ -146,6 +159,8 @@ export function Composer({ visible, request }: { visible: boolean; request: Comp
         {selected && !recipientsSupported && <Notice role="status" tone="info">此发送通道仅支持单个收件地址，不支持抄送或密送；草稿仍可保存。</Notice>}
         <Field label="邮件主题"><Input id={`${ids}-subject`} value={draft.subject} maxLength={200} required disabled={editingLocked} onChange={(event) => update({ subject: event.target.value })} /></Field>
         <Field label="纯文本正文"><Textarea id={`${ids}-text`} value={draft.text} maxLength={6000} required disabled={editingLocked} onChange={(event) => update({ text: event.target.value })} /></Field>
+        <RichComposeToolbar text={draft.text} disabled={editingLocked} onUpdateText={(nextText) => update({ text: nextText })} />
+        <ComposeInlineAiHelper text={draft.text} disabled={editingLocked} onApplyPolished={(nextText) => update({ text: nextText })} />
         <OutboxAttachments value={draft.attachments ?? []} disabled={locked || pending || cloud.pending} supported={!!capability?.attachmentSend}
           onChange={attachments => { setAssetsReady(!attachments.length); update({ attachments }); }} onReady={setAssetsReady}
           onLock={value => { uploadBusy.current = value; setUploadLocked(value); setConfirmed(false); }} />
@@ -162,6 +177,15 @@ export function Composer({ visible, request }: { visible: boolean; request: Comp
       {error && <Notice role="alert" tone="danger">{error}</Notice>}
       {result && <Notice role="status" tone="info">{sendState(result.state)}</Notice>}
       {job && <Notice role="status" tone="info">{jobState(job.state)}</Notice>}
+      <UndoSendBanner job={job} basePath="/send-jobs" onUndone={(cancelled) => {
+        const savedDraft = attempt.current?.draft;
+        attempt.current = null;
+        setJob(cancelled);
+        setUncertain(false);
+        setConfirmed(false);
+        if (savedDraft) setDraft(savedDraft);
+        setRevision((old) => old + 1);
+      }} onStatusError={setError} />
       {uncertain && !result && <Notice role="status" tone="info">发送结果待确认，请勿重复发送</Notice>}
       {attempt.current && <p>本次幂等键：<code data-testid="send-attempt-key">{attempt.current.key}</code></p>}
       {uncertain && <Checkbox checked={newConfirmed} onChange={(event) => setNewConfirmed(event.target.checked)} label="我已核对发送记录，另起一封邮件，不会重试本次发送" />}

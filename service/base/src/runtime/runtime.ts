@@ -49,6 +49,7 @@ import { createMailPromotionService } from "../service/mail-promotion.js";
 import { createMailSendQueueService } from "../service/mail-send-queue.js";
 import { createMailTaxonomyService } from "../service/mail-taxonomy.js";
 import { createMailVerificationService } from "../service/mail-verifications.js";
+import { OmnimailWorkbenchFacade } from "../service/omnimail-workbench-facade.js";
 import { NodeSmtpTransport } from "../service/smtp-transport.js";
 import { createAliasProvidersFromRuntimeConfig } from "./alias-provider-config.js";
 import { configureCloudflareTempEmailProviderInstance } from "./cloudflare-temp-email-config.js";
@@ -220,6 +221,11 @@ export async function startEasyEmailServiceRuntime(
         errors.push(error);
       }
       try {
+        handler?.omnimail.closeMemorySessions();
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
         relationalDatabase?.close();
       } catch (error) {
         errors.push(error);
@@ -306,6 +312,61 @@ export async function startEasyEmailServiceRuntime(
           runtimeHasApiKey: Boolean(config.apiKey),
         })
       : undefined;
+    const omnimailFacade = new OmnimailWorkbenchFacade({
+      persistence: relationalDatabase?.omnimailWorkbench,
+      getContactRepo: () => contactRepository,
+      getAccount: accountService ? (id) => accountService.getAccount(id) : undefined,
+      probeDeps: {
+        credentialResolver: mailCredentialResolver,
+        imapTester: mailImapConnectionTester,
+        smtpTransport: mailSmtpTransport,
+      },
+      allowWorkBuddyLoopback: process.env.EASYEMAIL_WORKBUDDY_ALLOW_LOOPBACK === "1",
+      freeTranslateEndpoint: process.env.EASYEMAIL_FREE_TRANSLATE_ENDPOINT,
+      listRecentMessages: async () => {
+        if (!messageService) return [];
+        const res = await messageService.listMessages({ limit: 100, includeArchived: true });
+        return res.messages.map((m) => ({
+          id: m.id,
+          accountId: m.accountId ?? undefined,
+          sender: m.fromAddress,
+          subject: m.subject,
+          bodySnippet: m.snippet,
+          receivedAtMs: Date.parse(m.observedAt) || Date.now(),
+          hasAttachments: m.hasAttachments,
+        }));
+      },
+      applyMessageRuleAction: messageService
+        ? async (messageId, actions) => {
+            let touched = false;
+            if (actions.markRead) {
+              await messageService.setLocalFlag(messageId, { flagName: "read", enabled: true });
+              touched = true;
+            }
+            if (actions.star) {
+              await messageService.setLocalFlag(messageId, { flagName: "starred", enabled: true });
+              touched = true;
+            }
+            if (actions.addLabelIds) {
+              for (const labelName of actions.addLabelIds) {
+                await messageService.setLocalLabel(messageId, { labelName, enabled: true });
+                touched = true;
+              }
+            }
+            if (actions.trash) {
+              await messageService.deleteLocal(messageId);
+              touched = true;
+            } else if (actions.archive) {
+              await messageService.setLocalFolder(messageId, { folderName: "archive" });
+              touched = true;
+            } else if (actions.moveToFolderId) {
+              await messageService.setLocalFolder(messageId, { folderName: actions.moveToFolderId });
+              touched = true;
+            }
+            return touched;
+          }
+        : undefined,
+    });
     handler = new EasyEmailHttpHandler(
       service,
       queryRepository,
@@ -320,6 +381,7 @@ export async function startEasyEmailServiceRuntime(
       mailExtensionsService,
       mailAgentService,
       mailAvatarService,
+      omnimailFacade,
     );
     const bundledInstanceNonce = process.env.EASY_EMAIL_BUNDLED_CHILD_MODE?.trim() === "1"
       ? process.env.EASY_EMAIL_BUNDLED_INSTANCE_NONCE?.trim() || undefined

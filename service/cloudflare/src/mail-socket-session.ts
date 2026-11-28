@@ -6,7 +6,7 @@ export interface MailSocket {
   readable: ReadableStream<Uint8Array>; writable: WritableStream<Uint8Array>;
   close(): Promise<unknown>;
 }
-export interface MailSocketControl { assertActive(): void; upgrade?: () => MailSocket }
+export interface MailSocketControl { assertActive(): void; hostname?: string; upgrade?: () => MailSocket }
 
 // One deadline and cleanup owner span both the original and replacement sockets.
 export async function withMailSocket<T>(endpoint: { hostname: string; port: number; security?: "tls" | "starttls" },
@@ -22,7 +22,7 @@ export async function withMailSocket<T>(endpoint: { hostname: string; port: numb
     socket = connect({ hostname: endpoint.hostname, port: endpoint.port },
       { secureTransport: endpoint.security === "starttls" ? "starttls" : "on", allowHalfOpen: false });
     observe(socket);
-    const control: MailSocketControl = { assertActive };
+    const control: MailSocketControl = { assertActive, hostname: endpoint.hostname };
     if (endpoint.security === "starttls") control.upgrade = () => {
       assertActive();
       if (upgraded) throw new HttpError(502, `${protocol}_protocol_invalid`);

@@ -19,9 +19,14 @@ export async function normalAggregateRows(env: Env, identity: Identity, contexts
   for (const [column, value] of [["is_read", filters.isRead], ["starred", filters.starred]] as const) {
     if (value !== null) { conditions.push(`m.${column}=?`); values.push(Number(value)); }
   }
+  if (filters.dedup) {
+    conditions.push(`NOT EXISTS (SELECT 1 FROM normal_inbox_messages d WHERE d.account_id=m.account_id AND d.content_sha256=m.content_sha256
+      AND d.purged_at IS NULL AND ((d.source_folder_id IS NULL AND m.source_folder_id IS NOT NULL)
+      OR ((d.source_folder_id IS NULL)=(m.source_folder_id IS NULL) AND d.id>m.id)))`);
+  }
   if (cursor) { conditions.push("(m.received_at<? OR (m.received_at=? AND m.id<?))"); values.push(cursor.time, cursor.time, cursor.id); }
   return (await env.DB.prepare(`SELECT m.id,m.account_id,m.epoch_id,m.uid,m.received_at,m.observed_at,m.flags,m.display_name,
-    m.email_address,m.sender,m.recipient,m.subject,m.is_read,m.starred,m.archived,m.trashed_at,m.source_folder_id,m.source_folder_name,m.received_at AS sortTime FROM (SELECT m.id,m.account_id,m.epoch_id,m.uid,
+    m.email_address,m.sender,m.recipient,m.subject,m.is_read,m.starred,m.archived,m.trashed_at,m.source_folder_id,m.source_folder_name,m.received_at AS sortTime FROM (SELECT m.id,m.account_id,m.epoch_id,m.uid,m.content_sha256,
     m.received_at,m.observed_at,m.flags,a.display_name,a.email_address,p.sender,p.recipient,p.subject,p.text_body,p.html_body,${normalStateColumns}
     ,${normalSearchSourceColumns} FROM normal_inbox_messages m ${normalSearchJoin(contexts)} JOIN normal_inbox_search p ON p.message_id=m.id AND p.content_sha256=m.content_sha256
     ${normalStateJoin} WHERE ${normalSearchVisible}) m WHERE ${conditions.join(" AND ")} ORDER BY m.received_at DESC,m.id DESC LIMIT ?`)

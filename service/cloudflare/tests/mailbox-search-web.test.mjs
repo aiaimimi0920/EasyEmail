@@ -74,8 +74,26 @@ test("Chrome: single-mailbox cached search preserves ownership, filters, paginat
     assert.ok(queries.at(-1).searchParams.get("cursor"));
     const expected = await page.evaluate(() => Math.floor(new Date("2026-10-29T00:00").getTime() / 1000));
     assert.equal(queries.at(-1).searchParams.get("since"), String(expected));
+    const detail = reader.getByRole("article", { name: "邮件详情", exact: true });
+    const reads = [];
+    await page.route(`**/api/v1/mailboxes/${box.id}/messages/*`, route => {
+      reads.push([route.request().method(), route.request().url()]);
+      if (reads.length === 1) return route.fulfill({ status: 503, json: { error: { code: "request_failed" } } });
+      return route.continue();
+    });
     await reader.getByRole("button", { name: "Memo 1", exact: true }).click();
-    await reader.getByTestId("mail-body").waitFor();
+    await detail.getByRole("alert").waitFor();
+    const retry = detail.getByRole("button", { name: "重新读取邮件", exact: true });
+    assert.equal(await retry.count(), 1, "A failed cached read must be retryable without leaving the search results");
+    await retry.press("Enter");
+    await detail.getByTestId("mail-body").waitFor();
+    assert.equal(await detail.getByRole("heading", { name: "Memo 1", exact: true }).isVisible(), true);
+    assert.equal(await detail.getByRole("alert").count(), 0);
+    assert.equal(reads[0][0], "GET");
+    assert.deepEqual(reads, [reads[0], reads[0]]);
+    await page.unroute(`**/api/v1/mailboxes/${box.id}/messages/*`);
+    assert.equal(await reader.getByRole("button", { name: /^Memo / }).count(), 27);
+    assert.equal(await search.getByLabel("搜索当前邮箱邮件", { exact: true }).inputValue(), "Project & +中文");
     await search.getByRole("button", { name: "清除邮件筛选", exact: true }).click();
     await reader.getByRole("status").filter({ hasText: "已加载 25 封缓存邮件" }).waitFor();
     assert.equal(await search.getByLabel("搜索当前邮箱邮件", { exact: true }).inputValue(), "");

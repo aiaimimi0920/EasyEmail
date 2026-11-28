@@ -4,6 +4,19 @@ import type { MailSocketControl } from "./mail-socket-session";
 import { mailSasl, type MailAuthentication } from "./mail-authentication";
 import { authenticateImap } from "./normal-imap-auth";
 import { imapFolderName } from "./normal-imap-folder-names";
+import { buildRfc2971ImapIdCommandArgs, shouldSendRfc2971ImapId } from "../../base/src/domain/mail-provider-presets";
+
+async function sendBestEffortRfc2971Id(wire: ImapWire, advertised: string[]) {
+  if (!shouldSendRfc2971ImapId(wire.hostname, advertised)) return;
+  const tag = await wire.start(`ID ${buildRfc2971ImapIdCommandArgs("EasyEmail", "1.0.0")}`);
+  for (let count = 0; count < 32; count++) {
+    const line = await wire.line();
+    if (line.startsWith(`${tag} `)) return;
+    if (!line.startsWith("* ") || /^\* BYE(?: |$)/i.test(line)) throw new HttpError(502, "imap_connection_closed");
+  }
+  throw new HttpError(502, "imap_response_limit");
+}
+
 export async function imapCapabilities(wire: ImapWire) {
   const advertised = await wire.command("CAPABILITY");
   const capabilities = [...new Set(advertised.filter(line => /^\* CAPABILITY /i.test(line))
@@ -22,6 +35,7 @@ export async function openAuthenticatedImap(wire: ImapWire, username: string, au
     advertised = await imapCapabilities(wire);
   }
   await authenticateImap(wire, advertised, sasl);
+  await sendBestEffortRfc2971Id(wire, advertised);
   return advertised;
 }
 export async function openImapMailbox(wire: ImapWire, username: string, authentication: MailAuthentication, path = "INBOX") {

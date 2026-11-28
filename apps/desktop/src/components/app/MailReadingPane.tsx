@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
 import type { AppController } from "../../app/useAppController";
+import { buildDesktopMailFrameSrcDoc } from "../../mail/safeMailReaderDocument";
+import { OmnimailReaderEnhancements } from "./OmnimailReaderEnhancements";
 
 export function MailReadingPane({ controller }: { controller: AppController }) {
   const {
@@ -392,9 +394,10 @@ export function MailReadingPane({ controller }: { controller: AppController }) {
                               title={`邮件正文 ${index + 1}/${selectedMailConversationMessages.length}：${displayNameFromAddress(conversationMessage.from_address)} · ${conversationMessage.subject}`}
                               loading="lazy"
                               sandbox="allow-same-origin allow-popups"
+                              referrerPolicy="no-referrer"
                               scrolling="no"
                               onLoad={resizeMessageHtmlFrame}
-                              srcDoc={bodySource.body_html}
+                              srcDoc={buildDesktopMailFrameSrcDoc(bodySource.body_html)}
                             />
                           ) : (
                             <div className="nt-message-body">
@@ -417,9 +420,10 @@ export function MailReadingPane({ controller }: { controller: AppController }) {
                   title={`邮件正文：${displayNameFromAddress(selectedMailMessage.from_address)} · ${selectedMailMessage.subject}`}
                   loading="lazy"
                   sandbox="allow-same-origin allow-popups"
+                  referrerPolicy="no-referrer"
                   scrolling="no"
                   onLoad={resizeMessageHtmlFrame}
-                  srcDoc={selectedMailMessage.body_html}
+                  srcDoc={buildDesktopMailFrameSrcDoc(selectedMailMessage.body_html)}
                 />
               ) : (
                 <div className="nt-message-body">
@@ -432,6 +436,28 @@ export function MailReadingPane({ controller }: { controller: AppController }) {
                 </div>
               )}
             </div>
+
+            <OmnimailReaderEnhancements
+              subject={selectedMailMessage.subject}
+              fromAddress={selectedMailMessage.from_address}
+              bodyText={
+                "body_text" in selectedMailMessage
+                  ? selectedMailMessage.body_text ?? selectedMailMessage.snippet
+                  : selectedMailMessage.snippet
+              }
+              bodyHtml={
+                "body_html" in selectedMailMessage && selectedMailMessage.body_html
+                  ? selectedMailMessage.body_html
+                  : ""
+              }
+              openUrl={openUrl}
+              onPopulateReplyDraft={(to, replySubj, replyBody) => {
+                controller.setSendTargetAddress(to);
+                controller.setSendSubject(replySubj);
+                controller.setSendBodyText(replyBody);
+                controller.setComposePopoverOpen(true);
+              }}
+            />
           </section>
         </div>
       ) : (

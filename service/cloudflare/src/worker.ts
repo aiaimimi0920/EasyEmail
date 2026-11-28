@@ -37,6 +37,11 @@ import { runAgentFollowups } from "./agent-followup-runner";
 import { autoInboxRoute, isAutoInboxPath } from "./agent-auto-inbox-routes";
 import { runAgentAutoInbox } from "./agent-auto-inbox-runner";
 import { runScheduledMaintenance } from "./scheduled-maintenance";
+import { aiGatewayRoute, isAiGatewayPath } from "./ai-gateway-routes";
+import { isWorkBuddyPath, workBuddyRoute } from "./workbuddy-routes";
+import { inboxRulesRoute, isInboxRulesPath } from "./inbox-rules-routes";
+import { contactToolsRoute, isContactToolsPath } from "./contact-tools-routes";
+import { calendarInviteRoute, isCalendarPath } from "./calendar-invite-routes";
 
 async function route(request: Request, env: Env): Promise<Response> {
   const path = new URL(request.url).pathname;
@@ -59,9 +64,14 @@ async function route(request: Request, env: Env): Promise<Response> {
   const known = ["/api/v1/me", "/api/v1/auth/logout", "/api/v1/account/password", "/api/v1/account/revoke-credentials", "/api/v1/api-keys", "/api/v1/mailboxes"];
   const keyMatch = /^\/api\/v1\/api-keys\/([0-9a-f-]{36})$/.exec(path);
   const mailboxMatch = /^\/api\/v1\/mailboxes\/([0-9a-f-]{36})$/.exec(path);
-  if (!known.includes(path) && !keyMatch && !mailboxMatch && !isMailPath(path) && !isAdminPath(path) && !isDraftPath(path) && !isOrganizationPath(path) && !isContactPath(path) && !isConversationPath(path) && !isSubscriptionPath(path) && !isOutboxPath(path) && !isSendJobPath(path) && !isNormalAccountPath(path) && !isNormalSendPath(path) && !isNormalSendJobPath(path) && !isGoogleOAuthPath(path) && !isAgentServicePath(path) && !isAgentAccountPath(path) && !isAgentSmtpPath(path) && !isAgentTaskPath(path) && !isAgentInboxPath(path) && !isAgentReviewPath(path) && !isAgentThreadPath(path) && !isAgentInboundPath(path) && !isAgentFollowupPath(path) && !isAutoInboxPath(path)) throw new HttpError(404, "not_found");
+  if (!known.includes(path) && !keyMatch && !mailboxMatch && !isMailPath(path) && !isAdminPath(path) && !isDraftPath(path) && !isOrganizationPath(path) && !isContactPath(path) && !isConversationPath(path) && !isSubscriptionPath(path) && !isOutboxPath(path) && !isSendJobPath(path) && !isNormalAccountPath(path) && !isNormalSendPath(path) && !isNormalSendJobPath(path) && !isGoogleOAuthPath(path) && !isAgentServicePath(path) && !isAgentAccountPath(path) && !isAgentSmtpPath(path) && !isAgentTaskPath(path) && !isAgentInboxPath(path) && !isAgentReviewPath(path) && !isAgentThreadPath(path) && !isAgentInboundPath(path) && !isAgentFollowupPath(path) && !isAutoInboxPath(path) && !isAiGatewayPath(path) && !isWorkBuddyPath(path) && !isInboxRulesPath(path) && !isContactToolsPath(path) && !isCalendarPath(path)) throw new HttpError(404, "not_found");
   const identity = await authenticate(request, env);
   await rateLimit(env, "api-user", identity.userId, 120);
+  if (isInboxRulesPath(path)) return inboxRulesRoute(request, env, identity);
+  if (isContactToolsPath(path)) return contactToolsRoute(request, env, identity);
+  if (isCalendarPath(path)) return calendarInviteRoute(request, env, identity);
+  if (isAiGatewayPath(path)) return aiGatewayRoute(request, env, identity);
+  if (isWorkBuddyPath(path)) return workBuddyRoute(request, env, identity);
   if (isAutoInboxPath(path)) return autoInboxRoute(request, env, identity);
   if (isAgentFollowupPath(path)) return agentFollowupRoute(request, env, identity);
   if (isAgentInboundPath(path)) return agentInboundRoute(request, env, identity);

@@ -7,9 +7,11 @@ import { messageThreadPlan } from "./message-thread-input";
 import { threadWriteStatements } from "./message-thread-store";
 import { subscriptionPlan } from "./subscription-input";
 import { subscriptionWriteStatements } from "./subscription-cache";
+import { resolveInboundAutoMailState } from "./inbox-rules-auto";
 
 export async function mailCacheStatements(env: Env, row: OwnedMailbox, mail: MailContent, lease: string) {
-  const { rfcMessageId, threadHeaders, subscriptionHeaders, attachmentsTruncated, resourceVersion, remoteDeleteEnabled, ...legacy } = mail;
+  const autoState = await resolveInboundAutoMailState(env, row.user_id, row.id, mail);
+  const { rfcMessageId, authenticationResults, replyToHeader, threadHeaders, subscriptionHeaders, attachmentsTruncated, resourceVersion, remoteDeleteEnabled, ...legacy } = mail;
   legacy.attachments = mail.attachments.map(({ index: _index, sha256: _sha256, ...item }) => item);
   const fingerprint = await tokenHash(JSON.stringify(legacy));
   const version = mail.attachments.some((item) => item.sha256)
@@ -30,13 +32,22 @@ export async function mailCacheStatements(env: Env, row: OwnedMailbox, mail: Mai
     return [env.DB.prepare(`UPDATE messages SET remote_delete_enabled=? WHERE mailbox_id=? AND user_id=? AND fingerprint=?
       AND source_version=? AND purged_at IS NULL AND ${fence}`)
       .bind(Number(remoteDeleteEnabled === true), row.id, row.user_id, sourceFingerprint, resourceVersion, row.id, row.user_id, lease),
-    env.DB.prepare(`INSERT INTO messages
-      (id,user_id,mailbox_id,remote_id,fingerprint,sender,recipient,subject,text_body,html_body,attachments,received_at,observed_at,
-        rfc_message_id,attachment_version,attachments_truncated,source_version,remote_delete_enabled)
-      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE ${fence} ON CONFLICT(mailbox_id,fingerprint) DO NOTHING`)
-      .bind(crypto.randomUUID(), row.user_id, row.id, mail.remoteId, sourceFingerprint, mail.sender, mail.recipient, mail.subject,
-        mail.textBody, mail.htmlBody, attachments, mail.receivedAt, unixNow(), rfcMessageId ?? null, version,
-        Number(!!attachmentsTruncated), resourceVersion, Number(remoteDeleteEnabled === true), row.id, row.user_id, lease),
+    autoState.hasAutoAction
+      ? env.DB.prepare(`INSERT INTO messages
+          (id,user_id,mailbox_id,remote_id,fingerprint,sender,recipient,subject,text_body,html_body,attachments,received_at,observed_at,
+            rfc_message_id,attachment_version,attachments_truncated,source_version,remote_delete_enabled,is_read,starred,archived,trashed_at)
+          SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE ${fence} ON CONFLICT(mailbox_id,fingerprint) DO NOTHING`)
+          .bind(crypto.randomUUID(), row.user_id, row.id, mail.remoteId, sourceFingerprint, mail.sender, mail.recipient, mail.subject,
+            mail.textBody, mail.htmlBody, attachments, mail.receivedAt, unixNow(), rfcMessageId ?? null, version,
+            Number(!!attachmentsTruncated), resourceVersion, Number(remoteDeleteEnabled === true),
+            autoState.isRead, autoState.starred, autoState.archived, autoState.trashedAt, row.id, row.user_id, lease)
+      : env.DB.prepare(`INSERT INTO messages
+          (id,user_id,mailbox_id,remote_id,fingerprint,sender,recipient,subject,text_body,html_body,attachments,received_at,observed_at,
+            rfc_message_id,attachment_version,attachments_truncated,source_version,remote_delete_enabled)
+          SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE ${fence} ON CONFLICT(mailbox_id,fingerprint) DO NOTHING`)
+          .bind(crypto.randomUUID(), row.user_id, row.id, mail.remoteId, sourceFingerprint, mail.sender, mail.recipient, mail.subject,
+            mail.textBody, mail.htmlBody, attachments, mail.receivedAt, unixNow(), rfcMessageId ?? null, version,
+            Number(!!attachmentsTruncated), resourceVersion, Number(remoteDeleteEnabled === true), row.id, row.user_id, lease),
       ...metadata("m.fingerprint=? AND m.source_version=?", [sourceFingerprint, resourceVersion])];
   }
   // Keep the first legacy identity stable for old readers/writers; binary changes get separate versions.
@@ -46,18 +57,32 @@ export async function mailCacheStatements(env: Env, row: OwnedMailbox, mail: Mai
       (fingerprint = ? AND attachment_version IS ?)) AND ${fence}`)
     .bind(attachments, rfcMessageId ?? null, version, Number(!!attachmentsTruncated), row.id, row.user_id,
       fingerprint, version, versionFingerprint, version, row.id, row.user_id, lease);
-  const insert = env.DB.prepare(`INSERT INTO messages
-    (id,user_id,mailbox_id,remote_id,fingerprint,sender,recipient,subject,text_body,html_body,attachments,
-      received_at,observed_at,rfc_message_id,attachment_version,attachments_truncated)
-    SELECT ?,?,?,?, CASE WHEN EXISTS (SELECT 1 FROM messages WHERE mailbox_id = ? AND fingerprint = ?)
-      THEN ? ELSE ? END, ?,?,?,?,?,?,?,?,?,?,? WHERE ${fence} AND NOT EXISTS
-      (SELECT 1 FROM messages WHERE mailbox_id = ? AND (fingerprint = ? OR
-        (fingerprint = ? AND (attachment_version IS ? OR ? IS NULL))))
-    ON CONFLICT(mailbox_id, fingerprint) DO NOTHING`)
-    .bind(crypto.randomUUID(), row.user_id, row.id, mail.remoteId, row.id, fingerprint, versionFingerprint, fingerprint,
-      mail.sender, mail.recipient, mail.subject, mail.textBody, mail.htmlBody, attachments, mail.receivedAt, unixNow(),
-      rfcMessageId ?? null, version, Number(!!attachmentsTruncated), row.id, row.user_id, lease,
-      row.id, versionFingerprint, fingerprint, version, version);
+  const insert = autoState.hasAutoAction
+    ? env.DB.prepare(`INSERT INTO messages
+        (id,user_id,mailbox_id,remote_id,fingerprint,sender,recipient,subject,text_body,html_body,attachments,
+          received_at,observed_at,rfc_message_id,attachment_version,attachments_truncated,is_read,starred,archived,trashed_at)
+        SELECT ?,?,?,?, CASE WHEN EXISTS (SELECT 1 FROM messages WHERE mailbox_id = ? AND fingerprint = ?)
+          THEN ? ELSE ? END, ?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE ${fence} AND NOT EXISTS
+          (SELECT 1 FROM messages WHERE mailbox_id = ? AND (fingerprint = ? OR
+            (fingerprint = ? AND (attachment_version IS ? OR ? IS NULL))))
+        ON CONFLICT(mailbox_id, fingerprint) DO NOTHING`)
+        .bind(crypto.randomUUID(), row.user_id, row.id, mail.remoteId, row.id, fingerprint, versionFingerprint, fingerprint,
+          mail.sender, mail.recipient, mail.subject, mail.textBody, mail.htmlBody, attachments, mail.receivedAt, unixNow(),
+          rfcMessageId ?? null, version, Number(!!attachmentsTruncated),
+          autoState.isRead, autoState.starred, autoState.archived, autoState.trashedAt, row.id, row.user_id, lease,
+          row.id, versionFingerprint, fingerprint, version, version)
+    : env.DB.prepare(`INSERT INTO messages
+        (id,user_id,mailbox_id,remote_id,fingerprint,sender,recipient,subject,text_body,html_body,attachments,
+          received_at,observed_at,rfc_message_id,attachment_version,attachments_truncated)
+        SELECT ?,?,?,?, CASE WHEN EXISTS (SELECT 1 FROM messages WHERE mailbox_id = ? AND fingerprint = ?)
+          THEN ? ELSE ? END, ?,?,?,?,?,?,?,?,?,?,? WHERE ${fence} AND NOT EXISTS
+          (SELECT 1 FROM messages WHERE mailbox_id = ? AND (fingerprint = ? OR
+            (fingerprint = ? AND (attachment_version IS ? OR ? IS NULL))))
+        ON CONFLICT(mailbox_id, fingerprint) DO NOTHING`)
+        .bind(crypto.randomUUID(), row.user_id, row.id, mail.remoteId, row.id, fingerprint, versionFingerprint, fingerprint,
+          mail.sender, mail.recipient, mail.subject, mail.textBody, mail.htmlBody, attachments, mail.receivedAt, unixNow(),
+          rfcMessageId ?? null, version, Number(!!attachmentsTruncated), row.id, row.user_id, lease,
+          row.id, versionFingerprint, fingerprint, version, version);
   return [update, insert, ...metadata("m.source_version IS NULL AND m.fingerprint IN (?,?) AND (m.attachment_version IS ? OR ? IS NULL)",
     [fingerprint, versionFingerprint, version, version])];
 }

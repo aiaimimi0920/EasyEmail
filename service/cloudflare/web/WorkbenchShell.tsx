@@ -11,6 +11,7 @@ const sections = [
     { id: 'outgoing', label: '写信与发送记录', icon: 'compose' },
     { id: 'contacts', label: '联系人', icon: 'grid' },
     { id: 'subscriptions', label: '订阅邮件', icon: 'newsletters' },
+    { id: 'rules', label: '收件规则', icon: 'queue' },
     { id: 'normal', label: '普通邮箱', icon: 'all-mail' },
   ] },
   { title: 'Agent', items: [
@@ -18,8 +19,10 @@ const sections = [
     { id: 'agent-accounts', label: 'Agent 邮箱', icon: 'mail' },
     { id: 'agent-tasks', label: 'Agent 任务', icon: 'queue' },
     { id: 'agent-threads', label: 'Agent 线程', icon: 'drafts' },
+    { id: 'workbuddy', label: 'WorkBuddy 邮箱', icon: 'agent' },
   ] },
   { title: '设置', items: [
+    { id: 'ai-settings', label: 'AI 与翻译设置', icon: 'setup' },
     { id: 'keys', label: 'API Key', icon: 'setup' },
     { id: 'security', label: '账号安全', icon: 'setup' },
     { id: 'admin', label: '平台管理', icon: 'grid' },

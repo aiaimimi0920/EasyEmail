@@ -19,6 +19,7 @@ export class ImapWire {
   literal(length: number) { return this.reader.literal(length); }
   write(line: string) { this.control?.assertActive(); return this.writer.write(new TextEncoder().encode(line + "\r\n")); }
   get needsStartTls() { return !!this.control?.upgrade; }
+  get hostname() { return this.control?.hostname ?? ""; }
   async startTls() {
     if (!this.control?.upgrade) throw new HttpError(502, "imap_protocol_invalid");
     const remaining = this.reader.upgradeBudget();

@@ -122,23 +122,51 @@ export function buildSmtpMimeSubmission(
   headers.push("MIME-Version: 1.0");
 
   let bodySection: string;
+  const inlineItems = (envelope.inlineAttachments ?? []).filter((item) => item.contentId && item.contentBase64);
   if (envelope.bodyHtml && envelope.bodyHtml.trim().length > 0) {
-    const boundary = `=_easyemail_${randomUUID().replaceAll("-", "")}`;
-    headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
-    bodySection = [
-      `--${boundary}`,
+    const altBoundary = `=_easyemail_${randomUUID().replaceAll("-", "")}`;
+    const altLines = [
+      `--${altBoundary}`,
       "Content-Type: text/plain; charset=utf-8",
       "Content-Transfer-Encoding: base64",
       "",
       encodeBase64Body(envelope.bodyText),
-      `--${boundary}`,
+      `--${altBoundary}`,
       "Content-Type: text/html; charset=utf-8",
       "Content-Transfer-Encoding: base64",
       "",
       encodeBase64Body(envelope.bodyHtml),
-      `--${boundary}--`,
-      "",
-    ].join("\r\n");
+      `--${altBoundary}--`,
+    ];
+    if (inlineItems.length > 0) {
+      const relatedBoundary = `=_easyemail_rel_${randomUUID().replaceAll("-", "")}`;
+      headers.push(`Content-Type: multipart/related; boundary="${relatedBoundary}"`);
+      const relLines = [
+        `--${relatedBoundary}`,
+        `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+        "",
+        ...altLines,
+      ];
+      for (const inlineItem of inlineItems) {
+        const cleanCid = inlineItem.contentId.replace(/[<>\r\n\s]/g, "");
+        const cleanType = inlineItem.mimeType.replace(/[\r\n"]/g, "").trim() || "application/octet-stream";
+        const wrappedB64 = inlineItem.contentBase64.replace(/\s+/g, "").match(/.{1,76}/g)?.join("\r\n") ?? "";
+        relLines.push(
+          `--${relatedBoundary}`,
+          `Content-Type: ${cleanType}`,
+          "Content-Transfer-Encoding: base64",
+          `Content-Disposition: inline; filename="${inlineItem.filename.replace(/["\\\r\n]/g, "")}"`,
+          `Content-ID: <${cleanCid}>`,
+          "",
+          wrappedB64,
+        );
+      }
+      relLines.push(`--${relatedBoundary}--`, "");
+      bodySection = relLines.join("\r\n");
+    } else {
+      headers.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
+      bodySection = `${altLines.join("\r\n")}\r\n`;
+    }
   } else {
     headers.push("Content-Type: text/plain; charset=utf-8");
     headers.push("Content-Transfer-Encoding: base64");

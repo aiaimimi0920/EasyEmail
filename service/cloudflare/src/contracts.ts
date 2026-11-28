@@ -14,6 +14,8 @@ export interface Env {
   GOOGLE_OAUTH_CLIENT_ID?: string;
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
   NACCOUNT_CONFIG?: string;
+  FREE_TRANSLATE_ENDPOINT?: string;
+  WORKBUDDY_ALLOW_LOOPBACK?: string;
 }
 
 export interface Identity {
@@ -34,5 +36,5 @@ export interface UserRow {
 export const SESSION_SECONDS = 7 * 24 * 60 * 60;
 export const KEY_MAX_SECONDS = 90 * 24 * 60 * 60;
 export const SESSION_COOKIE = "__Host-ee_session";
-export const KEY_SCOPES = ["mailboxes:read", "mailboxes:write", "messages:read", "messages:write", "messages:send", "messages:schedule", "attachments:read", "attachments:write", "messages:delete", "mailboxes:delete", "messages:remote-delete", "mailboxes:remote-delete", "drafts:read", "drafts:write", "labels:read", "labels:write", "folders:read", "folders:write", "contacts:read", "contacts:write", "subscriptions:read", "subscriptions:write", "mail-accounts:read", "mail-accounts:write", "mail-accounts:sync", "mail-accounts:send", "mail-accounts:schedule", "mail-accounts:remote-flags", "mail-accounts:remote-move", "mail-accounts:remote-delete", "agent-services:read", "agent-services:write", "agent-accounts:read", "agent-accounts:write", "agent-accounts:sync", "agent-tasks:read", "agent-tasks:send", "agent-inbox:read", "agent-inbox:review", "agent-threads:write", "agent-threads:send", "agent-inbox:automate"] as const;
+export const KEY_SCOPES = ["mailboxes:read", "mailboxes:write", "messages:read", "messages:write", "messages:send", "messages:schedule", "attachments:read", "attachments:write", "messages:delete", "mailboxes:delete", "messages:remote-delete", "mailboxes:remote-delete", "drafts:read", "drafts:write", "labels:read", "labels:write", "folders:read", "folders:write", "contacts:read", "contacts:write", "subscriptions:read", "subscriptions:write", "mail-accounts:read", "mail-accounts:write", "mail-accounts:sync", "mail-accounts:send", "mail-accounts:schedule", "mail-accounts:remote-flags", "mail-accounts:remote-move", "mail-accounts:remote-delete", "agent-services:read", "agent-services:write", "agent-accounts:read", "agent-accounts:write", "agent-accounts:sync", "agent-tasks:read", "agent-tasks:send", "agent-inbox:read", "agent-inbox:review", "agent-threads:write", "agent-threads:send", "agent-inbox:automate", "ai:read", "ai:write", "ai:execute", "workbuddy:read", "workbuddy:write", "rules:read", "rules:write", "calendar:read", "calendar:write"] as const;
 export const unixNow = () => Math.floor(Date.now() / 1000);
